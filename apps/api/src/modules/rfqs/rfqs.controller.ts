@@ -1,0 +1,52 @@
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import type { RequestUser } from '../../common/types/request-user';
+import { CreateRfqDto } from './dto/create-rfq.dto';
+import { UpdateRfqDto } from './dto/update-rfq.dto';
+import { RfqsService } from './rfqs.service';
+
+@ApiTags('rfqs')
+@ApiBearerAuth()
+@Controller('rfqs')
+export class RfqsController {
+  constructor(private readonly rfqs: RfqsService) {}
+
+  @RequirePermission('rfq:read')
+  @Get()
+  list(@CurrentUser() user: RequestUser) {
+    return this.rfqs.list(user);
+  }
+
+  @RequirePermission('rfq:write')
+  @Post()
+  create(@CurrentUser() user: RequestUser, @Body() dto: CreateRfqDto) {
+    return this.rfqs.create(user, dto);
+  }
+
+  @RequirePermission('rfq:read')
+  @Get(':id')
+  get(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.get(user, id);
+  }
+
+  @RequirePermission('rfq:write')
+  @Patch(':id')
+  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdateRfqDto) {
+    return this.rfqs.update(user, id, dto);
+  }
+
+  @RequirePermission('rfq:write')
+  @Post(':id/send')
+  send(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.send(user, id);
+  }
+
+  @RequirePermission('rfq:write')
+  @Post(':id/close')
+  close(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.close(user, id);
+  }
+}
+

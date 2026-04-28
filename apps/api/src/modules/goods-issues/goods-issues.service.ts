@@ -1,0 +1,255 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import * as Handlebars from 'handlebars';
+import { PrismaService } from '../../prisma/prisma.service';
+import type { RequestUser } from '../../common/types/request-user';
+import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { DocumentNumberService } from '../stock/document-number.service';
+import { StockService } from '../stock/stock.service';
+import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
+
+type Line = { productId: string; quantity: number; uom: string };
+
+@Injectable()
+export class GoodsIssuesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stock: StockService,
+    private readonly numbers: DocumentNumberService,
+  ) {}
+
+  private assertNotFuture(date: Date) {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (date.getTime() > today.getTime()) {
+      throw new BadRequestException('Document date cannot be in the future');
+    }
+  }
+
+  private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
+    const s = await tx.stockSummary.findUnique({
+      where: { shopId_productId: { shopId, productId } },
+    });
+    return s?.currentStock ?? new Prisma.Decimal(0);
+  }
+
+  async list(
+    user: RequestUser,
+    query: { shop_id?: string; date_from?: string; date_to?: string; status?: DocumentStatus; cursor?: string; take?: number },
+  ) {
+    const take = clampTake(query.take);
+    const shopScope = defaultShopFilter(user);
+    const shopId = shopScope ?? query.shop_id;
+    if (query.shop_id) assertShopScope(user, query.shop_id);
+
+    const where: Prisma.GoodsIssueHeaderWhereInput = {};
+    if (shopId) where.shopId = shopId;
+    if (query.status) where.status = query.status;
+    if (query.date_from || query.date_to) {
+      where.giDate = {};
+      if (query.date_from) where.giDate.gte = new Date(query.date_from);
+      if (query.date_to) where.giDate.lte = new Date(query.date_to);
+    }
+
+    const rows = await this.prisma.goodsIssueHeader.findMany({
+      where,
+      take: take + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      orderBy: { id: 'asc' },
+      include: { shop: true },
+    });
+    const { items, meta } = buildMeta(rows, take);
+    return { data: items, meta };
+  }
+
+  async create(user: RequestUser, params: { giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }) {
+    assertShopScope(user, params.shopId);
+    const giDate = new Date(params.giDate);
+    this.assertNotFuture(giDate);
+    for (const line of params.items) {
+      if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const giNumber = await this.numbers.nextNumber(tx, {
+        shopId: params.shopId,
+        docType: 'GI',
+        prefix: 'GI',
+        date: giDate,
+      });
+
+      const lines = [];
+      for (const line of params.items) {
+        const avail = await this.available(tx, params.shopId, line.productId);
+        if (avail.lt(new Prisma.Decimal(line.quantity))) {
+          const product = await tx.product.findUnique({ where: { id: line.productId } });
+          throw new InsufficientStockException('Insufficient stock at creation', [
+            {
+              productId: line.productId,
+              productCode: product?.productCode ?? line.productId,
+              available: avail.toString(),
+              requested: String(line.quantity),
+            },
+          ]);
+        }
+        lines.push({
+          productId: line.productId,
+          quantity: new Prisma.Decimal(line.quantity),
+          uom: line.uom,
+          availableStockSnapshot: avail,
+          createdById: user.id,
+        });
+      }
+
+      return tx.goodsIssueHeader.create({
+        data: {
+          giNumber,
+          giDate,
+          shopId: params.shopId,
+          issueReason: params.issueReason.trim(),
+          remarks: params.remarks?.trim(),
+          status: DocumentStatus.DRAFT,
+          createdById: user.id,
+          items: { create: lines },
+        },
+        include: { items: { include: { product: true } }, shop: true },
+      });
+    });
+  }
+
+  async get(user: RequestUser, id: string) {
+    const gi = await this.prisma.goodsIssueHeader.findUnique({
+      where: { id },
+      include: { items: { include: { product: true } }, shop: true },
+    });
+    if (!gi) throw new NotFoundException('Goods issue not found');
+    assertShopScope(user, gi.shopId);
+    return gi;
+  }
+
+  async update(user: RequestUser, id: string, dto: Partial<{ giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }>) {
+    const existing = await this.get(user, id);
+    if (existing.status !== DocumentStatus.DRAFT) throw new BadRequestException('Only DRAFT can be edited');
+    if (dto.shopId) assertShopScope(user, dto.shopId);
+
+    const giDate = dto.giDate ? new Date(dto.giDate) : existing.giDate;
+    this.assertNotFuture(giDate);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.items) {
+        await tx.goodsIssueItem.deleteMany({ where: { giHeaderId: id } });
+        const creates = [];
+        for (const line of dto.items) {
+          if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
+          const avail = await this.available(tx, dto.shopId ?? existing.shopId, line.productId);
+          if (avail.lt(new Prisma.Decimal(line.quantity))) {
+            throw new InsufficientStockException('Insufficient stock', [
+              {
+                productId: line.productId,
+                productCode: line.productId,
+                available: avail.toString(),
+                requested: String(line.quantity),
+              },
+            ]);
+          }
+          creates.push({
+            productId: line.productId,
+            quantity: new Prisma.Decimal(line.quantity),
+            uom: line.uom,
+            availableStockSnapshot: avail,
+            createdById: user.id,
+          });
+        }
+        await tx.goodsIssueItem.createMany({ data: creates.map((c) => ({ ...c, giHeaderId: id })) });
+      }
+
+      return tx.goodsIssueHeader.update({
+        where: { id },
+        data: {
+          giDate,
+          shopId: dto.shopId ?? undefined,
+          issueReason: dto.issueReason?.trim(),
+          remarks: dto.remarks?.trim(),
+          updatedById: user.id,
+        },
+        include: { items: { include: { product: true } }, shop: true },
+      });
+    });
+  }
+
+  async post(user: RequestUser, id: string) {
+    const header = await this.get(user, id);
+    if (header.status === DocumentStatus.POSTED) throw new DocumentAlreadyPostedException();
+    this.assertNotFuture(header.giDate);
+
+    return this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.goodsIssueHeader.findUnique({ where: { id }, include: { items: true } });
+      if (!fresh || fresh.status !== DocumentStatus.DRAFT) throw new DocumentAlreadyPostedException();
+
+      const failures: { productId: string; productCode: string; available: string; requested: string }[] = [];
+      for (const line of fresh.items) {
+        const avail = await this.available(tx, fresh.shopId, line.productId);
+        if (avail.lt(line.quantity)) {
+          const product = await tx.product.findUnique({ where: { id: line.productId } });
+          failures.push({
+            productId: line.productId,
+            productCode: product?.productCode ?? line.productId,
+            available: avail.toString(),
+            requested: line.quantity.toString(),
+          });
+        }
+      }
+      if (failures.length) {
+        throw new InsufficientStockException('Insufficient stock for posting', failures);
+      }
+
+      for (const line of fresh.items) {
+        await this.stock.postMovement(tx, {
+          type: TransactionType.GOODS_ISSUE,
+          ref: fresh.giNumber,
+          date: fresh.giDate,
+          shopId: fresh.shopId,
+          productId: line.productId,
+          inQty: 0,
+          outQty: Number(line.quantity),
+          userId: user.id,
+        });
+      }
+
+      return tx.goodsIssueHeader.update({
+        where: { id },
+        data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
+        include: { items: { include: { product: true } }, shop: true },
+      });
+    });
+  }
+
+  async print(user: RequestUser, id: string) {
+    const gi = await this.get(user, id);
+    const tpl = Handlebars.compile(`<!doctype html><html><head><meta charset="utf-8"><title>{{giNumber}}</title>
+      <style>body{font-family:Arial;padding:24px} table{width:100%;border-collapse:collapse} td,th{border:1px solid #ccc;padding:8px}</style>
+      </head><body>
+      <h2>Goods Issue {{giNumber}}</h2>
+      <p>Date: {{giDate}} | Shop: {{shopName}}</p>
+      <p>Reason: {{issueReason}}</p>
+      <table><thead><tr><th>Product</th><th>Qty</th></tr></thead><tbody>
+      {{#each lines}}<tr><td>{{code}}</td><td>{{qty}}</td></tr>{{/each}}
+      </tbody></table>
+      </body></html>`);
+    return tpl({
+      giNumber: gi.giNumber,
+      giDate: gi.giDate.toISOString().slice(0, 10),
+      shopName: gi.shop.shopName,
+      issueReason: gi.issueReason,
+      lines: gi.items.map((i) => ({ code: i.product.productCode, qty: i.quantity.toString() })),
+    });
+  }
+
+  async remove(user: RequestUser, id: string) {
+    const existing = await this.get(user, id);
+    if (existing.status !== DocumentStatus.DRAFT) throw new BadRequestException('Only DRAFT can be deleted');
+    await this.prisma.goodsIssueHeader.delete({ where: { id } });
+    return { ok: true };
+  }
+}

@@ -1,0 +1,2 @@
+-- Migration file restored to satisfy Prisma migration history.
+-- Procurement master changes are already represented in current schema and database state.

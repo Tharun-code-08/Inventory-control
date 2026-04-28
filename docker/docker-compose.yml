@@ -1,0 +1,34 @@
+# Local dependencies for Retail IMS (Postgres + Redis).
+# From retail-ims: npm run docker:deps
+# Or: docker compose -f docker/docker-compose.yml up -d postgres redis
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: retail
+      POSTGRES_PASSWORD: retail
+      POSTGRES_DB: retail_ims
+    # Use 5433 on the host if 5432 is already taken (e.g. local PostgreSQL).
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U retail -d retail_ims']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata: {}

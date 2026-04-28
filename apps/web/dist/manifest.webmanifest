@@ -1,0 +1,17 @@
+{
+  "name": "Softdigit Consulting — Retail IMS",
+  "short_name": "Softdigit",
+  "description": "Softdigit Consulting: retail operations consulting and Retail IMS inventory workspace.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

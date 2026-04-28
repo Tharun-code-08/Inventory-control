@@ -1,0 +1,21 @@
+{
+  "name": "retail-ims",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "scripts": {
+    "docker:deps": "docker compose -f docker/docker-compose.yml up -d postgres redis",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "node scripts/run-api-dev.cjs",
+    "dev:web": "npm run dev --workspace=web",
+    "build": "npm run build --workspace=@retail-ims/shared-types && npm run build --workspace=api && npm run build --workspace=web",
+    "test": "npm run test --workspace=api && npm run test --workspace=web",
+    "lint": "npm run lint --workspace=api --if-present && npm run lint --workspace=web --if-present"
+  }
+}

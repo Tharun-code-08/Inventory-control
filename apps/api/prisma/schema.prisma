@@ -1,0 +1,789 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  SHOP_USER
+  INVENTORY_MANAGER
+}
+
+enum DocumentStatus {
+  DRAFT
+  POSTED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum TransactionType {
+  OPENING
+  GOODS_RECEIPT
+  GOODS_ISSUE
+  DAMAGE
+  ADJUSTMENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  POST
+  EXPORT
+}
+
+model Company {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyCode String   @unique @map("company_code")
+  companyName String   @map("company_name")
+  address     String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+  updatedById String?  @map("updated_by") @db.Uuid
+
+  shops     Shop[]
+  suppliers Supplier[]
+
+  @@map("companies")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        RoleName @unique
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+  updatedById String? @map("updated_by") @db.Uuid
+  users       User[]
+
+  @@map("roles")
+}
+
+model Shop {
+  id             String   @id @default(uuid()) @db.Uuid
+  shopNumber     String   @unique @map("shop_number")
+  shopName       String   @map("shop_name")
+  taxId          String?  @map("tax_id")
+  address        String
+  contactPerson  String   @map("contact_person")
+  mobile         String
+  email          String
+  companyId      String?  @map("company_id") @db.Uuid
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?  @map("created_by") @db.Uuid
+  updatedById    String?  @map("updated_by") @db.Uuid
+
+  company             Company? @relation(fields: [companyId], references: [id])
+  users               User[]
+  products            Product[]
+  goodsReceipts       GoodsReceiptHeader[]
+  goodsIssues         GoodsIssueHeader[]
+  damagedStocks       DamagedStock[]
+  purchaseOrders      PurchaseOrderHeader[]
+  stockLedgers        StockLedger[]
+  stockSummaries      StockSummary[]
+  documentSequences   DocumentSequence[]
+  storageLocations    StorageLocation[]
+  rfqs                RfqHeader[]
+  contracts           ContractHeader[]
+  supplierQuotations  SupplierQuotationHeader[]
+  customers           Customer[]
+  salesOrders         SalesOrderHeader[]
+  invoiceHeaders      InvoiceHeader[]
+  paymentReceipts     PaymentReceipt[]
+  alertEvents         AlertEvent[]
+
+  @@map("shops")
+}
+
+model StorageLocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  code        String   @map("code")
+  name        String   @map("name")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+  updatedById String?  @map("updated_by") @db.Uuid
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@unique([shopId, code])
+  @@index([shopId, code])
+  @@map("storage_locations")
+}
+
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  name               String
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  avatarUrl          String?   @map("avatar_url")
+  roleId             String    @map("role_id") @db.Uuid
+  shopId             String?   @map("shop_id") @db.Uuid
+  isActive           Boolean   @default(true) @map("is_active")
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(6)
+  refreshTokenHash   String?   @map("refresh_token_hash")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?   @map("created_by") @db.Uuid
+  updatedById        String?   @map("updated_by") @db.Uuid
+
+  role Role @relation(fields: [roleId], references: [id])
+  shop Shop? @relation(fields: [shopId], references: [id])
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Product {
+  id              String   @id @default(uuid()) @db.Uuid
+  productCode     String   @map("product_code")
+  description     String
+  uom             String
+  shopId          String   @map("shop_id") @db.Uuid
+  category        String
+  purchasePrice   Decimal  @map("purchase_price") @db.Decimal(12, 2)
+  sellingPrice    Decimal  @map("selling_price") @db.Decimal(12, 2)
+  minStockLevel   Decimal  @map("min_stock_level") @db.Decimal(12, 3)
+  openingStock    Decimal  @map("opening_stock") @db.Decimal(12, 3)
+  reorderQty      Decimal? @map("reorder_qty") @db.Decimal(12, 3)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?  @map("created_by") @db.Uuid
+  updatedById     String?  @map("updated_by") @db.Uuid
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  goodsReceiptItems GoodsReceiptItem[]
+  goodsIssueItems   GoodsIssueItem[]
+  damagedStocks     DamagedStock[]
+  purchaseOrderItems PurchaseOrderItem[]
+  stockLedgers      StockLedger[]
+  stockSummaries    StockSummary[]
+  rfqItems          RfqItem[]
+  contractItems     ContractItem[]
+  supplierQuotationItems SupplierQuotationItem[]
+  salesOrderItems        SalesOrderItem[]
+
+  @@unique([shopId, productCode])
+  @@index([shopId, productCode])
+  @@map("products")
+}
+
+model Supplier {
+  id            String   @id @default(uuid()) @db.Uuid
+  supplierCode  String   @unique @map("supplier_code")
+  supplierName  String   @map("supplier_name")
+  companyId     String?  @map("company_id") @db.Uuid
+  taxId         String?  @map("tax_id")
+  vatNumber     String?  @map("vat_number")
+  rating        Int      @default(0)
+  categories    String[] @default([])
+  contactPerson String?  @map("contact_person")
+  email         String?
+  phone         String?
+  street        String?
+  city          String?
+  state         String?
+  postalCode    String?  @map("postal_code")
+  country       String?
+  paymentTerms  String?  @map("payment_terms")
+  bankName      String?  @map("bank_name")
+  accountNumber String?  @map("account_number")
+  routingNumber String?  @map("routing_number")
+  iban          String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  company    Company?         @relation(fields: [companyId], references: [id])
+  rfqLinks   RfqSupplier[]
+  contracts  ContractHeader[]
+  quotations SupplierQuotationHeader[]
+
+  @@index([companyId])
+  @@index([supplierName])
+  @@map("suppliers")
+}
+
+model RfqHeader {
+  id        String         @id @default(uuid()) @db.Uuid
+  rfqNumber String         @unique @map("rfq_number")
+  rfqDate   DateTime       @map("rfq_date") @db.Date
+  deadline  DateTime?      @map("deadline") @db.Date
+  title     String
+  notes     String?
+  shopId    String         @map("shop_id") @db.Uuid
+  status    DocumentStatus @default(DRAFT)
+  postedAt  DateTime?      @map("posted_at") @db.Timestamptz(6)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?      @map("created_by") @db.Uuid
+  updatedById String?      @map("updated_by") @db.Uuid
+
+  shop      Shop          @relation(fields: [shopId], references: [id])
+  suppliers RfqSupplier[]
+  items     RfqItem[]
+  contracts ContractHeader[]
+  quotations SupplierQuotationHeader[]
+
+  @@index([shopId, rfqDate])
+  @@map("rfq_header")
+}
+
+model RfqSupplier {
+  id         String @id @default(uuid()) @db.Uuid
+  rfqId      String @map("rfq_id") @db.Uuid
+  supplierId String @map("supplier_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  rfq      RfqHeader @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplier Supplier  @relation(fields: [supplierId], references: [id])
+
+  @@unique([rfqId, supplierId])
+  @@index([supplierId])
+  @@map("rfq_suppliers")
+}
+
+model RfqItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  rfqHeaderId    String   @map("rfq_header_id") @db.Uuid
+  productId      String?  @map("product_id") @db.Uuid
+  description    String?
+  quantity       Decimal  @db.Decimal(12, 3)
+  uom            String
+  specifications String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?  @map("created_by") @db.Uuid
+  updatedById    String?  @map("updated_by") @db.Uuid
+
+  header  RfqHeader @relation(fields: [rfqHeaderId], references: [id], onDelete: Cascade)
+  product Product?  @relation(fields: [productId], references: [id])
+  quotationItems SupplierQuotationItem[]
+
+  @@index([rfqHeaderId])
+  @@map("rfq_items")
+}
+
+model ContractHeader {
+  id             String         @id @default(uuid()) @db.Uuid
+  contractNumber String         @unique @map("contract_number")
+  shopId         String         @map("shop_id") @db.Uuid
+  supplierId     String         @map("supplier_id") @db.Uuid
+  rfqId          String?        @map("rfq_id") @db.Uuid
+  quotationId    String?        @map("quotation_id") @db.Uuid
+  title          String
+  paymentTerms   String?        @map("payment_terms")
+  startDate      DateTime       @map("start_date") @db.Date
+  endDate        DateTime?      @map("end_date") @db.Date
+  notes          String?
+  status         DocumentStatus @default(DRAFT)
+  postedAt       DateTime?      @map("posted_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById    String?        @map("created_by") @db.Uuid
+  updatedById    String?        @map("updated_by") @db.Uuid
+
+  shop        Shop                     @relation(fields: [shopId], references: [id])
+  supplier    Supplier                 @relation(fields: [supplierId], references: [id])
+  rfq         RfqHeader?               @relation(fields: [rfqId], references: [id])
+  quotation   SupplierQuotationHeader? @relation(fields: [quotationId], references: [id])
+  items       ContractItem[]
+  purchaseOrders PurchaseOrderHeader[]
+
+  @@index([shopId, startDate])
+  @@index([supplierId])
+  @@map("contract_header")
+}
+
+model ContractItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  contractId   String   @map("contract_id") @db.Uuid
+  productId    String?  @map("product_id") @db.Uuid
+  description  String?
+  quantity     Decimal  @db.Decimal(12, 3)
+  uom          String
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(12, 2)
+  lineValue    Decimal  @map("line_value") @db.Decimal(14, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+  updatedById  String?  @map("updated_by") @db.Uuid
+
+  header  ContractHeader @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  product Product?       @relation(fields: [productId], references: [id])
+
+  @@index([contractId])
+  @@map("contract_items")
+}
+
+model SupplierQuotationHeader {
+  id          String         @id @default(uuid()) @db.Uuid
+  quoteNumber String         @unique @map("quote_number")
+  quoteDate   DateTime       @map("quote_date") @db.Date
+  shopId      String         @map("shop_id") @db.Uuid
+  rfqId       String         @map("rfq_id") @db.Uuid
+  supplierId  String         @map("supplier_id") @db.Uuid
+  notes       String?
+  status      DocumentStatus @default(DRAFT)
+  postedAt    DateTime?      @map("posted_at") @db.Timestamptz(6)
+  totalValue  Decimal?       @map("total_value") @db.Decimal(14, 2)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?        @map("created_by") @db.Uuid
+  updatedById String?        @map("updated_by") @db.Uuid
+
+  shop     Shop      @relation(fields: [shopId], references: [id])
+  rfq      RfqHeader @relation(fields: [rfqId], references: [id])
+  supplier Supplier  @relation(fields: [supplierId], references: [id])
+  items    SupplierQuotationItem[]
+  contracts ContractHeader[]
+
+  @@index([shopId, quoteDate])
+  @@index([rfqId, supplierId])
+  @@map("supplier_quote_header")
+}
+
+model SupplierQuotationItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  quoteHeaderId String   @map("quote_header_id") @db.Uuid
+  rfqItemId     String?  @map("rfq_item_id") @db.Uuid
+  productId     String?  @map("product_id") @db.Uuid
+  description   String?
+  quantity      Decimal  @db.Decimal(12, 3)
+  uom           String
+  specifications String?
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(12, 2)
+  lineValue     Decimal  @map("line_value") @db.Decimal(14, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  header  SupplierQuotationHeader @relation(fields: [quoteHeaderId], references: [id], onDelete: Cascade)
+  rfqItem RfqItem?                @relation(fields: [rfqItemId], references: [id])
+  product Product?                @relation(fields: [productId], references: [id])
+
+  @@index([quoteHeaderId])
+  @@index([rfqItemId])
+  @@map("supplier_quote_items")
+}
+
+model GoodsReceiptHeader {
+  id            String         @id @default(uuid()) @db.Uuid
+  grNumber      String         @unique @map("gr_number")
+  grDate        DateTime       @map("gr_date") @db.Date
+  shopId        String         @map("shop_id") @db.Uuid
+  supplierName  String         @map("supplier_name")
+  purchaseOrderId String?      @map("purchase_order_id") @db.Uuid
+  supplierRef   String?        @map("supplier_ref")
+  remarks       String?
+  status        DocumentStatus @default(DRAFT)
+  postedAt      DateTime?      @map("posted_at") @db.Timestamptz(6)
+  totalValue    Decimal?       @map("total_value") @db.Decimal(14, 2)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?        @map("created_by") @db.Uuid
+  updatedById   String?        @map("updated_by") @db.Uuid
+
+  shop          Shop                 @relation(fields: [shopId], references: [id])
+  purchaseOrder PurchaseOrderHeader? @relation(fields: [purchaseOrderId], references: [id])
+  items         GoodsReceiptItem[]
+
+  @@map("goods_receipt_header")
+}
+
+model GoodsReceiptItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  grHeaderId   String   @map("gr_header_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  quantity     Decimal  @db.Decimal(12, 3)
+  uom          String
+  purchaseRate Decimal  @map("purchase_rate") @db.Decimal(12, 2)
+  lineValue    Decimal  @map("line_value") @db.Decimal(14, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+  updatedById  String?  @map("updated_by") @db.Uuid
+
+  header  GoodsReceiptHeader @relation(fields: [grHeaderId], references: [id], onDelete: Cascade)
+  product Product            @relation(fields: [productId], references: [id])
+
+  @@map("goods_receipt_items")
+}
+
+model GoodsIssueHeader {
+  id           String         @id @default(uuid()) @db.Uuid
+  giNumber     String         @unique @map("gi_number")
+  giDate       DateTime       @map("gi_date") @db.Date
+  shopId       String         @map("shop_id") @db.Uuid
+  issueReason  String         @map("issue_reason")
+  remarks      String?
+  status       DocumentStatus @default(DRAFT)
+  postedAt     DateTime?      @map("posted_at") @db.Timestamptz(6)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById  String?        @map("created_by") @db.Uuid
+  updatedById  String?        @map("updated_by") @db.Uuid
+
+  shop  Shop @relation(fields: [shopId], references: [id])
+  items GoodsIssueItem[]
+
+  @@map("goods_issue_header")
+}
+
+model GoodsIssueItem {
+  id                      String   @id @default(uuid()) @db.Uuid
+  giHeaderId              String   @map("gi_header_id") @db.Uuid
+  productId               String   @map("product_id") @db.Uuid
+  quantity                Decimal  @db.Decimal(12, 3)
+  uom                     String
+  availableStockSnapshot  Decimal  @map("available_stock_snapshot") @db.Decimal(12, 3)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById             String?  @map("created_by") @db.Uuid
+  updatedById             String?  @map("updated_by") @db.Uuid
+
+  header  GoodsIssueHeader @relation(fields: [giHeaderId], references: [id], onDelete: Cascade)
+  product Product          @relation(fields: [productId], references: [id])
+
+  @@map("goods_issue_items")
+}
+
+model DamagedStock {
+  id               String         @id @default(uuid()) @db.Uuid
+  damageNumber     String         @unique @map("damage_number")
+  damageDate       DateTime       @map("damage_date") @db.Date
+  shopId           String         @map("shop_id") @db.Uuid
+  productId        String         @map("product_id") @db.Uuid
+  damagedQuantity  Decimal        @map("damaged_quantity") @db.Decimal(12, 3)
+  reason           String
+  remarks          String?
+  status           DocumentStatus @default(DRAFT)
+  postedAt         DateTime?      @map("posted_at") @db.Timestamptz(6)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById      String?        @map("created_by") @db.Uuid
+  updatedById      String?        @map("updated_by") @db.Uuid
+
+  shop    Shop    @relation(fields: [shopId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("damaged_stock")
+}
+
+model PurchaseOrderHeader {
+  id          String                @id @default(uuid()) @db.Uuid
+  poNumber    String                @unique @map("po_number")
+  poDate      DateTime              @map("po_date") @db.Date
+  shopId      String                @map("shop_id") @db.Uuid
+  contractId  String?               @map("contract_id") @db.Uuid
+  supplier    String
+  status      PurchaseOrderStatus   @default(DRAFT)
+  remarks     String?
+  totalValue  Decimal?              @map("total_value") @db.Decimal(14, 2)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?               @map("created_by") @db.Uuid
+  updatedById String?               @map("updated_by") @db.Uuid
+
+  shop         Shop            @relation(fields: [shopId], references: [id])
+  contract     ContractHeader? @relation(fields: [contractId], references: [id])
+  items        PurchaseOrderItem[]
+  goodsReceipts GoodsReceiptHeader[]
+
+  @@map("purchase_order_header")
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  poHeaderId    String   @map("po_header_id") @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  currentStock  Decimal  @map("current_stock") @db.Decimal(12, 3)
+  minStock      Decimal  @map("min_stock") @db.Decimal(12, 3)
+  suggestedQty  Decimal  @map("suggested_qty") @db.Decimal(12, 3)
+  orderQty      Decimal  @map("order_qty") @db.Decimal(12, 3)
+  rate          Decimal  @db.Decimal(12, 2)
+  lineValue     Decimal  @map("line_value") @db.Decimal(14, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  header  PurchaseOrderHeader @relation(fields: [poHeaderId], references: [id], onDelete: Cascade)
+  product Product             @relation(fields: [productId], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+model StockLedger {
+  id               String            @id @default(uuid()) @db.Uuid
+  transactionType  TransactionType   @map("transaction_type")
+  transactionRef   String            @map("transaction_ref")
+  transactionDate  DateTime          @map("transaction_date") @db.Date
+  shopId           String            @map("shop_id") @db.Uuid
+  productId        String            @map("product_id") @db.Uuid
+  inQty            Decimal           @default(0) @map("in_qty") @db.Decimal(12, 3)
+  outQty           Decimal           @default(0) @map("out_qty") @db.Decimal(12, 3)
+  balanceQty       Decimal           @map("balance_qty") @db.Decimal(12, 3)
+  unitRate         Decimal?          @map("unit_rate") @db.Decimal(12, 2)
+  value            Decimal?          @db.Decimal(14, 2)
+  remarks          String?
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById      String?           @map("created_by") @db.Uuid
+  updatedById      String?           @map("updated_by") @db.Uuid
+
+  shop    Shop    @relation(fields: [shopId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([shopId, productId, transactionDate])
+  @@map("stock_ledger")
+}
+
+model StockSummary {
+  id              String   @id @default(uuid()) @db.Uuid
+  shopId          String   @map("shop_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  currentStock    Decimal  @map("current_stock") @db.Decimal(12, 3)
+  lastMovementAt  DateTime @map("last_movement_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?  @map("created_by") @db.Uuid
+  updatedById     String?  @map("updated_by") @db.Uuid
+
+  shop    Shop    @relation(fields: [shopId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([shopId, productId])
+  @@map("stock_summary")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String      @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String      @map("entity_id") @db.Uuid
+  oldValues  Json?       @map("old_values")
+  newValues  Json?       @map("new_values")
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_log")
+}
+
+model DocumentSequence {
+  id         String   @id @default(uuid()) @db.Uuid
+  docType    String   @map("doc_type")
+  shopId     String   @map("shop_id") @db.Uuid
+  yearMonth  String   @map("year_month")
+  lastSeq    Int      @map("last_seq")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@unique([docType, shopId, yearMonth])
+  @@map("document_sequences")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+  updatedById String? @map("updated_by") @db.Uuid
+
+  @@map("system_settings")
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  FULFILLED
+  CLOSED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum AlertType {
+  LOW_STOCK
+  CONTRACT_EXPIRY
+  RFQ_DEADLINE
+  PO_OVERDUE
+}
+
+model Customer {
+  id            String   @id @default(uuid()) @db.Uuid
+  customerCode  String   @unique @map("customer_code")
+  customerName  String   @map("customer_name")
+  email         String?
+  phone         String?
+  taxId         String?  @map("tax_id")
+  street        String?
+  city          String?
+  state         String?
+  postalCode    String?  @map("postal_code")
+  country       String?
+  shopId        String   @map("shop_id") @db.Uuid
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  shop          Shop              @relation(fields: [shopId], references: [id])
+  salesOrders   SalesOrderHeader[]
+  invoices      InvoiceHeader[]
+
+  @@index([shopId, customerName])
+  @@map("customers")
+}
+
+model SalesOrderHeader {
+  id                String           @id @default(uuid()) @db.Uuid
+  soNumber          String           @unique @map("so_number")
+  orderDate         DateTime         @map("order_date") @db.Date
+  expectedDate      DateTime?        @map("expected_date") @db.Date
+  customerId        String           @map("customer_id") @db.Uuid
+  shopId            String           @map("shop_id") @db.Uuid
+  status            SalesOrderStatus @default(DRAFT)
+  remarks           String?
+  totalValue        Decimal?         @map("total_value") @db.Decimal(14, 2)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?          @map("created_by") @db.Uuid
+  updatedById       String?          @map("updated_by") @db.Uuid
+
+  customer          Customer         @relation(fields: [customerId], references: [id])
+  shop              Shop             @relation(fields: [shopId], references: [id])
+  items             SalesOrderItem[]
+  invoices          InvoiceHeader[]
+
+  @@index([shopId, orderDate])
+  @@index([customerId])
+  @@map("sales_order_header")
+}
+
+model SalesOrderItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  soHeaderId        String   @map("so_header_id") @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  quantity          Decimal  @db.Decimal(12, 3)
+  uom               String
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(12, 2)
+  lineValue         Decimal  @map("line_value") @db.Decimal(14, 2)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?  @map("created_by") @db.Uuid
+  updatedById       String?  @map("updated_by") @db.Uuid
+
+  header            SalesOrderHeader @relation(fields: [soHeaderId], references: [id], onDelete: Cascade)
+  product           Product          @relation(fields: [productId], references: [id])
+
+  @@index([soHeaderId])
+  @@map("sales_order_items")
+}
+
+model InvoiceHeader {
+  id                String        @id @default(uuid()) @db.Uuid
+  invoiceNumber     String        @unique @map("invoice_number")
+  invoiceDate       DateTime      @map("invoice_date") @db.Date
+  salesOrderId      String?       @map("sales_order_id") @db.Uuid
+  customerId        String        @map("customer_id") @db.Uuid
+  shopId            String        @map("shop_id") @db.Uuid
+  status            InvoiceStatus @default(DRAFT)
+  totalValue        Decimal       @map("total_value") @db.Decimal(14, 2)
+  paidValue         Decimal       @default(0) @map("paid_value") @db.Decimal(14, 2)
+  dueDate           DateTime?     @map("due_date") @db.Date
+  remarks           String?
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?       @map("created_by") @db.Uuid
+  updatedById       String?       @map("updated_by") @db.Uuid
+
+  customer          Customer      @relation(fields: [customerId], references: [id])
+  shop              Shop          @relation(fields: [shopId], references: [id])
+  salesOrder        SalesOrderHeader? @relation(fields: [salesOrderId], references: [id])
+  payments          PaymentReceipt[]
+
+  @@index([shopId, invoiceDate])
+  @@index([customerId])
+  @@map("invoice_header")
+}
+
+model PaymentReceipt {
+  id                String   @id @default(uuid()) @db.Uuid
+  receiptNumber     String   @unique @map("receipt_number")
+  receiptDate       DateTime @map("receipt_date") @db.Date
+  invoiceId         String   @map("invoice_id") @db.Uuid
+  shopId            String   @map("shop_id") @db.Uuid
+  amount            Decimal  @db.Decimal(14, 2)
+  method            String?
+  reference         String?
+  remarks           String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?  @map("created_by") @db.Uuid
+  updatedById       String?  @map("updated_by") @db.Uuid
+
+  invoice           InvoiceHeader @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  shop              Shop          @relation(fields: [shopId], references: [id])
+
+  @@index([shopId, receiptDate])
+  @@map("payment_receipts")
+}
+
+model AlertEvent {
+  id                String    @id @default(uuid()) @db.Uuid
+  alertType         AlertType @map("alert_type")
+  severity          String    @default("MEDIUM")
+  title             String
+  message           String
+  shopId            String?   @map("shop_id") @db.Uuid
+  referenceType     String?   @map("reference_type")
+  referenceId       String?   @map("reference_id")
+  isRead            Boolean   @default(false) @map("is_read")
+  triggeredAt       DateTime  @default(now()) @map("triggered_at") @db.Timestamptz(6)
+  resolvedAt        DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  shop              Shop?     @relation(fields: [shopId], references: [id])
+
+  @@index([alertType, triggeredAt])
+  @@index([shopId, isRead])
+  @@map("alert_events")
+}

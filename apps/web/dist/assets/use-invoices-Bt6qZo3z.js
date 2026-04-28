@@ -1,0 +1,1 @@
+import{l as n,m as i,d as r,a}from"./index-BfdAdVsC.js";const e={all:["invoices"],list:()=>[...e.all,"list"]};function c(){return r({queryKey:e.list(),queryFn:async()=>(await a.get("/invoices")).data.data??[]})}function l(){const s=n();return i({mutationFn:async t=>(await a.post("/invoices",t)).data.data,onSuccess:()=>s.invalidateQueries({queryKey:e.all})})}export{c as a,l as u};
