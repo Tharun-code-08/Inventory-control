@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useShops, useCreateShop } from '@/hooks/use-shops';
+import { useShops, useCreateShop, useUpdateShop, type Shop } from '@/hooks/use-shops';
 import { useCreateStorageLocation, useStorageLocations } from '@/hooks/use-storage-locations';
 
 export function PlantsPage() {
   const { data: plants = [] } = useShops();
   const createPlant = useCreateShop();
+  const updatePlant = useUpdateShop();
   const createStorageLocation = useCreateStorageLocation();
   const [form, setForm] = useState({
     shopNumber: '',
@@ -25,8 +26,38 @@ export function PlantsPage() {
   });
   const [storageLocations, setStorageLocations] = useState([{ code: '', name: '', description: '' }]);
   const [selectedPlantId, setSelectedPlantId] = useState('');
+  const [editingPlantId, setEditingPlantId] = useState<string | null>(null);
   const { data: existingLocations = [] } = useStorageLocations(selectedPlantId || undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setForm({
+      shopNumber: '',
+      shopName: '',
+      taxId: '',
+      address: '',
+      contactPerson: '',
+      mobile: '',
+      email: '',
+    });
+    setStorageLocations([{ code: '', name: '', description: '' }]);
+    setEditingPlantId(null);
+  };
+
+  const onEditStart = (plant: Shop) => {
+    setEditingPlantId(plant.id);
+    setForm({
+      shopNumber: plant.shopNumber ?? '',
+      shopName: plant.shopName ?? '',
+      taxId: plant.taxId ?? '',
+      address: plant.address ?? '',
+      contactPerson: plant.contactPerson ?? '',
+      mobile: plant.mobile ?? '',
+      email: plant.email ?? '',
+    });
+    // Storage locations are only created during new plant creation.
+    setStorageLocations([{ code: '', name: '', description: '' }]);
+  };
 
   const onCreate = async () => {
     if (!form.shopNumber.trim()) {
@@ -53,6 +84,17 @@ export function PlantsPage() {
 
     setIsSubmitting(true);
     try {
+      if (editingPlantId) {
+        await updatePlant.mutateAsync({
+          id: editingPlantId,
+          ...form,
+          taxId: form.taxId || undefined,
+        });
+        resetForm();
+        toast.success('Plant updated successfully');
+        return;
+      }
+
       const created = await createPlant.mutateAsync({
         ...form,
         taxId: form.taxId || undefined,
@@ -68,16 +110,7 @@ export function PlantsPage() {
         });
       }
 
-      setForm({
-        shopNumber: '',
-        shopName: '',
-        taxId: '',
-        address: '',
-        contactPerson: '',
-        mobile: '',
-        email: '',
-      });
-      setStorageLocations([{ code: '', name: '', description: '' }]);
+      resetForm();
       toast.success('Plant created successfully');
     } catch (err: unknown) {
       const msg =
@@ -186,15 +219,20 @@ export function PlantsPage() {
             </div>
 
             <Button onClick={onCreate} disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Create Plant'}
+              {isSubmitting ? 'Saving...' : editingPlantId ? 'Update Plant' : 'Create Plant'}
             </Button>
+            {editingPlantId && (
+              <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
+                Cancel Edit
+              </Button>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>Plant List</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Contact</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Contact</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
               <TableBody>
                 {plants.map((p) => (
                   <TableRow key={p.id}>
@@ -203,6 +241,11 @@ export function PlantsPage() {
                     <TableCell>{p.contactPerson}</TableCell>
                     <TableCell>{p.mobile}</TableCell>
                     <TableCell>{p.isActive ? 'Active' : 'Inactive'}</TableCell>
+                    <TableCell>
+                      <Button type="button" size="sm" variant="outline" onClick={() => onEditStart(p)}>
+                        Edit
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

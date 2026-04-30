@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, type ChangeEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 import {
   Plus,
   Search,
@@ -69,7 +70,34 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
 
-const UOM_OPTIONS = ['kg', 'pcs', 'liter', 'box', 'pack'] as const;
+const UOM_OPTIONS = [
+  { value: 'dz', label: 'Dozen (dz)' },
+  { value: 'drm', label: 'Drum (drm)' },
+  { value: 'ea', label: 'Each (ea)' },
+  { value: 'grs', label: 'Gross (grs)' },
+  { value: 'pk', label: 'Pack (pk)' },
+  { value: 'pr', label: 'Pair (pr)' },
+  { value: 'plt', label: 'Pallet (plt)' },
+  { value: 'pcs', label: 'Piece (pcs)' },
+  { value: 'roll', label: 'Roll (roll)' },
+  { value: 'set', label: 'Set (set)' },
+  { value: 'sht', label: 'Sheet (sht)' },
+  { value: 'unit', label: 'Unit (unit)' },
+  { value: 'day', label: 'Day (day)' },
+  { value: 'hr', label: 'Hour (hr)' },
+  { value: 'mon', label: 'Month (mon)' },
+  { value: 'bbl', label: 'Barrel (bbl)' },
+  { value: 'm3', label: 'Cubic Meter (m3)' },
+  { value: 'floz', label: 'Fluid Ounce (fl oz)' },
+  { value: 'gal', label: 'Gallon (gal)' },
+  { value: 'l', label: 'Liter (L)' },
+  { value: 'ml', label: 'Milliliter (ml)' },
+  { value: 'g', label: 'Gram (g)' },
+  { value: 'kg', label: 'Kilogram (kg)' },
+  { value: 'mt', label: 'Metric Ton (MT)' },
+  { value: 'mg', label: 'Milligram (mg)' },
+  { value: 'oz', label: 'Ounce (oz)' },
+] as const;
 const PAGE_SIZE = 10;
 
 const productSchema = z.object({
@@ -119,6 +147,8 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const filters: ProductFilters = {
     page,
@@ -264,6 +294,159 @@ export function ProductsPage() {
 
   const isMutating = createProduct.isPending || updateProduct.isPending;
 
+  const downloadProductTemplate = () => {
+    const headings = [
+      'Shop',
+      'Product Code',
+      'Description',
+      'Category',
+      'Purchase Price',
+      'Selling Price',
+      'Opening Stock',
+      'Min Stock Level',
+      'Reorder Qty',
+      'Unit of Measure',
+      'Active Status',
+    ];
+    const sampleRow = {
+      Shop: user?.shopId ? '' : shopList[0]?.shopNumber ?? '',
+      'Product Code': 'PRD001',
+      Description: 'Sample Product',
+      Category: categoryConfig[0]?.name ?? '',
+      'Purchase Price': 100,
+      'Selling Price': 120,
+      'Opening Stock': 50,
+      'Min Stock Level': 10,
+      'Reorder Qty': 20,
+      'Unit of Measure': 'pcs',
+      'Active Status': 'true',
+    };
+    const worksheet = XLSX.utils.json_to_sheet([sampleRow], { header: headings });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+    XLSX.writeFile(workbook, 'products-bulk-template.xlsx');
+  };
+
+  const parseBoolean = (value: unknown, fallback = true) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (!normalized) return fallback;
+    return ['true', 'yes', '1', 'active'].includes(normalized);
+  };
+
+  const getByNormalizedKey = (row: Record<string, unknown>, key: string) => {
+    const target = key.toLowerCase().replace(/\s+/g, '');
+    const entry = Object.entries(row).find(
+      ([k]) => k.toLowerCase().replace(/\s+/g, '') === target,
+    );
+    return entry?.[1];
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!shopId && !user?.shopId) {
+      toast.error('Select a shop before importing products');
+      event.target.value = '';
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) {
+        toast.error('No worksheet found in the uploaded file');
+        return;
+      }
+
+      const worksheet = workbook.Sheets[firstSheet];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+      if (rows.length === 0) {
+        toast.error('Excel file is empty');
+        return;
+      }
+
+      let successCount = 0;
+      const failures: string[] = [];
+
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        const rowNumber = index + 2;
+        try {
+          const code = String(getByNormalizedKey(row, 'Product Code') ?? '').trim();
+          const description = String(getByNormalizedKey(row, 'Description') ?? '').trim();
+          const category = String(getByNormalizedKey(row, 'Category') ?? '').trim();
+          const uom = String(getByNormalizedKey(row, 'Unit of Measure') ?? '').trim();
+          const purchasePrice = Number(getByNormalizedKey(row, 'Purchase Price') ?? 0);
+          const sellingPrice = Number(getByNormalizedKey(row, 'Selling Price') ?? 0);
+          const openingStock = Number(getByNormalizedKey(row, 'Opening Stock') ?? 0);
+          const minStockLevel = Number(getByNormalizedKey(row, 'Min Stock Level') ?? 0);
+          const reorderQty = Number(getByNormalizedKey(row, 'Reorder Qty') ?? 0);
+          const isActive = parseBoolean(getByNormalizedKey(row, 'Active Status'), true);
+
+          const shopCell = String(getByNormalizedKey(row, 'Shop') ?? '').trim();
+          const resolvedShopId =
+            user?.shopId ||
+            (shopCell
+              ? shopList.find(
+                  (shop) =>
+                    shop.id === shopCell ||
+                    shop.shopNumber.toLowerCase() === shopCell.toLowerCase() ||
+                    shop.shopName.toLowerCase() === shopCell.toLowerCase(),
+                )?.id
+              : undefined) ||
+            shopId;
+
+          if (!resolvedShopId) throw new Error('Shop is missing');
+          if (!code) throw new Error('Product Code is required');
+          if (!description) throw new Error('Description is required');
+          if (!category) throw new Error('Category is required');
+          if (!uom) throw new Error('Unit of Measure is required');
+          if (!Number.isFinite(purchasePrice) || purchasePrice < 0) throw new Error('Invalid Purchase Price');
+          if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error('Invalid Selling Price');
+          if (!Number.isFinite(openingStock) || openingStock < 0) throw new Error('Invalid Opening Stock');
+          if (!Number.isFinite(minStockLevel) || minStockLevel < 0) throw new Error('Invalid Min Stock Level');
+          if (!Number.isFinite(reorderQty) || reorderQty < 0) throw new Error('Invalid Reorder Qty');
+
+          await createProduct.mutateAsync({
+            shopId: resolvedShopId,
+            productCode: code,
+            description,
+            category,
+            purchasePrice,
+            sellingPrice,
+            openingStock,
+            minStockLevel,
+            reorderQty,
+            uom,
+            isActive,
+          });
+          successCount += 1;
+        } catch (err: unknown) {
+          const message =
+            (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+            (err as Error).message;
+          failures.push(`Row ${rowNumber}: ${message || 'Failed to import'}`);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} product(s) imported successfully`);
+      }
+      if (failures.length > 0) {
+        toast.error(`Failed rows: ${failures.length}. ${failures.slice(0, 3).join(' | ')}`);
+      }
+    } catch {
+      toast.error('Failed to process Excel file');
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <AppLayout active="Products">
       <div className="space-y-6">
@@ -275,10 +458,31 @@ export function ProductsPage() {
               Manage your product catalog and inventory levels
             </p>
           </div>
-          <Button onClick={openCreate} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Add Product
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <Button type="button" variant="outline" onClick={downloadProductTemplate} className="w-full sm:w-auto">
+              Download Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isImporting}
+              onClick={() => importInputRef.current?.click()}
+              className="w-full sm:w-auto"
+            >
+              {isImporting ? 'Importing...' : 'Upload Excel'}
+            </Button>
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Add Product
+            </Button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -624,8 +828,8 @@ export function ProductsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {UOM_OPTIONS.map((u) => (
-                          <SelectItem key={u} value={u}>
-                            {u}
+                          <SelectItem key={u.value} value={u.value}>
+                            {u.label}
                           </SelectItem>
                         ))}
                       </SelectContent>

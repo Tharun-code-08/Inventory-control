@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -81,6 +81,7 @@ import { useRfqs } from '@/hooks/use-rfqs';
 import { useContracts } from '@/hooks/use-contracts';
 import { useSuppliers } from '@/hooks/use-suppliers';
 import { useShops } from '@/hooks/use-shops';
+import { useStorageLocations } from '@/hooks/use-storage-locations';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -97,7 +98,12 @@ const poItemSchema = z.object({
 
 const poFormSchema = z.object({
   poDate: z.string().min(1, 'Date is required'),
+  priority: z.string().optional(),
+  paymentTerms: z.string().optional(),
   supplier: z.string().min(1, 'Supplier is required'),
+  deliveryPlantId: z.string().optional(),
+  storageLocationId: z.string().optional(),
+  deliveryAddress: z.string().optional(),
   remarks: z.string().optional(),
   items: z.array(poItemSchema).min(1, 'Add at least one item'),
 });
@@ -112,6 +118,7 @@ const PAGE_SIZE = 10;
 
 export function PurchaseOrdersPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
@@ -185,7 +192,12 @@ export function PurchaseOrdersPage() {
     resolver: zodResolver(poFormSchema),
     defaultValues: {
       poDate: new Date().toISOString().slice(0, 10),
+      priority: 'Medium',
+      paymentTerms: 'Net 30',
       supplier: '',
+      deliveryPlantId: shopId ?? '',
+      storageLocationId: '',
+      deliveryAddress: '',
       remarks: '',
       items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
     },
@@ -193,6 +205,8 @@ export function PurchaseOrdersPage() {
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
   const watchedItems = form.watch('items');
+  const selectedDeliveryPlantId = form.watch('deliveryPlantId');
+  const { data: storageLocations = [] } = useStorageLocations(selectedDeliveryPlantId || undefined);
 
   const totalValue = useMemo(
     () => watchedItems.reduce((acc, it) => acc + (Number(it.orderQty) || 0) * (Number(it.rate) || 0), 0),
@@ -203,7 +217,12 @@ export function PurchaseOrdersPage() {
     setEditingPO(null);
     form.reset({
       poDate: new Date().toISOString().slice(0, 10),
+        priority: 'Medium',
+        paymentTerms: 'Net 30',
       supplier: '',
+        deliveryPlantId: shopId ?? '',
+        storageLocationId: '',
+        deliveryAddress: '',
       remarks: '',
       items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
     });
@@ -211,14 +230,25 @@ export function PurchaseOrdersPage() {
     setSourceType('DIRECT');
     setSourceRfqId('');
     setSourceContractId('');
-  }, [form]);
+  }, [form, shopId]);
+
+  useEffect(() => {
+    if (location.pathname === '/purchase-orders/new') {
+      openCreate();
+    }
+  }, [location.pathname, openCreate]);
 
   const openEdit = useCallback(
     (po: PurchaseOrder) => {
       setEditingPO(po);
       form.reset({
         poDate: po.poDate.slice(0, 10),
+        priority: 'Medium',
+        paymentTerms: 'Net 30',
         supplier: po.supplier,
+        deliveryPlantId: po.shopId,
+        storageLocationId: '',
+        deliveryAddress: '',
         remarks: po.remarks ?? '',
         items: po.items.map((it) => ({
           productId: it.productId,
@@ -255,8 +285,13 @@ export function PurchaseOrdersPage() {
         toast.error('Select a plant/shop first');
         return;
       }
+      const resolvedShopId = values.deliveryPlantId || shopId;
+      if (!resolvedShopId) {
+        toast.error('Select a delivery plant');
+        return;
+      }
       const payload = {
-        shopId,
+        shopId: resolvedShopId,
         poDate: values.poDate,
         supplier: values.supplier,
         contractId: sourceType === 'CONTRACT' ? sourceContractId : undefined,
@@ -326,13 +361,12 @@ export function PurchaseOrdersPage() {
       <PageHeader
         title="Purchase Orders"
         description="Manage purchase order documents"
-        action={
-          <Button onClick={openCreate} disabled={!shopId} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Create PO
-          </Button>
-        }
-      />
+      >
+        <Button onClick={() => navigate('/purchase-orders/new')} className="w-full sm:w-auto">
+          <Plus className="h-4 w-4" />
+          Create PO
+        </Button>
+      </PageHeader>
 
       {/* Toolbar */}
       <Card className="mb-4 p-4">
@@ -384,7 +418,7 @@ export function PurchaseOrdersPage() {
             title="No purchase orders found"
             description="Create your first purchase order to get started."
             action={
-              <Button variant="outline" onClick={openCreate} disabled={!shopId}>
+              <Button variant="outline" onClick={() => navigate('/purchase-orders/new')}>
                 <Plus className="h-4 w-4" /> New Order
               </Button>
             }
@@ -466,7 +500,15 @@ export function PurchaseOrdersPage() {
       </Card>
 
       {/* ---- CREATE / EDIT SHEET ---- */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open && location.pathname === '/purchase-orders/new') {
+            navigate('/purchase-orders');
+          }
+        }}
+      >
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
           <SheetHeader>
             <SheetTitle>{editingPO ? 'Edit Purchase Order' : 'New Purchase Order'}</SheetTitle>
@@ -561,18 +603,12 @@ export function PurchaseOrdersPage() {
               </div>
             )}
 
-            {/* Header fields */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* Order details */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Order Details</Label>
+              <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="poDate">Order Date</Label>
-                <Input id="poDate" type="date" {...form.register('poDate')} />
-                {form.formState.errors.poDate && (
-                  <p className="text-xs text-destructive">{form.formState.errors.poDate.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="supplier">Supplier</Label>
+                <Label htmlFor="supplier">Supplier *</Label>
                 <Controller
                   control={form.control}
                   name="supplier"
@@ -590,6 +626,102 @@ export function PurchaseOrdersPage() {
                 {form.formState.errors.supplier && (
                   <p className="text-xs text-destructive">{form.formState.errors.supplier.message}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Controller
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="poDate">Delivery Date</Label>
+                <Input id="poDate" type="date" {...form.register('poDate')} />
+                {form.formState.errors.poDate && (
+                  <p className="text-xs text-destructive">{form.formState.errors.poDate.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Terms</Label>
+                <Controller
+                  control={form.control}
+                  name="paymentTerms"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue placeholder="Select payment terms" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Net 15">Net 15</SelectItem>
+                        <SelectItem value="Net 30">Net 30</SelectItem>
+                        <SelectItem value="Net 45">Net 45</SelectItem>
+                        <SelectItem value="Net 60">Net 60</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+            </div>
+
+            {/* Delivery location */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Delivery Location</Label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Delivery Plant</Label>
+                  <Controller
+                    control={form.control}
+                    name="deliveryPlantId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          const selected = shops.find((s) => s.id === value);
+                          form.setValue('deliveryAddress', selected?.address ?? '');
+                          form.setValue('storageLocationId', '');
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Delivery Plant" /></SelectTrigger>
+                        <SelectContent>
+                          {shops.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.shopName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Storage Location</Label>
+                  <Controller
+                    control={form.control}
+                    name="storageLocationId"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue placeholder="Storage Location" /></SelectTrigger>
+                        <SelectContent>
+                          {storageLocations.map((loc) => (
+                            <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Delivery Address</Label>
+                <Input placeholder="Delivery address" {...form.register('deliveryAddress')} />
               </div>
             </div>
 
@@ -609,11 +741,17 @@ export function PurchaseOrdersPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => append({ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 })}
+                  disabled={!selectedDeliveryPlantId || !form.watch('storageLocationId')}
                   className="w-full sm:w-auto"
                 >
-                  <Plus className="h-3 w-3" /> Add Row
+                  <Plus className="h-3 w-3" /> Add Item
                 </Button>
               </div>
+              {(!selectedDeliveryPlantId || !form.watch('storageLocationId')) && (
+                <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                  Select a delivery plant and storage location first to add line items.
+                </div>
+              )}
 
               {form.formState.errors.items?.root && (
                 <p className="mb-2 text-xs text-destructive">{form.formState.errors.items.root.message}</p>
@@ -783,7 +921,16 @@ export function PurchaseOrdersPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-3">
-              <Button type="button" variant="outline" onClick={() => setSheetOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSheetOpen(false);
+                  if (location.pathname === '/purchase-orders/new') {
+                    navigate('/purchase-orders');
+                  }
+                }}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={createMut.isPending}>

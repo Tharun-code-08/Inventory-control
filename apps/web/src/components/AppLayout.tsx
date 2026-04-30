@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/api/client';
 import { cn } from '@/lib/cn';
+import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -21,6 +22,7 @@ const pageTitles: Record<string, string> = {
   '/sales': 'Sales',
   '/invoices': 'Invoices',
   '/payments': 'Payments',
+  '/notifications': 'Notifications',
   '/warehouse': 'Warehouse',
   '/products': 'Products',
   '/goods-receipts': 'Goods Receipt',
@@ -69,13 +71,19 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const clear = useAuthStore((s) => s.clear);
   const isMobile = useIsMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+    typeof window !== 'undefined' ? false : true,
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const alertsQuery = useAlerts();
+  const markRead = useMarkAlertRead();
+  const alerts = alertsQuery.data ?? [];
+  const unreadCount = alerts.filter((alert) => !alert.isRead).length;
 
   const pageTitle = active ?? resolveTitle(location.pathname);
 
@@ -84,6 +92,9 @@ export function AppLayout({ children, active }: AppLayoutProps) {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
     }
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
@@ -91,6 +102,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
 
   useEffect(() => {
     setProfileOpen(false);
+    setNotificationsOpen(false);
     setMobileSearchOpen(false);
     if (isMobile) {
       setMobileSidebarOpen(false);
@@ -100,7 +112,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   useEffect(() => {
     if (!isMobile) {
       setMobileSidebarOpen(false);
-      setSidebarCollapsed(true);
+      setSidebarCollapsed(false);
     }
   }, [isMobile]);
 
@@ -146,7 +158,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
 
       <div
         className={cn(
-          'flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-200',
+          'flex min-h-screen min-w-0 flex-1 flex-col',
           !isMobile && (sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[240px]'),
         )}
       >
@@ -187,11 +199,56 @@ export function AppLayout({ children, active }: AppLayoutProps) {
 
               <button
                 type="button"
+                onClick={() => setNotificationsOpen((open) => !open)}
                 className="relative rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 aria-label="Notifications"
               >
                 <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
+                )}
               </button>
+              {notificationsOpen && (
+                <div
+                  ref={notificationsRef}
+                  className="absolute right-16 top-14 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-xl backdrop-blur-xl"
+                >
+                  <div className="flex items-center justify-between border-b px-4 py-3">
+                    <p className="text-sm font-semibold">Notifications</p>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => nav('/notifications')}
+                    >
+                      Manage
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {alerts.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</div>
+                    ) : (
+                      alerts.slice(0, 8).map((alert) => (
+                        <button
+                          key={alert.id}
+                          type="button"
+                          onClick={() => {
+                            if (!alert.isRead) {
+                              markRead.mutate(alert.id);
+                            }
+                          }}
+                          className={cn(
+                            'w-full border-b px-4 py-3 text-left last:border-b-0 hover:bg-accent/40',
+                            !alert.isRead && 'bg-blue-50/60',
+                          )}
+                        >
+                          <p className="text-sm font-medium">{alert.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{alert.message}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="relative" ref={profileRef}>
                 <button

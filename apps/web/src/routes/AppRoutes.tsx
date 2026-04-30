@@ -25,6 +25,7 @@ const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default:
 const WarehousePage = lazy(() => import('@/pages/WarehousePage').then((m) => ({ default: m.WarehousePage })));
 const InvoicesPage = lazy(() => import('@/pages/InvoicesPage').then((m) => ({ default: m.InvoicesPage })));
 const PaymentsPage = lazy(() => import('@/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 function Protected({ children }: { children: React.ReactNode }) {
   const initialized = useAuthStore((s) => s.initialized);
@@ -88,10 +89,12 @@ export function AppRoutes() {
         <Route path="/sales" element={<Protected><SalesPage /></Protected>} />
         <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
         <Route path="/payments" element={<Protected><PaymentsPage /></Protected>} />
+        <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
         <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
         <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
         <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />
         <Route path="/purchase-orders" element={<Protected><PurchaseOrdersPage /></Protected>} />
+        <Route path="/purchase-orders/new" element={<Protected><PurchaseOrdersPage /></Protected>} />
         <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
         <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />

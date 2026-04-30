@@ -13,6 +13,7 @@ import {
   FileSignature,
   FileText,
   LayoutDashboard,
+  Bell,
   LogOut,
   Package,
   Settings,
@@ -88,6 +89,7 @@ export function Sidebar({
       // Warehouse + Admin
       ...(has('report:view') ? [{ label: 'Warehouse', icon: Warehouse, path: '/warehouse' }] : []),
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
+      ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
     [has, isAdmin],
@@ -121,21 +123,11 @@ export function Sidebar({
   const showLabels = !collapsed || isMobile;
 
   function handleDesktopSidebarEnter() {
-    if (isMobile) return;
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    if (collapsed) onCollapsedChange(false);
+    return;
   }
 
   function handleDesktopSidebarLeave() {
-    if (isMobile) return;
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = setTimeout(() => {
-      onCollapsedChange(true);
-      closeTimerRef.current = null;
-    }, 1000);
+    return;
   }
 
   async function handleLogout() {
@@ -173,7 +165,7 @@ export function Sidebar({
         onMouseEnter={handleDesktopSidebarEnter}
         onMouseLeave={handleDesktopSidebarLeave}
         className={cn(
-          'sidebar no-print fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-200',
+          'sidebar no-print fixed inset-y-0 left-0 z-50 flex flex-col',
           isMobile
             ? [
                 'w-[280px] max-w-[85vw] shadow-2xl md:hidden',

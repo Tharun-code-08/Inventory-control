@@ -24,10 +24,15 @@ export class AuthController {
 
   private refreshCookieOptions() {
     const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    const sameSiteConfig = this.config.get<string>('AUTH_COOKIE_SAME_SITE')?.toLowerCase();
+    const sameSite = sameSiteConfig === 'none' || sameSiteConfig === 'strict' || sameSiteConfig === 'lax'
+      ? (sameSiteConfig as 'none' | 'strict' | 'lax')
+      : (isProd ? 'none' : 'lax');
+    const secure = sameSite === 'none' ? true : isProd;
     return {
       httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax' as const,
+      secure,
+      sameSite,
       path: '/api/v1/auth',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };

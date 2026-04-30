@@ -1,11 +1,81 @@
 import { Injectable } from '@nestjs/common';
 import { AlertType, PurchaseOrderStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
+
+const CONFIG_KEY_PREFIX = 'notifications_matrix_config_v1';
+
+const defaultNotificationConfig = {
+  version: '1.0',
+  groups: [
+    {
+      id: 'procurement',
+      title: 'Procurement',
+      moduleTags: ['RFQs', 'Quotations', 'Contracts', 'Purchase Orders'],
+      rules: [
+        {
+          id: 'rfq_submitted',
+          title: 'New RFQ submitted and awaiting supplier responses',
+          notifyTo: 'Purchase Manager',
+          severity: 'ACTION',
+          channels: ['Email', 'In-app'],
+        },
+        {
+          id: 'rfq_deadline',
+          title: 'RFQ response deadline approaching (24 hrs)',
+          notifyTo: 'Procurement Team',
+          severity: 'WARNING',
+          channels: ['Email', 'SMS'],
+        },
+        {
+          id: 'po_pending_approval',
+          title: 'New PO pending approval (above threshold)',
+          notifyTo: 'Finance Head, Management',
+          severity: 'ACTION',
+          channels: ['Email', 'In-app'],
+        },
+      ],
+    },
+    {
+      id: 'inventory_warehouse',
+      title: 'Inventory & Warehouse',
+      moduleTags: ['Products', 'Goods Receipt', 'Goods Issue', 'Warehouse'],
+      rules: [
+        {
+          id: 'low_stock',
+          title: 'Low stock threshold breached',
+          notifyTo: 'Store Keeper, Inventory Manager',
+          severity: 'URGENT',
+          channels: ['In-app', 'Email'],
+        },
+      ],
+    },
+    {
+      id: 'finance',
+      title: 'Finance',
+      moduleTags: ['Invoices', 'Payments'],
+      rules: [
+        {
+          id: 'invoice_overdue',
+          title: 'Invoice overdue for collection',
+          notifyTo: 'Accounts Team',
+          severity: 'WARNING',
+          channels: ['Email'],
+        },
+      ],
+    },
+  ],
+};
 
 @Injectable()
 export class AlertsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private configKey(shopId?: string | null) {
+    return `${CONFIG_KEY_PREFIX}:${shopId ?? 'global'}`;
+  }
 
   async list(user: RequestUser) {
     return this.prisma.alertEvent.findMany({
@@ -20,6 +90,42 @@ export class AlertsService {
       where: { id },
       data: { isRead: true, resolvedAt: new Date() },
     });
+  }
+
+  async getNotificationConfig(user: RequestUser) {
+    const key = this.configKey(user.shopId);
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key } });
+    if (!setting) {
+      return defaultNotificationConfig;
+    }
+    return setting.value;
+  }
+
+  async updateNotificationConfig(user: RequestUser, dto: UpdateNotificationConfigDto) {
+    const key = this.configKey(user.shopId);
+    const value = {
+      version: dto.version ?? '1.0',
+      groups: dto.groups.map((group) => ({
+        id: group.id,
+        title: group.title,
+        moduleTags: [...group.moduleTags],
+        rules: group.rules.map((rule) => ({
+          id: rule.id,
+          title: rule.title,
+          notifyTo: rule.notifyTo,
+          severity: rule.severity,
+          channels: [...rule.channels],
+        })),
+      })),
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.id,
+    } as Prisma.InputJsonValue;
+    const saved = await this.prisma.systemSetting.upsert({
+      where: { key },
+      update: { value, updatedById: user.id },
+      create: { key, value, createdById: user.id, updatedById: user.id },
+    });
+    return saved.value;
   }
 
   async runAutomationChecks() {

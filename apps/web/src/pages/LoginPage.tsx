@@ -39,7 +39,8 @@ export function LoginPage() {
       setErrDetails(details);
       const base =
         msg ?? (ax.response?.status === 401 ? 'Invalid email or password' : 'Login failed');
-      setErr(code && code !== 'HTTP_ERROR' ? `${base} (${code})` : base);
+      const statusNote = ax.response?.status ? ` [${ax.response.status}]` : '';
+      setErr(code && code !== 'HTTP_ERROR' ? `${base}${statusNote} (${code})` : `${base}${statusNote}`);
     }
   }
 

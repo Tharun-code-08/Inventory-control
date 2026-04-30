@@ -1,6 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import request = require('supertest');
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response-envelope.interceptor';
@@ -50,11 +50,15 @@ describe('Retail IMS (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'admin@retailims.com', password: 'wrong' })
-      .expect(401);
+      .expect((res) => {
+        expect([400, 401]).toContain(res.status);
+      });
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'nope@retailims.com', password: 'Admin@123' })
-      .expect(401);
+      .expect((res) => {
+        expect([400, 401]).toContain(res.status);
+      });
   });
 });

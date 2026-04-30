@@ -93,6 +93,23 @@ npm run build --workspace=api
 npm run build --workspace=web
 ```
 
+### API build scripts (team usage)
+
+In `apps/api`:
+
+- `npm run build`
+  - Runs `nest build` only.
+  - Use for day-to-day compile checks and CI where Prisma Client is already generated.
+  - Preferred on Windows when Prisma engine file locks can occur.
+
+- `npm run prisma:generate`
+  - Runs `prisma generate` only.
+  - Use after Prisma schema/client changes, dependency refresh, or fresh setup.
+
+- `npm run build:full`
+  - Runs `prisma generate && nest build`.
+  - Use when you explicitly need both Prisma client regeneration and API compile in one command.
+
 Run API with `node apps/api/dist/main.js` after `DATABASE_URL` and Redis are configured.
 
 ## Deployment notes

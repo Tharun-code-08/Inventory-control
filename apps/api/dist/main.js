@@ -12,9 +12,8 @@ function webCorsOrigin() {
     const raw = process.env.WEB_ORIGIN?.trim();
     if (raw) {
         const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
-        if (list.length === 0)
-            return defaultWebOrigins();
-        return list.length === 1 ? list[0] : list;
+        if (list.length > 0)
+            return list;
     }
     return defaultWebOrigins();
 }
@@ -26,14 +25,32 @@ function defaultWebOrigins() {
         'http://127.0.0.1:5200',
     ];
 }
+function corsOptions() {
+    const allowList = webCorsOrigin();
+    return {
+        origin: (origin, callback) => {
+            if (!origin) {
+                callback(null, true);
+                return;
+            }
+            if (allowList.includes(origin)) {
+                callback(null, true);
+                return;
+            }
+            if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(origin)) {
+                callback(null, true);
+                return;
+            }
+            callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+        },
+        credentials: true,
+    };
+}
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: false });
     app.setGlobalPrefix('api/v1');
     app.use(cookieParser());
-    app.enableCors({
-        origin: webCorsOrigin(),
-        credentials: true,
-    });
+    app.enableCors(corsOptions());
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,

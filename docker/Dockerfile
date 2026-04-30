@@ -12,6 +12,7 @@ RUN npm ci
 # Build shared types and API
 FROM deps AS build
 COPY . .
+RUN npm run prisma:generate --workspace=api
 RUN npm run build --workspace=@retail-ims/shared-types \
   && npm run build --workspace=api
 

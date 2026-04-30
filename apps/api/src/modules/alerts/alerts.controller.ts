@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { AlertsService } from './alerts.service';
+import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 
 @ApiTags('alerts')
 @ApiBearerAuth()
@@ -27,6 +28,18 @@ export class AlertsController {
   @Post('run-checks')
   runChecks() {
     return this.alerts.runAutomationChecks();
+  }
+
+  @RequirePermission('report:view')
+  @Get('notification-config')
+  getNotificationConfig(@CurrentUser() user: RequestUser) {
+    return this.alerts.getNotificationConfig(user);
+  }
+
+  @RequirePermission('report:export')
+  @Put('notification-config')
+  updateNotificationConfig(@CurrentUser() user: RequestUser, @Body() dto: UpdateNotificationConfigDto) {
+    return this.alerts.updateNotificationConfig(user, dto);
   }
 }
 

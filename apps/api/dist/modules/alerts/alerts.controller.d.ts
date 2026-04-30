@@ -1,5 +1,6 @@
 import type { RequestUser } from '../../common/types/request-user';
 import { AlertsService } from './alerts.service';
+import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 export declare class AlertsController {
     private readonly alerts;
     constructor(alerts: AlertsService);
@@ -7,8 +8,8 @@ export declare class AlertsController {
         shopId: string | null;
         title: string;
         id: string;
-        alertType: import(".prisma/client").$Enums.AlertType;
         severity: string;
+        alertType: import(".prisma/client").$Enums.AlertType;
         message: string;
         referenceType: string | null;
         referenceId: string | null;
@@ -20,8 +21,8 @@ export declare class AlertsController {
         shopId: string | null;
         title: string;
         id: string;
-        alertType: import(".prisma/client").$Enums.AlertType;
         severity: string;
+        alertType: import(".prisma/client").$Enums.AlertType;
         message: string;
         referenceType: string | null;
         referenceId: string | null;
@@ -32,4 +33,20 @@ export declare class AlertsController {
     runChecks(): Promise<{
         generated: number;
     }>;
+    getNotificationConfig(user: RequestUser): Promise<import("@prisma/client/runtime/library").JsonValue | {
+        version: string;
+        groups: {
+            id: string;
+            title: string;
+            moduleTags: string[];
+            rules: {
+                id: string;
+                title: string;
+                notifyTo: string;
+                severity: string;
+                channels: string[];
+            }[];
+        }[];
+    }>;
+    updateNotificationConfig(user: RequestUser, dto: UpdateNotificationConfigDto): Promise<import("@prisma/client/runtime/library").JsonValue>;
 }

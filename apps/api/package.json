@@ -6,7 +6,9 @@
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "scripts": {
-    "build": "prisma generate && nest build",
+    "build": "nest build",
+    "build:full": "prisma generate && nest build",
+    "prisma:generate": "prisma generate",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",

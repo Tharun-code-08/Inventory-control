@@ -18,6 +18,7 @@ const swagger_1 = require("@nestjs/swagger");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const require_permission_decorator_1 = require("../../common/decorators/require-permission.decorator");
 const alerts_service_1 = require("./alerts.service");
+const update_notification_config_dto_1 = require("./dto/update-notification-config.dto");
 let AlertsController = class AlertsController {
     alerts;
     constructor(alerts) {
@@ -31,6 +32,12 @@ let AlertsController = class AlertsController {
     }
     runChecks() {
         return this.alerts.runAutomationChecks();
+    }
+    getNotificationConfig(user) {
+        return this.alerts.getNotificationConfig(user);
+    }
+    updateNotificationConfig(user, dto) {
+        return this.alerts.updateNotificationConfig(user, dto);
     }
 };
 exports.AlertsController = AlertsController;
@@ -58,6 +65,23 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AlertsController.prototype, "runChecks", null);
+__decorate([
+    (0, require_permission_decorator_1.RequirePermission)('report:view'),
+    (0, common_1.Get)('notification-config'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AlertsController.prototype, "getNotificationConfig", null);
+__decorate([
+    (0, require_permission_decorator_1.RequirePermission)('report:export'),
+    (0, common_1.Put)('notification-config'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_notification_config_dto_1.UpdateNotificationConfigDto]),
+    __metadata("design:returntype", void 0)
+], AlertsController.prototype, "updateNotificationConfig", null);
 exports.AlertsController = AlertsController = __decorate([
     (0, swagger_1.ApiTags)('alerts'),
     (0, swagger_1.ApiBearerAuth)(),
