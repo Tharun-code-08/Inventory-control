@@ -1,13 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
+import { AuditService } from '../audit/audit.service';
 
 type Line = { productId: string; quantity: number; uom: string };
 
@@ -17,15 +19,8 @@ export class GoodsIssuesService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
+    private readonly audit: AuditService,
   ) {}
-
-  private assertNotFuture(date: Date) {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (date.getTime() > today.getTime()) {
-      throw new BadRequestException('Document date cannot be in the future');
-    }
-  }
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
     const s = await tx.stockSummary.findUnique({
@@ -66,16 +61,16 @@ export class GoodsIssuesService {
   async create(user: RequestUser, params: { giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }) {
     assertShopScope(user, params.shopId);
     const giDate = new Date(params.giDate);
-    this.assertNotFuture(giDate);
+    assertNotFuture(giDate);
     for (const line of params.items) {
       if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const giNumber = await this.numbers.nextNumber(tx, {
+      const giNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: params.shopId,
         docType: 'GI',
-        prefix: 'GI',
+        basePrefix: 'GI',
         date: giDate,
       });
 
@@ -134,7 +129,7 @@ export class GoodsIssuesService {
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
     const giDate = dto.giDate ? new Date(dto.giDate) : existing.giDate;
-    this.assertNotFuture(giDate);
+    assertNotFuture(giDate);
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
@@ -181,7 +176,7 @@ export class GoodsIssuesService {
   async post(user: RequestUser, id: string) {
     const header = await this.get(user, id);
     if (header.status === DocumentStatus.POSTED) throw new DocumentAlreadyPostedException();
-    this.assertNotFuture(header.giDate);
+    assertNotFuture(header.giDate);
 
     return this.prisma.$transaction(async (tx) => {
       const fresh = await tx.goodsIssueHeader.findUnique({ where: { id }, include: { items: true } });
@@ -204,24 +199,50 @@ export class GoodsIssuesService {
         throw new InsufficientStockException('Insufficient stock for posting', failures);
       }
 
+      const transitioned = await tx.goodsIssueHeader.updateMany({
+        where: { id, status: DocumentStatus.DRAFT },
+        data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
+      });
+      if (transitioned.count === 0) {
+        throw new DocumentAlreadyPostedException();
+      }
+
       for (const line of fresh.items) {
-        await this.stock.postMovement(tx, {
+        await this.stock.postMovementOnce(tx, {
           type: TransactionType.GOODS_ISSUE,
           ref: fresh.giNumber,
           date: fresh.giDate,
           shopId: fresh.shopId,
           productId: line.productId,
           inQty: 0,
-          outQty: Number(line.quantity),
+          outQty: line.quantity,
+          sourceType: 'GOODS_ISSUE',
+          sourceId: fresh.id,
+          sourceLineId: line.id,
+          idempotencyKey: `gi:${fresh.id}:${line.id}`,
           userId: user.id,
         });
       }
 
-      return tx.goodsIssueHeader.update({
+      const posted = await tx.goodsIssueHeader.findUniqueOrThrow({
         where: { id },
-        data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
         include: { items: { include: { product: true } }, shop: true },
       });
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.POST,
+          entityType: 'GOODS_ISSUE',
+          entityId: posted.id,
+          newValues: {
+            giNumber: posted.giNumber,
+            status: posted.status,
+            itemCount: posted.items.length,
+          },
+        },
+        tx,
+      );
+      return posted;
     });
   }
 
@@ -253,3 +274,4 @@ export class GoodsIssuesService {
     return { ok: true };
   }
 }
+

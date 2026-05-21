@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/AppLayout';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,7 +68,7 @@ export function QuotationsPage() {
                     <TableCell>{q.quoteNumber}</TableCell>
                     <TableCell>{q.rfq?.rfqNumber ?? '-'}</TableCell>
                     <TableCell>{q.supplier?.supplierName ?? '-'}</TableCell>
-                    <TableCell>{q.status}</TableCell>
+                    <TableCell><StatusBadge status={q.status} /></TableCell>
                     <TableCell><Button size="sm" variant="outline" onClick={() => submitQuotation.mutate(q.id)}>Submit</Button></TableCell>
                   </TableRow>
                 ))}

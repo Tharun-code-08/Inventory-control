@@ -1,0 +1,46 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Generate Prisma client
+        # Tests and build both consume types from @prisma/client; ensure they
+        # exist before downstream steps run.
+        run: npm run prisma:generate --workspace=api
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Bundle budget
+        run: npm run check:bundle-budget
+      - name: Web smoke tests
+        run: npm run test --workspace=web -- --runInBand
+      - name: API unit tests with coverage gate
+        run: npm run test:cov --workspace=api -- --runInBand
+      - name: OpenAPI smoke validation
+        # Builds the Swagger document and runs swagger-parser against it. Only
+        # runs when a DATABASE_URL is exported (the Nest test bootstrap exits
+        # early without one, so the test suite is a no-op on PR builds without
+        # a DB). The job is therefore non-fatal in those environments.
+        run: npm run test:e2e --workspace=api -- --testPathPattern openapi.e2e-spec
+        continue-on-error: true
+      - name: Upload API coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: retail-ims/apps/api/coverage
+          if-no-files-found: ignore

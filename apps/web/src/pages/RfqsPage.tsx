@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -220,7 +221,7 @@ export function RfqsPage() {
                     <TableCell>{r.rfqNumber}</TableCell>
                     <TableCell>{r.title}</TableCell>
                     <TableCell>{r.deadline ? new Date(r.deadline).toLocaleDateString() : '-'}</TableCell>
-                    <TableCell>{r.status}</TableCell>
+                    <TableCell><StatusBadge status={r.status} /></TableCell>
                     <TableCell><Button size="sm" variant="outline" onClick={() => sendRfq.mutate(r.id)}>Send</Button></TableCell>
                   </TableRow>
                 ))}

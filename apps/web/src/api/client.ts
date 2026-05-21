@@ -40,6 +40,16 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  const requestId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  config.headers = AxiosHeaders.from(config.headers ?? {});
+  config.headers.set('x-request-id', requestId);
+  return config;
+});
+
 export function applyAccessToken(accessToken: string | null) {
   if (accessToken) {
     api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;

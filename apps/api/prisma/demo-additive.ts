@@ -110,46 +110,59 @@ async function ensureSystemSetting(key: string, value: Prisma.InputJsonValue) {
 }
 
 async function ensureProduct(input: DemoProductInput) {
-  const existing = await prisma.product.findFirst({
-    where: {
-      shopId: input.shopId,
-      productCode: input.productCode,
-    },
-  });
-  if (existing) return existing;
-
-  const product = await prisma.product.create({
-    data: {
-      productCode: input.productCode,
-      description: input.description,
-      uom: input.uom,
-      shopId: input.shopId,
-      category: input.category,
-      purchasePrice: input.purchasePrice,
-      sellingPrice: input.sellingPrice,
-      minStockLevel: input.minStockLevel,
-      openingStock: input.openingStock,
-      reorderQty: input.reorderQty,
-      isActive: true,
-      createdById: input.createdById,
-    },
+  // Multi-plant: one Product master row + one ProductPlant assignment for
+  // input.shopId. If the same productCode is referenced from two demo
+  // shops we just add a second assignment to the existing master.
+  const existingProduct = await prisma.product.findUnique({
+    where: { productCode: input.productCode },
   });
 
-  if (input.openingStock > 0) {
-    await prisma.stockLedger.create({
+  const product =
+    existingProduct ??
+    (await prisma.product.create({
       data: {
-        transactionType: TransactionType.OPENING,
-        transactionRef: `OPENING-${product.productCode}`,
-        transactionDate: new Date('2026-05-01'),
-        inQty: new Prisma.Decimal(input.openingStock),
-        outQty: new Prisma.Decimal(0),
-        balanceQty: new Prisma.Decimal(input.openingStock),
-        remarks: 'Additive demo opening stock',
+        productCode: input.productCode,
+        description: input.description,
+        uom: input.uom,
+        category: input.category,
+        purchasePrice: input.purchasePrice,
+        sellingPrice: input.sellingPrice,
+        isActive: true,
         createdById: input.createdById,
-        shop: { connect: { id: product.shopId } },
-        product: { connect: { id: product.id } },
+      },
+    }));
+
+  const existingAssignment = await prisma.productPlant.findUnique({
+    where: { productId_shopId: { productId: product.id, shopId: input.shopId } },
+  });
+  if (!existingAssignment) {
+    await prisma.productPlant.create({
+      data: {
+        productId: product.id,
+        shopId: input.shopId,
+        openingStock: input.openingStock,
+        minStockLevel: input.minStockLevel,
+        reorderQty: input.reorderQty,
+        isActive: true,
+        createdById: input.createdById,
       },
     });
+    if (input.openingStock > 0) {
+      await prisma.stockLedger.create({
+        data: {
+          transactionType: TransactionType.OPENING,
+          transactionRef: `OPENING-${product.productCode}-${input.shopId.slice(0, 8)}`,
+          transactionDate: new Date('2026-05-01'),
+          inQty: new Prisma.Decimal(input.openingStock),
+          outQty: new Prisma.Decimal(0),
+          balanceQty: new Prisma.Decimal(input.openingStock),
+          remarks: 'Additive demo opening stock',
+          createdById: input.createdById,
+          shop: { connect: { id: input.shopId } },
+          product: { connect: { id: product.id } },
+        },
+      });
+    }
   }
 
   return product;
@@ -654,19 +667,27 @@ async function main() {
     await ensureProduct(product);
   }
 
-  const products = await prisma.product.findMany({
-    select: {
-      id: true,
-      shopId: true,
-      productCode: true,
-      openingStock: true,
-      minStockLevel: true,
-      purchasePrice: true,
+  // Multi-plant: thresholds (openingStock, minStockLevel) live on
+  // ProductPlant. Pull each (product, plant) assignment so the demo refs
+  // below can still look up "product code at shop X".
+  const assignments = await prisma.productPlant.findMany({
+    include: {
+      product: { select: { id: true, productCode: true, purchasePrice: true } },
     },
   });
 
   const productByKey = new Map(
-    products.map((product) => [`${product.shopId}:${product.productCode}`, product] as const),
+    assignments.map((a) => [
+      `${a.shopId}:${a.product.productCode}`,
+      {
+        id: a.product.id,
+        shopId: a.shopId,
+        productCode: a.product.productCode,
+        openingStock: a.openingStock,
+        minStockLevel: a.minStockLevel,
+        purchasePrice: a.product.purchasePrice,
+      },
+    ] as const),
   );
 
   const sugar = productByKey.get('9a022519-dbc4-457f-8e96-22f0f2363d09:SUGAR-1');

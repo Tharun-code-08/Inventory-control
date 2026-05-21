@@ -9,7 +9,14 @@ export type Payment = {
   method?: string | null;
   reference?: string | null;
   remarks?: string | null;
-  invoice?: { invoiceNumber: string };
+  invoice?: {
+    id: string;
+    invoiceNumber: string;
+    totalValue?: string | number;
+    paidValue?: string | number;
+    dueDate?: string | null;
+    status?: string;
+  };
 };
 
 export type CreatePaymentPayload = {
@@ -20,6 +27,7 @@ export type CreatePaymentPayload = {
   method?: string;
   reference?: string;
   remarks?: string;
+  idempotencyKey?: string;
 };
 
 const keys = {

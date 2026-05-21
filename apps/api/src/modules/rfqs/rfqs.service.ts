@@ -5,10 +5,14 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
 import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
 import { UpdateRfqDto } from './dto/update-rfq.dto';
+import { DocumentNumberService } from '../stock/document-number.service';
 
 @Injectable()
 export class RfqsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbers: DocumentNumberService,
+  ) {}
 
   async list(user: RequestUser) {
     const scopedShop = defaultShopFilter(user);
@@ -27,37 +31,54 @@ export class RfqsService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
-    const count = await this.prisma.rfqHeader.count({ where: { shopId } });
-    const rfqNumber = `RFQ-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
-    return this.prisma.rfqHeader.create({
-      data: {
-        rfqNumber,
-        rfqDate: dto.rfqDate ? new Date(dto.rfqDate) : new Date(),
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
-        title: dto.title,
-        notes: dto.notes ?? null,
+    const rfqDate = dto.rfqDate ? new Date(dto.rfqDate) : new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const shop = await tx.shop.findUnique({
+        where: { id: shopId },
+        select: { shopNumber: true },
+      });
+      if (!shop) {
+        throw new BadRequestException('Invalid shopId');
+      }
+
+      const prefixSafeShop = shop.shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const rfqNumber = await this.numbers.nextNumber(tx, {
         shopId,
-        status: DocumentStatus.DRAFT,
-        createdById: user.id,
-        suppliers: {
-          create: (dto.suppliers ?? []).map((supplierId: string) => ({ supplierId })),
+        docType: 'RFQ',
+        prefix: `RFQ-${prefixSafeShop}`,
+        date: rfqDate,
+      });
+
+      return tx.rfqHeader.create({
+        data: {
+          rfqNumber,
+          rfqDate,
+          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          title: dto.title,
+          notes: dto.notes ?? null,
+          shopId,
+          status: DocumentStatus.DRAFT,
+          createdById: user.id,
+          suppliers: {
+            create: (dto.suppliers ?? []).map((supplierId: string) => ({ supplierId })),
+          },
+          items: {
+            create: (dto.items ?? []).map((item: CreateRfqItemDto) => ({
+              productId: item.productId ?? null,
+              description: item.description ?? null,
+              quantity: new Prisma.Decimal(item.quantity ?? 0),
+              uom: item.uom ?? 'UNIT',
+              specifications: item.specifications ?? null,
+              createdById: user.id,
+            })),
+          },
         },
-        items: {
-          create: (dto.items ?? []).map((item: CreateRfqItemDto) => ({
-            productId: item.productId ?? null,
-            description: item.description ?? null,
-            quantity: new Prisma.Decimal(item.quantity ?? 0),
-            uom: item.uom ?? 'UNIT',
-            specifications: item.specifications ?? null,
-            createdById: user.id,
-          })),
+        include: {
+          shop: true,
+          suppliers: { include: { supplier: true } },
+          items: { include: { product: true } },
         },
-      },
-      include: {
-        shop: true,
-        suppliers: { include: { supplier: true } },
-        items: { include: { product: true } },
-      },
+      });
     });
   }
 

@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
@@ -9,23 +11,44 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(user: RequestUser, search?: string) {
+  async list(
+    user: RequestUser,
+    query: { search?: string; cursor?: string; take?: number } = {},
+  ) {
+    const take = clampTake(query.take);
     const scopedShop = defaultShopFilter(user);
-    return this.prisma.customer.findMany({
-      where: {
-        ...(scopedShop ? { shopId: scopedShop } : {}),
-        ...(search
-          ? {
-              OR: [
-                { customerName: { contains: search, mode: 'insensitive' } },
-                { customerCode: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
+    const search = query.search?.trim();
+    const where: Prisma.CustomerWhereInput = {
+      ...(scopedShop ? { shopId: scopedShop } : {}),
+      ...(search
+        ? {
+            OR: [
+              { customerName: { contains: search, mode: 'insensitive' } },
+              { customerCode: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const rows = await this.prisma.customer.findMany({
+      where,
+      take: take + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        customerCode: true,
+        customerName: true,
+        email: true,
+        phone: true,
+        city: true,
+        country: true,
+        isActive: true,
+        shopId: true,
       },
-      orderBy: { customerCode: 'asc' },
-      include: { shop: true },
     });
+    const { items, meta } = buildMeta(rows, take);
+    return { data: items, meta };
   }
 
   async create(user: RequestUser, dto: CreateCustomerDto) {

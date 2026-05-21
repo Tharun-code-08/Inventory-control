@@ -1,4 +1,7 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { api } from '@/api/client';
 import {
   BarChart,
   Bar,
@@ -52,15 +55,15 @@ function StatCard({
   bg: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-6">
+    <Card className="surface-2">
+      <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
           </div>
           <div
-            className={`flex h-10 w-10 items-center justify-center rounded-lg ${bg}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}
           >
             <Icon className={`h-5 w-5 ${color}`} />
           </div>
@@ -91,9 +94,43 @@ function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+type ReorderSuggestion = {
+  productId: string;
+  shopId: string;
+  supplier: string | null;
+  orderQty: number;
+  rate: number;
+  currentStock: number;
+  minStockLevel: number;
+  suggestedQty: number;
+  hasPriorOrder: boolean;
+  lastPoNumber: string | null;
+};
+
 export function DashboardPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { data, isLoading } = useDashboard();
+
+  const handleLowStockReorder = async (p: {
+    id: string;
+    shopId: string;
+  }) => {
+    try {
+      const res = await api.get(`/products/${p.id}/reorder-suggestion`, {
+        params: { shop_id: p.shopId },
+      });
+      const suggestion = res.data?.data as ReorderSuggestion;
+      navigate('/purchase-orders/new', { state: { poPrefill: suggestion } });
+      if (suggestion.hasPriorOrder && suggestion.supplier) {
+        toast.success(`Opening PO with supplier ${suggestion.supplier}`);
+      } else {
+        toast.message('No prior PO for this product — pick a supplier on the order form');
+      }
+    } catch {
+      toast.error('Could not load reorder details');
+    }
+  };
 
   const dashboard = data as DashboardViewData | undefined;
 
@@ -103,8 +140,8 @@ export function DashboardPage() {
         title: 'Total Products',
         value: dashboard?.totalProducts ?? 0,
         icon: Package,
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
+        color: 'text-blue-300',
+        bg: 'bg-blue-500/15 border border-blue-400/20',
       },
       {
         title: 'Total Stock Value',
@@ -112,22 +149,22 @@ export function DashboardPage() {
           ? `₹${dashboard.totalStockValue.toLocaleString()}`
           : '₹0',
         icon: DollarSign,
-        color: 'text-emerald-600',
-        bg: 'bg-emerald-50',
+        color: 'text-emerald-300',
+        bg: 'bg-emerald-500/15 border border-emerald-400/20',
       },
       {
         title: 'Low Stock Items',
         value: dashboard?.lowStockCount ?? 0,
         icon: AlertTriangle,
-        color: 'text-amber-600',
-        bg: 'bg-amber-50',
+        color: 'text-amber-300',
+        bg: 'bg-amber-500/15 border border-amber-400/20',
       },
       {
         title: 'Recent Transactions',
         value: dashboard?.recentTransactions ?? 0,
         icon: ArrowRightLeft,
-        color: 'text-violet-600',
-        bg: 'bg-violet-50',
+        color: 'text-violet-300',
+        bg: 'bg-violet-500/15 border border-violet-400/20',
       },
     ],
     [dashboard],
@@ -135,35 +172,24 @@ export function DashboardPage() {
 
   return (
     <AppLayout active="Dashboard">
-      <div className="dashboard-normal space-y-6">
+      <div className="dashboard-normal space-y-5">
         <PageHeader
           title="Dashboard"
           description={`Welcome back, ${user?.name ?? 'User'}`}
         />
 
-        {dashboard?.isDemo ? (
-          <div
-            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-            role="status"
-          >
-            <span className="font-semibold">Sample dashboard data.</span>{' '}
-            Live totals will appear once products and stock movements exist in your database, or when the API is
-            reachable. Add inventory via Products and Goods Receipt, or run the API seed script.
-          </div>
-        ) : null}
-
         {/* Stat cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
             : stats.map((s) => <StatCard key={s.title} {...s} />)}
         </div>
 
         {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-900">
                 Stock Movement (Last 6 Months)
               </CardTitle>
             </CardHeader>
@@ -204,9 +230,13 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Products by Category</CardTitle>
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-900">Products by Category</CardTitle>
+              <p className="text-xs text-muted-foreground font-normal">
+                Counts come from each product&apos;s saved category in the database (not the Settings
+                category list).
+              </p>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -242,10 +272,10 @@ export function DashboardPage() {
         </div>
 
         {/* Recent activity */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-900">
                 Recent Goods Receipts
               </CardTitle>
             </CardHeader>
@@ -291,9 +321,9 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Goods Issues</CardTitle>
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-900">Recent Goods Issues</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -335,12 +365,15 @@ export function DashboardPage() {
         </div>
 
         {/* Low stock alerts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+        <Card className="surface-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <TrendingDown className="h-4 w-4 text-amber-500" />
               Low Stock Alerts
             </CardTitle>
+            <p className="text-xs text-muted-foreground font-normal">
+              Click a row to start a purchase order with your last supplier and suggested qty.
+            </p>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -355,6 +388,7 @@ export function DashboardPage() {
                   <TableRow>
                     <TableHead>Product Code</TableHead>
                     <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead className="text-right">Current Stock</TableHead>
                     <TableHead className="text-right">Min Level</TableHead>
                     <TableHead>Severity</TableHead>
@@ -375,11 +409,20 @@ export function DashboardPage() {
                     const variant: 'destructive' | 'warning' =
                       ratio < 0.5 ? 'destructive' : 'warning';
                     return (
-                      <TableRow key={p.id}>
+                      <TableRow
+                        key={`${p.id}-${p.shopId}`}
+                        className="cursor-pointer hover:bg-slate-50"
+                        onClick={() => handleLowStockReorder(p)}
+                      >
                         <TableCell className="font-medium">
                           {p.productCode}
                         </TableCell>
                         <TableCell>{p.description}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="font-normal">
+                            {p.category}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right font-medium">
                           {p.currentStock}
                         </TableCell>

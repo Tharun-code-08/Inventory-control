@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { AlertType, PurchaseOrderStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
+import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const CONFIG_KEY_PREFIX = 'notifications_matrix_config_v1';
 
@@ -27,7 +29,7 @@ const defaultNotificationConfig = {
           title: 'RFQ response deadline approaching (24 hrs)',
           notifyTo: 'Procurement Team',
           severity: 'WARNING',
-          channels: ['Email', 'SMS'],
+          channels: ['Email', 'In-app'],
         },
         {
           id: 'po_pending_approval',
@@ -48,7 +50,7 @@ const defaultNotificationConfig = {
           title: 'Low stock threshold breached',
           notifyTo: 'Store Keeper, Inventory Manager',
           severity: 'URGENT',
-          channels: ['In-app', 'Email'],
+          channels: ['In-app', 'Email', 'WhatsApp'],
         },
       ],
     },
@@ -71,7 +73,10 @@ const defaultNotificationConfig = {
 
 @Injectable()
 export class AlertsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications: NotificationsService | null = null,
+  ) {}
 
   private configKey(shopId?: string | null) {
     return `${CONFIG_KEY_PREFIX}:${shopId ?? 'global'}`;
@@ -129,6 +134,12 @@ export class AlertsService {
   }
 
   async runAutomationChecks() {
+    const idempotencyKey = `alerts:automation:${new Date().toISOString().slice(0, 13)}`;
+    const already = await this.prisma.$transaction((tx) =>
+      getIdempotentResult<{ generated: number }>(tx, idempotencyKey),
+    );
+    if (already) return already;
+
     const events: Array<{ alertType: AlertType; title: string; message: string; shopId: string }> = [];
 
     const lowStock = await this.prisma.stockSummary.findMany({
@@ -180,7 +191,8 @@ export class AlertsService {
     }
 
     if (events.length > 0) {
-      await this.prisma.alertEvent.createMany({
+      // Use createManyAndReturn so we have the ids to enqueue notifications.
+      const created = await this.prisma.alertEvent.createManyAndReturn({
         data: events.map((evt) => ({
           alertType: evt.alertType,
           title: evt.title,
@@ -190,9 +202,44 @@ export class AlertsService {
         })),
         skipDuplicates: false,
       });
+      if (this.notifications) {
+        await Promise.all(
+          created.map((row) =>
+            this.notifications!.enqueue({
+              alertEventId: row.id,
+              alertType: String(row.alertType),
+              title: row.title,
+              message: row.message,
+              shopId: row.shopId,
+              severity: row.severity,
+            }).catch(() => {
+              // Enqueue failures must not roll back alert creation; the
+              // automation job is itself idempotent and will re-enqueue on
+              // the next tick if Redis was momentarily unavailable.
+            }),
+          ),
+        );
+      }
     }
 
-    return { generated: events.length };
+    const result = { generated: events.length };
+    await this.prisma.$transaction((tx) => setIdempotentResult(tx, idempotencyKey, result));
+    return result;
+  }
+
+  async runRetention(daysToKeep = 90) {
+    const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
+    const deleted = await this.prisma.alertEvent.deleteMany({
+      where: {
+        isRead: true,
+        triggeredAt: { lt: cutoff },
+      },
+    });
+    return {
+      daysToKeep,
+      cutoff: cutoff.toISOString(),
+      deleted: deleted.count,
+    };
   }
 }
 

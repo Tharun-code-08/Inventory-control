@@ -30,6 +30,7 @@ export type CreateShopPayload = {
   mobile: string;
   email: string;
   companyId?: string | null;
+  isActive?: boolean;
 };
 
 export type UpdateShopPayload = Partial<CreateShopPayload> & { id: string };

@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,23 +9,71 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useCompanies, useCreateCompany, useDeleteCompany } from '@/hooks/use-companies';
+import {
+  useCompanies,
+  useCreateCompany,
+  useDeleteCompany,
+  useUpdateCompany,
+} from '@/hooks/use-companies';
+import { cn } from '@/lib/cn';
 
 export function CompaniesPage() {
   const { data: companies = [], isLoading } = useCompanies();
   const createCompany = useCreateCompany();
-  const deleteCompany = useDeleteCompany();
+  const deactivateCompany = useDeleteCompany();
+  const updateCompany = useUpdateCompany();
   const [form, setForm] = useState({
     companyCode: '',
     companyName: '',
     address: '',
     isActive: true,
   });
+  const actionPending = deactivateCompany.isPending || updateCompany.isPending;
+
+  const onDeactivate = async (id: string) => {
+    try {
+      await deactivateCompany.mutateAsync(id);
+      toast.success('Company deactivated');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+        'Failed to deactivate company';
+      toast.error(msg);
+    }
+  };
+
+  const onActivate = async (id: string) => {
+    try {
+      await updateCompany.mutateAsync({ id, isActive: true });
+      toast.success('Company activated');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+        'Failed to activate company';
+      toast.error(msg);
+    }
+  };
 
   const onCreate = async () => {
-    if (!form.companyName.trim()) return;
-    await createCompany.mutateAsync(form);
-    setForm({ companyCode: '', companyName: '', address: '', isActive: true });
+    if (!form.companyName.trim()) {
+      toast.error('Company name is required');
+      return;
+    }
+    try {
+      await createCompany.mutateAsync({
+        companyCode: form.companyCode.trim() || undefined,
+        companyName: form.companyName.trim(),
+        address: form.address.trim() || undefined,
+        isActive: form.isActive,
+      });
+      setForm({ companyCode: '', companyName: '', address: '', isActive: true });
+      toast.success('Company created');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+        'Failed to create company';
+      toast.error(msg);
+    }
   };
 
   return (
@@ -89,11 +139,32 @@ export function CompaniesPage() {
                       <TableCell>{item.companyCode}</TableCell>
                       <TableCell>{item.companyName}</TableCell>
                       <TableCell>{item.address || '-'}</TableCell>
-                      <TableCell>{item.isActive ? 'Active' : 'Inactive'}</TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => deleteCompany.mutate(item.id)}>
-                          Deactivate
-                        </Button>
+                        <StatusBadge status={item.isActive ? 'Active' : 'Deactive'} />
+                      </TableCell>
+                      <TableCell>
+                        {item.isActive ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => onDeactivate(item.id)}
+                            disabled={actionPending}
+                          >
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={cn(
+                              'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900',
+                            )}
+                            onClick={() => onActivate(item.id)}
+                            disabled={actionPending}
+                          >
+                            Activate
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

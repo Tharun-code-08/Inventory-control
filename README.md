@@ -12,6 +12,14 @@ Monorepo with a **NestJS 11** API (`apps/api`), **React 18 + Vite** web app (`ap
 
 Put API secrets in **`apps/api/.env`**. The **`npm run dev`** script starts the API via **`scripts/run-api-dev.cjs`**, which runs Nest with **`cwd` = `apps/api`** so **`.env`**, Prisma, and JWT load correctly. If you start the API manually, run commands from **`apps/api`** (or export the same env vars).
 
+To generate a local env file with secure random auth secrets automatically:
+
+```bash
+npm run setup:credentials
+```
+
+This creates `apps/api/.env` from `apps/api/.env.example` and auto-generates strong values for `JWT_SECRET`, `REFRESH_SECRET`, and `COOKIE_SECRET`.
+
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `NODE_ENV` | Runtime mode | `development` |
@@ -33,12 +41,22 @@ Put API secrets in **`apps/api/.env`**. The **`npm run dev`** script starts the 
 From `retail-ims/`:
 
 ```bash
-cp apps/api/.env.example apps/api/.env
-npm install
-docker compose -f docker/docker-compose.yml up -d postgres redis
-# or from retail-ims: npm run docker:deps
-cd apps/api && npx prisma migrate deploy && npx prisma db seed && cd ../..
-npm run dev
+npm run setup:new-machine
+```
+
+This single task does all setup steps in order:
+
+- installs dependencies
+- creates `apps/api/.env` if missing (`setup:credentials`)
+- starts Docker Postgres + Redis
+- runs Prisma migrations
+- seeds data (including `admin@retailims.com` / `Admin@123`)
+- starts API + web dev servers
+
+If you only want provisioning (without launching dev servers), run:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1 -SkipStart
 ```
 
 If you use **local** Postgres/Redis instead of Docker, set **`DATABASE_URL`** (usually port **5432**) and **`REDIS_*`** in `apps/api/.env`, then migrate + seed as above.
@@ -78,6 +96,23 @@ cd apps/api
 set DATABASE_URL=postgresql://...   # Windows PowerShell: $env:DATABASE_URL="..."
 npm test
 ```
+
+**Business workflow e2e** (Master Data → Procurement → Sales → Security → scenarios; requires migrated DB + seed):
+
+```bash
+npm run test:workflows
+```
+
+See [docs/business-workflow-testing.md](docs/business-workflow-testing.md) for the full phase map and manual checks.
+
+**Playwright (Phase 8 UI — mobile sidebar, PO tables, reports):**
+
+```bash
+npx playwright install chromium
+npm run test:playwright
+```
+
+Requires API (`:3000`) and web (`:5200`) running, or use CI `integration-tests` workflow.
 
 **Web (Vitest + RTL):**
 
@@ -124,3 +159,35 @@ Run API with `node apps/api/dist/main.js` after `DATABASE_URL` and Redis are con
 - **Stock movements** go through `StockService.postMovement()` inside Prisma transactions; PostgreSQL triggers maintain `stock_ledger.balance_qty` and `stock_summary`.
 - **Negative stock** is blocked in the DB on outbound `stock_ledger` inserts.
 - **Document numbers** use `document_sequences` + `pg_advisory_xact_lock(hashtext(...))` for concurrency safety.
+
+## Phase 1 priorities (must-have first)
+
+To complete the core procure-to-pay (P2P) flow first, prioritize delivery in this order:
+
+1. KPI Dashboard
+2. Quotation Comparison
+3. PO Approval Workflow
+4. Low Stock Alerts
+5. Stock Transfer
+6. Sales Orders
+7. Invoice Generation
+8. Role-Based Access
+9. Reports
+
+## Daily operations flow (P2P + inventory)
+
+Typical day-to-day flow across procurement, warehouse, supplier collaboration, and finance:
+
+1. Purchase Order (PO) is raised and approved.
+2. Goods are received in one or more parts (Partial GR).
+3. Damaged or incorrect quantities are returned (Goods Return) when needed.
+4. Stock Ledger records every movement automatically in the background.
+5. Finance tracks payable amounts, due dates, and settlements (Payment Tracking).
+6. Supplier Portal exposes shared status (PO, GR, returns, payment state) to suppliers.
+7. Notifications keep all stakeholders informed at each step.
+
+## Implementation priorities and guardrails
+
+- **Stock ledger must be fully automatic:** users should never create ledger entries manually. GR, goods issue, goods return, and stock transfer flows must all post ledger movements in backend transactions.
+- **Notifications rollout:** start with email using SMTP/SendGrid; enable WhatsApp only after onboarding with WhatsApp Business API providers (for example Twilio or WATI) and approved Meta templates.
+- **Supplier portal architecture:** build as a separate subdomain (for example `portal.yoursite.com`) with isolated authentication and authorization, while reading from the same ERP database and service layer.

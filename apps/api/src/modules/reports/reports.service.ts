@@ -35,28 +35,47 @@ export class ReportsService {
   async inventory(user: RequestUser, filters: { shop_id?: string; category?: string; low_stock_only?: boolean }) {
     const shopId = this.shop(user, filters.shop_id);
     const lowOnly = filters.low_stock_only === true;
-    const rows = await this.prisma.product.findMany({
+    // Inventory is now per-plant. Drive the listing off ProductPlant so each
+    // assignment becomes one row, even when a single Product is stocked at
+    // many plants. Stock summary lookups stay (shopId, productId)-keyed.
+    const assignments = await this.prisma.productPlant.findMany({
       where: {
         isActive: true,
+        product: {
+          isActive: true,
+          ...(filters.category ? { category: filters.category } : {}),
+        },
         ...(shopId ? { shopId } : {}),
-        ...(filters.category ? { category: filters.category } : {}),
       },
-      include: { stockSummaries: true },
-      orderBy: { productCode: 'asc' },
+      include: {
+        product: { select: { id: true, productCode: true, description: true, category: true } },
+        shop: { select: { id: true } },
+      },
+      orderBy: [{ product: { productCode: 'asc' } }, { shopId: 'asc' }],
     });
-    return rows
-      .map((p) => {
-        const summary = p.stockSummaries.find((s) => s.shopId === p.shopId);
-        const current = summary?.currentStock ?? new Prisma.Decimal(0);
-        return {
-          product_id: p.id,
-          product_code: p.productCode,
-          description: p.description,
-          shop_id: p.shopId,
-          current_stock: current,
-          min_stock_level: p.minStockLevel,
-        };
-      })
+
+    const summaryKeys = assignments.map((a) => ({ shopId: a.shopId, productId: a.productId }));
+    const summaries = summaryKeys.length
+      ? await this.prisma.stockSummary.findMany({
+          where: {
+            OR: summaryKeys.map((k) => ({ shopId: k.shopId, productId: k.productId })),
+          },
+          select: { shopId: true, productId: true, currentStock: true },
+        })
+      : [];
+    const stockByKey = new Map(
+      summaries.map((s) => [`${s.shopId}:${s.productId}`, s.currentStock]),
+    );
+
+    return assignments
+      .map((a) => ({
+        product_id: a.productId,
+        product_code: a.product.productCode,
+        description: a.product.description,
+        shop_id: a.shopId,
+        current_stock: stockByKey.get(`${a.shopId}:${a.productId}`) ?? new Prisma.Decimal(0),
+        min_stock_level: a.minStockLevel,
+      }))
       .filter((r) => (lowOnly ? r.current_stock.lt(r.min_stock_level) : true));
   }
 
@@ -112,7 +131,9 @@ export class ReportsService {
       SELECT p.product_code, p.description, r.total_issued_qty, r.velocity,
              (r.velocity_bucket = 5) as is_top_velocity_decile
       FROM ranked r
-      JOIN products p ON p.id = r.product_id AND p.shop_id = (SELECT shop_id FROM bounds)
+      JOIN product_plants pp ON pp.product_id = r.product_id
+                            AND pp.shop_id = (SELECT shop_id FROM bounds)
+      JOIN products p ON p.id = pp.product_id
       ORDER BY r.total_issued_qty DESC
       LIMIT ${limit}
     `);
@@ -159,10 +180,24 @@ export class ReportsService {
     let validatedProductShopId: string | undefined;
 
     if (product_id) {
-      const product = await this.prisma.product.findUnique({ where: { id: product_id } });
+      const product = await this.prisma.product.findUnique({
+        where: { id: product_id },
+        include: { plants: { select: { shopId: true } } },
+      });
       if (!product) return [];
-      assertShopScope(user, product.shopId);
-      validatedProductShopId = product.shopId;
+      // The product is master data now; "shop scope" means the user must be
+      // assigned to at least one of the product's plants. If they passed a
+      // shop_id, assert it explicitly; otherwise default to their own shop
+      // when they have one.
+      if (scopedShopId) {
+        const assigned = product.plants.some((pp) => pp.shopId === scopedShopId);
+        if (!assigned) return [];
+        validatedProductShopId = scopedShopId;
+      } else if (user.shopId) {
+        const assigned = product.plants.some((pp) => pp.shopId === user.shopId);
+        if (!assigned) return [];
+        validatedProductShopId = user.shopId;
+      }
     }
 
     return this.prisma.stockLedger.findMany({
@@ -184,8 +219,9 @@ export class ReportsService {
              COUNT(DISTINCT p.id)::int as sku_count,
              SUM(COALESCE(ss.current_stock,0) * p.purchase_price) as stock_value
       FROM shops sh
-      LEFT JOIN products p ON p.shop_id = sh.id AND p.is_active = true
-      LEFT JOIN stock_summary ss ON ss.shop_id = p.shop_id AND ss.product_id = p.id
+      LEFT JOIN product_plants pp ON pp.shop_id = sh.id AND pp.is_active = true
+      LEFT JOIN products p ON p.id = pp.product_id AND p.is_active = true
+      LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
       WHERE (${shopId ? Prisma.sql`sh.id = ${shopId}::uuid` : Prisma.sql`TRUE`})
       GROUP BY sh.id, sh.shop_name
       ORDER BY sh.shop_name ASC

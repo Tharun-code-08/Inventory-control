@@ -17,7 +17,7 @@ import {
 } from '@/hooks/use-notifications';
 
 const severityOptions: NotificationSeverity[] = ['URGENT', 'WARNING', 'ACTION', 'INFO'];
-const channelOptions: NotificationChannel[] = ['Email', 'SMS', 'In-app'];
+const channelOptions: NotificationChannel[] = ['Email', 'SMS', 'In-app', 'WhatsApp'];
 
 function severityDotClass(severity: NotificationSeverity) {
   if (severity === 'URGENT') return 'bg-red-500';
@@ -120,6 +120,15 @@ export function NotificationsPage() {
           ))}
         </div>
 
+        <Card className="p-4">
+          <p className="text-sm font-semibold">Channel rollout plan</p>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <li>Email first: SMTP or SendGrid can be enabled immediately for production alerts.</li>
+            <li>WhatsApp requires provider onboarding (Twilio/WATI) and Meta template approval before go-live.</li>
+            <li>Use in-app as default fallback for every rule.</li>
+          </ul>
+        </Card>
+
         {configQuery.isLoading ? (
           <Card className="p-4 text-sm text-muted-foreground">Loading notification settings...</Card>
         ) : !config || config.groups.length === 0 ? (
@@ -187,10 +196,11 @@ export function NotificationsPage() {
                               <Badge
                                 key={channel}
                                 variant={rule.channels.includes(channel) ? 'default' : 'outline'}
-                                className="cursor-pointer"
+                                className={cn('cursor-pointer', channel === 'WhatsApp' && 'opacity-80')}
                                 onClick={() => toggleRuleChannel(gIdx, rIdx, channel)}
                               >
                                 {channel}
+                                {channel === 'WhatsApp' ? ' (approval needed)' : ''}
                               </Badge>
                             ))}
                           </div>
@@ -203,6 +213,14 @@ export function NotificationsPage() {
             );
           })
         )}
+
+        <Card className="p-4">
+          <p className="text-sm font-semibold">Delivery observability</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Add provider webhook events to store message delivery, failure reason, and retry attempts per notification rule.
+            This gives ops a single view to troubleshoot missed alerts.
+          </p>
+        </Card>
       </div>
     </AppLayout>
   );

@@ -1,10 +1,35 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class DocumentNumberService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Embed plant code in the prefix so globally-unique document numbers do not collide across shops. */
+  shopScopedPrefix(shopNumber: string, basePrefix: string) {
+    const safe = shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return `${basePrefix}-${safe}`;
+  }
+
+  async nextShopScopedNumber(
+    tx: Prisma.TransactionClient,
+    params: { shopId: string; docType: string; basePrefix: string; date: Date },
+  ) {
+    const shop = await tx.shop.findUnique({
+      where: { id: params.shopId },
+      select: { shopNumber: true },
+    });
+    if (!shop) {
+      throw new BadRequestException('Invalid shopId');
+    }
+    return this.nextNumber(tx, {
+      shopId: params.shopId,
+      docType: params.docType,
+      prefix: this.shopScopedPrefix(shop.shopNumber, params.basePrefix),
+      date: params.date,
+    });
+  }
 
   yearMonth(d: Date) {
     const y = d.getUTCFullYear();

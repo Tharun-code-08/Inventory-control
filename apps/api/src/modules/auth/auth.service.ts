@@ -1,14 +1,21 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AvatarStorageService } from '../../common/upload/avatar-storage.service';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 
-type RefreshPayload = { sub: string; refreshId: string };
+type RefreshPayload = { sub: string; sid: string; refreshId: string };
 type SessionUserRecord = {
   id: string;
   name: string;
@@ -31,13 +38,46 @@ type SessionUserRecord = {
   } | null;
 };
 
+export type LoginContext = {
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly avatarStorage: AvatarStorageService,
   ) {}
+
+  private bcryptRounds() {
+    const value = Number(this.config.get<string | number>('BCRYPT_ROUNDS') ?? 12);
+    return Number.isFinite(value) && value >= 10 && value <= 14 ? value : 12;
+  }
+
+  private lockoutThreshold() {
+    return Number(this.config.get<string | number>('LOCKOUT_THRESHOLD') ?? 5);
+  }
+
+  private lockoutDurationMs() {
+    return Number(this.config.get<string | number>('LOCKOUT_DURATION_MIN') ?? 15) * 60 * 1000;
+  }
+
+  /**
+   * Progressive lockout windows reduce brute-force throughput across repeated
+   * lock cycles. The first lock uses base duration; subsequent lock cycles
+   * double up to an upper bound.
+   */
+  private lockoutUntilForFailures(nextFailedCount: number): Date {
+    const threshold = this.lockoutThreshold();
+    const severity = Math.max(1, nextFailedCount - threshold + 1);
+    const multiplier = Math.min(8, 2 ** (severity - 1));
+    return new Date(Date.now() + this.lockoutDurationMs() * multiplier);
+  }
 
   private toSessionUser(user: SessionUserRecord) {
     const permissions = user.role.permissions as unknown as string[];
@@ -64,22 +104,103 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
+  private refreshTtl() {
+    return this.config.get<string>('JWT_REFRESH_EXPIRES', '7d') as
+      | `${number}m`
+      | `${number}d`
+      | `${number}h`;
+  }
+
+  private refreshTtlMs(): number {
+    const raw = this.config.get<string>('JWT_REFRESH_EXPIRES', '7d');
+    const match = /^(\d+)([mhd])$/.exec(raw.trim());
+    if (!match) return 7 * 24 * 60 * 60 * 1000;
+    const [, n, unit] = match;
+    const ms = unit === 'm' ? 60_000 : unit === 'h' ? 3_600_000 : 86_400_000;
+    return Number(n) * ms;
+  }
+
+  /**
+   * Mint a new session row + signed refresh token. The refreshId is the
+   * unguessable secret stored as a bcrypt hash on the row; the row id is
+   * embedded in the JWT so we can find the matching session in O(1) and
+   * compare-and-swap on it during rotation.
+   */
+  private async issueSession(userId: string, ctx: LoginContext) {
+    const refreshId = randomUUID();
+    const refreshHash = await bcrypt.hash(refreshId, this.bcryptRounds());
+    const session = await this.prisma.session.create({
+      data: {
+        userId,
+        refreshHash,
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent?.slice(0, 512) ?? null,
+        expiresAt: new Date(Date.now() + this.refreshTtlMs()),
+      },
+    });
+    const refreshToken = await this.jwt.signAsync(
+      { sub: userId, sid: session.id, refreshId } satisfies RefreshPayload,
+      {
+        secret: this.config.getOrThrow<string>('REFRESH_SECRET'),
+        expiresIn: this.refreshTtl(),
+      },
+    );
+    return { sessionId: session.id, refreshToken };
+  }
+
+  async login(dto: LoginDto, ctx: LoginContext = {}) {
+    const email = dto.email.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase().trim() },
+      where: { email },
       include: { role: true, shop: true },
     });
+    // Generic message — don't leak whether the email exists or whether the
+    // account is locked. Ops can still see lock state in logs/admin.
+    const generic = 'Invalid credentials or account temporarily locked';
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(generic);
     }
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new UnauthorizedException(generic);
+    }
+
     let passwordOk = false;
     try {
       passwordOk = await bcrypt.compare(dto.password, user.passwordHash);
-    } catch {
+    } catch (err) {
+      this.logger.warn(
+        `bcrypt.compare failed for userId=${user.id}: ${(err as Error)?.message ?? 'unknown'}`,
+      );
       passwordOk = false;
     }
     if (!passwordOk) {
-      throw new UnauthorizedException('Invalid credentials');
+      // Use the persisted post-increment counter inside one transaction so
+      // lockout escalation reflects true concurrent failure volume.
+      const threshold = this.lockoutThreshold();
+      await this.prisma.$transaction(async (tx) => {
+        const afterIncrement = await tx.user.update({
+          where: { id: user.id },
+          data: { failedLoginCount: { increment: 1 } },
+          select: { failedLoginCount: true },
+        });
+        if (afterIncrement.failedLoginCount >= threshold) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              lockedUntil: this.lockoutUntilForFailures(afterIncrement.failedLoginCount),
+            },
+          });
+        }
+      });
+      throw new UnauthorizedException(generic);
+    }
+
+    // Reset lockout state on success.
+    if (user.failedLoginCount > 0 || user.lockedUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: 0, lockedUntil: null },
+      });
     }
 
     const accessToken = await this.jwt.signAsync({
@@ -88,29 +209,21 @@ export class AuthService {
       role: String(user.role.name),
     });
 
-    const refreshId = randomUUID();
-    const refreshTokenHash = await bcrypt.hash(refreshId, 10);
-    const refreshTtl = this.config.get<string>('JWT_REFRESH_EXPIRES', '7d');
-    const refreshToken = await this.jwt.signAsync(
-      { sub: user.id, refreshId } satisfies RefreshPayload,
-      {
-        secret: this.config.getOrThrow<string>('REFRESH_SECRET'),
-        expiresIn: refreshTtl as `${number}m` | `${number}d` | `${number}h`,
-      },
-    );
+    const session = await this.issueSession(user.id, ctx);
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { refreshTokenHash, lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date() },
     });
     return {
       accessToken,
-      refreshCookieValue: refreshToken,
+      refreshCookieValue: session.refreshToken,
+      sessionId: session.sessionId,
       user: this.toSessionUser(user as SessionUserRecord),
     };
   }
 
-  async refreshFromToken(refreshToken: string | undefined) {
+  async refreshFromToken(refreshToken: string | undefined, ctx: LoginContext = {}) {
     if (!refreshToken) {
       throw new UnauthorizedException('Missing refresh token');
     }
@@ -123,52 +236,140 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
+    const session = await this.prisma.session.findUnique({ where: { id: payload.sid } });
+    if (!session || session.userId !== payload.sub || session.revokedAt) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    const matches = await bcrypt.compare(payload.refreshId, session.refreshHash);
+    if (!matches) {
+      // Bad refreshId on a valid session id → likely replay. Revoke ALL active
+      // sessions for this user so an attacker who stole one cookie can't keep
+      // refreshing.
+      await this.prisma.session.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+      where: { id: session.userId },
       include: { role: true, shop: true },
     });
-    if (!user || !user.isActive || !user.refreshTokenHash) {
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const matches = await bcrypt.compare(payload.refreshId, user.refreshTokenHash);
-    if (!matches) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
+    // Issue the new secret BEFORE rotating, then atomic compare-and-swap on the
+    // OLD hash. Replays of the old cookie observe count=0 and are rejected.
     const newRefreshId = randomUUID();
-    const newHash = await bcrypt.hash(newRefreshId, 10);
-    const newRefreshToken = await this.jwt.signAsync(
-      { sub: user.id, refreshId: newRefreshId } satisfies RefreshPayload,
-      {
-        secret: this.config.getOrThrow<string>('REFRESH_SECRET'),
-        expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES', '7d') as `${number}m` | `${number}d` | `${number}h`,
+    const newRefreshHash = await bcrypt.hash(newRefreshId, this.bcryptRounds());
+    const rotated = await this.prisma.session.updateMany({
+      where: { id: session.id, refreshHash: session.refreshHash, revokedAt: null },
+      data: {
+        refreshHash: newRefreshHash,
+        lastSeenAt: new Date(),
+        ip: ctx.ip ?? session.ip,
+        userAgent: ctx.userAgent?.slice(0, 512) ?? session.userAgent,
       },
-    );
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { refreshTokenHash: newHash },
     });
+    if (rotated.count === 0) {
+      // Lost the race or someone else already rotated. Either way, revoke and
+      // force a new login — never re-use a refreshId.
+      await this.prisma.session.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token already used');
+    }
 
     const accessToken = await this.jwt.signAsync({
       sub: user.id,
       email: user.email,
       role: String(user.role.name),
     });
+    const newRefreshToken = await this.jwt.signAsync(
+      { sub: user.id, sid: session.id, refreshId: newRefreshId } satisfies RefreshPayload,
+      {
+        secret: this.config.getOrThrow<string>('REFRESH_SECRET'),
+        expiresIn: this.refreshTtl(),
+      },
+    );
 
     return {
       accessToken,
       refreshCookieValue: newRefreshToken,
+      sessionId: session.id,
       user: this.toSessionUser(user as SessionUserRecord),
     };
   }
 
-  async logout(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshTokenHash: null },
+  async getSessionIdFromRefreshToken(refreshToken: string | undefined): Promise<string | null> {
+    if (!refreshToken) return null;
+    try {
+      const payload = await this.jwt.verifyAsync<RefreshPayload>(refreshToken, {
+        secret: this.config.getOrThrow<string>('REFRESH_SECRET'),
+      });
+      return payload.sid ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async logout(userId: string, sessionId?: string | null) {
+    if (sessionId) {
+      await this.prisma.session.updateMany({
+        where: { id: sessionId, userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return;
+    }
+    // Fallback for callers without a session id (e.g. legacy tokens).
+    await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
+  }
+
+  async listSessions(userId: string) {
+    const rows = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null },
+      orderBy: { lastSeenAt: 'desc' },
+      select: {
+        id: true,
+        ip: true,
+        userAgent: true,
+        createdAt: true,
+        lastSeenAt: true,
+        expiresAt: true,
+      },
+    });
+    return rows;
+  }
+
+  async revokeSession(userId: string, sessionId: string, isAdmin: boolean) {
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+    if (session.userId !== userId && !isAdmin) {
+      throw new ForbiddenException('Cannot revoke another user session');
+    }
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  async revokeAllForUser(userId: string) {
+    const result = await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: result.count };
   }
 
   async me(userId: string) {
@@ -193,7 +394,7 @@ export class AuthService {
 
     const nextName = dto.name?.trim() || undefined;
     const nextShopName = dto.shopName?.trim() || undefined;
-    const nextAvatarUrl = avatar ? `/uploads/avatars/${userId}-${Date.now()}.${(avatar.originalname.split('.').pop() || 'png').toLowerCase()}` : undefined;
+    const nextAvatarUrl = avatar ? await this.avatarStorage.store(userId, avatar) : undefined;
 
     const hasChange = !!(nextName || nextShopName || avatar);
     if (!hasChange) {
@@ -237,11 +438,15 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('Current password is incorrect');
     }
-    const newHash = await bcrypt.hash(dto.newPassword, 10);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash: newHash, refreshTokenHash: null },
-    });
+    const newHash = await bcrypt.hash(dto.newPassword, this.bcryptRounds());
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash: newHash } }),
+      // Revoke every active session so prior cookies cannot be replayed.
+      this.prisma.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
     return { ok: true };
   }
 }

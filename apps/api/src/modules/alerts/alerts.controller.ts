@@ -30,6 +30,12 @@ export class AlertsController {
     return this.alerts.runAutomationChecks();
   }
 
+  @RequirePermission('report:export')
+  @Post('retention-run')
+  runRetention() {
+    return this.alerts.runRetention();
+  }
+
   @RequirePermission('report:view')
   @Get('notification-config')
   getNotificationConfig(@CurrentUser() user: RequestUser) {

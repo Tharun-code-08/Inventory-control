@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
@@ -8,6 +8,8 @@ import * as Handlebars from 'handlebars';
 import * as path from 'path';
 import * as puppeteer from 'puppeteer';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JobFailureService } from '../../common/queues/job-failure.service';
+import { MetricsService } from '../../common/observability/metrics.service';
 
 type ExportJob =
   | { type: 'po-pdf'; purchaseOrderId: string }
@@ -20,8 +22,27 @@ export class ExportProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly failures: JobFailureService,
+    private readonly metrics: MetricsService,
   ) {
     super();
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job<ExportJob>) {
+    const durationSec = (Date.now() - (job.processedOn ?? Date.now())) / 1000;
+    this.metrics.bullJobDuration
+      .labels('exports', String(job.name), 'completed')
+      .observe(Math.max(0, durationSec));
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<ExportJob>, err: Error) {
+    const durationSec = (Date.now() - (job.processedOn ?? Date.now())) / 1000;
+    this.metrics.bullJobDuration
+      .labels('exports', String(job.name), 'failed')
+      .observe(Math.max(0, durationSec));
+    await this.failures.record(job, err);
   }
 
   async process(job: Job<ExportJob>): Promise<{ downloadUrl: string; fileName: string }> {

@@ -49,6 +49,6 @@ export class ShopsController {
   @RequirePermission('shop:write')
   @Delete(':id')
   remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.shops.softDelete(user, id);
+    return this.shops.remove(user, id);
   }
 }

@@ -29,7 +29,7 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as RequestUser | undefined;
     if (!user) {
-      return true;
+      throw new ForbiddenException('Authentication required');
     }
 
     for (const perm of required) {
@@ -49,7 +49,6 @@ export class PermissionsGuard implements CanActivate {
     if (user.role === RoleName.SHOP_USER && shopIdParam && user.shopId && shopIdParam !== user.shopId) {
       throw new ForbiddenException('Shop scope mismatch');
     }
-
     return true;
   }
 }

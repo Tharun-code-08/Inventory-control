@@ -8,10 +8,20 @@ import { api, applyAccessToken } from './api/client';
 import { initializeSessionFromAuthResponse } from './lib/session';
 import { useAuthStore } from './store/authStore';
 
-const qc = new QueryClient();
+const qc = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 async function bootstrapSession() {
   const state = useAuthStore.getState();
+  const tokenAtBootstrapStart = state.accessToken;
   if (state.accessToken) {
     applyAccessToken(state.accessToken);
   }
@@ -20,10 +30,17 @@ async function bootstrapSession() {
     const res = await api.post('/auth/refresh');
     await initializeSessionFromAuthResponse(res.data);
   } catch {
-    applyAccessToken(null);
-    useAuthStore.getState().clear();
+    const currentToken = useAuthStore.getState().accessToken;
+    // If login succeeded while refresh was in-flight, don't wipe session.
+    if (!currentToken || currentToken === tokenAtBootstrapStart) {
+      applyAccessToken(null);
+      useAuthStore.getState().clear();
+    }
   } finally {
-    useAuthStore.getState().setInitialized(true);
+    const current = useAuthStore.getState();
+    if (!current.initialized) {
+      current.setInitialized(true);
+    }
   }
 }
 

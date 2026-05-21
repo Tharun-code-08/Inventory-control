@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
+import { CursorPageDto } from '../../common/dto/cursor-page.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ListProductsDto } from './dto/list-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -15,67 +17,69 @@ export class ProductsController {
 
   @RequirePermission('product:read')
   @Get()
-  list(
-    @CurrentUser() user: RequestUser,
-    @Query('shop_id') shopId?: string,
-    @Query('shopId') legacyShopId?: string,
-    @Query('category') category?: string,
-    @Query('is_active') isActive?: string,
-    @Query('isActive') legacyIsActive?: string,
-    @Query('search') search?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
+  @ApiOperation({ summary: 'List products (paginated, shop-scoped, filterable)' })
+  list(@CurrentUser() user: RequestUser, @Query() query: ListProductsDto) {
     return this.products.list(user, {
-      shop_id: shopId ?? legacyShopId,
-      category,
-      is_active:
-        isActive !== undefined
-          ? isActive === 'true'
-          : legacyIsActive !== undefined
-            ? legacyIsActive === 'true'
-            : undefined,
-      search,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      shop_id: query.shop_id ?? query.shopId,
+      category: query.category,
+      is_active: query.is_active ?? query.isActive,
+      search: query.search,
+      page: query.page,
+      limit: query.limit,
     });
   }
 
   @RequirePermission('product:write')
   @Post()
+  @ApiOperation({ summary: 'Create a product' })
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateProductDto) {
     return this.products.create(user, dto);
   }
 
   @RequirePermission('product:read')
   @Get(':id/stock-history')
+  @ApiOperation({ summary: 'Cursor-paginated stock-ledger history for a product' })
   history(
     @CurrentUser() user: RequestUser,
-    @Param('id') id: string,
-    @Query('cursor') cursor?: string,
-    @Query('take') take?: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() page: CursorPageDto,
   ) {
-    return this.products.stockHistory(user, id, {
-      cursor,
-      take: take ? Number(take) : undefined,
-    });
+    return this.products.stockHistory(user, id, page);
+  }
+
+  @RequirePermission('product:read')
+  @Get(':id/reorder-suggestion')
+  @ApiOperation({ summary: 'PO prefill from prior orders and stock thresholds' })
+  reorderSuggestion(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('shop_id') shop_id?: string,
+  ) {
+    return this.products.reorderSuggestion(user, id, shop_id);
   }
 
   @RequirePermission('product:read')
   @Get(':id')
-  get(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  @ApiOperation({ summary: 'Get a product by id' })
+  get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.products.get(user, id);
   }
 
   @RequirePermission('product:write')
   @Patch(':id')
-  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdateProductDto) {
+  @ApiOperation({ summary: 'Update a product' })
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
     return this.products.update(user, id, dto);
   }
 
   @RequirePermission('product:write')
   @Delete(':id')
-  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  @ApiOperation({ summary: 'Delete a product (only if it has no stock history)' })
+  remove(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.products.remove(user, id);
   }
 }

@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { resolveEnvFilePaths } from './config/resolve-env-files';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -32,7 +33,14 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { SalesOrdersModule } from './modules/sales-orders/sales-orders.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { QueuesModule } from './common/queues/queues.module';
+import { UploadModule } from './common/upload/upload.module';
+import { ObservabilityModule } from './common/observability/observability.module';
+import { FxModule } from './modules/fx/fx.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -72,9 +80,39 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
           host: config.get<string>('REDIS_HOST', '127.0.0.1'),
           port: Number(config.get<string>('REDIS_PORT', '6379')),
         },
+        // Sensible global defaults: 5 attempts with exponential backoff, keep
+        // the last 100 successes for debugging, keep the last 500 failures so
+        // ops can inspect them via Bull Board / queue endpoints.
+        defaultJobOptions: {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: 100,
+          removeOnFail: 500,
+        },
+      }),
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'global',
+            ttl: Number(config.get<string | number>('RATE_LIMIT_GLOBAL_TTL') ?? 60) * 1000,
+            limit: Number(config.get<string | number>('RATE_LIMIT_GLOBAL_LIMIT') ?? 120),
+          },
+          {
+            name: 'auth',
+            ttl: Number(config.get<string | number>('RATE_LIMIT_AUTH_TTL') ?? 60) * 1000,
+            limit: Number(config.get<string | number>('RATE_LIMIT_AUTH_LIMIT') ?? 10),
+          },
+        ],
       }),
     }),
     PrismaModule,
+    QueuesModule,
+    UploadModule,
+    ObservabilityModule,
+    FxModule,
     AuditModule,
     StockModule,
     AuthModule,
@@ -98,9 +136,13 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     SalesOrdersModule,
     InvoicesModule,
     PaymentsModule,
+    ReturnsModule,
     AlertsModule,
+    NotificationsModule,
+    HealthModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],

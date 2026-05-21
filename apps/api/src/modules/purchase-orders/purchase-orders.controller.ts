@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -7,6 +7,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import type { RequestUser } from '../../common/types/request-user';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
+import { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @ApiTags('purchase-orders')
@@ -22,17 +23,19 @@ export class PurchaseOrdersController {
   @Get()
   list(
     @CurrentUser() user: RequestUser,
-    @Query('shop_id') shopId?: string,
-    @Query('cursor') cursor?: string,
-    @Query('take') take?: string,
+    @Query() query: ListPurchaseOrdersDto,
   ) {
-    return this.service.list(user, { shop_id: shopId, cursor, take: take ? Number(take) : undefined });
+    return this.service.list(user, query);
   }
 
   @RequirePermission('purchase_order:create')
   @Post()
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreatePurchaseOrderDto) {
-    return this.service.create(user, dto);
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreatePurchaseOrderDto,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.service.create(user, { ...dto, idempotencyKey: dto.idempotencyKey ?? idempotencyKey });
   }
 
   @RequirePermission('purchase_order:read')
@@ -49,14 +52,14 @@ export class PurchaseOrdersController {
 
   @RequirePermission('purchase_order:create')
   @Post(':id/confirm')
-  confirm(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.confirm(user, id);
+  confirm(@CurrentUser() user: RequestUser, @Param('id') id: string, @Headers('x-idempotency-key') idempotencyKey?: string) {
+    return this.service.confirm(user, id, idempotencyKey);
   }
 
   @RequirePermission('purchase_order:create')
   @Post(':id/cancel')
-  cancel(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.cancel(user, id);
+  cancel(@CurrentUser() user: RequestUser, @Param('id') id: string, @Headers('x-idempotency-key') idempotencyKey?: string) {
+    return this.service.cancel(user, id, idempotencyKey);
   }
 
   @RequirePermission('report:export')

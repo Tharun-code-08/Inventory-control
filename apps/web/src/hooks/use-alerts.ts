@@ -23,6 +23,9 @@ export function useAlerts() {
       const res = await api.get('/alerts');
       return (res.data.data ?? []) as AlertEvent[];
     },
+    staleTime: 20_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

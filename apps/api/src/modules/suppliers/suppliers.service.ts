@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
@@ -8,22 +10,53 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 export class SuppliersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: { search?: string; is_active?: boolean }) {
-    return this.prisma.supplier.findMany({
-      where: {
-        ...(query.search
-          ? {
-              OR: [
-                { supplierName: { contains: query.search, mode: 'insensitive' } },
-                { supplierCode: { contains: query.search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-        ...(query.is_active !== undefined ? { isActive: query.is_active } : {}),
+  async list(query: { search?: string; is_active?: boolean; cursor?: string; take?: number }) {
+    const take = clampTake(query.take);
+    const search = query.search?.trim();
+    const where: Prisma.SupplierWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              { supplierName: { contains: search, mode: 'insensitive' } },
+              { supplierCode: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.is_active !== undefined ? { isActive: query.is_active } : {}),
+    };
+
+    const rows = await this.prisma.supplier.findMany({
+      where,
+      take: take + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        supplierCode: true,
+        supplierName: true,
+        companyId: true,
+        taxId: true,
+        vatNumber: true,
+        rating: true,
+        categories: true,
+        contactPerson: true,
+        email: true,
+        phone: true,
+        street: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        country: true,
+        paymentTerms: true,
+        bankName: true,
+        accountNumber: true,
+        routingNumber: true,
+        iban: true,
+        isActive: true,
       },
-      orderBy: { supplierCode: 'asc' },
-      include: { company: true },
     });
+    const { items, meta } = buildMeta(rows, take);
+    return { data: items, meta };
   }
 
   async create(user: RequestUser, dto: CreateSupplierDto) {
@@ -100,7 +133,7 @@ export class SuppliersService {
     await this.get(id);
     return this.prisma.supplier.update({
       where: { id },
-      data: { isActive: false, updatedById: user.id },
+      data: { isActive: false, deletedAt: new Date(), updatedById: user.id },
     });
   }
 }

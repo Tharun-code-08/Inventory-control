@@ -217,7 +217,7 @@ export function GoodsIssuePage() {
   function getStockStatus(productId: string, qty: number) {
     const prod = productMap.get(productId);
     if (!prod) return null;
-    const available = prod.currentStock ?? prod.openingStock ?? 0;
+    const available = prod.currentStock ?? 0;
     if (qty > available) return 'error' as const;
     if (qty > available * 0.8) return 'warning' as const;
     return 'ok' as const;
@@ -227,7 +227,7 @@ export function GoodsIssuePage() {
     return values.items.some((it) => {
       const prod = productMap.get(it.productId);
       if (!prod) return false;
-      const available = prod.currentStock ?? prod.openingStock ?? 0;
+      const available = prod.currentStock ?? 0;
       return it.quantity > available;
     });
   }
@@ -512,7 +512,7 @@ export function GoodsIssuePage() {
                   const watchedProduct = form.watch(`items.${idx}.productId`);
                   const watchedQty = form.watch(`items.${idx}.quantity`);
                   const prod = productMap.get(watchedProduct);
-                  const available = prod ? (prod.currentStock ?? prod.openingStock ?? 0) : 0;
+                  const available = prod?.currentStock ?? 0;
                   const stockStatus = watchedProduct && watchedQty > 0 ? getStockStatus(watchedProduct, watchedQty) : null;
 
                   return (
@@ -551,7 +551,7 @@ export function GoodsIssuePage() {
                                       <span className="font-medium">{p.productCode}</span>
                                       <span className="ml-2 text-muted-foreground">{p.description}</span>
                                       <span className="ml-2 text-xs text-emerald-600">
-                                        (Stock: {p.currentStock ?? p.openingStock ?? 0})
+                                        (Stock: {p.currentStock ?? 0})
                                       </span>
                                     </SelectItem>
                                   ))}

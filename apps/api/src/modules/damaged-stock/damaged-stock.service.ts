@@ -1,13 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DamagedStockService {
@@ -15,15 +17,8 @@ export class DamagedStockService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
+    private readonly audit: AuditService,
   ) {}
-
-  private assertNotFuture(date: Date) {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (date.getTime() > today.getTime()) {
-      throw new BadRequestException('Document date cannot be in the future');
-    }
-  }
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
     const s = await tx.stockSummary.findUnique({ where: { shopId_productId: { shopId, productId } } });
@@ -56,7 +51,7 @@ export class DamagedStockService {
   ) {
     assertShopScope(user, dto.shopId);
     const damageDate = new Date(dto.damageDate);
-    this.assertNotFuture(damageDate);
+    assertNotFuture(damageDate);
     if (dto.damagedQuantity <= 0) throw new BadRequestException('Quantity must be > 0');
 
     return this.prisma.$transaction(async (tx) => {
@@ -117,7 +112,7 @@ export class DamagedStockService {
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
     const damageDate = dto.damageDate ? new Date(dto.damageDate) : existing.damageDate;
-    this.assertNotFuture(damageDate);
+    assertNotFuture(damageDate);
 
     return this.prisma.$transaction(async (tx) => {
       const qty = dto.damagedQuantity ?? Number(existing.damagedQuantity);
@@ -157,7 +152,7 @@ export class DamagedStockService {
   async post(user: RequestUser, id: string) {
     const row = await this.get(user, id);
     if (row.status === DocumentStatus.POSTED) throw new DocumentAlreadyPostedException();
-    this.assertNotFuture(row.damageDate);
+    assertNotFuture(row.damageDate);
 
     return this.prisma.$transaction(async (tx) => {
       const fresh = await tx.damagedStock.findUnique({ where: { id } });
@@ -176,22 +171,47 @@ export class DamagedStockService {
         ]);
       }
 
-      await this.stock.postMovement(tx, {
+      const transitioned = await tx.damagedStock.updateMany({
+        where: { id, status: DocumentStatus.DRAFT },
+        data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
+      });
+      if (transitioned.count === 0) {
+        throw new DocumentAlreadyPostedException();
+      }
+
+      await this.stock.postMovementOnce(tx, {
         type: TransactionType.DAMAGE,
         ref: fresh.damageNumber,
         date: fresh.damageDate,
         shopId: fresh.shopId,
         productId: fresh.productId,
         inQty: 0,
-        outQty: Number(fresh.damagedQuantity),
+        outQty: fresh.damagedQuantity,
+        sourceType: 'GOODS_RETURN',
+        sourceId: fresh.id,
+        idempotencyKey: `dm:${fresh.id}`,
         userId: user.id,
       });
 
-      return tx.damagedStock.update({
+      const posted = await tx.damagedStock.findUniqueOrThrow({
         where: { id },
-        data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
         include: { product: true, shop: true },
       });
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.POST,
+          entityType: 'DAMAGED_STOCK',
+          entityId: posted.id,
+          newValues: {
+            damageNumber: posted.damageNumber,
+            status: posted.status,
+            damagedQuantity: posted.damagedQuantity.toString(),
+          },
+        },
+        tx,
+      );
+      return posted;
     });
   }
 
@@ -213,3 +233,4 @@ export class DamagedStockService {
     });
   }
 }
+

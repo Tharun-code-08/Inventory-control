@@ -66,10 +66,19 @@ import {
   useUpdateUser,
   useDeleteUser,
   type User,
-  type CreateUserPayload,
 } from '@/hooks/use-users';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
+import {
+  ANIMAL_AVATARS,
+  animalAvatarByKind,
+  animalAvatarForUser,
+  getAnimalAvatarPreference,
+  setAnimalAvatarPreference,
+  type AnimalAvatarKind,
+} from '@/lib/profile-avatar';
+import { mapUserFormToCreatePayload, mapUserFormToUpdatePayload } from '@/lib/payload-mappers';
+import { ALL_SHOPS_OPTION, normalizeAllShopsSelection, toAllShopsSelection } from '@/lib/shop-scope';
 
 // --- Schemas ---
 
@@ -195,6 +204,7 @@ function ProfileTab() {
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [showAnimalPicker, setShowAnimalPicker] = useState(false);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -291,12 +301,18 @@ function ProfileTab() {
     },
   });
 
-  const initials = user?.name
-    ?.split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() ?? 'U';
+  const avatar = animalAvatarForUser(user);
+  const selectedAnimal = getAnimalAvatarPreference(user);
+
+  const handleAnimalSelect = (kind: AnimalAvatarKind) => {
+    setAnimalAvatarPreference(user, kind);
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    if (user) {
+      setUser({ ...user });
+    }
+    toast.success('Animal avatar selected.');
+  };
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -315,7 +331,11 @@ function ProfileTab() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span>{initials}</span>
+                <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${avatar.bgClass}`}>
+                  <span aria-label={`${avatar.kind} avatar`} role="img" className="text-2xl">
+                    {avatar.emoji}
+                  </span>
+                </div>
               )}
             </div>
             <div>
@@ -332,10 +352,45 @@ function ProfileTab() {
                 />
                 Change avatar
               </label>
+                <button
+                type="button"
+                  className="ml-3 mt-2 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-500"
+                onClick={() => setShowAnimalPicker((v) => !v)}
+              >
+                {showAnimalPicker ? 'Hide animals' : 'Choose animal avatar'}
+              </button>
               {avatarFile && (
                 <span className="ml-2 text-xs text-muted-foreground">
                   {avatarFile.name}
                 </span>
+              )}
+              {showAnimalPicker && (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {ANIMAL_AVATARS.map((kind) => {
+                    const a = animalAvatarByKind(kind);
+                    const active = selectedAnimal === kind;
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => handleAnimalSelect(kind)}
+                        className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-left transition ${
+                          active
+                            ? 'border-indigo-300 bg-indigo-50'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                        title={`Use ${kind} avatar`}
+                      >
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${a.bgClass}`}>
+                          <span role="img" aria-label={`${kind} avatar`}>
+                            {a.emoji}
+                          </span>
+                        </span>
+                        <span className="text-xs capitalize text-slate-700">{kind}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -668,7 +723,7 @@ function UsersTab() {
       email: '',
       password: '',
       roleId: '',
-      shopId: '',
+      shopId: ALL_SHOPS_OPTION,
       isActive: true,
     },
   });
@@ -680,7 +735,7 @@ function UsersTab() {
       email: '',
       password: '',
       roleId: '',
-      shopId: '',
+      shopId: ALL_SHOPS_OPTION,
       isActive: true,
     });
     setDialogOpen(true);
@@ -693,7 +748,7 @@ function UsersTab() {
       email: u.email,
       password: '',
       roleId: u.role?.name ?? '',
-      shopId: u.shopId ?? '',
+      shopId: toAllShopsSelection(u.shopId),
       isActive: u.isActive,
     });
     setDialogOpen(true);
@@ -701,26 +756,21 @@ function UsersTab() {
 
   const onSubmit = async (values: UserFormValues) => {
     try {
+      const resolvedShopId = normalizeAllShopsSelection(values.shopId);
       if (editingUser) {
-        const payload: Record<string, unknown> = {
+        const payload = mapUserFormToUpdatePayload({
           id: editingUser.id,
-          name: values.name,
-          roleId: values.roleId,
-          shopId: values.shopId,
-          isActive: values.isActive,
-        };
-        if (values.password) payload.password = values.password;
-        await updateUser.mutateAsync(payload as Parameters<typeof updateUser.mutateAsync>[0]);
+          values,
+          resolvedShopId,
+        });
+        await updateUser.mutateAsync(payload);
         toast.success('User updated.');
       } else {
-        await createUser.mutateAsync({
-          name: values.name,
-          email: values.email,
-          password: values.password ?? '',
-          roleId: values.roleId,
-          shopId: values.shopId,
-          isActive: values.isActive,
-        } as CreateUserPayload);
+        const payload = mapUserFormToCreatePayload({
+          values,
+          resolvedShopId,
+        });
+        await createUser.mutateAsync(payload);
         toast.success('User created.');
       }
       setDialogOpen(false);
@@ -784,7 +834,7 @@ function UsersTab() {
                     {u.role?.name?.toLowerCase().replace(/_/g, ' ')}
                   </Badge>
                 </TableCell>
-                <TableCell>{u.shop?.shopName ?? '—'}</TableCell>
+                <TableCell>{u.shop?.shopName ?? 'All Shops'}</TableCell>
                 <TableCell>
                   <StatusBadge status={u.isActive ? 'Active' : 'Inactive'} />
                 </TableCell>
@@ -890,6 +940,7 @@ function UsersTab() {
                   <SelectValue placeholder="Select shop" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={ALL_SHOPS_OPTION}>All Shops</SelectItem>
                   {(shops ?? []).map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.shopName}
@@ -1053,7 +1104,7 @@ function RolesTab() {
             <CardContent className="space-y-3">
               <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
                 {Object.entries(permissionGroups).map(([groupName, permissions]) => (
-                  <div key={groupName} className="rounded-xl border border-white/50 bg-white/40 p-2.5">
+                  <div key={groupName} className="rounded-xl border border-slate-200 bg-white p-2.5">
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       {groupName.replace(/_/g, ' ')}
                     </p>
@@ -1185,7 +1236,7 @@ export function SettingsPage() {
 
   return (
     <AppLayout active="Settings">
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Card>
           <CardContent className="pt-6">
             <PageHeader
@@ -1196,7 +1247,7 @@ export function SettingsPage() {
         </Card>
 
         <Tabs defaultValue="profile" className="space-y-4">
-          <TabsList className="glass-panel h-auto w-full flex-wrap gap-1.5 rounded-2xl p-2">
+          <TabsList className="h-auto w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-2">
             <TabsTrigger value="profile" className="gap-1.5">
               <UserIcon className="h-3.5 w-3.5" />
               Profile

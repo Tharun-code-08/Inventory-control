@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { createHash } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
@@ -93,11 +94,19 @@ export class ReportsController {
 
   @RequirePermission('report:export')
   @Post('export')
-  async export(@Body() body: ExportReportDto) {
+  async export(@CurrentUser() user: RequestUser, @Body() body: ExportReportDto) {
+    // Stable jobId so a duplicate click within the dedup window does not
+    // generate two reports. We hash filters so different inputs do not collide.
+    const filtersHash = createHash('sha1')
+      .update(JSON.stringify(body.filters ?? {}))
+      .digest('hex')
+      .slice(0, 12);
+    const shopId = user.shopId ?? 'global';
+    const jobId = `exp:${shopId}:${body.reportType}:${filtersHash}`;
     const job = await this.exportsQueue.add(
       'report-xlsx',
       { type: 'report-xlsx', reportType: body.reportType, filters: body.filters },
-      { removeOnComplete: true },
+      { jobId },
     );
     return { jobId: job.id };
   }

@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { ListInvoicesDto } from './dto/list-invoices.dto';
 import { InvoicesService } from './invoices.service';
 
 @ApiTags('invoices')
@@ -14,20 +15,23 @@ export class InvoicesController {
 
   @RequirePermission('shop:read')
   @Get()
-  list(@CurrentUser() user: RequestUser) {
-    return this.invoices.list(user);
+  @ApiOperation({ summary: 'List invoices (paginated, shop-scoped, filterable)' })
+  list(@CurrentUser() user: RequestUser, @Query() query: ListInvoicesDto) {
+    return this.invoices.list(user, query);
   }
 
   @RequirePermission('shop:write')
   @Post()
+  @ApiOperation({ summary: 'Create an invoice (optionally linked to a sales order)' })
+  @ApiResponse({ status: 409, description: 'Sales order has already been invoiced.' })
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateInvoiceDto) {
     return this.invoices.create(user, dto);
   }
 
   @RequirePermission('shop:read')
   @Get(':id')
-  get(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  @ApiOperation({ summary: 'Get an invoice by id' })
+  get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.invoices.get(user, id);
   }
 }
-

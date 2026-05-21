@@ -5,4 +5,4 @@ export { DataTablePagination } from './data-table-pagination';
 export { SearchInput } from './search-input';
 export { LoadingSkeleton } from './loading-skeleton';
 export { EmptyState } from './empty-state';
-export { StatCard } from './stat-card';
+export { P2PFlowTimeline, type P2PStep } from './p2p-flow-timeline';

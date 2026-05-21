@@ -34,12 +34,18 @@ export class QuotationsService {
     const rfq = await this.prisma.rfqHeader.findUnique({ where: { id: dto.rfqId } });
     if (!rfq) throw new NotFoundException('RFQ not found');
     assertShopScope(user, rfq.shopId);
-    const count = await this.prisma.supplierQuotationHeader.count({ where: { shopId: rfq.shopId } });
-    const quoteNumber = `QUO-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
-    return this.prisma.supplierQuotationHeader.create({
+    const quoteDate = dto.quoteDate ? new Date(dto.quoteDate) : new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const quoteNumber = await this.numbers.nextShopScopedNumber(tx, {
+        shopId: rfq.shopId,
+        docType: 'QUO',
+        basePrefix: 'QUO',
+        date: quoteDate,
+      });
+      return tx.supplierQuotationHeader.create({
       data: {
         quoteNumber,
-        quoteDate: dto.quoteDate ? new Date(dto.quoteDate) : new Date(),
+        quoteDate,
         shopId: rfq.shopId,
         rfqId: dto.rfqId,
         supplierId: dto.supplierId,
@@ -65,6 +71,7 @@ export class QuotationsService {
         rfq: true,
         items: { include: { product: true, rfqItem: true } },
       },
+    });
     });
   }
 
@@ -139,10 +146,10 @@ export class QuotationsService {
         return { quote, contract: existingContract, purchaseOrder: existingPo, goodsReceiptDraft: existingGr, idempotent: true };
       }
 
-      const contractNumber = await this.numbers.nextNumber(tx, {
+      const contractNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: quote.shopId,
         docType: 'CT',
-        prefix: 'CT',
+        basePrefix: 'CT',
         date: new Date(),
       });
       const contract = await tx.contractHeader.create({
@@ -172,10 +179,10 @@ export class QuotationsService {
         },
       });
 
-      const poNumber = await this.numbers.nextNumber(tx, {
+      const poNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: quote.shopId,
         docType: 'PO',
-        prefix: 'PO',
+        basePrefix: 'PO',
         date: new Date(),
       });
       const purchaseOrder = await tx.purchaseOrderHeader.create({
@@ -204,10 +211,10 @@ export class QuotationsService {
         },
       });
 
-      const grNumber = await this.numbers.nextNumber(tx, {
+      const grNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: quote.shopId,
         docType: 'GR',
-        prefix: 'GR',
+        basePrefix: 'GR',
         date: new Date(),
       });
       const goodsReceiptDraft = await tx.goodsReceiptHeader.create({

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,7 +21,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState } from '@/components/shared';
+import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, P2PFlowTimeline, type P2PStep } from '@/components/shared';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +82,8 @@ import { useContracts } from '@/hooks/use-contracts';
 import { useSuppliers } from '@/hooks/use-suppliers';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
+import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
+import { hasPermission } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -112,14 +114,30 @@ type POFormValues = z.infer<typeof poFormSchema>;
 
 const PAGE_SIZE = 10;
 
+function tomorrowDateString() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Multi-plant: a Product can be assigned to several plants. The PO form is
+ * scoped to a single delivery plant, so stock thresholds (`minStockLevel`)
+ * come from the plant-specific assignment, not the product master.
+ */
+function getProductPlant(product: Product, shopId: string) {
+  return product.plants.find((p) => p.shopId === shopId);
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-export function PurchaseOrdersPage() {
+export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const canMutatePo = hasPermission(user, 'purchase_order:create');
   const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
   const shopId = user?.shopId ?? selectedShopId;
@@ -129,7 +147,11 @@ export function PurchaseOrdersPage() {
 
   // ---- list filters ----
   const [search, setSearch] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | PurchaseOrderStatus>('');
+  const [lifecycleFilter, setLifecycleFilter] = useState<
+    'ALL' | 'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'FULLY_RECEIVED' | 'CANCELLED'
+  >('ALL');
   const [page, setPage] = useState(1);
 
   // ---- UI state ----
@@ -147,22 +169,53 @@ export function PurchaseOrdersPage() {
     shopId: shopId || undefined,
   });
 
-  const poList = useMemo(() => {
-    const raw = poQuery.data;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw as PurchaseOrder[];
-    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: PurchaseOrder[] }).rows;
-    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: PurchaseOrder[] }).data;
-    return [];
-  }, [poQuery.data]);
+  const poData = poQuery.data?.data ?? [];
+  const poMeta = poQuery.data?.meta;
+
+  const poList = useMemo(() => poData, [poData]);
 
   const poTotal = useMemo(() => {
-    const raw = poQuery.data;
-    if (!raw || Array.isArray(raw)) return undefined;
-    if (typeof raw === 'object' && 'total' in raw) return (raw as { total: number }).total;
-    if (typeof raw === 'object' && 'meta' in raw) return (raw as { meta: { total: number } }).meta.total;
+    if (poMeta?.total !== undefined) return poMeta.total;
     return undefined;
-  }, [poQuery.data]);
+  }, [poMeta]);
+
+  const filteredPoList = useMemo(() => {
+    const supplierTerm = supplierSearch.trim().toLowerCase();
+    return poList.filter((po) => {
+      const lifecycle = (po.lifecycleStatus ?? po.status) as
+        | 'DRAFT'
+        | 'CONFIRMED'
+        | 'PARTIALLY_RECEIVED'
+        | 'FULLY_RECEIVED'
+        | 'CANCELLED';
+
+      if (lifecycleFilter !== 'ALL' && lifecycle !== lifecycleFilter) {
+        return false;
+      }
+      if (supplierTerm && !po.supplier.toLowerCase().includes(supplierTerm)) {
+        return false;
+      }
+      return true;
+    });
+  }, [lifecycleFilter, poList, supplierSearch]);
+
+  const lifecycleCounts = useMemo(() => {
+    const counts = {
+      ALL: poList.length,
+      DRAFT: 0,
+      CONFIRMED: 0,
+      PARTIALLY_RECEIVED: 0,
+      FULLY_RECEIVED: 0,
+      CANCELLED: 0,
+    };
+    for (const po of poList) {
+      const lifecycle = (po.lifecycleStatus ?? po.status) as keyof typeof counts;
+      if (lifecycle in counts) {
+        counts[lifecycle] += 1;
+      }
+    }
+    return counts;
+  }, [poList]);
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
@@ -180,8 +233,6 @@ export function PurchaseOrdersPage() {
     return [];
   }, [productsQuery.data]);
 
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
@@ -191,7 +242,7 @@ export function PurchaseOrdersPage() {
   const form = useForm<POFormValues>({
     resolver: zodResolver(poFormSchema),
     defaultValues: {
-      poDate: new Date().toISOString().slice(0, 10),
+      poDate: tomorrowDateString(),
       priority: 'Medium',
       paymentTerms: 'Net 30',
       supplier: '',
@@ -207,16 +258,29 @@ export function PurchaseOrdersPage() {
   const watchedItems = form.watch('items');
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
   const { data: storageLocations = [] } = useStorageLocations(selectedDeliveryPlantId || undefined);
+  const targetProductShopId = selectedDeliveryPlantId || shopId || '';
+  // Multi-plant: a product is "selectable for this PO" if it's assigned to
+  // the delivery plant. We still fall back to all products when no plant is
+  // chosen (so the dropdown isn't empty before the user picks one).
+  const selectableProducts = useMemo(
+    () =>
+      targetProductShopId
+        ? products.filter((p) => p.plants.some((plant) => plant.shopId === targetProductShopId))
+        : products,
+    [products, targetProductShopId],
+  );
+  const productMap = useMemo(() => new Map(selectableProducts.map((p) => [p.id, p])), [selectableProducts]);
 
-  const totalValue = useMemo(
-    () => watchedItems.reduce((acc, it) => acc + (Number(it.orderQty) || 0) * (Number(it.rate) || 0), 0),
-    [watchedItems],
+  const totalValue = fields.reduce(
+    (acc, _field, idx) =>
+      acc + (Number(watchedItems?.[idx]?.orderQty) || 0) * (Number(watchedItems?.[idx]?.rate) || 0),
+    0,
   );
 
   const openCreate = useCallback(() => {
     setEditingPO(null);
     form.reset({
-      poDate: new Date().toISOString().slice(0, 10),
+      poDate: tomorrowDateString(),
         priority: 'Medium',
         paymentTerms: 'Net 30',
       supplier: '',
@@ -232,11 +296,67 @@ export function PurchaseOrdersPage() {
     setSourceContractId('');
   }, [form, shopId]);
 
+  type PoPrefillState = {
+    poPrefill?: {
+      productId: string;
+      shopId: string;
+      supplier: string | null;
+      orderQty: number;
+      rate: number;
+      currentStock: number;
+      minStockLevel: number;
+      suggestedQty: number;
+      hasPriorOrder: boolean;
+      lastPoNumber: string | null;
+    };
+  };
+
+  const prefillAppliedRef = useRef(false);
+
   useEffect(() => {
-    if (location.pathname === '/purchase-orders/new') {
-      openCreate();
+    if (location.pathname !== '/purchase-orders/new') {
+      prefillAppliedRef.current = false;
+      return;
     }
-  }, [location.pathname, openCreate]);
+    const prefill = (location.state as PoPrefillState | null)?.poPrefill;
+    if (!prefill) {
+      openCreate();
+      return;
+    }
+    if (prefillAppliedRef.current) return;
+    if (!productMap.has(prefill.productId)) return;
+
+    prefillAppliedRef.current = true;
+    if (!user?.shopId) setSelectedShopId(prefill.shopId);
+    form.reset({
+      poDate: tomorrowDateString(),
+      priority: 'Medium',
+      paymentTerms: 'Net 30',
+      supplier: prefill.supplier ?? '',
+      deliveryPlantId: prefill.shopId,
+      storageLocationId: '',
+      deliveryAddress: '',
+      remarks:
+        prefill.hasPriorOrder && prefill.lastPoNumber
+          ? `Reorder (low stock) — last PO ${prefill.lastPoNumber}`
+          : 'Reorder (low stock)',
+      items: [
+        {
+          productId: prefill.productId,
+          currentStock: prefill.currentStock,
+          minStock: prefill.minStockLevel,
+          suggestedQty: prefill.suggestedQty,
+          orderQty: prefill.orderQty,
+          rate: prefill.rate,
+        },
+      ],
+    });
+    setSheetOpen(true);
+    setSourceType('DIRECT');
+    setSourceRfqId('');
+    setSourceContractId('');
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, openCreate, productMap, form, navigate, user?.shopId]);
 
   const openEdit = useCallback(
     (po: PurchaseOrder) => {
@@ -268,45 +388,40 @@ export function PurchaseOrdersPage() {
   function handleProductChange(idx: number, productId: string) {
     const p = productMap.get(productId);
     if (!p) return;
-    const currentStock = p.currentStock ?? p.openingStock ?? 0;
-    const minStock = p.minStockLevel ?? 0;
+    const plantStock = shopId ? p.stockByShop?.[shopId] : undefined;
+    const currentStock = plantStock ?? p.currentStock ?? 0;
+    const plantAssignment = shopId ? getProductPlant(p, shopId) : undefined;
+    const minStock = plantAssignment?.minStockLevel ?? 0;
     const suggestedQty = Math.max(0, minStock - currentStock);
 
     form.setValue(`items.${idx}.currentStock`, currentStock);
     form.setValue(`items.${idx}.minStock`, minStock);
     form.setValue(`items.${idx}.suggestedQty`, suggestedQty);
-    form.setValue(`items.${idx}.orderQty`, suggestedQty || 1);
+    form.setValue(`items.${idx}.orderQty`, 0);
     form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0);
   }
 
   async function handleSubmit(values: POFormValues) {
     try {
-      if (!shopId) {
-        toast.error('Select a plant/shop first');
-        return;
-      }
       const resolvedShopId = values.deliveryPlantId || shopId;
       if (!resolvedShopId) {
         toast.error('Select a delivery plant');
         return;
       }
-      const payload = {
-        shopId: resolvedShopId,
-        poDate: values.poDate,
-        supplier: values.supplier,
-        contractId: sourceType === 'CONTRACT' ? sourceContractId : undefined,
-        remarks: values.remarks ?? '',
-        items: values.items.map((it) => ({
-          productId: it.productId,
-          currentStock: it.currentStock,
-          minStock: it.minStock,
-          suggestedQty: it.suggestedQty,
-          orderQty: it.orderQty,
-          rate: it.rate,
-        })),
-      };
+      const payload = mapPoFormToCreatePayload({
+        values,
+        resolvedShopId,
+        sourceType,
+        sourceContractId,
+      });
 
-      const result = await createMut.mutateAsync(payload);
+      const result = await createMut.mutateAsync({
+        ...payload,
+        idempotencyKey:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `po-${Date.now()}`,
+      });
       toast.success(`Purchase order ${result.poNumber} saved as draft`);
       setSheetOpen(false);
       form.reset();
@@ -345,37 +460,113 @@ export function PurchaseOrdersPage() {
   const [productSearch, setProductSearch] = useState('');
 
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return products;
+    if (!productSearch.trim()) return selectableProducts;
     const s = productSearch.toLowerCase();
-    return products.filter(
+    return selectableProducts.filter(
       (p) => p.description.toLowerCase().includes(s) || p.productCode.toLowerCase().includes(s),
     );
-  }, [products, productSearch]);
+  }, [selectableProducts, productSearch]);
+
+  useEffect(() => {
+    if (!targetProductShopId) return;
+    const items = form.getValues('items');
+    items.forEach((item, idx) => {
+      if (item.productId && !productMap.has(item.productId)) {
+        form.setValue(`items.${idx}.productId`, '');
+        form.setValue(`items.${idx}.currentStock`, 0);
+        form.setValue(`items.${idx}.minStock`, 0);
+        form.setValue(`items.${idx}.suggestedQty`, 0);
+        form.setValue(`items.${idx}.orderQty`, 0);
+        form.setValue(`items.${idx}.rate`, 0);
+      }
+    });
+  }, [form, productMap, targetProductShopId]);
 
   function formatCurrency(val: number) {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
   }
 
+  function lifecycleSteps(po: PurchaseOrder): P2PStep[] {
+    const status = po.lifecycleStatus ?? po.status;
+    return [
+      { key: 'po', label: 'PO confirmed', state: status === 'DRAFT' ? 'active' : 'done' },
+      {
+        key: 'partial',
+        label: 'Partial GR',
+        state: status === 'PARTIALLY_RECEIVED' ? 'active' : status === 'FULLY_RECEIVED' ? 'done' : 'todo',
+      },
+      { key: 'full', label: 'PO fully received', state: status === 'FULLY_RECEIVED' ? 'done' : 'todo' },
+      { key: 'invoice', label: 'Invoice & payable', state: 'todo' },
+      { key: 'payment', label: 'Payment tracking', state: 'todo' },
+    ];
+  }
+
+  function lifecycleLabel(po: PurchaseOrder) {
+    return po.lifecycleStatus && po.lifecycleStatus !== po.status ? po.lifecycleStatus.replaceAll('_', ' ') : po.status;
+  }
+
   return (
     <AppLayout>
-      <PageHeader
-        title="Purchase Orders"
-        description="Manage purchase order documents"
-      >
-        <Button onClick={() => navigate('/purchase-orders/new')} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Create PO
-        </Button>
-      </PageHeader>
+      <div className={createOnly ? 'create-page-shell p-4 sm:p-6' : ''}>
+        <PageHeader
+          title={createOnly ? 'Create Purchase Order' : 'Purchase Orders'}
+          description={createOnly ? 'Fill in details to create a new purchase order' : 'Manage purchase order documents'}
+        >
+          {createOnly ? (
+            <Button variant="outline" onClick={() => navigate('/purchase-orders')} className="w-full sm:w-auto">
+              Back
+            </Button>
+          ) : (
+            <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
+              <Plus className="h-4 w-4" />
+              Create PO
+            </Button>
+          )}
+        </PageHeader>
 
-      {/* Toolbar */}
-      <Card className="mb-4 p-4">
+      {!createOnly && (
+        <>
+          {/* Toolbar */}
+          <Card className="surface-1 mb-4 p-4">
+        <div className="mb-3 flex flex-wrap gap-2">
+          {([
+            ['ALL', 'All'],
+            ['DRAFT', 'Draft'],
+            ['CONFIRMED', 'Confirmed'],
+            ['PARTIALLY_RECEIVED', 'Partially Received'],
+            ['FULLY_RECEIVED', 'Completed'],
+            ['CANCELLED', 'Cancelled'],
+          ] as const).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              variant={lifecycleFilter === value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setLifecycleFilter(value);
+                setPage(1);
+              }}
+              className="h-8"
+            >
+              {label} ({lifecycleCounts[value]})
+            </Button>
+          ))}
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <SearchInput
             value={search}
             onChange={(v) => { setSearch(v); setPage(1); }}
-            placeholder="Search PO number or supplier..."
+            placeholder="Search PO number..."
             className="w-full sm:w-64"
+          />
+          <Input
+            value={supplierSearch}
+            onChange={(e) => {
+              setSupplierSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by supplier..."
+            className="w-full sm:w-56"
           />
 
           <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'ALL' ? '' as typeof statusFilter : v as typeof statusFilter); setPage(1); }}>
@@ -402,23 +593,26 @@ export function PurchaseOrdersPage() {
             </Select>
           )}
         </div>
-      </Card>
+          </Card>
 
-      {/* Table */}
-      <Card>
+          {/* Table */}
+          <Card className="surface-1">
         {poQuery.isLoading ? (
           <LoadingSkeleton rows={6} columns={7} />
         ) : poQuery.isError ? (
-          <div className="p-8 text-center text-sm text-destructive">
-            Failed to load purchase orders. Please try again.
+          <div className="flex flex-col items-center gap-3 p-8 text-center">
+            <p className="text-sm text-destructive">Failed to load purchase orders. Please try again.</p>
+            <Button variant="outline" size="sm" onClick={() => poQuery.refetch()}>
+              Retry
+            </Button>
           </div>
-        ) : poList.length === 0 ? (
+        ) : filteredPoList.length === 0 ? (
           <EmptyState
-            icon={<ClipboardList className="h-12 w-12" />}
+            icon={ClipboardList}
             title="No purchase orders found"
             description="Create your first purchase order to get started."
             action={
-              <Button variant="outline" onClick={() => navigate('/purchase-orders/new')}>
+              <Button variant="outline" onClick={() => navigate('/purchase-orders/new')} disabled={!canMutatePo}>
                 <Plus className="h-4 w-4" /> New Order
               </Button>
             }
@@ -438,7 +632,7 @@ export function PurchaseOrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {poList.map((po) => (
+                {filteredPoList.map((po) => (
                   <TableRow key={po.id}>
                     <TableCell className="font-medium">{po.poNumber}</TableCell>
                     <TableCell>{new Date(po.poDate).toLocaleDateString()}</TableCell>
@@ -447,7 +641,12 @@ export function PurchaseOrdersPage() {
                     <TableCell className="text-right font-medium">
                       {po.totalValue != null ? formatCurrency(po.totalValue) : '—'}
                     </TableCell>
-                    <TableCell><StatusBadge status={po.status} /></TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={po.status} />
+                        <span className="text-[11px] text-muted-foreground">{lifecycleLabel(po)}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -462,15 +661,16 @@ export function PurchaseOrdersPage() {
 
                           {po.status === 'DRAFT' && (
                             <>
-                              <DropdownMenuItem onClick={() => openEdit(po)}>
+                              <DropdownMenuItem onClick={() => openEdit(po)} disabled={!canMutatePo}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setConfirmState({ type: 'confirm', id: po.id, poNumber: po.poNumber })}>
+                              <DropdownMenuItem onClick={() => setConfirmState({ type: 'confirm', id: po.id, poNumber: po.poNumber })} disabled={!canMutatePo}>
                                 <CheckCircle2 className="mr-2 h-4 w-4" /> Confirm
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
+                                disabled={!canMutatePo}
                                 onClick={() => setConfirmState({ type: 'cancel', id: po.id, poNumber: po.poNumber })}
                               >
                                 <XCircle className="mr-2 h-4 w-4" /> Cancel
@@ -494,22 +694,26 @@ export function PurchaseOrdersPage() {
               </TableBody>
             </Table>
             <Separator />
-            <DataTablePagination page={page} pageSize={PAGE_SIZE} total={poTotal ?? poList.length} onPageChange={setPage} />
+            <DataTablePagination page={page} pageSize={PAGE_SIZE} total={poTotal ?? filteredPoList.length} onPageChange={setPage} />
           </>
         )}
-      </Card>
+          </Card>
+        </>
+      )}
 
       {/* ---- CREATE / EDIT SHEET ---- */}
       <Sheet
-        open={sheetOpen}
+        open={createOnly ? true : sheetOpen}
         onOpenChange={(open) => {
-          setSheetOpen(open);
-          if (!open && location.pathname === '/purchase-orders/new') {
+          if (!createOnly) {
+            setSheetOpen(open);
+          }
+          if (!open) {
             navigate('/purchase-orders');
           }
         }}
       >
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
+        <SheetContent side="right" className={cn("w-full overflow-y-auto", createOnly ? "border-l-0 sm:w-full sm:max-w-none" : "border-l sm:max-w-3xl")}>
           <SheetHeader>
             <SheetTitle>{editingPO ? 'Edit Purchase Order' : 'New Purchase Order'}</SheetTitle>
             <SheetDescription>
@@ -646,7 +850,7 @@ export function PurchaseOrdersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="poDate">Delivery Date</Label>
-                <Input id="poDate" type="date" {...form.register('poDate')} />
+                <Input id="poDate" type="date" min={tomorrowDateString()} {...form.register('poDate')} />
                 {form.formState.errors.poDate && (
                   <p className="text-xs text-destructive">{form.formState.errors.poDate.message}</p>
                 )}
@@ -764,8 +968,6 @@ export function PurchaseOrdersPage() {
                     <TableRow>
                       <TableHead className="min-w-[200px]">Product</TableHead>
                       <TableHead className="w-[90px] text-right">Stock</TableHead>
-                      <TableHead className="w-[90px] text-right">Min</TableHead>
-                      <TableHead className="w-[90px] text-right">Suggested</TableHead>
                       <TableHead className="w-[100px] text-right">Order Qty</TableHead>
                       <TableHead className="w-[100px] text-right">Rate</TableHead>
                       <TableHead className="w-[110px] text-right">Line Value</TableHead>
@@ -835,24 +1037,6 @@ export function PurchaseOrdersPage() {
                             />
                           </TableCell>
 
-                          {/* Min Stock (read-only) */}
-                          <TableCell className="text-right">
-                            <Input
-                              readOnly
-                              className="h-8 bg-muted text-right text-xs"
-                              {...form.register(`items.${idx}.minStock`, { valueAsNumber: true })}
-                            />
-                          </TableCell>
-
-                          {/* Suggested Qty (read-only) */}
-                          <TableCell className="text-right">
-                            <Input
-                              readOnly
-                              className="h-8 bg-muted text-right text-xs"
-                              {...form.register(`items.${idx}.suggestedQty`, { valueAsNumber: true })}
-                            />
-                          </TableCell>
-
                           {/* Order Qty (editable) */}
                           <TableCell className="text-right">
                             <Input
@@ -904,7 +1088,7 @@ export function PurchaseOrdersPage() {
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-right font-semibold">
+                      <TableCell colSpan={4} className="text-right font-semibold">
                         Total
                       </TableCell>
                       <TableCell className="text-right font-bold">
@@ -933,7 +1117,7 @@ export function PurchaseOrdersPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMut.isPending}>
+              <Button type="submit" disabled={createMut.isPending || !canMutatePo}>
                 <ShoppingCart className="h-4 w-4" />
                 {createMut.isPending ? 'Saving...' : 'Save as Draft'}
               </Button>
@@ -941,6 +1125,7 @@ export function PurchaseOrdersPage() {
           </form>
         </SheetContent>
       </Sheet>
+      </div>
 
       {/* ---- DETAIL DIALOG ---- */}
       <Dialog open={!!detailId} onOpenChange={(open) => !open && setDetailId(null)}>
@@ -957,6 +1142,7 @@ export function PurchaseOrdersPage() {
             <LoadingSkeleton rows={4} columns={4} />
           ) : detailPO ? (
             <div className="space-y-4">
+              <P2PFlowTimeline title="P2P progress" steps={lifecycleSteps(detailPO as PurchaseOrder)} />
               <div className="grid gap-4 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Date</p>
@@ -991,7 +1177,6 @@ export function PurchaseOrdersPage() {
                     <TableHead>#</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">Min</TableHead>
                     <TableHead className="text-right">Order Qty</TableHead>
                     <TableHead className="text-right">Rate</TableHead>
                     <TableHead className="text-right">Line Value</TableHead>
@@ -1006,7 +1191,6 @@ export function PurchaseOrdersPage() {
                         <span className="ml-2 text-sm text-muted-foreground">{item.product?.description}</span>
                       </TableCell>
                       <TableCell className="text-right">{item.currentStock}</TableCell>
-                      <TableCell className="text-right">{item.minStock}</TableCell>
                       <TableCell className="text-right font-medium">{item.orderQty}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.rate)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(item.lineValue)}</TableCell>
@@ -1015,11 +1199,41 @@ export function PurchaseOrdersPage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-right font-semibold">Total</TableCell>
+                    <TableCell colSpan={5} className="text-right font-semibold">Total</TableCell>
                     <TableCell className="text-right font-bold">{formatCurrency(detailPO.totalValue)}</TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
+
+              {Array.isArray((detailPO as PurchaseOrder).receiptProgress) &&
+                (detailPO as PurchaseOrder).receiptProgress!.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="mb-2 text-sm font-semibold">Receipt progress</p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Ordered</TableHead>
+                            <TableHead className="text-right">Received</TableHead>
+                            <TableHead className="text-right">Remaining</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(detailPO as PurchaseOrder).receiptProgress!.map((row) => (
+                            <TableRow key={row.productId}>
+                              <TableCell className="font-mono text-xs">{row.productId}</TableCell>
+                              <TableCell className="text-right">{Number(row.orderedQty)}</TableCell>
+                              <TableCell className="text-right">{Number(row.receivedQty)}</TableCell>
+                              <TableCell className="text-right font-medium">{Number(row.remainingQty)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                )}
 
               {detailPO.status === 'CONFIRMED' && (
                 <>

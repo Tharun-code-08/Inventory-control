@@ -1,10 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
-import {
-  DEMO_DASHBOARD,
-  shouldUseDemoDashboard,
-  type DashboardViewData,
-} from '@/lib/dashboard-demo-data';
+import { EMPTY_DASHBOARD, type DashboardViewData } from '@/lib/dashboard-demo-data';
 
 export type { DashboardViewData } from '@/lib/dashboard-demo-data';
 
@@ -18,7 +14,6 @@ function normalizeSummary(raw: unknown): DashboardViewData | null {
   const o = raw as Record<string, unknown>;
   if (typeof o.totalProducts !== 'number') return null;
   return {
-    isDemo: false,
     totalProducts: o.totalProducts as number,
     totalStockValue: typeof o.totalStockValue === 'number' ? o.totalStockValue : 0,
     lowStockCount: typeof o.lowStockCount === 'number' ? o.lowStockCount : 0,
@@ -45,14 +40,13 @@ export function useDashboard() {
     queryFn: async () => {
       try {
         const res = await api.get('/dashboard/summary');
-        const parsed = normalizeSummary(res.data?.data);
-        if (parsed && !shouldUseDemoDashboard(parsed)) {
-          return parsed;
-        }
-        return { ...DEMO_DASHBOARD, isDemo: true };
+        return normalizeSummary(res.data?.data) ?? EMPTY_DASHBOARD;
       } catch {
-        return { ...DEMO_DASHBOARD, isDemo: true };
+        return EMPTY_DASHBOARD;
       }
     },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }

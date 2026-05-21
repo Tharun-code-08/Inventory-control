@@ -16,6 +16,9 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
     if (skip) {
       return next.handle();
     }
+    const req = context.switchToHttp().getRequest<{ requestId?: string }>();
+    const requestId = req?.requestId ?? null;
+    const ts = new Date().toISOString();
     return next.handle().pipe(
       map((payload: unknown) => {
         if (payload && typeof payload === 'object' && 'success' in (payload as object)) {
@@ -28,9 +31,16 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
           'meta' in (payload as object)
         ) {
           const p = payload as { data: unknown; meta: unknown; message?: string };
-          return { success: true, data: p.data, meta: p.meta, message: p.message };
+          const priorMeta =
+            p.meta && typeof p.meta === 'object' ? (p.meta as Record<string, unknown>) : {};
+          return {
+            success: true,
+            data: p.data,
+            meta: { ...priorMeta, requestId, ts },
+            message: p.message,
+          };
         }
-        return { success: true, data: payload };
+        return { success: true, data: payload, meta: { requestId, ts } };
       }),
     );
   }

@@ -7,15 +7,24 @@
     "packages/*"
   ],
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "openapi-typescript": "^7.13.0"
   },
   "scripts": {
+    "setup:credentials": "node scripts/setup-credentials.cjs",
+    "setup:new-machine": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1",
     "docker:deps": "docker compose -f docker/docker-compose.yml up -d postgres redis",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "node scripts/run-api-dev.cjs",
     "dev:web": "npm run dev --workspace=web",
     "build": "npm run build --workspace=@retail-ims/shared-types && npm run build --workspace=api && npm run build --workspace=web",
     "test": "npm run test --workspace=api && npm run test --workspace=web",
-    "lint": "npm run lint --workspace=api --if-present && npm run lint --workspace=web --if-present"
+    "db:purge-test-data": "npm run db:purge-test-data --workspace=api",
+    "test:workflows": "npm run test:e2e:workflows --workspace=api",
+    "test:playwright": "npm run test:e2e --workspace=web",
+    "lint": "npm run lint --workspace=api --if-present && npm run lint --workspace=web --if-present",
+    "check:runtime-health": "node scripts/runtime-health-check.mjs",
+    "check:bundle-budget": "node scripts/check-web-bundle-budget.mjs",
+    "check:api-slo": "node scripts/check-api-slo.mjs"
   }
 }

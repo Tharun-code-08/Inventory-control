@@ -7,8 +7,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Response } from 'express';
+import { Request, Response } from 'express';
+import { RequestContextStore } from '../context/request-context';
 import { InsufficientStockException } from '../exceptions/domain.exceptions';
+import { captureServerError } from '../observability/sentry';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -29,12 +31,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return 'A shop with this code already exists';
     }
 
+    if (normalized.includes('rfq_number')) {
+      return 'RFQ number collision detected. Please retry creating the RFQ.';
+    }
+
+    if (normalized.includes('idempotency_key')) {
+      return 'A record with this idempotency key already exists';
+    }
+
     return 'A record with the same values already exists';
   }
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request & { requestId?: string; user?: { id?: string; shopId?: string | null } }>();
+    const requestId =
+      request.requestId ??
+      RequestContextStore.getRequestId() ??
+      String(request.headers['x-request-id'] ?? '');
 
     if (exception instanceof InsufficientStockException) {
       return response.status(422).json({
@@ -43,6 +58,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code: 'INSUFFICIENT_STOCK',
           message: exception.message,
           details: exception.details,
+          requestId,
         },
       });
     }
@@ -65,6 +81,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code: payload.code ?? HttpStatus[status] ?? 'HTTP_ERROR',
           message,
           details: payload.details,
+          requestId,
         },
       });
     }
@@ -77,6 +94,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             code: 'INSUFFICIENT_STOCK',
             message: 'Stock would go negative',
             details: [],
+            requestId,
           },
         });
       }
@@ -94,10 +112,59 @@ export class AllExceptionsFilter implements ExceptionFilter {
           error: {
             code: 'UNIQUE_CONSTRAINT_VIOLATION',
             message: this.uniqueConstraintMessage(targets),
+            requestId,
             ...(targets.length > 0 ? { details: targets } : {}),
           },
         });
       }
+
+      if (exception.code === 'P2025') {
+        const cause = typeof exception.meta?.cause === 'string' ? exception.meta.cause : undefined;
+        return response.status(404).json({
+          success: false,
+          error: {
+            code: 'RECORD_NOT_FOUND',
+            message: cause ?? 'The requested record could not be found',
+            requestId,
+          },
+        });
+      }
+
+      if (exception.code === 'P2003') {
+        const fieldName =
+          typeof exception.meta?.field_name === 'string' ? exception.meta.field_name : undefined;
+        return response.status(409).json({
+          success: false,
+          error: {
+            code: 'FOREIGN_KEY_CONSTRAINT_VIOLATION',
+            message: 'Operation refers to a related record that does not exist or is still in use',
+            requestId,
+            ...(fieldName ? { details: { field: fieldName } } : {}),
+          },
+        });
+      }
+
+      if (exception.code === 'P2014') {
+        return response.status(400).json({
+          success: false,
+          error: {
+            code: 'RELATION_VIOLATION',
+            message: 'The change would violate a required relation between records',
+            requestId,
+          },
+        });
+      }
+    }
+
+    if (exception instanceof Prisma.PrismaClientValidationError) {
+      return response.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request payload for the database layer',
+          requestId,
+        },
+      });
     }
 
     if (exception instanceof Prisma.PrismaClientInitializationError) {
@@ -106,21 +173,44 @@ export class AllExceptionsFilter implements ExceptionFilter {
         error: {
           code: 'DATABASE_UNAVAILABLE',
           message: 'Cannot reach the database. Check DATABASE_URL and that PostgreSQL is running.',
+          requestId,
         },
       });
     }
 
-    const isProd = process.env.NODE_ENV === 'production';
-    if (!isProd && exception instanceof Error) {
-      this.logger.error(exception.stack);
+    const debugEnabled =
+      String(process.env.APP_DEBUG ?? '').toLowerCase() === 'true' ||
+      process.env.APP_DEBUG === '1';
+    const meta = {
+      requestId,
+      method: request.method,
+      path: request.originalUrl,
+      userId: request.user?.id ?? null,
+      shopId: request.user?.shopId ?? null,
+    };
+    if (exception instanceof Error) {
+      this.logger.error(`${exception.message} | ${JSON.stringify(meta)}`);
+      if (exception.stack) {
+        this.logger.error(exception.stack);
+      }
     } else {
-      this.logger.error('Unhandled error');
+      this.logger.error(`Unhandled error | ${JSON.stringify(meta)}`);
     }
 
+    // 5xx-only Sentry capture. We never report HttpException 4xx because those
+    // are user/client errors and would drown out real bugs. Capture happens
+    // before sending the response so the user sees a request id they can
+    // quote when reporting the failure.
+    captureServerError(exception, {
+      requestId: requestId || null,
+      route: request.originalUrl ?? null,
+      userId: request.user?.id ?? null,
+    });
+
     const devMessage =
-      !isProd && exception instanceof Error ? exception.message : 'An unexpected error occurred';
+      debugEnabled && exception instanceof Error ? exception.message : 'An unexpected error occurred';
     const devDetails =
-      !isProd && exception instanceof Error && exception.stack
+      debugEnabled && exception instanceof Error && exception.stack
         ? exception.stack.split('\n').slice(0, 8).join('\n')
         : undefined;
 
@@ -129,6 +219,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       error: {
         code: 'INTERNAL_ERROR',
         message: devMessage,
+        requestId,
         ...(devDetails ? { details: devDetails } : {}),
       },
     });

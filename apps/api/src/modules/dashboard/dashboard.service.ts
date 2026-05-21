@@ -28,16 +28,16 @@ export type DashboardSummaryPayload = {
   }>;
   lowStockProducts: Array<{
     id: string;
+    shopId: string;
     productCode: string;
     description: string;
+    category: string;
     currentStock: number;
     minStockLevel: number;
   }>;
 };
 
-function endOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
+type MonthlyRow = { month: Date; receipts: bigint; issues: bigint };
 
 @Injectable()
 export class DashboardService {
@@ -48,68 +48,66 @@ export class DashboardService {
     const shopId = shopScope ?? shop_id;
     if (shop_id) assertShopScope(user, shop_id);
 
+    // The product master is now plant-agnostic; "scope to shop X" means
+    // "products with at least one assignment to shop X".
     const productWhere: Prisma.ProductWhereInput = {
       isActive: true,
-      ...(shopId ? { shopId } : {}),
+      ...(shopId ? { plants: { some: { shopId } } } : {}),
     };
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [totalProducts, products, catGroups, recentGrHeaders, recentGiHeaders] = await Promise.all([
+    const sixMonthsAgoStart = new Date();
+    sixMonthsAgoStart.setMonth(sixMonthsAgoStart.getMonth() - 5);
+    sixMonthsAgoStart.setDate(1);
+    sixMonthsAgoStart.setHours(0, 0, 0, 0);
+
+    const [
+      totalProducts,
+      categoryGroups,
+      stockValueAndLow,
+      lowStockProducts,
+      recentGrHeaders,
+      recentGiHeaders,
+      gr30,
+      gi30,
+      monthlyRows,
+    ] = await Promise.all([
       this.prisma.product.count({ where: productWhere }),
-      this.prisma.product.findMany({
-        where: productWhere,
-        include: { stockSummaries: true },
-      }),
       this.prisma.product.groupBy({
         by: ['category'],
         where: productWhere,
         _count: { _all: true },
       }),
+      this.aggregateStockValueAndLowCount(shopId),
+      this.fetchLowStockProducts(shopId, 10),
       this.prisma.goodsReceiptHeader.findMany({
         where: shopId ? { shopId } : {},
         orderBy: { grDate: 'desc' },
         take: 5,
-        include: { items: { select: { lineValue: true } } },
+        select: {
+          id: true,
+          grNumber: true,
+          grDate: true,
+          supplierName: true,
+          status: true,
+          totalValue: true,
+          items: { select: { lineValue: true } },
+        },
       }),
       this.prisma.goodsIssueHeader.findMany({
         where: shopId ? { shopId } : {},
         orderBy: { giDate: 'desc' },
         take: 5,
+        select: {
+          id: true,
+          giNumber: true,
+          giDate: true,
+          issueReason: true,
+          status: true,
+        },
       }),
-    ]);
-
-    let totalStockValue = 0;
-    type LowRow = DashboardSummaryPayload['lowStockProducts'][number];
-    const lowCandidates: LowRow[] = [];
-
-    for (const p of products) {
-      const stockRow = p.stockSummaries.find((s) => s.shopId === p.shopId);
-      const qty = Number(stockRow?.currentStock ?? 0);
-      const minLevel = Number(p.minStockLevel);
-      const unitValue = Number(p.sellingPrice);
-      totalStockValue += qty * unitValue;
-      if (qty < minLevel) {
-        lowCandidates.push({
-          id: p.id,
-          productCode: p.productCode,
-          description: p.description,
-          currentStock: qty,
-          minStockLevel: minLevel,
-        });
-      }
-    }
-
-    lowCandidates.sort((a, b) => {
-      const ra = a.minStockLevel > 0 ? a.currentStock / a.minStockLevel : 0;
-      const rb = b.minStockLevel > 0 ? b.currentStock / b.minStockLevel : 0;
-      return ra - rb;
-    });
-    const lowStockProducts = lowCandidates.slice(0, 10);
-    const lowStockCount = lowCandidates.length;
-
-    const [gr30, gi30] = await Promise.all([
       this.prisma.goodsReceiptHeader.count({
         where: {
           status: DocumentStatus.POSTED,
@@ -124,36 +122,11 @@ export class DashboardService {
           ...(shopId ? { shopId } : {}),
         },
       }),
+      this.fetchMonthlyMovement(shopId, sixMonthsAgoStart),
     ]);
-    const recentTransactions = gr30 + gi30;
 
-    const now = new Date();
-    const monthlyMovement: DashboardSummaryPayload['monthlyMovement'] = [];
-    for (let i = 5; i >= 0; i -= 1) {
-      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = endOfMonth(start);
-      const grWhere: Prisma.GoodsReceiptHeaderWhereInput = {
-        status: DocumentStatus.POSTED,
-        grDate: { gte: start, lte: end },
-        ...(shopId ? { shopId } : {}),
-      };
-      const giWhere: Prisma.GoodsIssueHeaderWhereInput = {
-        status: DocumentStatus.POSTED,
-        giDate: { gte: start, lte: end },
-        ...(shopId ? { shopId } : {}),
-      };
-      const [receipts, issues] = await Promise.all([
-        this.prisma.goodsReceiptHeader.count({ where: grWhere }),
-        this.prisma.goodsIssueHeader.count({ where: giWhere }),
-      ]);
-      monthlyMovement.push({
-        month: start.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
-        receipts,
-        issues,
-      });
-    }
-
-    const categoryBreakdown = catGroups.map((g) => ({
+    const monthlyMovement = this.formatMonthlyMovement(monthlyRows, sixMonthsAgoStart);
+    const categoryBreakdown = categoryGroups.map((g) => ({
       category: g.category?.trim() ? g.category : 'Uncategorized',
       count: g._count._all,
     }));
@@ -163,7 +136,9 @@ export class DashboardService {
       grNumber: gr.grNumber,
       grDate: gr.grDate.toISOString(),
       supplier: gr.supplierName,
-      totalValue: gr.items.reduce((sum, line) => sum + Number(line.lineValue), 0),
+      totalValue: gr.totalValue
+        ? Number(gr.totalValue)
+        : gr.items.reduce((sum, line) => sum + Number(line.lineValue), 0),
       status: gr.status,
     }));
 
@@ -177,14 +152,185 @@ export class DashboardService {
 
     return {
       totalProducts,
-      totalStockValue: Math.round(totalStockValue * 100) / 100,
-      lowStockCount,
-      recentTransactions,
+      totalStockValue: stockValueAndLow.totalStockValue,
+      lowStockCount: stockValueAndLow.lowStockCount,
+      recentTransactions: gr30 + gi30,
       monthlyMovement,
       categoryBreakdown,
       recentGoodsReceipts,
       recentGoodsIssues,
       lowStockProducts,
     };
+  }
+
+  /**
+   * Compute total stock value (sum of selling_price * current_stock) and the
+   * count of products below their min_stock_level in a single SQL pass instead
+   * of materializing every product row in JS.
+   */
+  private async aggregateStockValueAndLowCount(shopId?: string) {
+    // Multi-plant: each (product, plant) assignment is its own line, so we
+    // pivot off product_plants instead of products. Min-stock comparisons
+    // use the per-plant pp.min_stock_level threshold.
+    const rows = shopId
+      ? await this.prisma.$queryRaw<Array<{ total_value: string | null; low_count: string | null }>>`
+          SELECT
+            COALESCE(SUM(p.selling_price * COALESCE(s.current_stock, 0)), 0)::text AS total_value,
+            COALESCE(SUM(CASE WHEN COALESCE(s.current_stock, 0) < pp.min_stock_level THEN 1 ELSE 0 END), 0)::text AS low_count
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_summary s
+            ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
+          WHERE pp.is_active = true AND pp.shop_id = ${shopId}::uuid
+        `
+      : await this.prisma.$queryRaw<Array<{ total_value: string | null; low_count: string | null }>>`
+          SELECT
+            COALESCE(SUM(p.selling_price * COALESCE(s.current_stock, 0)), 0)::text AS total_value,
+            COALESCE(SUM(CASE WHEN COALESCE(s.current_stock, 0) < pp.min_stock_level THEN 1 ELSE 0 END), 0)::text AS low_count
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_summary s
+            ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
+          WHERE pp.is_active = true
+        `;
+    const row = rows[0] ?? { total_value: '0', low_count: '0' };
+    return {
+      totalStockValue: Math.round(Number(row.total_value ?? '0') * 100) / 100,
+      lowStockCount: Number(row.low_count ?? '0'),
+    };
+  }
+
+  private async fetchLowStockProducts(shopId: string | undefined, limit: number) {
+    const rows = shopId
+      ? await this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            shop_id: string;
+            product_code: string;
+            description: string;
+            category: string;
+            current_stock: string;
+            min_stock_level: string;
+          }>
+        >`
+          SELECT p.id, pp.shop_id, p.product_code, p.description, p.category,
+                 COALESCE(s.current_stock, 0)::text AS current_stock,
+                 pp.min_stock_level::text AS min_stock_level
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_summary s
+            ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
+          WHERE pp.is_active = true
+            AND pp.shop_id = ${shopId}::uuid
+            AND COALESCE(s.current_stock, 0) < pp.min_stock_level
+          ORDER BY (CASE WHEN pp.min_stock_level > 0
+                          THEN COALESCE(s.current_stock, 0) / pp.min_stock_level
+                          ELSE 0 END) ASC
+          LIMIT ${limit}
+        `
+      : await this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            shop_id: string;
+            product_code: string;
+            description: string;
+            category: string;
+            current_stock: string;
+            min_stock_level: string;
+          }>
+        >`
+          SELECT p.id, pp.shop_id, p.product_code, p.description, p.category,
+                 COALESCE(s.current_stock, 0)::text AS current_stock,
+                 pp.min_stock_level::text AS min_stock_level
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_summary s
+            ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
+          WHERE pp.is_active = true
+            AND COALESCE(s.current_stock, 0) < pp.min_stock_level
+          ORDER BY (CASE WHEN pp.min_stock_level > 0
+                          THEN COALESCE(s.current_stock, 0) / pp.min_stock_level
+                          ELSE 0 END) ASC
+          LIMIT ${limit}
+        `;
+    return rows.map((r) => ({
+      id: r.id,
+      shopId: r.shop_id,
+      productCode: r.product_code,
+      description: r.description,
+      category: r.category?.trim() ? r.category : 'Uncategorized',
+      currentStock: Number(r.current_stock),
+      minStockLevel: Number(r.min_stock_level),
+    }));
+  }
+
+  /**
+   * Single grouped query for the last 6 months of GR/GI POSTED counts.
+   */
+  private async fetchMonthlyMovement(shopId: string | undefined, sinceMonthStart: Date) {
+    const rows = shopId
+      ? await this.prisma.$queryRaw<MonthlyRow[]>`
+          WITH months AS (
+            SELECT generate_series(${sinceMonthStart}::date, now()::date, interval '1 month')::date AS month
+          )
+          SELECT
+            m.month,
+            COALESCE((
+              SELECT COUNT(*) FROM goods_receipt_header gr
+              WHERE gr.status = 'POSTED'
+                AND gr.shop_id = ${shopId}::uuid
+                AND date_trunc('month', gr.gr_date) = m.month
+            ), 0)::bigint AS receipts,
+            COALESCE((
+              SELECT COUNT(*) FROM goods_issue_header gi
+              WHERE gi.status = 'POSTED'
+                AND gi.shop_id = ${shopId}::uuid
+                AND date_trunc('month', gi.gi_date) = m.month
+            ), 0)::bigint AS issues
+          FROM months m
+          ORDER BY m.month ASC
+        `
+      : await this.prisma.$queryRaw<MonthlyRow[]>`
+          WITH months AS (
+            SELECT generate_series(${sinceMonthStart}::date, now()::date, interval '1 month')::date AS month
+          )
+          SELECT
+            m.month,
+            COALESCE((
+              SELECT COUNT(*) FROM goods_receipt_header gr
+              WHERE gr.status = 'POSTED'
+                AND date_trunc('month', gr.gr_date) = m.month
+            ), 0)::bigint AS receipts,
+            COALESCE((
+              SELECT COUNT(*) FROM goods_issue_header gi
+              WHERE gi.status = 'POSTED'
+                AND date_trunc('month', gi.gi_date) = m.month
+            ), 0)::bigint AS issues
+          FROM months m
+          ORDER BY m.month ASC
+        `;
+    return rows;
+  }
+
+  private formatMonthlyMovement(rows: MonthlyRow[], expectedStart: Date) {
+    if (rows.length > 0) {
+      return rows.map((row) => ({
+        month: row.month.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        receipts: Number(row.receipts),
+        issues: Number(row.issues),
+      }));
+    }
+    // Fallback: fill 6 zero months when generate_series isn't available.
+    const out: { month: string; receipts: number; issues: number }[] = [];
+    const cursor = new Date(expectedStart);
+    for (let i = 0; i < 6; i += 1) {
+      out.push({
+        month: cursor.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        receipts: 0,
+        issues: 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return out;
   }
 }

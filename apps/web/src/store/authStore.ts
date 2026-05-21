@@ -23,19 +23,37 @@ export type AuthUser = {
   avatarUrl?: string | null;
 };
 
+export type SessionProductPlant = {
+  shopId: string;
+  storageLocationId?: string | null;
+  openingStock: number;
+  minStockLevel: number;
+  maxStockLevel?: number | null;
+  reorderQty?: number | null;
+  isActive: boolean;
+};
+
+export type SessionProductSpec = {
+  id?: string;
+  label: string;
+  value: string;
+};
+
 export type SessionProduct = {
   id: string;
   productCode: string;
   description: string;
   uom: string;
   category: string;
+  materialGroup?: string | null;
+  drawingReference?: string | null;
   purchasePrice: number;
   sellingPrice: number;
-  minStockLevel: number;
-  openingStock: number;
-  reorderQty: number | null;
   isActive: boolean;
-  shopId: string;
+  plants: SessionProductPlant[];
+  specifications: SessionProductSpec[];
+  stockByShop?: Record<string, number>;
+  totalStock?: number;
   currentStock?: number;
   createdAt: string;
   updatedAt: string;
@@ -65,11 +83,12 @@ export const useAuthStore = create<AuthState>()(
           accessToken,
           user,
           products: state.user?.id === user.id ? state.products : [],
+          initialized: true,
         })),
       setInitialized: (initialized) => set({ initialized }),
       setUser: (user) => set((state) => ({ ...state, user })),
       setProducts: (products) => set((state) => ({ ...state, products })),
-      clear: () => set({ accessToken: null, user: null, products: [] }),
+      clear: () => set({ accessToken: null, user: null, products: [], initialized: true }),
     }),
     {
       name: 'retail-ims-auth',

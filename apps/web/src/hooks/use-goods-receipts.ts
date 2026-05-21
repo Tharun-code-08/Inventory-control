@@ -22,6 +22,7 @@ export type GoodsReceipt = {
   grDate: string;
   shopId: string;
   supplierName: string;
+  purchaseOrderId?: string;
   supplierRef: string;
   remarks: string;
   status: GoodsReceiptStatus;
@@ -57,13 +58,63 @@ export function useGoodsReceipts(filters: GoodsReceiptFilters = {}) {
     queryKey: grKeys.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.limit) params.set('limit', String(filters.limit));
+      if (filters.limit) params.set('take', String(filters.limit));
       if (filters.search) params.set('search', filters.search);
       if (filters.status) params.set('status', filters.status);
-      if (filters.shopId) params.set('shopId', filters.shopId);
+      if (filters.shopId) params.set('shop_id', filters.shopId);
       const res = await api.get(`/goods-receipts?${params}`);
-      return res.data.data;
+      const payload = res.data.data as
+        | GoodsReceipt[]
+        | {
+            data?: GoodsReceipt[];
+            items?: GoodsReceipt[];
+            meta?: {
+              total?: number;
+              page?: number;
+              limit?: number;
+              totalPages?: number;
+              hasMore?: boolean;
+              nextCursor?: string | null;
+            };
+          }
+        | undefined;
+      const envelopeMeta = res.data.meta as
+        | {
+            total?: number;
+            page?: number;
+            limit?: number;
+            totalPages?: number;
+            hasMore?: boolean;
+            nextCursor?: string | null;
+          }
+        | undefined;
+      const itemsRaw = Array.isArray(payload)
+        ? payload
+        : (payload?.items ?? payload?.data ?? []);
+      const items = itemsRaw.map((gr) => {
+        const safeItems = Array.isArray(gr.items) ? gr.items : [];
+        const computedTotal = safeItems.reduce((sum, line) => {
+          const lineValue = Number(line?.lineValue ?? 0);
+          return sum + (Number.isFinite(lineValue) ? lineValue : 0);
+        }, 0);
+        return {
+          ...gr,
+          items: safeItems,
+          totalValue: Number(gr.totalValue ?? computedTotal),
+        };
+      });
+      const meta = Array.isArray(payload) ? envelopeMeta : (payload?.meta ?? envelopeMeta);
+      return {
+        items,
+        meta: {
+          total: meta?.total ?? items.length,
+          page: meta?.page ?? 1,
+          limit: meta?.limit ?? (filters.limit ?? 10),
+          totalPages: meta?.totalPages ?? 1,
+          hasMore: meta?.hasMore ?? false,
+          nextCursor: meta?.nextCursor ?? null,
+        },
+      };
     },
   });
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/AppLayout';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,7 +70,7 @@ export function ContractsPage() {
                     <TableCell>{c.contractNumber}</TableCell>
                     <TableCell>{c.title}</TableCell>
                     <TableCell>{c.supplier?.supplierName ?? '-'}</TableCell>
-                    <TableCell>{c.status}</TableCell>
+                    <TableCell><StatusBadge status={c.status} /></TableCell>
                     <TableCell><Button size="sm" variant="outline" onClick={() => activateContract.mutate(c.id)}>Activate</Button></TableCell>
                   </TableRow>
                 ))}

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, Prisma, PurchaseOrderStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
@@ -74,26 +74,69 @@ export class ShopsService {
     });
   }
 
-  async softDelete(user: RequestUser, id: string) {
+  /**
+   * Hard-delete a plant. Refuses if the plant has any dependents
+   * (product assignments, users, storage locations, transactions, ledgers,
+   * cost layers). The recommended path for a "used" plant is the
+   * isActive toggle exposed via PATCH — this method exists for true cleanup
+   * of mistyped or never-used plants only.
+   */
+  async remove(user: RequestUser, id: string) {
     assertShopScope(user, id);
-    const posted = await this.prisma.goodsReceiptHeader.count({
-      where: { shopId: id, status: DocumentStatus.POSTED },
-    });
-    const postedGi = await this.prisma.goodsIssueHeader.count({
-      where: { shopId: id, status: DocumentStatus.POSTED },
-    });
-    const postedDm = await this.prisma.damagedStock.count({
-      where: { shopId: id, status: DocumentStatus.POSTED },
-    });
-    const postedPo = await this.prisma.purchaseOrderHeader.count({
-      where: { shopId: id, status: PurchaseOrderStatus.CONFIRMED },
-    });
-    if (posted + postedGi + postedDm + postedPo > 0) {
-      throw new BadRequestException('Cannot deactivate shop with posted transactions');
+    await this.get(user, id);
+
+    const [
+      productPlantCount,
+      storageLocCount,
+      userCount,
+      grCount,
+      giCount,
+      dmgCount,
+      poCount,
+      ledgerCount,
+      summaryCount,
+      costLayerCount,
+    ] = await Promise.all([
+      this.prisma.productPlant.count({ where: { shopId: id } }),
+      this.prisma.storageLocation.count({ where: { shopId: id } }),
+      this.prisma.user.count({ where: { shopId: id } }),
+      this.prisma.goodsReceiptHeader.count({ where: { shopId: id } }),
+      this.prisma.goodsIssueHeader.count({ where: { shopId: id } }),
+      this.prisma.damagedStock.count({ where: { shopId: id } }),
+      this.prisma.purchaseOrderHeader.count({ where: { shopId: id } }),
+      this.prisma.stockLedger.count({ where: { shopId: id } }),
+      this.prisma.stockSummary.count({ where: { shopId: id } }),
+      this.prisma.costLayer.count({ where: { shopId: id } }),
+    ]);
+
+    const blockers: string[] = [];
+    if (productPlantCount > 0) blockers.push('product assignments');
+    if (storageLocCount > 0) blockers.push('storage locations');
+    if (userCount > 0) blockers.push('users');
+    if (grCount + giCount + dmgCount + poCount > 0) blockers.push('transactions');
+    if (ledgerCount + summaryCount + costLayerCount > 0) blockers.push('stock history');
+
+    if (blockers.length > 0) {
+      throw new BadRequestException(
+        `Cannot delete this plant — it still has ${blockers.join(', ')}. ` +
+          'Deactivate the plant instead to keep its history intact.',
+      );
     }
-    return this.prisma.shop.update({
-      where: { id },
-      data: { isActive: false, updatedById: user.id },
-    });
+
+    try {
+      await this.prisma.shop.delete({ where: { id } });
+      return { ok: true };
+    } catch (err) {
+      // Catch any unforeseen FK reference (e.g. RFQ, contracts, quotations)
+      // and translate it into a friendly "deactivate instead" message rather
+      // than leaking a Prisma error to the client.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw new BadRequestException(
+          'Cannot delete this plant — it is still referenced by other records. ' +
+            'Deactivate the plant instead.',
+        );
+      }
+      throw err;
+    }
   }
 }

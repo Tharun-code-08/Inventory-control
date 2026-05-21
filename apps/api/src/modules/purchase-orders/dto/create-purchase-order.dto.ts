@@ -47,4 +47,9 @@ export class CreatePurchaseOrderDto {
   @ValidateNested({ each: true })
   @Type(() => PoLine)
   items!: PoLine[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }

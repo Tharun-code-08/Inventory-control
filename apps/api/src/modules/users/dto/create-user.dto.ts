@@ -11,9 +11,9 @@ export class CreateUserDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 10, description: 'At least 10 characters; recommend a passphrase' })
   @IsString()
-  @MinLength(6)
+  @MinLength(10)
   password!: string;
 
   @ApiProperty()

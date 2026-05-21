@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, Search, UserCircle } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, RefreshCw, Search, UserCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/api/client';
 import { cn } from '@/lib/cn';
 import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
+import { animalAvatarForUser } from '@/lib/profile-avatar';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -47,13 +49,11 @@ function useIsMobile() {
   );
 
   useEffect(() => {
-    function onResize() {
-      setIsMobile(window.innerWidth < 768);
-    }
-
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const mql = window.matchMedia('(max-width: 767px)');
+    const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+    setIsMobile(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   return isMobile;
@@ -67,6 +67,7 @@ type AppLayoutProps = {
 export function AppLayout({ children, active }: AppLayoutProps) {
   const location = useLocation();
   const nav = useNavigate();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const isMobile = useIsMobile();
@@ -78,6 +79,9 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showLogoutSplash, setShowLogoutSplash] = useState(false);
+  const [logoutFadeOut, setLogoutFadeOut] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const alertsQuery = useAlerts();
@@ -128,26 +132,64 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   }, [isMobile, mobileSidebarOpen]);
 
   async function handleLogout() {
+    if (showLogoutSplash) return;
+    setLogoutFadeOut(false);
+    setShowLogoutSplash(true);
     try {
       await api.post('/auth/logout');
     } catch {
       /* best-effort */
     }
-    delete api.defaults.headers.common.Authorization;
-    clear();
-    nav('/login', { replace: true });
+    window.setTimeout(() => {
+      setLogoutFadeOut(true);
+    }, 800);
+    window.setTimeout(() => {
+      delete api.defaults.headers.common.Authorization;
+      clear();
+      nav('/login', { replace: true });
+    }, 1120);
   }
 
-  const initials =
-    user?.name
-      ?.split(' ')
-      .map((w) => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() ?? 'U';
+  async function handleRefresh() {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries();
+      await queryClient.refetchQueries({ type: 'active' });
+    } finally {
+      window.setTimeout(() => setIsRefreshing(false), 300);
+    }
+  }
+
+  const avatar = animalAvatarForUser(user);
 
   return (
-    <div className="flex min-h-screen bg-transparent">
+    <div className="flex min-h-screen bg-transparent text-slate-800">
+      {showLogoutSplash && (
+        <div className={cn(
+          "fixed inset-0 z-[100] flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
+          logoutFadeOut ? 'opacity-0' : 'opacity-100',
+        )}>
+          <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-white/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-indigo-300/40 blur-2xl" />
+            <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
+            <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br', avatar.bgClass)}>
+              <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
+              <span aria-label={`${avatar.kind} avatar`} role="img" className="text-5xl">
+                {avatar.emoji}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <p className="text-base font-semibold text-white">Signing you out securely</p>
+              <p className="text-xs text-slate-200/90">Clearing session tokens and workspace context...</p>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-white" />
+            </div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">Please wait</p>
+          </div>
+        </div>
+      )}
       <Sidebar
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
@@ -158,40 +200,48 @@ export function AppLayout({ children, active }: AppLayoutProps) {
 
       <div
         className={cn(
-          'flex min-h-screen min-w-0 flex-1 flex-col',
+          'flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-in-out',
           !isMobile && (sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[240px]'),
         )}
       >
-        <header className="sticky top-0 z-30 border-b border-white/35 bg-white/55 shadow-sm backdrop-blur-xl supports-[backdrop-filter]:bg-white/40">
+        <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90">
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
-                onClick={() => setMobileSidebarOpen(true)}
-                className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
-                aria-label="Open navigation"
+                onClick={() =>
+                  isMobile ? setMobileSidebarOpen(true) : setSidebarCollapsed((c) => !c)
+                }
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label={
+                  isMobile
+                    ? 'Open navigation'
+                    : sidebarCollapsed
+                      ? 'Expand sidebar'
+                      : 'Collapse sidebar'
+                }
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <h2 className="truncate text-base font-semibold sm:text-lg">{pageTitle}</h2>
+              <h2 className="premium-title truncate text-base font-semibold sm:text-lg">{pageTitle}</h2>
             </div>
 
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               <div className="relative hidden lg:block">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search..."
-                  className="h-10 w-72 rounded-xl border border-white/45 bg-white/70 pl-9 pr-3 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+                  className="h-10 w-72 rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => setMobileSearchOpen((open) => !open)}
-                className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:hidden"
                 aria-label="Toggle search"
               >
                 <Search className="h-5 w-5" />
@@ -199,8 +249,18 @@ export function AppLayout({ children, active }: AppLayoutProps) {
 
               <button
                 type="button"
+                onClick={handleRefresh}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Refresh data"
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={cn('h-5 w-5', isRefreshing && 'animate-spin')} />
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setNotificationsOpen((open) => !open)}
-                className="relative rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                 aria-label="Notifications"
               >
                 <Bell className="h-5 w-5" />
@@ -209,70 +269,78 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                 )}
               </button>
               {notificationsOpen && (
-                <div
-                  ref={notificationsRef}
-                  className="absolute right-16 top-14 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-xl backdrop-blur-xl"
-                >
-                  <div className="flex items-center justify-between border-b px-4 py-3">
-                    <p className="text-sm font-semibold">Notifications</p>
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => nav('/notifications')}
-                    >
-                      Manage
-                    </button>
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close notifications"
+                    onClick={() => setNotificationsOpen(false)}
+                    className="fixed inset-0 z-30 bg-slate-900/25"
+                  />
+                  <div
+                    ref={notificationsRef}
+                    className="absolute right-2 top-14 z-40 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:right-16 sm:max-w-[calc(100vw-2rem)]"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-500 hover:text-slate-900"
+                        onClick={() => nav('/notifications')}
+                      >
+                        Manage
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {alerts.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm text-slate-500">No notifications</div>
+                      ) : (
+                        alerts.slice(0, 8).map((alert) => (
+                          <button
+                            key={alert.id}
+                            type="button"
+                            onClick={() => {
+                              if (!alert.isRead) {
+                                markRead.mutate(alert.id);
+                              }
+                            }}
+                            className={cn(
+                              'w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50',
+                              !alert.isRead && 'bg-indigo-50',
+                            )}
+                          >
+                            <p className="text-sm font-medium text-slate-900">{alert.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">{alert.message}</p>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {alerts.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</div>
-                    ) : (
-                      alerts.slice(0, 8).map((alert) => (
-                        <button
-                          key={alert.id}
-                          type="button"
-                          onClick={() => {
-                            if (!alert.isRead) {
-                              markRead.mutate(alert.id);
-                            }
-                          }}
-                          className={cn(
-                            'w-full border-b px-4 py-3 text-left last:border-b-0 hover:bg-accent/40',
-                            !alert.isRead && 'bg-blue-50/60',
-                          )}
-                        >
-                          <p className="text-sm font-medium">{alert.title}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{alert.message}</p>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
+                </>
               )}
 
               <div className="relative" ref={profileRef}>
                 <button
                   type="button"
                   onClick={() => setProfileOpen((open) => !open)}
-                  className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-white/65"
+                  className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-slate-100"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-semibold text-primary-foreground shadow-md">
-                    {initials}
+                  <div className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-sm shadow-md', avatar.bgClass)}>
+                    <span aria-label={`${avatar.kind} avatar`} role="img">{avatar.emoji}</span>
                   </div>
                   <div className="hidden text-left md:block">
-                    <div className="text-sm font-medium leading-tight">{user?.name}</div>
-                    <div className="text-xs text-muted-foreground">{user?.role}</div>
+                    <div className="text-sm font-medium leading-tight text-slate-900">{user?.name}</div>
+                    <div className="text-xs text-slate-500">{user?.role}</div>
                   </div>
-                  <ChevronDown className="hidden h-4 w-4 text-muted-foreground md:block" />
+                  <ChevronDown className="hidden h-4 w-4 text-slate-500 md:block" />
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/60 bg-white/85 shadow-xl backdrop-blur-xl">
-                    <div className="border-b px-4 py-3">
-                      <div className="text-sm font-medium">{user?.name}</div>
-                      <div className="text-xs text-muted-foreground">{user?.email}</div>
+                  <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="border-b border-slate-200 px-4 py-3">
+                      <div className="text-sm font-medium text-slate-900">{user?.name}</div>
+                      <div className="text-xs text-slate-500">{user?.email}</div>
                       {user?.shop && (
-                        <div className="mt-0.5 text-xs text-amber-600">{user.shop.shopName}</div>
+                        <div className="mt-0.5 text-xs text-indigo-600">{user.shop.shopName}</div>
                       )}
                     </div>
                     <button
@@ -281,7 +349,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                         setProfileOpen(false);
                         nav('/profile');
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-accent"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
                       <UserCircle className="h-4 w-4" /> Profile
                     </button>
@@ -301,20 +369,22 @@ export function AppLayout({ children, active }: AppLayoutProps) {
           {mobileSearchOpen && (
             <div className="border-t px-4 py-3 lg:hidden">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search..."
-                  className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/40"
                 />
               </div>
             </div>
           )}
         </header>
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
+          <div className="mx-auto w-full max-w-[1400px]">{children}</div>
+        </main>
       </div>
 
       <Toaster />

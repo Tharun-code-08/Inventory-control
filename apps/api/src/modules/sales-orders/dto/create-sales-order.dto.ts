@@ -21,6 +21,18 @@ export class CreateSalesOrderItemDto {
   @Type(() => Number)
   @Min(0)
   unitPrice!: number;
+
+  @ApiPropertyOptional({ description: 'Per-line discount amount (in line currency)' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  discountAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Tax rate as a decimal (e.g. 0.18 for 18%)' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  taxRate?: number;
 }
 
 export class CreateSalesOrderDto {
@@ -47,6 +59,18 @@ export class CreateSalesOrderDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @ApiPropertyOptional({ default: 'USD' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({
+    description: 'Snapshot FX rate vs the shop functional currency at create time',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  fxRateUsed?: number;
 
   @ApiProperty({ type: [CreateSalesOrderItemDto] })
   @IsArray()

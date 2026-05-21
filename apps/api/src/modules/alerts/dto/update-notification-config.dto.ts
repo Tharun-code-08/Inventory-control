@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 
 const severityValues = ['URGENT', 'WARNING', 'ACTION', 'INFO'] as const;
-const channelValues = ['Email', 'SMS', 'In-app'] as const;
+const channelValues = ['Email', 'SMS', 'In-app', 'WhatsApp'] as const;
 
 export class NotificationRuleDto {
   @ApiProperty()

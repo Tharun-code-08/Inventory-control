@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
 export type PurchaseOrderStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
+export type PurchaseOrderLifecycleStatus = 'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'FULLY_RECEIVED' | 'CANCELLED';
 
 export type PurchaseOrderItem = {
   id: string;
@@ -12,7 +13,8 @@ export type PurchaseOrderItem = {
   orderQty: number;
   rate: number;
   lineValue: number;
-  product: {
+  product?: {
+    id?: string;
     description: string;
     productCode: string;
   };
@@ -23,25 +25,55 @@ export type PurchaseOrder = {
   poNumber: string;
   poDate: string;
   shopId: string;
+  shop?: { id: string; shopName?: string; shopNumber?: string };
   supplier: string;
   status: PurchaseOrderStatus;
-  remarks: string;
+  remarks: string | null;
   items: PurchaseOrderItem[];
   totalValue: number;
   createdAt: string;
+  lifecycleStatus?: PurchaseOrderLifecycleStatus;
+  receiptProgress?: Array<{
+    productId: string;
+    orderedQty: number;
+    receivedQty: number;
+    remainingQty: number;
+  }>;
 };
 
 export type PurchaseOrderFilters = {
   search?: string;
   status?: PurchaseOrderStatus;
   shopId?: string;
-  take?: number;
-  cursor?: string;
+  page?: number;
+  limit?: number;
 };
 
-export type CreatePurchaseOrderPayload = Omit<PurchaseOrder, 'id' | 'poNumber' | 'createdAt' | 'totalValue' | 'status'> & {
+export type PurchaseOrderListMeta = {
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  hasMore?: boolean;
+};
+
+export type PurchaseOrderListResponse = {
+  data: PurchaseOrder[];
+  meta?: PurchaseOrderListMeta;
+};
+
+export type CreatePurchaseOrderPayload = {
+  shopId: string;
+  poDate: string;
+  supplier: string;
+  remarks?: string;
   contractId?: string;
-  items: Omit<PurchaseOrderItem, 'id' | 'lineValue' | 'product'>[];
+  idempotencyKey?: string;
+  items: Array<{
+    productId: string;
+    orderQty: number;
+    rate: number;
+  }>;
 };
 
 export type UpdatePurchaseOrderPayload = Partial<CreatePurchaseOrderPayload>;
@@ -59,14 +91,20 @@ export function usePurchaseOrders(filters: PurchaseOrderFilters = {}) {
     queryKey: poKeys.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters.take) params.set('take', String(filters.take));
-      if (filters.cursor) params.set('cursor', filters.cursor);
+      if (filters.page) params.set('page', String(filters.page));
+      if (filters.limit) params.set('limit', String(filters.limit));
       if (filters.search) params.set('search', filters.search);
       if (filters.status) params.set('status', filters.status);
       if (filters.shopId) params.set('shop_id', filters.shopId);
       const res = await api.get(`/purchase-orders?${params}`);
-      return res.data.data;
+      return {
+        data: (res.data.data ?? []) as PurchaseOrder[],
+        meta: res.data.meta as PurchaseOrderListMeta | undefined,
+      };
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -78,6 +116,8 @@ export function usePurchaseOrder(id: string) {
       return res.data.data as PurchaseOrder;
     },
     enabled: !!id,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
   });
 }
 

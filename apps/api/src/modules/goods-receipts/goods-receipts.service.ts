@@ -1,13 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
+import { CostingService } from '../stock/costing.service';
 import { DocumentAlreadyPostedException } from '../../common/exceptions/domain.exceptions';
+import { AuditService } from '../audit/audit.service';
+import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { UpdateGoodsReceiptDto } from './dto/update-goods-receipt.dto';
 
@@ -17,13 +21,63 @@ export class GoodsReceiptsService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
+    private readonly audit: AuditService,
+    private readonly costing: CostingService,
   ) {}
 
-  private assertNotFuture(date: Date) {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (date.getTime() > today.getTime()) {
-      throw new BadRequestException('Document date cannot be in the future');
+  private async validateAgainstPurchaseOrder(
+    tx: Prisma.TransactionClient,
+    headerId: string | null,
+    purchaseOrderId: string,
+    items: Array<{ productId: string; quantity: Prisma.Decimal }>,
+  ) {
+    // Serialize concurrent receipt validations against the same PO so two
+    // posts cannot both pass the partial-receipt guard and over-receive.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'po:' + purchaseOrderId}::text))`;
+
+    const po = await tx.purchaseOrderHeader.findUnique({
+      where: { id: purchaseOrderId },
+      include: { items: true },
+    });
+    if (!po) {
+      throw new BadRequestException('Purchase order not found');
+    }
+    const poLifecycle = (po as { lifecycleStatus?: string }).lifecycleStatus ?? po.status;
+    if (poLifecycle !== 'CONFIRMED' && poLifecycle !== 'PARTIALLY_RECEIVED') {
+      throw new BadRequestException(
+        'Goods receipt can be created only for CONFIRMED or PARTIALLY_RECEIVED purchase orders',
+      );
+    }
+
+    const postedReceipts = await tx.goodsReceiptHeader.findMany({
+      where: {
+        purchaseOrderId,
+        status: DocumentStatus.POSTED,
+        ...(headerId ? { id: { not: headerId } } : {}),
+      },
+      include: { items: true },
+    });
+
+    const alreadyReceivedByProduct = new Map<string, Prisma.Decimal>();
+    for (const gr of postedReceipts) {
+      for (const line of gr.items) {
+        const current = alreadyReceivedByProduct.get(line.productId) ?? new Prisma.Decimal(0);
+        alreadyReceivedByProduct.set(line.productId, current.add(line.quantity));
+      }
+    }
+
+    for (const line of items) {
+      const poLine = po.items.find((x) => x.productId === line.productId);
+      if (!poLine) {
+        throw new BadRequestException('Received product does not belong to selected purchase order');
+      }
+      const already = alreadyReceivedByProduct.get(line.productId) ?? new Prisma.Decimal(0);
+      const nextTotal = already.add(line.quantity);
+      if (nextTotal.gt(poLine.orderQty)) {
+        throw new BadRequestException(
+          `Partial GR exceeds PO quantity for product ${line.productId}. Remaining qty: ${poLine.orderQty.sub(already).toString()}`,
+        );
+      }
     }
   }
 
@@ -49,26 +103,53 @@ export class GoodsReceiptsService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
-      include: { shop: true },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        shop: true,
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            uom: true,
+            purchaseRate: true,
+            lineValue: true,
+          },
+        },
+      },
     });
     const { items, meta } = buildMeta(rows, take);
-    return { data: items, meta };
+    const normalized = items.map((row) => {
+      const computedTotal = row.items.reduce((sum, line) => sum.add(line.lineValue), new Prisma.Decimal(0));
+      return {
+        ...row,
+        totalValue: row.totalValue ?? computedTotal,
+      };
+    });
+    return { data: normalized, meta };
   }
 
   async create(user: RequestUser, dto: CreateGoodsReceiptDto) {
     assertShopScope(user, dto.shopId);
     const grDate = new Date(dto.grDate);
-    this.assertNotFuture(grDate);
+    assertNotFuture(grDate);
     for (const line of dto.items) {
       if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const grNumber = await this.numbers.nextNumber(tx, {
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const normalizedItems = dto.items.map((i) => ({
+        productId: i.productId,
+        quantity: new Prisma.Decimal(i.quantity),
+      }));
+      if (dto.purchaseOrderId) {
+        await this.validateAgainstPurchaseOrder(tx, null, dto.purchaseOrderId, normalizedItems);
+      }
+
+      const grNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: dto.shopId,
         docType: 'GR',
-        prefix: 'GR',
+        basePrefix: 'GR',
         date: grDate,
       });
 
@@ -118,9 +199,9 @@ export class GoodsReceiptsService {
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
     const grDate = dto.grDate ? new Date(dto.grDate) : existing.grDate;
-    this.assertNotFuture(grDate);
+    assertNotFuture(grDate);
 
-    return this.prisma.$transaction(async (tx) => {
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
       if (dto.items) {
         await tx.goodsReceiptItem.deleteMany({ where: { grHeaderId: id } });
         for (const line of dto.items) {
@@ -163,9 +244,9 @@ export class GoodsReceiptsService {
       throw new DocumentAlreadyPostedException();
     }
     const grDate = header.grDate;
-    this.assertNotFuture(grDate);
+    assertNotFuture(grDate);
 
-    return this.prisma.$transaction(async (tx) => {
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const fresh = await tx.goodsReceiptHeader.findUnique({
         where: { id },
         include: { items: true },
@@ -174,9 +255,26 @@ export class GoodsReceiptsService {
         throw new DocumentAlreadyPostedException();
       }
 
+      if (fresh.purchaseOrderId) {
+        await this.validateAgainstPurchaseOrder(
+          tx,
+          fresh.id,
+          fresh.purchaseOrderId,
+          fresh.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        );
+      }
+
+      // Resolve the shop costing method once per posting; cost layers and
+      // the avgCost on stock_summary both depend on it.
+      const shop = await tx.shop.findUnique({
+        where: { id: fresh.shopId },
+        select: { costingMethod: true },
+      });
+      const method = shop?.costingMethod ?? CostingMethod.AVERAGE;
+
       let total = new Prisma.Decimal(0);
       for (const line of fresh.items) {
-        await this.stock.postMovement(tx, {
+        await this.stock.postMovementOnce(tx, {
           type: TransactionType.GOODS_RECEIPT,
           ref: fresh.grNumber,
           date: fresh.grDate,
@@ -185,21 +283,58 @@ export class GoodsReceiptsService {
           inQty: Number(line.quantity),
           outQty: 0,
           unitRate: Number(line.purchaseRate),
+          sourceType: 'GOODS_RECEIPT',
+          sourceId: fresh.id,
+          sourceLineId: line.id,
+          idempotencyKey: `gr:${fresh.id}:${line.id}`,
           userId: user.id,
+        });
+        await this.costing.recordInflow(tx, {
+          shopId: fresh.shopId,
+          productId: line.productId,
+          qty: new Prisma.Decimal(line.quantity),
+          unitCost: new Prisma.Decimal(line.purchaseRate),
+          grId: fresh.id,
+          method,
         });
         total = total.add(line.lineValue);
       }
 
-      return tx.goodsReceiptHeader.update({
-        where: { id },
+      // Atomic state transition guard so concurrent posts on the same GR
+      // cannot both run side-effects.
+      const transitioned = await tx.goodsReceiptHeader.updateMany({
+        where: { id, status: DocumentStatus.DRAFT },
         data: {
           status: DocumentStatus.POSTED,
           postedAt: new Date(),
           totalValue: total,
           updatedById: user.id,
         },
+      });
+      if (transitioned.count === 0) {
+        throw new DocumentAlreadyPostedException();
+      }
+
+      const posted = await tx.goodsReceiptHeader.findUniqueOrThrow({
+        where: { id },
         include: { items: { include: { product: true } }, shop: true },
       });
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.POST,
+          entityType: 'GOODS_RECEIPT',
+          entityId: posted.id,
+          newValues: {
+            grNumber: posted.grNumber,
+            status: posted.status,
+            totalValue: posted.totalValue?.toString() ?? null,
+            itemCount: posted.items.length,
+          },
+        },
+        tx,
+      );
+      return posted;
     });
   }
 
@@ -238,3 +373,4 @@ export class GoodsReceiptsService {
     return { ok: true };
   }
 }
+

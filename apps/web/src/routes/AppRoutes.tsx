@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HomePage } from '@/pages/HomePage';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -46,6 +47,14 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role !== 'ADMIN') {
+    return <Navigate to="/products" replace />;
+  }
+  return <>{children}</>;
+}
+
 function PageFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -60,46 +69,50 @@ function PageFallback() {
 
 export function AppRoutes() {
   return (
-    <Suspense fallback={<PageFallback />}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <Protected>
-              {useAuthStore.getState().user?.role === 'ADMIN' ? (
-                <DashboardPage />
-              ) : (
-                <Navigate to="/products" replace />
-              )}
-            </Protected>
-          }
-        />
-        <Route path="/products" element={<Protected><ProductsPage /></Protected>} />
-        <Route path="/companies" element={<Protected><CompaniesPage /></Protected>} />
-        <Route path="/plants" element={<Protected><PlantsPage /></Protected>} />
-        <Route path="/storage-locations" element={<Protected><StorageLocationsPage /></Protected>} />
-        <Route path="/suppliers" element={<Protected><SuppliersPage /></Protected>} />
-        <Route path="/rfqs" element={<Protected><RfqsPage /></Protected>} />
-        <Route path="/quotations" element={<Protected><QuotationsPage /></Protected>} />
-        <Route path="/contracts" element={<Protected><ContractsPage /></Protected>} />
-        <Route path="/customers" element={<Protected><CustomersPage /></Protected>} />
-        <Route path="/supplier-portal" element={<Protected><SupplierPortalPage /></Protected>} />
-        <Route path="/sales" element={<Protected><SalesPage /></Protected>} />
-        <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
-        <Route path="/payments" element={<Protected><PaymentsPage /></Protected>} />
-        <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
-        <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
-        <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
-        <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />
-        <Route path="/purchase-orders" element={<Protected><PurchaseOrdersPage /></Protected>} />
-        <Route path="/purchase-orders/new" element={<Protected><PurchaseOrdersPage /></Protected>} />
-        <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
-        <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
-        <Route path="/profile" element={<Navigate to="/settings" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+    <AppErrorBoundary>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <Protected>
+                <AdminOnly>
+                  <DashboardPage />
+                </AdminOnly>
+              </Protected>
+            }
+          />
+          <Route path="/products" element={<Protected><ProductsPage /></Protected>} />
+          <Route path="/companies" element={<Protected><CompaniesPage /></Protected>} />
+          <Route path="/plants" element={<Protected><PlantsPage /></Protected>} />
+          <Route path="/storage-locations" element={<Protected><StorageLocationsPage /></Protected>} />
+          <Route path="/suppliers" element={<Protected><SuppliersPage /></Protected>} />
+          <Route path="/rfqs" element={<Protected><RfqsPage /></Protected>} />
+          <Route path="/quotations" element={<Protected><QuotationsPage /></Protected>} />
+          <Route path="/contracts" element={<Protected><ContractsPage /></Protected>} />
+          <Route path="/customers" element={<Protected><CustomersPage /></Protected>} />
+          <Route path="/supplier-portal" element={<Protected><SupplierPortalPage /></Protected>} />
+          <Route path="/portal" element={<Protected><SupplierPortalPage /></Protected>} />
+          <Route path="/sales" element={<Protected><SalesPage /></Protected>} />
+          <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
+          <Route path="/payments" element={<Protected><PaymentsPage /></Protected>} />
+          <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
+          <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
+          <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
+          <Route path="/goods-receipts/new" element={<Protected><GoodsReceiptPage createOnly /></Protected>} />
+          <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />
+          <Route path="/purchase-orders" element={<Protected><PurchaseOrdersPage /></Protected>} />
+          <Route path="/purchase-orders/new" element={<Protected><PurchaseOrdersPage createOnly /></Protected>} />
+          <Route path="/payments/new" element={<Protected><PaymentsPage createOnly /></Protected>} />
+          <Route path="/plants/new" element={<Protected><PlantsPage createOnly /></Protected>} />
+          <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
+          <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="/profile" element={<Navigate to="/settings" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </AppErrorBoundary>
   );
 }

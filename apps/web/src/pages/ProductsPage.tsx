@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type ChangeEvent } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
+import { useForm, Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -29,6 +30,9 @@ import {
 } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useProductCategories } from '@/hooks/use-product-categories';
+import { useStorageLocations } from '@/hooks/use-storage-locations';
+import { mapProductFormToPayload, type ProductFormValues } from '@/lib/payload-mappers';
+import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +74,49 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
 
+/** Lets users clear a numeric field while typing; commits 0 on blur if left empty. */
+function PlantNumericInput({
+  value,
+  onChange,
+  min = 0,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  min?: number;
+}) {
+  const [text, setText] = useState(String(value ?? 0));
+
+  useEffect(() => {
+    setText(String(value ?? 0));
+  }, [value]);
+
+  return (
+    <Input
+      type="number"
+      min={min}
+      value={text}
+      onChange={(e) => {
+        const next = e.target.value;
+        setText(next);
+        if (next !== '' && !Number.isNaN(Number(next))) {
+          onChange(Number(next));
+        }
+      }}
+      onBlur={() => {
+        if (text === '' || Number.isNaN(Number(text))) {
+          setText('0');
+          onChange(0);
+          return;
+        }
+        const n = Number(text);
+        const clamped = n < min ? min : n;
+        setText(String(clamped));
+        onChange(clamped);
+      }}
+    />
+  );
+}
+
 const UOM_OPTIONS = [
   { value: 'dz', label: 'Dozen (dz)' },
   { value: 'drm', label: 'Drum (drm)' },
@@ -100,42 +147,290 @@ const UOM_OPTIONS = [
 ] as const;
 const PAGE_SIZE = 10;
 
+const productPlantSchema = z
+  .object({
+    shopId: z.string().min(1, 'Plant is required'),
+    storageLocationId: z.string().optional(),
+    openingStock: z.coerce.number().min(0, 'Must be 0 or more'),
+    minStockLevel: z.coerce.number().min(0, 'Must be 0 or more'),
+    maxStockLevel: z
+      .union([z.coerce.number().min(0), z.literal(''), z.null(), z.undefined()])
+      .transform((v) => (v === '' || v === undefined || v === null ? null : Number(v)))
+      .nullable()
+      .optional(),
+    reorderQty: z
+      .union([z.coerce.number().min(0), z.literal(''), z.null(), z.undefined()])
+      .transform((v) => (v === '' || v === undefined || v === null ? null : Number(v)))
+      .nullable()
+      .optional(),
+    isActive: z.boolean().optional().default(true),
+  })
+  .refine(
+    (plant) =>
+      plant.maxStockLevel == null || plant.maxStockLevel >= plant.minStockLevel,
+    { message: 'Max ≥ Min', path: ['maxStockLevel'] },
+  );
+
+const productSpecSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+});
+
 const productSchema = z.object({
   productCode: z.string().min(1, 'Product code is required'),
   description: z.string().min(2, 'Description must be at least 2 characters'),
   category: z.string().min(1, 'Category is required'),
+  materialGroup: z.string().optional(),
+  drawingReference: z.string().optional(),
   purchasePrice: z.coerce.number().min(0, 'Must be 0 or more'),
   sellingPrice: z.coerce.number().min(0, 'Must be 0 or more'),
-  openingStock: z.coerce.number().min(0, 'Must be 0 or more'),
-  minStockLevel: z.coerce.number().min(0, 'Must be 0 or more'),
-  reorderQty: z.coerce.number().min(0, 'Must be 0 or more'),
   uom: z.string().min(1, 'Unit of measure is required'),
   isActive: z.boolean(),
+  plants: z.array(productPlantSchema).min(1, 'At least one plant assignment is required'),
+  specifications: z.array(productSpecSchema),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+type FormShape = z.infer<typeof productSchema>;
 
-const defaultValues: ProductFormValues = {
-  productCode: '',
-  description: '',
-  category: '',
-  purchasePrice: 0,
-  sellingPrice: 0,
+const emptyPlant: FormShape['plants'][number] = {
+  shopId: '',
+  storageLocationId: '',
   openingStock: 0,
   minStockLevel: 0,
-  reorderQty: 0,
-  uom: 'pcs',
+  maxStockLevel: null,
+  reorderQty: null,
   isActive: true,
 };
 
+const defaultValues: FormShape = {
+  productCode: '',
+  description: '',
+  category: '',
+  materialGroup: '',
+  drawingReference: '',
+  purchasePrice: 0,
+  sellingPrice: 0,
+  uom: 'pcs',
+  isActive: true,
+  plants: [emptyPlant],
+  specifications: [],
+};
+
+/**
+ * One row of the Plant & Storage Location Assignment table. Lifted into its
+ * own component so each row owns its `useStorageLocations(shopId)` query —
+ * picking a plant in row N must only reload row N's location dropdown.
+ *
+ * The row exposes two distinct destructive actions:
+ *   - Active toggle  -> per-plant soft-deactivate (assignment is preserved
+ *     on the master record but rejected by transactions like new POs).
+ *   - Trash button   -> remove the assignment from the form. On submit the
+ *     API hard-deletes the row when no history exists, otherwise gracefully
+ *     falls back to soft-deactivate.
+ */
+type PlantAssignmentRowProps = {
+  control: Control<FormShape>;
+  index: number;
+  shopOptions: Array<{ id: string; shopName: string; shopNumber: string }>;
+  takenShopIds: Set<string>;
+  onRemove: () => void;
+  removable: boolean;
+  errors: Record<string, { message?: string } | undefined> | undefined;
+};
+
+function PlantAssignmentRow({
+  control,
+  index,
+  shopOptions,
+  takenShopIds,
+  onRemove,
+  removable,
+  errors,
+}: PlantAssignmentRowProps) {
+  const watchedShopId = useWatch({ control, name: `plants.${index}.shopId` });
+  const watchedActive = useWatch({ control, name: `plants.${index}.isActive` }) ?? true;
+  const { data: locations = [], isLoading: isLoadingLocations } = useStorageLocations(
+    watchedShopId || undefined,
+  );
+  const activeLocations = locations.filter((l) => l.isActive);
+
+  const availableShops = shopOptions.filter(
+    (s) => s.id === watchedShopId || !takenShopIds.has(s.id),
+  );
+
+  return (
+    <div
+      className={cn(
+        'space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 transition-opacity',
+        !watchedActive && 'border-dashed bg-slate-100/70 opacity-70',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-medium text-slate-700">Plant {index + 1}</span>
+          {!watchedActive && (
+            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+              Inactive
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor={`plant-${index}-active`}
+              className="cursor-pointer text-xs text-slate-600"
+            >
+              Active
+            </Label>
+            <Controller
+              control={control}
+              name={`plants.${index}.isActive`}
+              render={({ field }) => (
+                <Switch
+                  id={`plant-${index}-active`}
+                  checked={field.value ?? true}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive disabled:opacity-30"
+            onClick={onRemove}
+            disabled={!removable}
+            aria-label="Remove plant"
+            title="Delete this plant assignment"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[2fr_2fr_1fr_1fr_1fr]">
+        <div className="space-y-1">
+          <Label className="text-xs">Plant *</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.shopId`}
+            render={({ field }) => (
+              <Select value={field.value || ''} onValueChange={field.onChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select plant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableShops.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.shopName} ({s.shopNumber})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors?.shopId?.message && (
+            <p className="text-xs text-destructive">{errors.shopId.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Storage Location</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.storageLocationId`}
+            render={({ field }) => (
+              <Select
+                value={field.value || ''}
+                onValueChange={field.onChange}
+                disabled={!watchedShopId || isLoadingLocations || activeLocations.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      !watchedShopId
+                        ? 'Pick a plant first'
+                        : isLoadingLocations
+                          ? 'Loading…'
+                          : activeLocations.length === 0
+                            ? 'None available'
+                            : 'Select location'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeLocations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name} ({loc.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Stock</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.openingStock`}
+            render={({ field }) => (
+              <PlantNumericInput
+                value={field.value ?? 0}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Min Stock</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.minStockLevel`}
+            render={({ field }) => (
+              <PlantNumericInput
+                value={field.value ?? 0}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Max Stock</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.maxStockLevel`}
+            render={({ field }) => (
+              <Input
+                type="number"
+                min="0"
+                value={field.value ?? ''}
+                onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
+              />
+            )}
+          />
+          {errors?.maxStockLevel?.message && (
+            <p className="text-xs text-destructive">{errors.maxStockLevel.message}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProductsPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = !user?.shopId;
+  const isAdmin = isAdminUser(user);
   const shops = useShops();
   const shopList = shops.data ?? [];
-  const defaultShopId = user?.shopId ?? shopList[0]?.id ?? '';
-  const [selectedShopId, setSelectedShopId] = useState('');
-  const shopId = user?.shopId ?? (selectedShopId || defaultShopId);
+  const defaultShopId = isShopOnlyUser(user) ? user!.shopId! : '';
+  const [listShopFilter, setListShopFilter] = useState<string>('all');
+  const listShopId = productListShopId(user, listShopFilter);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -147,7 +442,16 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  // Confirmation index for plant removal. Null means no dialog open.
+  // We only prompt when the row corresponds to a plant that already exists
+  // on the edited product, since dropping a fresh row before save is harmless.
+  const [pendingPlantRemoval, setPendingPlantRemoval] = useState<{
+    index: number;
+    existingShopId: string | null;
+  } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importDryRun, setImportDryRun] = useState(true);
+  const [lastImportFailures, setLastImportFailures] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const filters: ProductFilters = {
@@ -156,7 +460,7 @@ export function ProductsPage() {
     search: debouncedSearch || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
-    shopId: shopId || undefined,
+    shopId: listShopId,
   };
 
   const { data, isLoading, isError } = useProducts(filters);
@@ -181,11 +485,43 @@ export function ProductsPage() {
     [debounceTimer],
   );
 
-  const form = useForm<ProductFormValues>({
+  const form = useForm<FormShape>({
     resolver: zodResolver(productSchema),
     defaultValues,
   });
   const [skuNumber, setSkuNumber] = useState('');
+
+  const plantsArray = useFieldArray({ control: form.control, name: 'plants' });
+  const specsArray = useFieldArray({ control: form.control, name: 'specifications' });
+  const watchedPlants = useWatch({ control: form.control, name: 'plants' }) ?? [];
+  const takenShopIds = new Set(watchedPlants.map((p) => p?.shopId).filter(Boolean) as string[]);
+  const allPlantsAssigned = shopList.length > 0 && watchedPlants.length >= shopList.length;
+
+  // When editing, removing a row that's already saved is destructive — the
+  // server will hard-delete or deactivate. Prompt before doing it. For freshly
+  // appended rows (no matching shopId on the original product), drop silently.
+  const requestPlantRemoval = (index: number) => {
+    const plantShopId = watchedPlants[index]?.shopId ?? '';
+    const existsOnServer =
+      !!editingProduct &&
+      !!plantShopId &&
+      editingProduct.plants.some((plant) => plant.shopId === plantShopId);
+    if (existsOnServer) {
+      setPendingPlantRemoval({ index, existingShopId: plantShopId });
+    } else {
+      plantsArray.remove(index);
+    }
+  };
+
+  const confirmPlantRemoval = () => {
+    if (!pendingPlantRemoval) return;
+    plantsArray.remove(pendingPlantRemoval.index);
+    setPendingPlantRemoval(null);
+  };
+
+  const pendingPlantShopName = pendingPlantRemoval?.existingShopId
+    ? shopList.find((s) => s.id === pendingPlantRemoval.existingShopId)?.shopName ?? 'this plant'
+    : 'this plant';
 
   const selectedCategory = form.watch('category');
   const currentPrefix =
@@ -201,7 +537,18 @@ export function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    form.reset(defaultValues);
+    // Admins must explicitly pick a plant; auto-selecting the first shop often
+    // assigns the wrong plant so the product never appears under the intended filter.
+    const defaultPlantShopId = isShopOnlyUser(user) ? user!.shopId! : '';
+    form.reset({
+      ...defaultValues,
+      plants: [
+        {
+          ...emptyPlant,
+          shopId: defaultPlantShopId,
+        },
+      ],
+    });
     setSkuNumber('');
     setSheetOpen(true);
   };
@@ -212,13 +559,28 @@ export function ProductsPage() {
       productCode: product.productCode,
       description: product.description,
       category: product.category,
+      materialGroup: product.materialGroup ?? '',
+      drawingReference: product.drawingReference ?? '',
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
-      openingStock: product.openingStock,
-      minStockLevel: product.minStockLevel,
-      reorderQty: product.reorderQty ?? 0,
       uom: product.uom,
       isActive: product.isActive,
+      plants:
+        product.plants.length > 0
+          ? product.plants.map((plant) => ({
+              shopId: plant.shopId,
+              storageLocationId: plant.storageLocationId ?? '',
+              openingStock: plant.openingStock,
+              minStockLevel: plant.minStockLevel,
+              maxStockLevel: plant.maxStockLevel ?? null,
+              reorderQty: plant.reorderQty ?? null,
+              isActive: plant.isActive,
+            }))
+          : [emptyPlant],
+      specifications: product.specifications.map((spec) => ({
+        label: spec.label,
+        value: spec.value,
+      })),
     });
     const matchedPrefix = categoryConfig.find((c) => product.productCode.startsWith(c.skuPrefix))?.skuPrefix ?? '';
     const suffix = matchedPrefix ? product.productCode.slice(matchedPrefix.length) : '';
@@ -226,24 +588,72 @@ export function ProductsPage() {
     setSheetOpen(true);
   };
 
-  const onSubmit = async (values: ProductFormValues) => {
+  const onSubmit = async (rawValues: FormShape) => {
     try {
-      const resolvedShopId = user?.shopId ?? (selectedShopId || defaultShopId);
-      if (!resolvedShopId) {
-        toast.error('Please select a shop first');
-        return;
-      }
-      const finalProductCode = editingProduct ? values.productCode : composedProductCode;
+      const finalProductCode = editingProduct ? rawValues.productCode : composedProductCode;
       if (!editingProduct && !/^\d+$/.test(skuNumber)) {
         toast.error('Enter numeric product code digits');
         return;
       }
+      if (!rawValues.plants.some((p) => p.shopId?.trim())) {
+        toast.error('Select a plant — products only appear for shops they are assigned to');
+        return;
+      }
+      const values: ProductFormValues = {
+        productCode: finalProductCode,
+        description: rawValues.description,
+        category: rawValues.category,
+        materialGroup: rawValues.materialGroup,
+        drawingReference: rawValues.drawingReference,
+        purchasePrice: rawValues.purchasePrice,
+        sellingPrice: rawValues.sellingPrice,
+        uom: rawValues.uom,
+        isActive: rawValues.isActive,
+        plants: rawValues.plants.map((p) => ({
+          shopId: p.shopId,
+          storageLocationId: p.storageLocationId,
+          openingStock: p.openingStock,
+          minStockLevel: p.minStockLevel,
+          maxStockLevel: p.maxStockLevel ?? null,
+          reorderQty: p.reorderQty ?? null,
+          isActive: p.isActive,
+        })),
+        specifications: rawValues.specifications.filter(
+          (spec) => spec.label.trim() && spec.value.trim(),
+        ),
+      };
+
       if (editingProduct) {
-        await updateProduct.mutateAsync({ id: editingProduct.id, ...values, productCode: finalProductCode });
+        const payload = mapProductFormToPayload({
+          values,
+          finalProductCode,
+          mode: 'update',
+        });
+        await updateProduct.mutateAsync({
+          id: editingProduct.id,
+          ...payload,
+        });
         toast.success('Product updated successfully');
       } else {
-        await createProduct.mutateAsync({ ...values, productCode: finalProductCode, shopId: resolvedShopId });
-        toast.success('Product created successfully');
+        const payload = mapProductFormToPayload({
+          values,
+          finalProductCode,
+          mode: 'create',
+        });
+        const created = await createProduct.mutateAsync(payload);
+        const plantName =
+          shopList.find((s) => s.id === created.plants[0]?.shopId)?.shopName ?? 'selected plant';
+        toast.success(
+          `Product ${created.productCode} created for ${plantName}. It appears in the list below.`,
+        );
+        setPage(1);
+        setSearch('');
+        setDebouncedSearch('');
+        setCategoryFilter('all');
+        setStatusFilter('all');
+        if (!isShopOnlyUser(user)) {
+          setListShopFilter('all');
+        }
       }
       setSheetOpen(false);
       form.reset(defaultValues);
@@ -346,7 +756,8 @@ export function ProductsPage() {
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!shopId && !user?.shopId) {
+    const fallbackShopId = user?.shopId ?? defaultShopId;
+    if (!fallbackShopId) {
       toast.error('Select a shop before importing products');
       event.target.value = '';
       return;
@@ -371,6 +782,13 @@ export function ProductsPage() {
 
       let successCount = 0;
       const failures: string[] = [];
+      const seenCodes = new Set<string>();
+      // Pre-build a set of productCodes from rows currently visible so we
+      // can warn on obvious duplicates before sending. The API is the
+      // source of truth on uniqueness — productCode is now globally unique.
+      const existingCodes = new Set(
+        items.map((p) => (p.productCode || '').toLowerCase()),
+      );
 
       for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index];
@@ -398,7 +816,7 @@ export function ProductsPage() {
                     shop.shopName.toLowerCase() === shopCell.toLowerCase(),
                 )?.id
               : undefined) ||
-            shopId;
+            fallbackShopId;
 
           if (!resolvedShopId) throw new Error('Shop is missing');
           if (!code) throw new Error('Product Code is required');
@@ -411,18 +829,32 @@ export function ProductsPage() {
           if (!Number.isFinite(minStockLevel) || minStockLevel < 0) throw new Error('Invalid Min Stock Level');
           if (!Number.isFinite(reorderQty) || reorderQty < 0) throw new Error('Invalid Reorder Qty');
 
+          const dedupeKey = code.toLowerCase();
+          if (seenCodes.has(dedupeKey)) throw new Error('Duplicate Product Code in upload file');
+          if (existingCodes.has(dedupeKey)) throw new Error('Product Code already exists');
+          seenCodes.add(dedupeKey);
+
+          if (importDryRun) {
+            successCount += 1;
+            continue;
+          }
+
           await createProduct.mutateAsync({
-            shopId: resolvedShopId,
             productCode: code,
             description,
             category,
             purchasePrice,
             sellingPrice,
-            openingStock,
-            minStockLevel,
-            reorderQty,
             uom,
             isActive,
+            plants: [
+              {
+                shopId: resolvedShopId,
+                openingStock,
+                minStockLevel,
+                reorderQty: reorderQty || undefined,
+              },
+            ],
           });
           successCount += 1;
         } catch (err: unknown) {
@@ -434,10 +866,13 @@ export function ProductsPage() {
       }
 
       if (successCount > 0) {
-        toast.success(`${successCount} product(s) imported successfully`);
+        toast.success(importDryRun ? `${successCount} row(s) validated successfully (dry run)` : `${successCount} product(s) imported successfully`);
       }
       if (failures.length > 0) {
+        setLastImportFailures(failures);
         toast.error(`Failed rows: ${failures.length}. ${failures.slice(0, 3).join(' | ')}`);
+      } else {
+        setLastImportFailures([]);
       }
     } catch {
       toast.error('Failed to process Excel file');
@@ -449,12 +884,12 @@ export function ProductsPage() {
 
   return (
     <AppLayout active="Products">
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Page Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Products</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Products</h1>
+            <p className="text-sm text-slate-500">
               Manage your product catalog and inventory levels
             </p>
           </div>
@@ -478,12 +913,24 @@ export function ProductsPage() {
             >
               {isImporting ? 'Importing...' : 'Upload Excel'}
             </Button>
+            <Button
+              type="button"
+              variant={importDryRun ? 'default' : 'outline'}
+              title="Applies to Excel upload only, not Add Product"
+              onClick={() => setImportDryRun((v) => !v)}
+              className="w-full sm:w-auto"
+            >
+              {importDryRun ? 'Excel dry run: ON' : 'Excel dry run: OFF'}
+            </Button>
             <Button onClick={openCreate} className="w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Add Product
             </Button>
           </div>
         </div>
+        {lastImportFailures.length > 0 ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">Last import had {lastImportFailures.length} failed row(s). First error: {lastImportFailures[0]}</p>
+        ) : null}
 
         {/* Toolbar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -545,9 +992,9 @@ export function ProductsPage() {
           </Select>
           {isAdmin && shopList.length > 0 && (
             <Select
-              value={selectedShopId || defaultShopId || 'all'}
+              value={listShopFilter}
               onValueChange={(v) => {
-                setSelectedShopId(v === 'all' ? '' : v);
+                setListShopFilter(v);
                 setPage(1);
               }}
             >
@@ -565,9 +1012,29 @@ export function ProductsPage() {
             </Select>
           )}
         </div>
+        {isAdmin && listShopFilter !== 'all' && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Showing products assigned to{' '}
+            <span className="font-medium">
+              {shopList.find((s) => s.id === listShopFilter)?.shopName ?? 'one plant'}
+            </span>{' '}
+            only. New products for other plants are hidden — switch to{' '}
+            <button
+              type="button"
+              className="font-semibold underline"
+              onClick={() => {
+                setListShopFilter('all');
+                setPage(1);
+              }}
+            >
+              All Shops
+            </button>{' '}
+            to see everything.
+          </p>
+        )}
 
         {/* Table Card */}
-        <div className="rounded-xl border bg-card shadow-sm">
+        <div className="surface-1 rounded-xl shadow-sm">
           {isLoading ? (
             <div className="p-6 space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -582,17 +1049,20 @@ export function ProductsPage() {
               ))}
             </div>
           ) : isError ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
               <AlertTriangle className="h-10 w-10 text-destructive mb-3" />
               <p className="text-sm font-medium text-destructive">
                 Failed to load products
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                 Please try refreshing the page
               </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
               <Package className="h-12 w-12 text-muted-foreground/50 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">
                 No products found
@@ -611,16 +1081,16 @@ export function ProductsPage() {
             </div>
           ) : (
             <>
-              <Table>
+              <Table className="text-[13px]">
                 <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableHead className="font-semibold">Code</TableHead>
                     <TableHead className="font-semibold">Description</TableHead>
                     <TableHead className="font-semibold">Category</TableHead>
                     <TableHead className="font-semibold text-right">Buy Price</TableHead>
                     <TableHead className="font-semibold text-right">Sell Price</TableHead>
                     <TableHead className="font-semibold text-right">Stock</TableHead>
-                    <TableHead className="font-semibold text-right">Min Stock</TableHead>
+                    <TableHead className="font-semibold">Plants</TableHead>
                     <TableHead className="font-semibold">Unit</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold text-center">Actions</TableHead>
@@ -628,9 +1098,25 @@ export function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {items.map((product) => {
+                    // When the list is filtered to a single shop, show that
+                    // plant's stock + min-stock; otherwise show the total
+                    // across all assignments and a count of plants.
+                    const filteredPlant = listShopId
+                      ? product.plants.find((p) => p.shopId === listShopId)
+                      : undefined;
+                    const stockValue =
+                      listShopId && filteredPlant
+                        ? (product.stockByShop?.[listShopId] ?? 0)
+                        : (product.totalStock ?? product.currentStock ?? 0);
+                    const minStockValue =
+                      filteredPlant?.minStockLevel ??
+                      (product.plants.length > 0
+                        ? Math.min(
+                            ...product.plants.map((p) => Number(p.minStockLevel ?? 0)),
+                          )
+                        : 0);
                     const isLowStock =
-                      product.currentStock !== undefined &&
-                      product.currentStock < product.minStockLevel;
+                      stockValue !== undefined && stockValue < minStockValue && minStockValue > 0;
 
                     return (
                       <TableRow key={product.id}>
@@ -653,9 +1139,7 @@ export function ProductsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <span className="tabular-nums">
-                              {product.currentStock ?? '—'}
-                            </span>
+                            <span className="tabular-nums">{stockValue}</span>
                             {isLowStock && (
                               <Badge variant="warning" className="text-[10px] px-1.5 py-0">
                                 <AlertTriangle className="h-3 w-3 mr-0.5" />
@@ -664,8 +1148,19 @@ export function ProductsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {product.minStockLevel}
+                        <TableCell>
+                          {listShopId && filteredPlant ? (
+                            <span className="text-xs text-slate-600">
+                              Min: {filteredPlant.minStockLevel}
+                              {filteredPlant.maxStockLevel != null && (
+                                <> · Max: {filteredPlant.maxStockLevel}</>
+                              )}
+                            </span>
+                          ) : (
+                            <Badge variant="secondary" className="font-normal">
+                              {product.plants.length} plant{product.plants.length === 1 ? '' : 's'}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs">{product.uom}</TableCell>
                         <TableCell>
@@ -704,8 +1199,8 @@ export function ProductsPage() {
               </Table>
 
               {/* Pagination */}
-              <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-500">
                   Showing{' '}
                   <span className="font-medium">
                     {(meta.page - 1) * meta.limit + 1}
@@ -726,7 +1221,7 @@ export function ProductsPage() {
                     <ChevronLeft className="h-4 w-4" />
                     Previous
                   </Button>
-                  <span className="text-sm text-muted-foreground px-2">
+                  <span className="px-2 text-sm text-slate-500">
                     Page {meta.page} of {meta.totalPages}
                   </span>
                   <Button
@@ -747,11 +1242,12 @@ export function ProductsPage() {
 
       {/* Product Form Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto border-l-0 sm:w-full sm:max-w-3xl"
+        >
           <SheetHeader>
-            <SheetTitle>
-              {editingProduct ? 'Edit Product' : 'Add Product'}
-            </SheetTitle>
+            <SheetTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</SheetTitle>
             <SheetDescription>
               {editingProduct
                 ? `Update details for ${editingProduct.productCode}`
@@ -759,231 +1255,296 @@ export function ProductsPage() {
             </SheetDescription>
           </SheetHeader>
 
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="mt-6 space-y-5"
-          >
-            {isAdmin && !editingProduct && (
-              <div className="space-y-2">
-                <Label>Shop *</Label>
-                <Select
-                  value={selectedShopId || defaultShopId}
-                  onValueChange={setSelectedShopId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a shop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shopList.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.shopName} ({s.shopNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {shopList.length === 0 && (
-                  <p className="text-xs text-destructive">
-                    No shops available. Create a shop first.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="productCode">Product Code *</Label>
-                {editingProduct ? (
-                  <Input id="productCode" {...form.register('productCode')} disabled />
-                ) : (
-                  <div className="grid grid-cols-[110px_1fr] gap-2">
-                    <Input value={currentPrefix} disabled />
-                    <Input
-                      id="productCode"
-                      inputMode="numeric"
-                      placeholder="numbers only"
-                      value={skuNumber}
-                      onChange={(e) => setSkuNumber(e.target.value.replace(/\D/g, ''))}
-                    />
-                  </div>
-                )}
-                {!editingProduct && (
-                  <p className="text-xs text-muted-foreground">Auto prefix + numeric suffix only (example: {currentPrefix}001)</p>
-                )}
-                {form.formState.errors.productCode && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.productCode.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="uom">Unit of Measure *</Label>
-                <Controller
-                  control={form.control}
-                  name="uom"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {UOM_OPTIONS.map((u) => (
-                          <SelectItem key={u.value} value={u.value}>
-                            {u.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {form.formState.errors.uom && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.uom.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
-              <Input
-                id="description"
-                {...form.register('description')}
-                placeholder="Product description"
-              />
-              {form.formState.errors.description && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.description.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Category *</Label>
-              <Controller
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryConfig.map((c) => (
-                        <SelectItem key={c.code} value={c.name}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {form.formState.errors.category && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.category.message}
-                </p>
-              )}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="purchasePrice">Purchase Price *</Label>
-                <Input
-                  id="purchasePrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...form.register('purchasePrice')}
-                />
-                {form.formState.errors.purchasePrice && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.purchasePrice.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sellingPrice">Selling Price *</Label>
-                <Input
-                  id="sellingPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...form.register('sellingPrice')}
-                />
-                {form.formState.errors.sellingPrice && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.sellingPrice.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="openingStock">Opening Stock</Label>
-                <Input
-                  id="openingStock"
-                  type="number"
-                  min="0"
-                  {...form.register('openingStock')}
-                />
-                {form.formState.errors.openingStock && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.openingStock.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="minStockLevel">Min Stock Level</Label>
-                <Input
-                  id="minStockLevel"
-                  type="number"
-                  min="0"
-                  {...form.register('minStockLevel')}
-                />
-                {form.formState.errors.minStockLevel && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.minStockLevel.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reorderQty">Reorder Qty</Label>
-                <Input
-                  id="reorderQty"
-                  type="number"
-                  min="0"
-                  {...form.register('reorderQty')}
-                />
-                {form.formState.errors.reorderQty && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.reorderQty.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label htmlFor="isActive" className="cursor-pointer">
-                  Active Status
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Inactive products won't appear in transactions
-                </p>
-              </div>
-              <Controller
-                control={form.control}
-                name="isActive"
-                render={({ field }) => (
-                  <Switch
-                    id="isActive"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6">
+            {/* 1. Product Information */}
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Product Information</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="description">Product Name *</Label>
+                  <Input
+                    id="description"
+                    {...form.register('description')}
+                    placeholder="e.g. Stainless Steel Bolt M8"
                   />
+                  {form.formState.errors.description && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.description.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category *</Label>
+                  <Controller
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoryConfig.map((c) => (
+                            <SelectItem key={c.code} value={c.name}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.category && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.category.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="productCode">SKU *</Label>
+                  {editingProduct ? (
+                    <Input id="productCode" {...form.register('productCode')} disabled />
+                  ) : (
+                    <div className="grid grid-cols-[110px_1fr] gap-2">
+                      <Input value={currentPrefix} disabled />
+                      <Input
+                        id="productCode"
+                        inputMode="numeric"
+                        placeholder="numbers only"
+                        value={skuNumber}
+                        onChange={(e) => setSkuNumber(e.target.value.replace(/\D/g, ''))}
+                      />
+                    </div>
+                  )}
+                  {!editingProduct && (
+                    <p className="text-xs text-muted-foreground">
+                      Auto prefix + numeric suffix (example: {currentPrefix}001)
+                    </p>
+                  )}
+                  {form.formState.errors.productCode && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.productCode.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="materialGroup">Material Group</Label>
+                  <Input
+                    id="materialGroup"
+                    {...form.register('materialGroup')}
+                    placeholder="e.g. Stainless Steel"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="uom">Unit of Measure *</Label>
+                  <Controller
+                    control={form.control}
+                    name="uom"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {UOM_OPTIONS.map((u) => (
+                            <SelectItem key={u.value} value={u.value}>
+                              {u.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.uom && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.uom.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 2. Pricing */}
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="sellingPrice">Selling Price *</Label>
+                  <Input
+                    id="sellingPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...form.register('sellingPrice')}
+                  />
+                  {form.formState.errors.sellingPrice && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.sellingPrice.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="purchasePrice">Cost Price *</Label>
+                  <Input
+                    id="purchasePrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...form.register('purchasePrice')}
+                  />
+                  {form.formState.errors.purchasePrice && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.purchasePrice.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 3. Technical Details */}
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Technical Details</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="drawingReference">Drawing Reference</Label>
+                  <Input
+                    id="drawingReference"
+                    {...form.register('drawingReference')}
+                    placeholder="e.g. DRW-2024-001"
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label htmlFor="isActive" className="cursor-pointer">
+                      Active Status
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Inactive products won't appear in transactions
+                    </p>
+                  </div>
+                  <Controller
+                    control={form.control}
+                    name="isActive"
+                    render={({ field }) => (
+                      <Switch
+                        id="isActive"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* 4. Plant & Storage Location Assignment */}
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Plant & Storage Location Assignment
+                </h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={allPlantsAssigned}
+                  onClick={() => plantsArray.append(emptyPlant)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Plant
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select the plant this product belongs to (required). The product only
+                shows on the Products list for shops it is assigned to. Add storage
+                location and thresholds. Toggle{' '}
+                <span className="font-medium text-slate-700">Active</span> to
+                deactivate an assignment (kept in history but blocked from new
+                transactions). Use the trash icon to delete it permanently —
+                assignments with prior transactions are deactivated automatically.
+              </p>
+              <div className="space-y-3">
+                {plantsArray.fields.map((field, index) => (
+                  <PlantAssignmentRow
+                    key={field.id}
+                    control={form.control}
+                    index={index}
+                    shopOptions={shopList}
+                    takenShopIds={takenShopIds}
+                    onRemove={() => requestPlantRemoval(index)}
+                    removable={plantsArray.fields.length > 1}
+                    errors={form.formState.errors.plants?.[index] as never}
+                  />
+                ))}
+              </div>
+              {form.formState.errors.plants &&
+                typeof form.formState.errors.plants.message === 'string' && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.plants.message}
+                  </p>
                 )}
-              />
-            </div>
+              {shopList.length > 0 && plantsArray.fields.length === 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSheetOpen(false);
+                    navigate('/storage-locations');
+                  }}
+                >
+                  Manage Storage Locations
+                </Button>
+              )}
+            </section>
+
+            {/* 5. Specifications */}
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900">Specifications</h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => specsArray.append({ label: '', value: '' })}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Spec
+                </Button>
+              </div>
+              {specsArray.fields.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Optional. Use this to capture {`{label, value}`} attributes (e.g. Material, Finish).
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {specsArray.fields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 sm:grid-cols-[1fr_2fr_auto]"
+                    >
+                      <Input
+                        placeholder="Label (e.g. Material)"
+                        {...form.register(`specifications.${index}.label`)}
+                      />
+                      <Input
+                        placeholder="Value (e.g. Stainless Steel)"
+                        {...form.register(`specifications.${index}.value`)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => specsArray.remove(index)}
+                        aria-label="Remove spec"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
               <Button
@@ -1028,6 +1589,41 @@ export function ProductsPage() {
               onClick={handleDeleteProduct}
             >
               {deleteProduct.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Plant assignment removal confirmation */}
+      <AlertDialog
+        open={!!pendingPlantRemoval}
+        onOpenChange={(open) => !open && setPendingPlantRemoval(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete plant assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove{' '}
+              <span className="font-medium text-foreground">
+                {pendingPlantShopName}
+              </span>{' '}
+              from this product? Plants without prior transaction history are
+              deleted permanently. Plants with history are deactivated instead
+              (preserved in stock ledgers and reports). To merely pause a plant
+              without losing its setup, use the{' '}
+              <span className="font-medium text-foreground">Active</span> toggle
+              on the row.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={cn(
+                'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+              )}
+              onClick={confirmPlantRemoval}
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

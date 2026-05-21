@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/AppLayout';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,7 +63,7 @@ export function InvoicesPage() {
                     <TableCell>{inv.invoiceNumber}</TableCell>
                     <TableCell>{new Date(inv.invoiceDate).toLocaleDateString()}</TableCell>
                     <TableCell>{inv.customer?.customerName ?? '-'}</TableCell>
-                    <TableCell>{inv.status}</TableCell>
+                    <TableCell><StatusBadge status={inv.status} /></TableCell>
                     <TableCell>{Number(inv.totalValue ?? 0).toFixed(2)}</TableCell>
                     <TableCell>{Number(inv.paidValue ?? 0).toFixed(2)}</TableCell>
                   </TableRow>

@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import type { RequestUser } from '../../common/types/request-user';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -14,8 +16,8 @@ export class UsersController {
 
   @RequirePermission('user:manage')
   @Get()
-  list() {
-    return this.users.list();
+  list(@CurrentUser() user: RequestUser) {
+    return this.users.list(user);
   }
 
   @RequirePermission('user:manage')
@@ -26,31 +28,39 @@ export class UsersController {
 
   @RequirePermission('user:manage')
   @Patch('roles/:roleName/permissions')
-  updateRolePermissions(@Param('roleName') roleName: string, @Body() dto: UpdateRolePermissionsDto) {
-    return this.users.updateRolePermissions(roleName, dto.permissions);
+  updateRolePermissions(
+    @CurrentUser() user: RequestUser,
+    @Param('roleName') roleName: string,
+    @Body() dto: UpdateRolePermissionsDto,
+  ) {
+    return this.users.updateRolePermissions(user, roleName, dto.permissions);
   }
 
   @RequirePermission('user:manage')
   @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.users.create(dto);
+  create(@CurrentUser() user: RequestUser, @Body() dto: CreateUserDto) {
+    return this.users.create(user, dto);
   }
 
   @RequirePermission('user:manage')
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.users.get(id);
+  get(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.users.get(user, id);
   }
 
   @RequirePermission('user:manage')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.users.update(id, dto);
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.users.update(user, id, dto);
   }
 
   @RequirePermission('user:manage')
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.users.remove(id);
+  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.users.remove(user, id);
   }
 }

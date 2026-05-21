@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -79,19 +80,24 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
+import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
+import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
 
 const PAGE_SIZE = 10;
 
 const grItemSchema = z.object({
   productId: z.string().min(1, 'Select a product'),
-  quantity: z.coerce.number().min(1, 'Qty must be at least 1'),
+  quantity: z.coerce.number().min(1, 'Received quantity must be at least 1'),
   uom: z.string().min(1, 'UOM is required'),
   purchaseRate: z.coerce.number().min(0, 'Rate must be 0 or more'),
+  batchNumber: z.string().optional(),
+  serialNumber: z.string().optional(),
 });
 
 const grFormSchema = z.object({
   supplierName: z.string().min(1, 'Supplier name is required'),
   grDate: z.string().min(1, 'Date is required'),
+  purchaseOrderId: z.string().optional(),
   supplierRef: z.string().optional(),
   remarks: z.string().optional(),
   items: z.array(grItemSchema).min(1, 'At least one item is required'),
@@ -99,15 +105,56 @@ const grFormSchema = z.object({
 
 type GRFormValues = z.infer<typeof grFormSchema>;
 
-const emptyItem = { productId: '', quantity: 1, uom: '', purchaseRate: 0 };
+const emptyItem = { productId: '', quantity: 1, uom: '', purchaseRate: 0, batchNumber: '', serialNumber: '' };
 
 function todayISO() {
   return new Date().toISOString().split('T')[0];
 }
 
-export function GoodsReceiptPage() {
+function formatDateOnly(value: string | null | undefined) {
+  if (!value) return '-';
+  const datePart = String(value).split('T')[0];
+  const [y, m, d] = datePart.split('-');
+  if (!y || !m || !d) return '-';
+  return `${d}/${m}/${y}`;
+}
+
+function poSuggestedItems(po: PurchaseOrder) {
+  if (po.receiptProgress?.length) {
+    return po.receiptProgress
+      .filter((line) => Number(line.remainingQty) > 0)
+      .map((line) => ({
+        productId: line.productId,
+        quantity: Number(line.remainingQty),
+        uom: '',
+        purchaseRate: 0,
+        batchNumber: '',
+        serialNumber: '',
+      }));
+  }
+
+  return (po.items ?? []).map((line) => ({
+    productId: line.productId,
+    quantity: Number(line.orderQty) || 1,
+    uom: '',
+    purchaseRate: Number(line.rate) || 0,
+    batchNumber: '',
+    serialNumber: '',
+  }));
+}
+
+export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean }) {
   const user = useAuthStore((s) => s.user);
   const shopId = user?.shopId ?? '';
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const fromPoId = searchParams.get('fromPo') ?? '';
+  const poQuery = usePurchaseOrder(fromPoId);
+  const poListQuery = usePurchaseOrders({
+    shopId: shopId || undefined,
+    take: 200,
+  });
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -168,6 +215,7 @@ export function GoodsReceiptPage() {
     defaultValues: {
       supplierName: '',
       grDate: todayISO(),
+      purchaseOrderId: '',
       supplierRef: '',
       remarks: '',
       items: [{ ...emptyItem }],
@@ -179,35 +227,126 @@ export function GoodsReceiptPage() {
     name: 'items',
   });
 
-  const watchedItems = form.watch('items');
-  const lineValues = watchedItems.map((item) => (item.quantity || 0) * (item.purchaseRate || 0));
+  const availablePoList = useMemo(() => {
+    const raw = poListQuery.data;
+    if (!raw) return [] as PurchaseOrder[];
+    if (Array.isArray(raw)) return raw as PurchaseOrder[];
+    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: PurchaseOrder[] }).rows;
+    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: PurchaseOrder[] }).data;
+    return [] as PurchaseOrder[];
+  }, [poListQuery.data]);
+
+  const eligiblePoList = useMemo(
+    () =>
+      availablePoList.filter((po) => {
+        const lifecycle = po.lifecycleStatus ?? po.status;
+        return lifecycle === 'CONFIRMED' || lifecycle === 'PARTIALLY_RECEIVED';
+      }),
+    [availablePoList],
+  );
+  const watchedPurchaseOrderId = form.watch('purchaseOrderId');
+  const selectedPo = useMemo(
+    () => eligiblePoList.find((po) => po.id === (watchedPurchaseOrderId || '')),
+    [eligiblePoList, watchedPurchaseOrderId],
+  );
+
+  const watchedItems = form.watch('items') ?? [];
+  const lineValues = watchedItems.map((item) => (item?.quantity || 0) * (item?.purchaseRate || 0));
   const totalValue = lineValues.reduce((sum, v) => sum + v, 0);
 
   const openCreate = () => {
     setEditingGR(null);
+    const po = poQuery.data;
     form.reset({
-      supplierName: '',
+      supplierName: po?.supplier ?? '',
       grDate: todayISO(),
       supplierRef: '',
-      remarks: '',
-      items: [{ ...emptyItem }],
+      remarks: po ? `Auto-created from PO ${po.poNumber}` : '',
+      purchaseOrderId: po?.id,
+      items:
+        po?.receiptProgress?.length
+          ? po.receiptProgress
+              .filter((line) => Number(line.remainingQty) > 0)
+              .map((line) => ({
+                productId: line.productId,
+                quantity: Number(line.remainingQty),
+                uom: '',
+                purchaseRate: 0,
+                batchNumber: '',
+                serialNumber: '',
+              }))
+          : [{ ...emptyItem }],
     });
     setSheetOpen(true);
   };
 
+  useEffect(() => {
+    if (editingGR) return;
+    if (!watchedPurchaseOrderId) return;
+    const selectedPo = eligiblePoList.find((po) => po.id === watchedPurchaseOrderId);
+    if (!selectedPo) return;
+
+    form.setValue('supplierName', selectedPo.supplier, { shouldDirty: true });
+    const suggestedItems = poSuggestedItems(selectedPo);
+
+    if (suggestedItems.length > 0) {
+      form.setValue('items', suggestedItems, { shouldDirty: true });
+    }
+  }, [editingGR, eligiblePoList, form, watchedPurchaseOrderId]);
+
+  useEffect(() => {
+    const currentItems = form.getValues('items') ?? [];
+    currentItems.forEach((item, index) => {
+      if (!item.productId) return;
+      const product = productMap.get(item.productId);
+      if (!product) return;
+
+      if (!item.uom) {
+        form.setValue(`items.${index}.uom`, product.uom, { shouldDirty: true });
+      }
+      if (!item.purchaseRate || item.purchaseRate <= 0) {
+        form.setValue(`items.${index}.purchaseRate`, product.purchasePrice, { shouldDirty: true });
+      }
+    });
+  }, [fields.length, form, productMap, watchedPurchaseOrderId]);
+
+  const poFlow: P2PStep[] | null = poQuery.data
+    ? [
+        { key: 'po', label: 'PO confirmed', state: 'done' },
+        {
+          key: 'partial',
+          label: 'Partial GR',
+          state: poQuery.data.lifecycleStatus === 'PARTIALLY_RECEIVED' ? 'active' : 'done',
+        },
+        {
+          key: 'full',
+          label: 'PO fully received',
+          state: poQuery.data.lifecycleStatus === 'FULLY_RECEIVED' ? 'done' : 'todo',
+        },
+        { key: 'return', label: 'Goods return (if needed)', state: 'todo' },
+        { key: 'payment', label: 'Payment tracking', state: 'todo' },
+      ]
+    : null;
+
   const openEdit = (gr: GoodsReceipt) => {
     setEditingGR(gr);
+    const existingItems = (gr.items ?? []).map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      uom: item.uom,
+      purchaseRate: item.purchaseRate,
+      batchNumber: '',
+      serialNumber: '',
+    }));
+    const linkedPo = availablePoList.find((po) => po.id === gr.purchaseOrderId);
+    const fallbackItems = linkedPo ? poSuggestedItems(linkedPo) : [{ ...emptyItem }];
     form.reset({
       supplierName: gr.supplierName,
       grDate: gr.grDate.split('T')[0],
+      purchaseOrderId: gr.purchaseOrderId ?? '',
       supplierRef: gr.supplierRef || '',
       remarks: gr.remarks || '',
-      items: gr.items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        uom: item.uom,
-        purchaseRate: item.purchaseRate,
-      })),
+      items: existingItems.length > 0 ? existingItems : fallbackItems,
     });
     setSheetOpen(true);
   };
@@ -223,34 +362,65 @@ export function GoodsReceiptPage() {
 
   const onSubmit = async (values: GRFormValues) => {
     try {
+      const resolvedShopId = user?.shopId ?? selectedPo?.shopId ?? poQuery.data?.shopId ?? '';
+      if (!resolvedShopId) {
+        toast.error('Select a purchase order linked to a plant/shop');
+        return;
+      }
+
       if (editingGR) {
+        const payloadItems = values.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          uom: item.uom,
+          purchaseRate: item.purchaseRate,
+        }));
         await updateGR.mutateAsync({
           id: editingGR.id,
-          shopId,
+          shopId: resolvedShopId,
           grDate: values.grDate,
+          purchaseOrderId: values.purchaseOrderId || undefined,
           supplierName: values.supplierName,
           supplierRef: values.supplierRef,
           remarks: values.remarks,
-          items: values.items,
+          items: payloadItems,
         });
         toast.success('Goods receipt updated successfully');
       } else {
+        const payloadItems = values.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          uom: item.uom,
+          purchaseRate: item.purchaseRate,
+        }));
         await createGR.mutateAsync({
-          shopId,
+          shopId: resolvedShopId,
           grDate: values.grDate,
+          purchaseOrderId: values.purchaseOrderId || undefined,
           supplierName: values.supplierName,
           supplierRef: values.supplierRef,
           remarks: values.remarks,
-          items: values.items,
+          items: payloadItems,
         });
         toast.success('Goods receipt created successfully');
       }
-      setSheetOpen(false);
-      setEditingGR(null);
+      if (createOnly) {
+        navigate('/goods-receipts');
+      } else {
+        setSheetOpen(false);
+        setEditingGR(null);
+      }
     } catch (err: unknown) {
+      const error = err as {
+        response?: { data?: { error?: { message?: string }; message?: string }; statusText?: string };
+        message?: string;
+      };
       const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          .response?.data?.error?.message ?? 'Something went wrong';
+        error.response?.data?.error?.message ??
+        error.response?.data?.message ??
+        error.response?.statusText ??
+        error.message ??
+        'Something went wrong';
       toast.error(msg);
     }
   };
@@ -281,21 +451,29 @@ export function GoodsReceiptPage() {
 
   return (
     <AppLayout active="Goods Receipts">
-      <div className="space-y-6">
+      <div className={cn('space-y-5', createOnly && 'create-page-shell p-4 sm:p-6')}>
         {/* Page Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Goods Receipts</h1>
-            <p className="text-sm text-muted-foreground">
-              Record incoming stock from suppliers
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{createOnly ? 'Create Goods Receipt' : 'Goods Receipts'}</h1>
+            <p className="text-sm text-slate-500">
+              {createOnly ? 'Fill in details to create a new goods receipt' : 'Record incoming stock from suppliers'}
             </p>
           </div>
-          <Button onClick={openCreate} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            New Receipt
-          </Button>
+          {createOnly ? (
+            <Button variant="outline" onClick={() => navigate('/goods-receipts')} className="w-full sm:w-auto">
+              Back
+            </Button>
+          ) : (
+            <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
+              <Plus className="h-4 w-4" />
+              New Receipt
+            </Button>
+          )}
         </div>
 
+        {!createOnly && (
+          <>
         {/* Toolbar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px] sm:max-w-sm">
@@ -326,7 +504,7 @@ export function GoodsReceiptPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-full sm:w-[140px]">
+            <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -338,7 +516,7 @@ export function GoodsReceiptPage() {
         </div>
 
         {/* Table Card */}
-        <div className="rounded-xl border bg-card shadow-sm">
+        <div className="surface-1 rounded-xl shadow-sm">
           {isLoading ? (
             <div className="p-6 space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -374,7 +552,7 @@ export function GoodsReceiptPage() {
                   : 'Get started by creating your first receipt'}
               </p>
               {!debouncedSearch && statusFilter === 'all' && (
-                <Button size="sm" className="mt-4" onClick={openCreate}>
+                <Button size="sm" className="premium-button mt-4 border-0 text-white" onClick={openCreate}>
                   <Plus className="h-4 w-4" />
                   New Receipt
                 </Button>
@@ -382,9 +560,9 @@ export function GoodsReceiptPage() {
             </div>
           ) : (
             <>
-              <Table>
+              <Table className="text-[13px]">
                 <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableHead className="font-semibold">GR Number</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Supplier</TableHead>
@@ -405,16 +583,16 @@ export function GoodsReceiptPage() {
                         {gr.grNumber}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {new Date(gr.grDate).toLocaleDateString()}
+                        {formatDateOnly(gr.grDate)}
                       </TableCell>
                       <TableCell className="font-medium max-w-[180px] truncate">
                         {gr.supplierName}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="secondary">{gr.items.length}</Badge>
+                        <Badge variant="secondary">{(gr.items ?? []).length}</Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
-                        {gr.totalValue.toFixed(2)}
+                        {Number(gr.totalValue ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={gr.status} />
@@ -511,6 +689,8 @@ export function GoodsReceiptPage() {
             </>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* GR Detail Dialog */}
@@ -518,7 +698,7 @@ export function GoodsReceiptPage() {
         open={!!viewingGR}
         onOpenChange={(open) => !open && setViewingGR(null)}
       >
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               {viewingGR?.grNumber}
@@ -530,8 +710,9 @@ export function GoodsReceiptPage() {
           </DialogHeader>
 
           {viewingGR && (
-            <div className="space-y-4">
-              <div className="grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
+      <div className="space-y-4">
+        {poFlow ? <P2PFlowTimeline title={`PO-linked GR flow (${poQuery.data?.poNumber ?? ''})`} steps={poFlow} /> : null}
+              <div className="surface-2 grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
                 <div>
                   <span className="text-muted-foreground">Supplier</span>
                   <p className="font-medium">{viewingGR.supplierName}</p>
@@ -539,7 +720,7 @@ export function GoodsReceiptPage() {
                 <div>
                   <span className="text-muted-foreground">Date</span>
                   <p className="font-medium">
-                    {new Date(viewingGR.grDate).toLocaleDateString()}
+                    {formatDateOnly(viewingGR.grDate)}
                   </p>
                 </div>
                 {viewingGR.supplierRef && (
@@ -551,7 +732,7 @@ export function GoodsReceiptPage() {
                 <div>
                   <span className="text-muted-foreground">Total Value</span>
                   <p className="font-medium tabular-nums">
-                    {viewingGR.totalValue.toFixed(2)}
+                    {Number(viewingGR.totalValue ?? 0).toFixed(2)}
                   </p>
                 </div>
                 {viewingGR.remarks && (
@@ -562,20 +743,19 @@ export function GoodsReceiptPage() {
                 )}
               </div>
 
-              <div className="rounded-lg border">
+              <div className="surface-1 rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableHead className="font-semibold">#</TableHead>
                       <TableHead className="font-semibold">Product</TableHead>
-                      <TableHead className="font-semibold text-right">Qty</TableHead>
+                      <TableHead className="font-semibold text-right">Received Quantity</TableHead>
                       <TableHead className="font-semibold">UOM</TableHead>
-                      <TableHead className="font-semibold text-right">Rate</TableHead>
                       <TableHead className="font-semibold text-right">Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {viewingGR.items.map((item, idx) => (
+                    {(viewingGR.items ?? []).map((item, idx) => (
                       <TableRow key={item.id}>
                         <TableCell className="text-muted-foreground">
                           {idx + 1}
@@ -592,9 +772,6 @@ export function GoodsReceiptPage() {
                           {item.quantity}
                         </TableCell>
                         <TableCell className="text-xs">{item.uom}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {item.purchaseRate.toFixed(2)}
-                        </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {item.lineValue.toFixed(2)}
                         </TableCell>
@@ -633,10 +810,24 @@ export function GoodsReceiptPage() {
       </Dialog>
 
       {/* GR Form Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet
+        open={createOnly ? true : sheetOpen}
+        onOpenChange={(open) => {
+          if (!createOnly) {
+            setSheetOpen(open);
+            return;
+          }
+          if (!open && location.pathname === '/goods-receipts/new') {
+            navigate('/goods-receipts');
+          }
+        }}
+      >
         <SheetContent
           side="right"
-          className="w-full sm:max-w-2xl overflow-y-auto"
+          className={cn(
+            'w-full overflow-y-auto',
+            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'border-l sm:max-w-2xl',
+          )}
         >
           <SheetHeader>
             <SheetTitle>
@@ -654,7 +845,28 @@ export function GoodsReceiptPage() {
             className="mt-6 space-y-5"
           >
             {/* Header fields */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="purchaseOrderId">Purchase Order</Label>
+                <Controller
+                  control={form.control}
+                  name="purchaseOrderId"
+                  render={({ field }) => (
+                    <Select value={field.value || ''} onValueChange={field.onChange}>
+                      <SelectTrigger id="purchaseOrderId">
+                        <SelectValue placeholder="Select PO (Confirmed / Partially Received)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eligiblePoList.map((po) => (
+                          <SelectItem key={po.id} value={po.id}>
+                            {po.poNumber} - {po.supplier}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="supplierName">Supplier Name *</Label>
                 <Input
@@ -668,7 +880,7 @@ export function GoodsReceiptPage() {
                   </p>
                 )}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-1">
                 <Label htmlFor="grDate">GR Date *</Label>
                 <Input
                   id="grDate"
@@ -729,10 +941,11 @@ export function GoodsReceiptPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableHead className="font-semibold w-[240px]">Product</TableHead>
-                      <TableHead className="font-semibold text-right w-[80px]">Qty</TableHead>
+                      <TableHead className="font-semibold w-[210px]">Product</TableHead>
+                      <TableHead className="font-semibold text-right w-[100px]">Received Quantity</TableHead>
                       <TableHead className="font-semibold w-[70px]">UOM</TableHead>
-                      <TableHead className="font-semibold text-right w-[100px]">Rate</TableHead>
+                      <TableHead className="font-semibold w-[140px]">Batch Number</TableHead>
+                      <TableHead className="font-semibold w-[140px]">Serial Number</TableHead>
                       <TableHead className="font-semibold text-right w-[100px]">Value</TableHead>
                       <TableHead className="w-[40px]" />
                     </TableRow>
@@ -793,15 +1006,16 @@ export function GoodsReceiptPage() {
                         </TableCell>
                         <TableCell className="p-1.5">
                           <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className={cn(
-                              'h-8 text-xs text-right',
-                              form.formState.errors.items?.[index]?.purchaseRate &&
-                                'border-destructive',
-                            )}
-                            {...form.register(`items.${index}.purchaseRate`)}
+                            className="h-8 text-xs"
+                            placeholder="Batch no."
+                            {...form.register(`items.${index}.batchNumber`)}
+                          />
+                        </TableCell>
+                        <TableCell className="p-1.5">
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Serial no."
+                            {...form.register(`items.${index}.serialNumber`)}
                           />
                         </TableCell>
                         <TableCell className="p-1.5 text-right tabular-nums text-sm font-medium">

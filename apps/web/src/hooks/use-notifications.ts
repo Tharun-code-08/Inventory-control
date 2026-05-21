@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
 export type NotificationSeverity = 'URGENT' | 'WARNING' | 'ACTION' | 'INFO';
-export type NotificationChannel = 'Email' | 'SMS' | 'In-app';
+export type NotificationChannel = 'Email' | 'SMS' | 'In-app' | 'WhatsApp';
 
 export type NotificationRule = {
   id: string;

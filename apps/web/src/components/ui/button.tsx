@@ -10,11 +10,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-gradient-to-r from-blue-600 to-indigo-600 text-primary-foreground shadow-md hover:brightness-110",
+          "bg-slate-900 text-primary-foreground shadow-sm hover:bg-slate-800",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+          "border border-rose-300/70 bg-rose-50/80 text-rose-800 shadow-sm hover:bg-rose-100/90 hover:text-rose-900",
         outline:
-          "border border-white/50 bg-white/70 shadow-sm hover:bg-white hover:text-accent-foreground",
+          "border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900",
         secondary:
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -40,15 +40,38 @@ export interface ButtonProps
   asChild?: boolean;
 }
 
+function textFromNode(node: React.ReactNode): string {
+  if (typeof node === "string") return node.trim();
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const text = textFromNode(item);
+      if (text) return text;
+    }
+    return "";
+  }
+  if (React.isValidElement(node)) {
+    return textFromNode(node.props.children);
+  }
+  return "";
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, title, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    const ariaLabel =
+      typeof props["aria-label"] === "string" ? props["aria-label"] : undefined;
+    const inferredTitle = textFromNode(children);
+    const resolvedTitle = title ?? ariaLabel ?? (inferredTitle || undefined);
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        title={resolvedTitle}
         {...props}
-      />
+      >
+        {children}
+      </Comp>
     );
   }
 );
