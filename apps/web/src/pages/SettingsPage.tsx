@@ -78,6 +78,8 @@ import {
   type AnimalAvatarKind,
 } from '@/lib/profile-avatar';
 import { mapUserFormToCreatePayload, mapUserFormToUpdatePayload } from '@/lib/payload-mappers';
+import { getApiErrorMessage } from '@/lib/api-error';
+import type { AuthUser } from '@/store/authStore';
 import { ALL_SHOPS_OPTION, normalizeAllShopsSelection, toAllShopsSelection } from '@/lib/shop-scope';
 
 // --- Schemas ---
@@ -254,24 +256,25 @@ function ProfileTab() {
         const form = new FormData();
         form.append('name', values.name.trim());
         form.append('avatar', avatarFile);
-        const res = await api.patch('/auth/profile', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return res.data.data;
+        // Let axios set multipart boundary — manual Content-Type breaks uploads.
+        const res = await api.patch<{
+          data?: AuthUser;
+        }>('/auth/profile', form);
+        return (res.data?.data ?? res.data) as AuthUser;
       }
-      const res = await api.patch('/auth/profile', {
+      const res = await api.patch<{ data?: AuthUser }>('/auth/profile', {
         name: values.name.trim(),
       });
-      return res.data.data;
+      return (res.data?.data ?? res.data) as AuthUser;
     },
-    onSuccess: (nextUser: NonNullable<typeof user>) => {
+    onSuccess: (nextUser) => {
       setUser(nextUser);
       profileForm.reset({ name: nextUser.name });
       setAvatarFile(null);
       toast.success('Profile updated successfully.');
     },
-    onError: () => {
-      toast.error('Failed to update profile.');
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err, 'Failed to update profile.'));
     },
   });
 
@@ -296,8 +299,8 @@ function ProfileTab() {
         nav('/login', { replace: true });
       }, 1500);
     },
-    onError: () => {
-      toast.error('Failed to change password.');
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err, 'Failed to change password.'));
     },
   });
 

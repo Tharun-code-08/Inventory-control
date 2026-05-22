@@ -1,7 +1,7 @@
 {
   "name": "Softdigit Consulting — Retail IMS",
-  "short_name": "Softdigit",
-  "description": "Softdigit Consulting: retail operations consulting and Retail IMS inventory workspace.",
+  "short_name": "Retail IMS",
+  "description": "Inventory operations for multi-store retail",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
@@ -12,6 +12,18 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

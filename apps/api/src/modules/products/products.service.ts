@@ -5,6 +5,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
+import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
 import { ProductSpecificationDto } from './dto/product-specification.dto';
@@ -526,6 +527,110 @@ export class ProductsService {
     ]);
 
     return { ok: true };
+  }
+
+  /**
+   * Bulk update plant-level inventory thresholds from a CSV upload. Keyed by
+   * (productCode, shopNumber, optional storageLocationCode). Only writes
+   * minStockLevel, maxStockLevel, reorderQty, and storageLocationId — never
+   * posts stock-ledger movements, so opening balances stay intact.
+   */
+  async bulkUpdateInventory(user: RequestUser, dto: BulkInventoryDto) {
+    const errors: Array<{ row: number; message: string }> = [];
+    let updated = 0;
+
+    // Resolve master lookups in batches so we do at most a constant number of
+    // queries regardless of row count.
+    const codes = [...new Set(dto.rows.map((row) => row.productCode.toUpperCase()))];
+    const shopNumbers = [...new Set(dto.rows.map((row) => row.shopNumber))];
+    const [products, shops] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { productCode: { in: codes } },
+        select: { id: true, productCode: true },
+      }),
+      this.prisma.shop.findMany({
+        where: { shopNumber: { in: shopNumbers } },
+        select: { id: true, shopNumber: true },
+      }),
+    ]);
+    const productByCode = new Map(products.map((p) => [p.productCode, p.id]));
+    const shopByNumber = new Map(shops.map((s) => [s.shopNumber, s.id]));
+
+    await this.prisma.$transaction(async (tx) => {
+      for (let i = 0; i < dto.rows.length; i += 1) {
+        const row = dto.rows[i];
+        const rowNumber = i + 2; // header is row 1 in the source CSV
+        try {
+          await this.applyBulkInventoryRow(tx, user, row, productByCode, shopByNumber);
+          updated += 1;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          errors.push({ row: rowNumber, message });
+        }
+      }
+    });
+
+    return { updated, errors, total: dto.rows.length };
+  }
+
+  private async applyBulkInventoryRow(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    row: BulkInventoryRowDto,
+    productByCode: Map<string, string>,
+    shopByNumber: Map<string, string>,
+  ) {
+    const productId = productByCode.get(row.productCode.toUpperCase());
+    if (!productId) {
+      throw new Error(`Product not found: ${row.productCode}`);
+    }
+    const shopId = shopByNumber.get(row.shopNumber);
+    if (!shopId) {
+      throw new Error(`Plant not found: ${row.shopNumber}`);
+    }
+    assertShopScope(user, shopId);
+
+    let storageLocationId: string | undefined;
+    if (row.storageLocationCode) {
+      const location = await tx.storageLocation.findFirst({
+        where: { shopId, code: row.storageLocationCode },
+        select: { id: true },
+      });
+      if (!location) {
+        throw new Error(`Storage location not found for plant ${row.shopNumber}: ${row.storageLocationCode}`);
+      }
+      storageLocationId = location.id;
+    }
+
+    const plant = await tx.productPlant.findFirst({
+      where: { productId, shopId },
+      select: { id: true, minStockLevel: true, maxStockLevel: true },
+    });
+    if (!plant) {
+      throw new Error(`Product ${row.productCode} is not assigned to plant ${row.shopNumber}`);
+    }
+
+    const nextMin = row.minStock !== undefined ? row.minStock : Number(plant.minStockLevel);
+    const nextMax =
+      row.maxStock !== undefined
+        ? row.maxStock
+        : plant.maxStockLevel == null
+          ? null
+          : Number(plant.maxStockLevel);
+    if (nextMax !== null && nextMax < nextMin) {
+      throw new Error('Max stock level must be greater than or equal to min stock level');
+    }
+
+    await tx.productPlant.update({
+      where: { id: plant.id },
+      data: {
+        ...(row.minStock !== undefined ? { minStockLevel: new Prisma.Decimal(row.minStock) } : {}),
+        ...(row.maxStock !== undefined ? { maxStockLevel: new Prisma.Decimal(row.maxStock) } : {}),
+        ...(row.reorderQty !== undefined ? { reorderQty: new Prisma.Decimal(row.reorderQty) } : {}),
+        ...(storageLocationId ? { storageLocationId } : {}),
+        updatedById: user.id,
+      },
+    });
   }
 
   async stockHistory(user: RequestUser, productId: string, query: { cursor?: string; take?: number }) {

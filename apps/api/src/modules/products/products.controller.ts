@@ -4,6 +4,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { CursorPageDto } from '../../common/dto/cursor-page.dto';
+import { BulkInventoryDto } from './dto/bulk-inventory.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsDto } from './dto/list-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -34,6 +35,16 @@ export class ProductsController {
   @ApiOperation({ summary: 'Create a product' })
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateProductDto) {
     return this.products.create(user, dto);
+  }
+
+  @RequirePermission('product:write')
+  @Post('bulk-inventory')
+  @ApiOperation({
+    summary:
+      'Bulk update plant-level inventory thresholds (min/max/reorder + optional storage location) by productCode + shopNumber',
+  })
+  bulkInventory(@CurrentUser() user: RequestUser, @Body() dto: BulkInventoryDto) {
+    return this.products.bulkUpdateInventory(user, dto);
   }
 
   @RequirePermission('product:read')

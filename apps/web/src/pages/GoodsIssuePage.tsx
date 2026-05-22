@@ -154,7 +154,7 @@ export function GoodsIssuePage() {
   const detailQuery = useGoodsIssue(detailId ?? '');
   const detailGI = detailId ? detailQuery.data : null;
 
-  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 500 });
+  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
   const products = useMemo(() => {
     const raw = productsQuery.data;
     if (!raw) return [];

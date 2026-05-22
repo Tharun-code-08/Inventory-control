@@ -9,6 +9,7 @@ export type Customer = {
   phone?: string | null;
   city?: string | null;
   state?: string | null;
+  country?: string | null;
   isActive: boolean;
 };
 
@@ -21,7 +22,9 @@ export function useCustomers(search?: string) {
   return useQuery({
     queryKey: keys.list(search),
     queryFn: async () => {
-      const res = await api.get('/customers', { params: { search } });
+      const res = await api.get('/customers', {
+        params: { search: search || undefined, take: 100 },
+      });
       return (res.data.data ?? []) as Customer[];
     },
   });
@@ -30,7 +33,7 @@ export function useCustomers(search?: string) {
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Partial<Customer>) => {
+    mutationFn: async (payload: Partial<Customer> & { shopId?: string }) => {
       const res = await api.post('/customers', payload);
       return res.data.data as Customer;
     },
@@ -38,3 +41,19 @@ export function useCreateCustomer() {
   });
 }
 
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<Customer> & { shopId?: string };
+    }) => {
+      const res = await api.patch(`/customers/${id}`, payload);
+      return res.data.data as Customer;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}

@@ -6,7 +6,6 @@ describe('Auth session smoke', () => {
     useAuthStore.setState({
       accessToken: null,
       user: null,
-      products: [],
       initialized: false,
     });
   });

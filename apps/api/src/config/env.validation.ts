@@ -17,7 +17,18 @@ export const envValidationSchema = Joi.object({
   BCRYPT_ROUNDS: Joi.number().integer().min(10).max(14).default(12),
 
   WEB_ORIGIN: Joi.string().optional(),
+  /** Public SPA base URL for links in outbound emails (defaults to first WEB_ORIGIN). */
+  PUBLIC_WEB_URL: Joi.string().uri().optional(),
   ALLOW_TUNNEL_ORIGINS: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
+
+  // SMTP — required to email suppliers when an RFQ is sent.
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().integer().min(1).max(65535).default(587),
+  SMTP_SECURE: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
+  MAIL_FROM: Joi.string().email().default('office@softdigitconsulting.com'),
+  ADMIN_NOTIFICATION_EMAIL: Joi.string().email().optional(),
 
   RATE_LIMIT_AUTH_TTL: Joi.number().integer().min(1).default(60),
   RATE_LIMIT_AUTH_LIMIT: Joi.number().integer().min(1).default(10),

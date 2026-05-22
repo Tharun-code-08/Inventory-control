@@ -1,4 +1,6 @@
 import type { CreatePurchaseOrderPayload } from '@/hooks/use-purchase-orders';
+import type { Shop } from '@/hooks/use-shops';
+import { encodePoFormRemarks, type PoLogisticsTaxForm } from '@/lib/po-form-document';
 import type { CreateProductPayload, UpdateProductPayload } from '@/hooks/use-products';
 import type { CreateUserPayload, UpdateUserPayload } from '@/hooks/use-users';
 
@@ -14,20 +16,20 @@ type PoFormItem = {
   rate: number;
 };
 
-type PoFormValues = {
+type PoFormValues = PoLogisticsTaxForm & {
   poDate: string;
   supplier: string;
-  remarks?: string;
   items: PoFormItem[];
 };
 
 export function mapPoFormToCreatePayload(args: {
   values: PoFormValues;
   resolvedShopId: string;
+  shop?: Shop | null;
   sourceType: 'DIRECT' | 'RFQ' | 'CONTRACT';
   sourceContractId?: string;
 }): CreatePurchaseOrderPayload {
-  const { values, resolvedShopId, sourceType, sourceContractId } = args;
+  const { values, resolvedShopId, shop, sourceType, sourceContractId } = args;
   devAssert(Boolean(resolvedShopId), 'Purchase order requires a shop');
   devAssert(values.items.length > 0, 'Purchase order requires at least one item');
 
@@ -36,7 +38,7 @@ export function mapPoFormToCreatePayload(args: {
     poDate: values.poDate,
     supplier: values.supplier,
     contractId: sourceType === 'CONTRACT' ? sourceContractId : undefined,
-    remarks: values.remarks ?? '',
+    remarks: encodePoFormRemarks(values, shop),
     items: values.items.map((it) => {
       devAssert(Boolean(it.productId), 'Purchase order item requires a product');
       devAssert(it.orderQty > 0, 'Purchase order qty must be > 0');

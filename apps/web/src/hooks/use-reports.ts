@@ -64,7 +64,9 @@ function normalizeGrRows(rows: Array<Record<string, unknown>>) {
       id: String(row.id ?? ''),
       grNumber: String(row.grNumber ?? row.gr_number ?? ''),
       grDate: String(row.grDate ?? row.gr_date ?? new Date().toISOString()),
-      supplier: String(row.supplierName ?? row.supplier ?? ''),
+      supplier: String(
+        row.supplierName ?? row.supplier_name ?? row.supplier ?? '',
+      ),
       itemCount: items.length,
       totalValue,
       status: String(row.status ?? ''),

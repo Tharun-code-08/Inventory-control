@@ -1,19 +1,30 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
+import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
+const SUPPLIER_DELETE_TOKEN_TYP = 'supplier-delete-confirm';
+
 @Injectable()
 export class SuppliersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+  ) {}
 
   async list(query: { search?: string; is_active?: boolean; cursor?: string; take?: number }) {
     const take = clampTake(query.take);
     const search = query.search?.trim();
     const where: Prisma.SupplierWhereInput = {
+      deletedAt: null,
       ...(search
         ? {
             OR: [
@@ -129,12 +140,153 @@ export class SuppliersService {
     });
   }
 
-  async remove(user: RequestUser, id: string) {
-    await this.get(id);
-    return this.prisma.supplier.update({
-      where: { id },
-      data: { isActive: false, deletedAt: new Date(), updatedById: user.id },
+  async getDeletionImpact(id: string) {
+    const supplier = await this.get(id);
+    if (supplier.deletedAt) {
+      throw new BadRequestException('Supplier is already deleted');
+    }
+
+    const [rfqCount, quotationCount, contractCount, purchaseOrderCount, rfqLinks] =
+      await Promise.all([
+        this.prisma.rfqSupplier.count({ where: { supplierId: id } }),
+        this.prisma.supplierQuotationHeader.count({ where: { supplierId: id } }),
+        this.prisma.contractHeader.count({ where: { supplierId: id } }),
+        this.prisma.purchaseOrderHeader.count({
+          where: { supplier: supplier.supplierName },
+        }),
+        this.prisma.rfqSupplier.findMany({
+          where: { supplierId: id },
+          include: {
+            rfq: { select: { id: true, rfqNumber: true, title: true, status: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+      ]);
+
+    return {
+      supplier: {
+        id: supplier.id,
+        supplierName: supplier.supplierName,
+        supplierCode: supplier.supplierCode,
+      },
+      counts: {
+        rfqInvitations: rfqCount,
+        quotations: quotationCount,
+        contracts: contractCount,
+        purchaseOrders: purchaseOrderCount,
+      },
+      linkedRfqs: rfqLinks.map((link) => ({
+        id: link.rfq.id,
+        rfqNumber: link.rfq.rfqNumber,
+        title: link.rfq.title,
+        status: link.rfq.status,
+      })),
+      note:
+        'Deleting removes the supplier from active lists. RFQs, POs, and other documents keep their historical supplier name.',
+    };
+  }
+
+  private adminNotificationEmail(): string {
+    const configured = this.config.get<string>('ADMIN_NOTIFICATION_EMAIL')?.trim();
+    if (configured) return configured;
+    return 'office@softdigitconsulting.com';
+  }
+
+  private createDeletionToken(supplierId: string, requestedBy: RequestUser): string {
+    return this.jwt.sign(
+      {
+        typ: SUPPLIER_DELETE_TOKEN_TYP,
+        sub: supplierId,
+        requestedBy: requestedBy.id,
+        requestedByName: requestedBy.email,
+      },
+      { expiresIn: '48h' },
+    );
+  }
+
+  private verifyDeletionToken(token: string): { supplierId: string } {
+    if (!token?.trim()) {
+      throw new BadRequestException('Confirmation token is required');
+    }
+    try {
+      const payload = this.jwt.verify(token) as {
+        typ?: string;
+        sub?: string;
+      };
+      if (payload.typ !== SUPPLIER_DELETE_TOKEN_TYP || !payload.sub) {
+        throw new BadRequestException('Invalid confirmation token');
+      }
+      return { supplierId: payload.sub };
+    } catch {
+      throw new BadRequestException('Confirmation link is invalid or expired');
+    }
+  }
+
+  async requestDeletion(user: RequestUser, id: string) {
+    const impact = await this.getDeletionImpact(id);
+
+    if (!this.mail.isConfigured()) {
+      throw new BadRequestException(
+        'Email is not configured. Cannot send deletion confirmation to admin.',
+      );
+    }
+
+    const adminEmail = this.adminNotificationEmail();
+    const token = this.createDeletionToken(id, user);
+
+    await this.mail.sendSupplierDeletionConfirm({
+      adminEmail,
+      supplierName: impact.supplier.supplierName,
+      supplierCode: impact.supplier.supplierCode,
+      requestedByName: user.email,
+      confirmToken: token,
+      rfqCount: impact.counts.rfqInvitations,
+      quotationCount: impact.counts.quotations,
+      contractCount: impact.counts.contracts,
+      purchaseOrderCount: impact.counts.purchaseOrders,
     });
+
+    return {
+      pending: true,
+      adminEmail,
+      impact,
+      message: `Confirmation email sent to ${adminEmail}. The supplier is not deleted until the link is opened.`,
+    };
+  }
+
+  async confirmDeletion(token: string) {
+    const { supplierId } = this.verifyDeletionToken(token);
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) {
+      throw new NotFoundException('Supplier not found');
+    }
+    if (supplier.deletedAt) {
+      return {
+        success: true,
+        alreadyDeleted: true,
+        supplierName: supplier.supplierName,
+        supplierCode: supplier.supplierCode,
+        message: 'Supplier was already deleted.',
+      };
+    }
+
+    await this.prisma.supplier.update({
+      where: { id: supplierId },
+      data: { isActive: false, deletedAt: new Date() },
+    });
+
+    return {
+      success: true,
+      alreadyDeleted: false,
+      supplierName: supplier.supplierName,
+      supplierCode: supplier.supplierCode,
+      message: 'Supplier deleted successfully.',
+    };
+  }
+
+  /** @deprecated Use requestDeletion + email confirm */
+  async remove(user: RequestUser, id: string) {
+    return this.requestDeletion(user, id);
   }
 }
-

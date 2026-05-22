@@ -7,6 +7,9 @@ import './index.css';
 import { api, applyAccessToken } from './api/client';
 import { initializeSessionFromAuthResponse } from './lib/session';
 import { useAuthStore } from './store/authStore';
+import { initThemeFromStorage } from './store/themeStore';
+
+initThemeFromStorage();
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -36,11 +39,6 @@ async function bootstrapSession() {
       applyAccessToken(null);
       useAuthStore.getState().clear();
     }
-  } finally {
-    const current = useAuthStore.getState();
-    if (!current.initialized) {
-      current.setInitialized(true);
-    }
   }
 }
 
@@ -56,19 +54,12 @@ function mountApp() {
   );
 }
 
-function normalizedPathname(): string {
-  if (typeof window === 'undefined') return '/';
-  const raw = window.location.pathname;
-  const trimmed = raw.replace(/\/+$/, '');
-  return trimmed === '' ? '/' : trimmed;
-}
+useAuthStore.persist.onFinishHydration(() => {
+  const { accessToken } = useAuthStore.getState();
+  if (accessToken) {
+    applyAccessToken(accessToken);
+  }
+});
 
-const path = normalizedPathname();
-const skipBlockingBootstrap = path === '/' || path === '/login';
-
-if (skipBlockingBootstrap) {
-  mountApp();
-  void bootstrapSession();
-} else {
-  void bootstrapSession().finally(() => mountApp());
-}
+mountApp();
+void bootstrapSession();

@@ -14,12 +14,21 @@ export const companyKeys = {
   list: () => [...companyKeys.all, 'list'] as const,
 };
 
+function extractCompanyRows(payload: unknown): Company[] {
+  if (Array.isArray(payload)) return payload as Company[];
+  if (!payload || typeof payload !== 'object') return [];
+  const source = payload as { data?: unknown; items?: unknown[] };
+  if (Array.isArray(source.items)) return source.items as Company[];
+  if (Array.isArray(source.data)) return source.data as Company[];
+  return [];
+}
+
 export function useCompanies() {
   return useQuery({
     queryKey: companyKeys.list(),
     queryFn: async () => {
       const res = await api.get('/companies');
-      return (res.data.data ?? []) as Company[];
+      return extractCompanyRows(res.data?.data ?? res.data);
     },
   });
 }

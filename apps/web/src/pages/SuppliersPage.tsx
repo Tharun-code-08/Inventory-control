@@ -1,11 +1,22 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
-import { Pencil } from 'lucide-react';
+import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import {
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  Download,
+  Eye,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Star,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader } from '@/components/shared/page-header';
+import { PageHeader, SearchInput, ConfirmDialog } from '@/components/shared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -22,15 +33,26 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   useSuppliers,
   useCreateSupplier,
   useUpdateSupplier,
+  useRequestSupplierDeletion,
+  useSupplierDeletionImpact,
   type Supplier,
   type CreateSupplierPayload,
 } from '@/hooks/use-suppliers';
 import { useCompanies } from '@/hooks/use-companies';
+import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
+import { cn } from '@/lib/cn';
 
 type SupplierFormState = {
   companyId: string;
@@ -54,6 +76,8 @@ type SupplierFormState = {
   country: string;
   rating: number;
 };
+
+type StatusFilter = 'all' | 'active' | 'inactive';
 
 const emptyForm = (): SupplierFormState => ({
   companyId: '',
@@ -132,6 +156,57 @@ function formToPayload(form: SupplierFormState): CreateSupplierPayload {
   };
 }
 
+function supplierInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
+
+function StarRating({ value }: { value: number }) {
+  const rounded = Math.min(5, Math.max(0, Math.round(value)));
+  return (
+    <div className="flex items-center gap-0.5" aria-label={`${rounded} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className={cn(
+            'h-4 w-4',
+            i <= rounded ? 'fill-amber-400 text-amber-400' : 'text-slate-300',
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  accent,
+  icon,
+}: {
+  label: string;
+  value: number;
+  accent: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+          {icon}
+        </div>
+        <div>
+          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SupplierFormFields({
   form,
   setForm,
@@ -146,7 +221,7 @@ function SupplierFormFields({
   return (
     <>
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Company Information</h3>
+        <h3 className="text-sm font-semibold">Company information</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Company</Label>
@@ -168,14 +243,14 @@ function SupplierFormFields({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Supplier Name *</Label>
+            <Label>Supplier name *</Label>
             <Input
               value={form.supplierName}
               onChange={(e) => setForm((p) => ({ ...p, supplierName: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
-            <Label>Supplier Code</Label>
+            <Label>Supplier code</Label>
             <Input
               value={form.supplierCode}
               onChange={(e) => setForm((p) => ({ ...p, supplierCode: e.target.value }))}
@@ -183,15 +258,36 @@ function SupplierFormFields({
             />
           </div>
           <div className="space-y-2">
+            <Label>Rating</Label>
+            <Select
+              value={String(form.rating)}
+              onValueChange={(v) => setForm((p) => ({ ...p, rating: Number(v) }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n} stars
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Tax ID</Label>
             <Input value={form.taxId} onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label>VAT Number</Label>
-            <Input value={form.vatNumber} onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))} />
+            <Label>VAT number</Label>
+            <Input
+              value={form.vatNumber}
+              onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))}
+            />
           </div>
-          <div className="space-y-2">
-            <Label>Supply Categories (comma separated)</Label>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Supply categories (comma separated)</Label>
             <Input
               value={form.categories}
               onChange={(e) => setForm((p) => ({ ...p, categories: e.target.value }))}
@@ -201,10 +297,10 @@ function SupplierFormFields({
       </div>
 
       <div className="space-y-3 border-t pt-4">
-        <h3 className="text-sm font-semibold">Contact Details</h3>
+        <h3 className="text-sm font-semibold">Contact details</h3>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label>Contact Person *</Label>
+            <Label>Contact person *</Label>
             <Input
               value={form.contactPerson}
               onChange={(e) => setForm((p) => ({ ...p, contactPerson: e.target.value }))}
@@ -212,7 +308,11 @@ function SupplierFormFields({
           </div>
           <div className="space-y-2">
             <Label>Email *</Label>
-            <Input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+            />
           </div>
           <div className="space-y-2">
             <Label>Phone *</Label>
@@ -225,7 +325,7 @@ function SupplierFormFields({
         <h3 className="text-sm font-semibold">Address</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label>Street Address</Label>
+            <Label>Street address</Label>
             <Input value={form.street} onChange={(e) => setForm((p) => ({ ...p, street: e.target.value }))} />
           </div>
           <div className="space-y-2">
@@ -233,11 +333,11 @@ function SupplierFormFields({
             <Input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label>State / Province</Label>
+            <Label>State / province</Label>
             <Input value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label>ZIP / Postal Code</Label>
+            <Label>ZIP / postal code</Label>
             <Input
               value={form.postalCode}
               onChange={(e) => setForm((p) => ({ ...p, postalCode: e.target.value }))}
@@ -251,28 +351,28 @@ function SupplierFormFields({
       </div>
 
       <div className="space-y-3 border-t pt-4">
-        <h3 className="text-sm font-semibold">Payment & Banking</h3>
+        <h3 className="text-sm font-semibold">Payment & banking</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Payment Terms</Label>
+            <Label>Payment terms</Label>
             <Input
               value={form.paymentTerms}
               onChange={(e) => setForm((p) => ({ ...p, paymentTerms: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
-            <Label>Bank Name</Label>
+            <Label>Bank name</Label>
             <Input value={form.bankName} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label>Account Number</Label>
+            <Label>Account number</Label>
             <Input
               value={form.accountNumber}
               onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
-            <Label>Routing Number / SWIFT</Label>
+            <Label>Routing / SWIFT</Label>
             <Input
               value={form.routingNumber}
               onChange={(e) => setForm((p) => ({ ...p, routingNumber: e.target.value }))}
@@ -288,16 +388,64 @@ function SupplierFormFields({
   );
 }
 
+const csvColumns: CsvColumn<Supplier>[] = [
+  { header: 'Supplier Name', value: (s) => s.supplierName },
+  { header: 'Code', value: (s) => s.supplierCode },
+  { header: 'Contact', value: (s) => s.contactPerson },
+  { header: 'Email', value: (s) => s.email },
+  { header: 'Phone', value: (s) => s.phone },
+  { header: 'Rating', value: (s) => s.rating },
+  { header: 'Status', value: (s) => (s.isActive ? 'Active' : 'Inactive') },
+];
+
 export function SuppliersPage() {
-  const [search, setSearch] = useState('');
-  const { data: suppliers = [], isLoading } = useSuppliers(search);
+  const { data: allSuppliers = [], isLoading } = useSuppliers();
   const { data: companies = [] } = useCompanies();
   const createSupplier = useCreateSupplier();
   const updateSupplier = useUpdateSupplier();
+  const requestDeletion = useRequestSupplierDeletion();
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [viewSheetOpen, setViewSheetOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
+
+  const deletionImpact = useSupplierDeletionImpact(deleteTarget?.id ?? null);
+
+  const stats = useMemo(() => {
+    const active = allSuppliers.filter((s) => s.isActive).length;
+    return {
+      total: allSuppliers.length,
+      active,
+      inactive: allSuppliers.length - active,
+    };
+  }, [allSuppliers]);
+
+  const filteredSuppliers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return allSuppliers.filter((s) => {
+      if (statusFilter === 'active' && !s.isActive) return false;
+      if (statusFilter === 'inactive' && s.isActive) return false;
+      if (!term) return true;
+      const hay = [
+        s.supplierName,
+        s.supplierCode,
+        s.contactPerson,
+        s.email,
+        s.phone,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(term);
+    });
+  }, [allSuppliers, search, statusFilter]);
 
   const validateForm = (form: SupplierFormState) => {
     if (!form.supplierName.trim()) {
@@ -316,12 +464,12 @@ export function SuppliersPage() {
     try {
       await createSupplier.mutateAsync(formToPayload(createForm));
       setCreateForm(emptyForm());
-      setSearch('');
+      setCreateOpen(false);
       toast.success('Supplier created successfully');
     } catch (err: unknown) {
       const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to create supplier';
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Failed to create supplier';
       toast.error(msg);
     }
   };
@@ -330,6 +478,11 @@ export function SuppliersPage() {
     setEditingSupplier(supplier);
     setEditForm(formFromSupplier(supplier));
     setEditSheetOpen(true);
+  };
+
+  const openView = (supplier: Supplier) => {
+    setViewSupplier(supplier);
+    setViewSheetOpen(true);
   };
 
   const onUpdate = async () => {
@@ -345,104 +498,386 @@ export function SuppliersPage() {
       toast.success('Supplier updated successfully');
     } catch (err: unknown) {
       const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to update supplier';
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Failed to update supplier';
       toast.error(msg);
     }
+  };
+
+  const onRequestDeletion = async () => {
+    if (!deleteTarget) return;
+    try {
+      const result = await requestDeletion.mutateAsync(deleteTarget.id);
+      toast.success(result.message);
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Failed to request supplier deletion';
+      toast.error(msg);
+    }
+  };
+
+  const exportCsv = () => {
+    downloadCsv('suppliers.csv', toCsv(filteredSuppliers, csvColumns));
+    toast.success('CSV exported');
   };
 
   return (
     <AppLayout active="Suppliers">
       <div className="space-y-6">
-        <PageHeader title="Suppliers" description="Supplier company/contact and payment details.">
-          <Input placeholder="Search suppliers..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <PageHeader
+          title="Suppliers"
+          description={`${stats.total} registered supplier${stats.total === 1 ? '' : 's'}`}
+        >
+          <Button variant="outline" size="sm" onClick={exportCsv}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            size="sm"
+            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+            onClick={() => {
+              setCreateForm(emptyForm());
+              setCreateOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Supplier
+          </Button>
         </PageHeader>
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Supplier</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <KpiCard
+            label="Total suppliers"
+            value={stats.total}
+            accent="bg-indigo-500"
+            icon={<Building2 className="h-5 w-5 text-indigo-600" />}
+          />
+          <KpiCard
+            label="Active"
+            value={stats.active}
+            accent="bg-emerald-500"
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          />
+          <KpiCard
+            label="Inactive"
+            value={stats.inactive}
+            accent="bg-amber-500"
+            icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+          />
+        </div>
+
+        <Card className="border-slate-200/90 shadow-sm">
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchInput
+                placeholder="Search by name, code or contact…"
+                value={search}
+                onChange={setSearch}
+                className="max-w-md flex-1"
+              />
+              <div className="flex items-center gap-2 sm:w-44">
+                <Label className="shrink-0 text-xs text-slate-500">Status</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/80">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Supplier
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Code
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Contact
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Email
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Phone
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Rating
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                        Loading suppliers…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredSuppliers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                        No suppliers match your filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredSuppliers.map((s) => (
+                      <TableRow key={s.id} className="hover:bg-slate-50/50">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800"
+                              aria-hidden
+                            >
+                              {supplierInitials(s.supplierName)}
+                            </div>
+                            <span className="font-semibold text-slate-900">{s.supplierName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-medium text-slate-700">
+                            {s.supplierCode || '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-slate-700">{s.contactPerson || '—'}</TableCell>
+                        <TableCell>
+                          {s.email ? (
+                            <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                              <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              <span className="max-w-[180px] truncate">{s.email}</span>
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {s.phone ? (
+                            <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                              <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              {s.phone}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <StarRating value={s.rating} />
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
+                              s.isActive
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-600',
+                            )}
+                          >
+                            {s.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="View"
+                              onClick={() => openView(s)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Edit"
+                              onClick={() => openEdit(s)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              title="Deactivate"
+                              onClick={() => setDeleteTarget(s)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>Add supplier</SheetTitle>
+            <SheetDescription>Register a new supplier with contact and payment details.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-5">
             <SupplierFormFields
               form={createForm}
               setForm={setCreateForm}
               companies={companies}
               codeHint="Leave blank to auto-generate (e.g. SUP-0001)"
             />
-            <Button onClick={onCreate} disabled={createSupplier.isPending}>
-              {createSupplier.isPending ? 'Saving...' : 'Create Supplier'}
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Supplier List</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>Loading...</TableCell>
-                  </TableRow>
-                ) : suppliers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>No suppliers found.</TableCell>
-                  </TableRow>
-                ) : (
-                  suppliers.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-mono text-xs">{s.supplierCode || '—'}</TableCell>
-                      <TableCell>{s.supplierName}</TableCell>
-                      <TableCell>{s.contactPerson || '—'}</TableCell>
-                      <TableCell>{s.email || '—'}</TableCell>
-                      <TableCell>
-                        <StatusBadge status={s.isActive ? 'Active' : 'Inactive'} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(s)} aria-label="Edit supplier">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="flex gap-3 border-t pt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                onClick={onCreate}
+                disabled={createSupplier.isPending}
+              >
+                {createSupplier.isPending ? 'Saving…' : 'Create supplier'}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle>Edit Supplier</SheetTitle>
+            <SheetTitle>Edit supplier</SheetTitle>
             <SheetDescription>
               {editingSupplier ? `Update ${editingSupplier.supplierName}` : 'Update supplier details'}
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-5">
             <SupplierFormFields form={editForm} setForm={setEditForm} companies={companies} />
-            <div className="flex gap-3">
+            <div className="flex gap-3 border-t pt-4">
               <Button variant="outline" className="flex-1" onClick={() => setEditSheetOpen(false)}>
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={onUpdate} disabled={updateSupplier.isPending}>
-                {updateSupplier.isPending ? 'Saving...' : 'Save Changes'}
+              <Button
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                onClick={onUpdate}
+                disabled={updateSupplier.isPending}
+              >
+                {updateSupplier.isPending ? 'Saving…' : 'Save changes'}
               </Button>
             </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      <Sheet open={viewSheetOpen} onOpenChange={setViewSheetOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{viewSupplier?.supplierName}</SheetTitle>
+            <SheetDescription>{viewSupplier?.supplierCode}</SheetDescription>
+          </SheetHeader>
+          {viewSupplier && (
+            <div className="mt-6 space-y-4 text-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-800">
+                  {supplierInitials(viewSupplier.supplierName)}
+                </div>
+                <div>
+                  <StarRating value={viewSupplier.rating} />
+                  <span
+                    className={cn(
+                      'mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                      viewSupplier.isActive
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-600',
+                    )}
+                  >
+                    {viewSupplier.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+              <dl className="grid gap-3">
+                {[
+                  ['Contact', viewSupplier.contactPerson],
+                  ['Email', viewSupplier.email],
+                  ['Phone', viewSupplier.phone],
+                  ['Payment terms', viewSupplier.paymentTerms],
+                  ['Address', [viewSupplier.street, viewSupplier.city, viewSupplier.country].filter(Boolean).join(', ')],
+                ].map(([label, val]) => (
+                  <div key={String(label)}>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 text-slate-900">{val || '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+              <Button variant="outline" className="w-full" onClick={() => {
+                setViewSheetOpen(false);
+                openEdit(viewSupplier);
+              }}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit supplier
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete supplier?"
+        description={
+          deleteTarget ? (
+            <span className="block space-y-3 text-left text-sm">
+              <span className="block text-slate-600">
+                An email will be sent to the admin to confirm deletion of{' '}
+                <strong>{deleteTarget.supplierName}</strong>. The supplier is not removed until the
+                link in that email is opened.
+              </span>
+              {deletionImpact.isLoading ? (
+                <span className="block text-slate-500">Loading linked records…</span>
+              ) : deletionImpact.data ? (
+                <span className="block rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                  <span className="font-medium">Linked records (kept in history):</span>
+                  <ul className="mt-2 list-inside list-disc space-y-0.5">
+                    <li>{deletionImpact.data.counts.rfqInvitations} RFQ invitation(s)</li>
+                    <li>{deletionImpact.data.counts.quotations} quotation(s)</li>
+                    <li>{deletionImpact.data.counts.contracts} contract(s)</li>
+                    <li>{deletionImpact.data.counts.purchaseOrders} purchase order(s)</li>
+                  </ul>
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel="Send confirmation email"
+        variant="destructive"
+        onConfirm={onRequestDeletion}
+        loading={requestDeletion.isPending}
+      />
     </AppLayout>
   );
 }

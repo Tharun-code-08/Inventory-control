@@ -5,6 +5,7 @@ import { api } from '@/api/client';
 import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
+import { BRAND } from '@/lib/brand';
 
 export function LoginPage() {
   const nav = useNavigate();
@@ -93,7 +94,7 @@ export function LoginPage() {
           <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
           <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
             <Sparkles className="h-3.5 w-3.5" />
-            Retail IMS
+            {BRAND.productName}
           </p>
           <h1 className="mt-7 text-4xl font-semibold leading-tight">
             Inventory command center for high-speed retail teams.
@@ -130,7 +131,7 @@ export function LoginPage() {
               <Zap className="h-3.5 w-3.5" />
               Welcome back
             </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Sign in to Retail IMS</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{BRAND.loginTitle}</h2>
             <p className="mt-2 text-sm text-slate-500">Use your account credentials to continue.</p>
           </div>
 

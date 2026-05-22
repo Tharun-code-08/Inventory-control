@@ -35,8 +35,12 @@ export class ReportsController {
 
   @RequirePermission('report:view')
   @Get('low-stock')
-  lowStock(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
-    return this.reports.lowStock(user, shopId);
+  lowStock(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.reports.lowStock(user, shopId, category);
   }
 
   @RequirePermission('report:view')

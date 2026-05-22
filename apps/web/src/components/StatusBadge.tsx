@@ -15,12 +15,19 @@ const variants: Record<string, string> = {
   CANCELLED: 'border border-slate-300 bg-slate-100 text-slate-700',
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, compact }: { status: string; compact?: boolean }) {
   const key = status?.toUpperCase?.() ?? status;
   const cls = variants[key] ?? 'border border-slate-200 bg-slate-50 text-slate-700';
   return (
-    <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide', cls)} data-testid="status-badge">
-      {status}
+    <span
+      className={cn(
+        'rounded-full font-semibold tracking-wide',
+        compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
+        cls,
+      )}
+      data-testid="status-badge"
+    >
+      {status.replaceAll('_', ' ')}
     </span>
   );
 }

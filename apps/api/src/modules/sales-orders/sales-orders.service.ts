@@ -18,6 +18,7 @@ import { CostingService } from '../stock/costing.service';
 import { StockService } from '../stock/stock.service';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateSalesOrderDto, CreateSalesOrderItemDto } from './dto/create-sales-order.dto';
+import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 
 export type SalesOrderListQuery = {
   shop_id?: string;
@@ -59,7 +60,7 @@ export class SalesOrdersService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }],
       select: {
         id: true,
         soNumber: true,
@@ -71,6 +72,7 @@ export class SalesOrdersService {
         shopId: true,
         customerId: true,
         customer: { select: { id: true, customerCode: true, customerName: true } },
+        shop: { select: { id: true, shopName: true, shopNumber: true } },
       },
     });
     const { items, meta } = buildMeta(rows, take);
@@ -194,11 +196,106 @@ export class SalesOrdersService {
   async get(user: RequestUser, id: string) {
     const so = await this.prisma.salesOrderHeader.findUnique({
       where: { id },
-      include: { customer: true, items: { include: { product: true } } },
+      include: {
+        customer: true,
+        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        items: { include: { product: true } },
+        salesQuotation: { select: { id: true, quoteNumber: true } },
+      },
     });
     if (!so) throw new NotFoundException('Sales order not found');
     assertShopScope(user, so.shopId);
     return so;
+  }
+
+  async update(user: RequestUser, id: string, dto: UpdateSalesOrderDto) {
+    const so = await this.get(user, id);
+    if (so.status !== SalesOrderStatus.DRAFT) {
+      throw new BadRequestException('Only DRAFT sales orders can be updated');
+    }
+
+    const orderDate = dto.orderDate ? new Date(dto.orderDate) : so.orderDate;
+    const items = dto.items ?? so.items.map((line) => ({
+      productId: line.productId,
+      quantity: Number(line.quantity),
+      uom: line.uom,
+      unitPrice: Number(line.unitPrice),
+      discountAmount: Number(line.discountAmount),
+      taxRate: Number(line.taxRate),
+    }));
+    const { lines, total, totalDiscount, totalTax } = this.computeLineTotals(items);
+
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      await tx.salesOrderItem.deleteMany({ where: { soHeaderId: id } });
+      const updated = await tx.salesOrderHeader.update({
+        where: { id },
+        data: {
+          orderDate,
+          expectedDate: dto.expectedDate ? new Date(dto.expectedDate) : so.expectedDate,
+          customerId: dto.customerId ?? so.customerId,
+          remarks: dto.remarks !== undefined ? dto.remarks : so.remarks,
+          discountAmount: totalDiscount,
+          taxAmount: totalTax,
+          totalValue: total,
+          updatedById: user.id,
+          items: {
+            create: lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+              uom: line.uom,
+              unitPrice: line.unitPrice,
+              discountAmount: line.discountAmount,
+              taxRate: line.taxRate,
+              taxAmount: line.taxAmount,
+              lineValue: line.lineValue,
+              createdById: user.id,
+            })),
+          },
+        },
+        include: {
+          customer: true,
+          shop: { select: { id: true, shopName: true, shopNumber: true } },
+          items: { include: { product: true } },
+          salesQuotation: { select: { id: true, quoteNumber: true } },
+        },
+      });
+
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.UPDATE,
+          entityType: 'SALES_ORDER',
+          entityId: id,
+          newValues: { soNumber: updated.soNumber, totalValue: updated.totalValue?.toString() ?? '0' },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
+  async remove(user: RequestUser, id: string) {
+    const so = await this.get(user, id);
+    if (so.status !== SalesOrderStatus.DRAFT) {
+      throw new BadRequestException('Only DRAFT sales orders can be deleted');
+    }
+
+    await runSerializableTxWithRetry(this.prisma, async (tx) => {
+      await tx.salesOrderHeader.delete({ where: { id } });
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.DELETE,
+          entityType: 'SALES_ORDER',
+          entityId: id,
+          oldValues: { soNumber: so.soNumber },
+        },
+        tx,
+      );
+    });
+
+    return { deleted: true, id };
   }
 
   async confirm(user: RequestUser, id: string) {

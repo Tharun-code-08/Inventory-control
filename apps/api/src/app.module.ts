@@ -31,16 +31,19 @@ import { QuotationsModule } from './modules/quotations/quotations.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SalesOrdersModule } from './modules/sales-orders/sales-orders.module';
+import { SalesQuotationsModule } from './modules/sales-quotations/sales-quotations.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { QueuesModule } from './common/queues/queues.module';
 import { UploadModule } from './common/upload/upload.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { FxModule } from './modules/fx/fx.module';
+import { MailModule } from './common/mail/mail.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -109,6 +112,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
       }),
     }),
     PrismaModule,
+    MailModule,
     QueuesModule,
     UploadModule,
     ObservabilityModule,
@@ -134,10 +138,12 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     ContractsModule,
     CustomersModule,
     SalesOrdersModule,
+    SalesQuotationsModule,
     InvoicesModule,
     PaymentsModule,
     ReturnsModule,
     AlertsModule,
+    SupplierPortalModule,
     NotificationsModule,
     HealthModule,
   ],

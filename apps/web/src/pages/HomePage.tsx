@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-
-const SITE_ORIGIN = 'https://softdigitconsulting.com';
+import { BrandLogo } from '@/components/BrandLogo';
+import { BRAND } from '@/lib/brand';
 
 export function HomePage() {
   return (
@@ -14,19 +14,13 @@ export function HomePage() {
 
       <header className="border-b border-white/10 bg-[#030b2a]/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              src="/favicon.svg"
-              width={40}
-              height={40}
-              alt="Softdigit Consulting logo"
-              className="h-10 w-10 shrink-0 rounded-xl border border-white/15 bg-white/5 p-1.5"
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-100">Softdigit Consulting</p>
-              <p className="truncate text-xs text-slate-400">Retail operations &amp; technology</p>
-            </div>
-          </div>
+          <BrandLogo
+            size={40}
+            title={BRAND.companyName}
+            subtitle={BRAND.productName}
+            titleClassName="text-slate-100"
+            subtitleClassName="text-slate-400"
+          />
           <nav aria-label="Primary" className="flex items-center gap-2 sm:gap-5">
             <a
               href="#services"
@@ -38,7 +32,7 @@ export function HomePage() {
               href="#ims"
               className="hidden text-sm font-medium text-slate-300 transition hover:text-white md:inline-block"
             >
-              Retail IMS
+              {BRAND.productName}
             </a>
             <a
               href="#contact"
@@ -50,7 +44,7 @@ export function HomePage() {
               to="/login"
               className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             >
-              Sign in to Retail IMS
+              {BRAND.loginTitle}
             </Link>
           </nav>
         </div>
@@ -62,7 +56,9 @@ export function HomePage() {
           aria-labelledby="hero-heading"
         >
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-200/85">SOFTDIGIT CONSULTING</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-200/85">
+              {BRAND.companyName.toUpperCase()}
+            </p>
             <h1 id="hero-heading" className="mt-3 max-w-4xl text-4xl font-semibold leading-tight text-slate-100 sm:text-5xl">
               Practical technology for retailers who need clarity, control, and calm operations.
             </h1>
@@ -75,7 +71,7 @@ export function HomePage() {
                 to="/login"
                 className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#04123b] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200"
               >
-                Open Retail IMS
+                Open {BRAND.productName}
               </Link>
               <a
                 href="#contact"
@@ -84,6 +80,7 @@ export function HomePage() {
                 Talk to us
               </a>
             </div>
+            <p className="mt-4 text-sm text-slate-400">{BRAND.poweredBy}</p>
           </div>
         </section>
 
@@ -121,24 +118,25 @@ export function HomePage() {
         <section id="ims" className="border-y border-white/10 bg-[#030b2a]/70" aria-labelledby="ims-heading">
           <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
             <h2 id="ims-heading" className="text-2xl font-semibold text-slate-100">
-              Retail IMS
+              {BRAND.productName}
             </h2>
+            <p className="mt-1 text-sm font-medium text-indigo-200/90">{BRAND.poweredBy}</p>
             <p className="mt-2 max-w-2xl text-slate-300">
               Our inventory management workspace for multi-store retail: products, goods movements, purchase orders,
-              reporting, and role-based access—hosted on this domain for your team.
+              sales quotations, reporting, and role-based access.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#04123b] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
               >
-                Sign in to Retail IMS
+                {BRAND.loginTitle}
               </Link>
               <a
                 href="#contact"
                 className="inline-flex items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
               >
-                Discuss Retail IMS
+                Discuss {BRAND.productName}
               </a>
             </div>
           </div>
@@ -153,15 +151,15 @@ export function HomePage() {
             discovery call.
           </p>
           <address className="mt-8 not-italic">
-            <p className="text-sm font-medium text-slate-100">Softdigit Consulting</p>
+            <p className="text-sm font-medium text-slate-100">{BRAND.companyName}</p>
             <p className="mt-1 text-sm text-slate-300">
               Web:{' '}
-              <a className="text-violet-300 underline-offset-2 hover:underline" href={SITE_ORIGIN}>
-                {SITE_ORIGIN.replace(/^https:\/\//, '')}
+              <a className="text-violet-300 underline-offset-2 hover:underline" href={BRAND.siteOrigin}>
+                {BRAND.siteOrigin.replace(/^https:\/\//, '')}
               </a>
             </p>
             <p className="mt-3 text-sm text-slate-300">
-              For existing Retail IMS users, use{' '}
+              For existing users, use{' '}
               <Link className="font-medium text-violet-300 underline-offset-2 hover:underline" to="/login">
                 the sign-in page
               </Link>
@@ -173,10 +171,10 @@ export function HomePage() {
 
       <footer className="border-t border-white/10 bg-[#030b2a]/90">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>© {new Date().getFullYear()} Softdigit Consulting. All rights reserved.</p>
+          <p>{BRAND.copyright(new Date().getFullYear())}</p>
           <p>
             <Link to="/login" className="font-medium text-violet-300 underline-offset-2 hover:underline">
-              Retail IMS sign-in
+              {BRAND.productName} sign-in
             </Link>
           </p>
         </div>

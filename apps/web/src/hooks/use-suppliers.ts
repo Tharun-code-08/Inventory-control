@@ -87,11 +87,25 @@ export function useSuppliers(search?: string) {
   return useQuery({
     queryKey: keys.list(search),
     queryFn: async () => {
-      const res = await api.get('/suppliers', { params: { search, take: 200 } });
+      const res = await api.get('/suppliers', { params: { search, take: 100 } });
       const payload = res.data as { data?: unknown };
       const rows = Array.isArray(payload?.data) ? payload.data : [];
-      return rows.map(normalizeSupplier);
+      // API returns newest-first; reverse so newest appears at the bottom of the table.
+      return rows.map(normalizeSupplier).reverse();
     },
+  });
+}
+
+function appendSupplierToListCache(
+  qc: ReturnType<typeof useQueryClient>,
+  created: Supplier,
+  search?: string,
+) {
+  const key = keys.list(search);
+  qc.setQueryData<Supplier[]>(key, (current) => {
+    if (!current) return [created];
+    if (current.some((s) => s.id === created.id)) return current;
+    return [...current, created];
   });
 }
 
@@ -102,9 +116,9 @@ export function useCreateSupplier() {
       const res = await api.post('/suppliers', payload);
       return normalizeSupplier(res.data.data);
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: keys.all });
-      await qc.refetchQueries({ queryKey: keys.all, type: 'active' });
+    onSuccess: (created) => {
+      appendSupplierToListCache(qc, created, '');
+      void qc.invalidateQueries({ queryKey: keys.all });
     },
   });
 }
@@ -123,14 +137,47 @@ export function useUpdateSupplier() {
   });
 }
 
-export function useDeleteSupplier() {
+export type SupplierDeletionImpact = {
+  supplier: { id: string; supplierName: string; supplierCode: string };
+  counts: {
+    rfqInvitations: number;
+    quotations: number;
+    contracts: number;
+    purchaseOrders: number;
+  };
+  linkedRfqs: Array<{ id: string; rfqNumber: string; title: string; status: string }>;
+  note: string;
+};
+
+export function useSupplierDeletionImpact(supplierId: string | null) {
+  return useQuery({
+    queryKey: [...keys.all, 'deletion-impact', supplierId],
+    queryFn: async () => {
+      const res = await api.get(`/suppliers/${supplierId}/deletion-impact`);
+      return res.data.data as SupplierDeletionImpact;
+    },
+    enabled: Boolean(supplierId),
+  });
+}
+
+export function useRequestSupplierDeletion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await api.delete(`/suppliers/${id}`);
-      return res.data.data;
+      const res = await api.post(`/suppliers/${id}/request-deletion`);
+      return res.data.data as {
+        pending: boolean;
+        adminEmail: string;
+        message: string;
+        impact: SupplierDeletionImpact;
+      };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
+}
+
+/** @deprecated Use useRequestSupplierDeletion */
+export function useDeleteSupplier() {
+  return useRequestSupplierDeletion();
 }
 

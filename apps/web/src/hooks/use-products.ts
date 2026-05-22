@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
-import { useAuthStore } from '@/store/authStore';
 
 export type ProductPlantAssignment = {
   id?: string;
@@ -226,36 +225,6 @@ function normalizeProductList(payload: unknown, filters: ProductFilters): Produc
   };
 }
 
-function replaceStoredProduct(next: Product) {
-  const { user, products, setProducts } = useAuthStore.getState();
-  if (!user) return;
-  // Shop users only persist products they're assigned to. Without an
-  // assignment to their shop, the row is filtered out of their cache so
-  // it doesn't leak through other UIs.
-  if (
-    user.role === 'SHOP_USER' &&
-    user.shopId &&
-    !next.plants.some((p) => p.shopId === user.shopId)
-  ) {
-    return;
-  }
-
-  const index = products.findIndex((product) => product.id === next.id);
-  if (index === -1) {
-    setProducts([next, ...products]);
-    return;
-  }
-
-  const updated = [...products];
-  updated[index] = next;
-  setProducts(updated);
-}
-
-function removeStoredProduct(productId: string) {
-  const { setProducts, products } = useAuthStore.getState();
-  setProducts(products.filter((product) => product.id !== productId));
-}
-
 export function useProducts(filters: ProductFilters = {}) {
   return useQuery({
     queryKey: productKeys.list(filters),
@@ -296,7 +265,6 @@ export function useCreateProduct() {
       return normalizeProduct(res.data.data);
     },
     onSuccess: async (product) => {
-      replaceStoredProduct(product);
       qc.setQueriesData(
         { queryKey: productKeys.lists() },
         (old) => {
@@ -332,8 +300,7 @@ export function useUpdateProduct() {
       const res = await api.patch(`/products/${id}`, payload);
       return normalizeProduct(res.data.data);
     },
-    onSuccess: (product, variables) => {
-      replaceStoredProduct(product);
+    onSuccess: (_product, variables) => {
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
     },
@@ -347,8 +314,7 @@ export function useToggleProductStatus(id: string) {
       const res = await api.patch(`/products/${id}`, { isActive });
       return normalizeProduct(res.data.data);
     },
-    onSuccess: (product) => {
-      replaceStoredProduct(product);
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(id) });
     },
@@ -363,9 +329,42 @@ export function useDeleteProduct() {
       return id;
     },
     onSuccess: (id) => {
-      removeStoredProduct(id);
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+    },
+  });
+}
+
+export type BulkInventoryRow = {
+  productCode: string;
+  shopNumber: string;
+  storageLocationCode?: string;
+  minStock?: number;
+  maxStock?: number;
+  reorderQty?: number;
+};
+
+export type BulkInventoryResult = {
+  updated: number;
+  total: number;
+  errors: Array<{ row: number; message: string }>;
+};
+
+export function useBulkInventoryUpload() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rows: BulkInventoryRow[]): Promise<BulkInventoryResult> => {
+      const res = await api.post('/products/bulk-inventory', { rows });
+      const data = (res.data?.data ?? res.data) as Partial<BulkInventoryResult>;
+      return {
+        updated: Number(data?.updated ?? 0),
+        total: Number(data?.total ?? rows.length),
+        errors: Array.isArray(data?.errors) ? data.errors : [],
+      };
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: productKeys.lists() });
+      await qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

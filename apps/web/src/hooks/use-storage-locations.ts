@@ -15,12 +15,23 @@ const keys = {
   list: () => [...keys.all, 'list'] as const,
 };
 
+function extractStorageLocationRows(payload: unknown): StorageLocation[] {
+  if (Array.isArray(payload)) return payload as StorageLocation[];
+  if (!payload || typeof payload !== 'object') return [];
+  const source = payload as { data?: unknown; items?: unknown[] };
+  if (Array.isArray(source.items)) return source.items as StorageLocation[];
+  if (Array.isArray(source.data)) return source.data as StorageLocation[];
+  return [];
+}
+
 export function useStorageLocations(shopId?: string) {
   return useQuery({
-    queryKey: [...keys.list(), shopId],
+    queryKey: [...keys.list(), shopId ?? 'all'],
     queryFn: async () => {
-      const res = await api.get('/storage-locations', { params: { shop_id: shopId } });
-      return (res.data.data ?? []) as StorageLocation[];
+      const res = await api.get('/storage-locations', {
+        params: shopId ? { shop_id: shopId } : undefined,
+      });
+      return extractStorageLocationRows(res.data?.data ?? res.data);
     },
   });
 }

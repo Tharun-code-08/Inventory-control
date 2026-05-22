@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -31,6 +31,12 @@ export class RfqsController {
     return this.rfqs.get(user, id);
   }
 
+  @RequirePermission('rfq:read')
+  @Get(':id/deletion-impact')
+  deletionImpact(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.deletionImpact(user, id);
+  }
+
   @RequirePermission('rfq:write')
   @Patch(':id')
   update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdateRfqDto) {
@@ -44,9 +50,21 @@ export class RfqsController {
   }
 
   @RequirePermission('rfq:write')
+  @Post(':id/resend-invites')
+  resendInvites(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.resendInvites(user, id);
+  }
+
+  @RequirePermission('rfq:write')
   @Post(':id/close')
   close(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.rfqs.close(user, id);
+  }
+
+  @RequirePermission('rfq:write')
+  @Delete(':id')
+  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.remove(user, id);
   }
 }
 

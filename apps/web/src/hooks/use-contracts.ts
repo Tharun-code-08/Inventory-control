@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
+export type ContractItem = {
+  productId?: string | null;
+  description?: string | null;
+  quantity: number;
+  unitPrice: number;
+  uom?: string;
+};
+
 export type Contract = {
   id: string;
   contractNumber: string;
@@ -8,8 +16,15 @@ export type Contract = {
   status: string;
   startDate: string;
   endDate?: string | null;
-  supplier?: { supplierName: string };
+  shopId?: string;
+  supplierId?: string;
+  rfqId?: string | null;
+  quotationId?: string | null;
+  supplier?: { id?: string; supplierName: string };
+  items?: ContractItem[];
 };
+
+export type UpdateContractPayload = Partial<CreateContractPayload>;
 
 export type CreateContractPayload = {
   shopId?: string;
@@ -55,6 +70,17 @@ export function useActivateContract() {
     mutationFn: async (id: string) => {
       const res = await api.post(`/contracts/${id}/activate`);
       return res.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useUpdateContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: UpdateContractPayload & { id: string }) => {
+      const res = await api.patch(`/contracts/${id}`, payload);
+      return res.data.data as Contract;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });

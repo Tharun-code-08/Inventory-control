@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, RefreshCw, Search, UserCircle } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, RefreshCw, UserCircle } from 'lucide-react';
+import { AppShellControls } from '@/components/AppShellControls';
+import { CommandSpotlight } from '@/components/CommandSpotlight';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
 import { Toaster } from '@/components/ui/sonner';
@@ -9,6 +11,7 @@ import { api } from '@/api/client';
 import { cn } from '@/lib/cn';
 import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
+import { AppFooter } from '@/components/AppFooter';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -17,11 +20,11 @@ const pageTitles: Record<string, string> = {
   '/storage-locations': 'Storage Locations',
   '/suppliers': 'Suppliers',
   '/rfqs': 'RFQs',
-  '/quotations': 'Quotations',
+  '/quotations': 'Sales Quotations',
   '/contracts': 'Contracts',
   '/customers': 'Customers',
   '/supplier-portal': 'Supplier Portal',
-  '/sales': 'Sales',
+  '/sales': 'Sales Orders',
   '/invoices': 'Invoices',
   '/payments': 'Payments',
   '/notifications': 'Notifications',
@@ -75,8 +78,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
     typeof window !== 'undefined' ? false : true,
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutSplash, setShowLogoutSplash] = useState(false);
@@ -107,11 +109,21 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   useEffect(() => {
     setProfileOpen(false);
     setNotificationsOpen(false);
-    setMobileSearchOpen(false);
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
   }, [isMobile, location.pathname]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSpotlightOpen(true);
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!isMobile) {
@@ -164,7 +176,8 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const avatar = animalAvatarForUser(user);
 
   return (
-    <div className="flex min-h-screen bg-transparent text-slate-800">
+    <div className="flex min-h-screen bg-transparent text-slate-800 dark:text-slate-100">
+      <CommandSpotlight open={spotlightOpen} onOpenChange={setSpotlightOpen} />
       {showLogoutSplash && (
         <div className={cn(
           "fixed inset-0 z-[100] flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
@@ -204,7 +217,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
           !isMobile && (sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[240px]'),
         )}
       >
-        <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90">
+        <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90 dark:border-slate-800 dark:bg-slate-950/90 dark:shadow-slate-950/50">
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <button
@@ -212,7 +225,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                 onClick={() =>
                   isMobile ? setMobileSidebarOpen(true) : setSidebarCollapsed((c) => !c)
                 }
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 aria-label={
                   isMobile
                     ? 'Open navigation'
@@ -226,31 +239,13 @@ export function AppLayout({ children, active }: AppLayoutProps) {
               <h2 className="premium-title truncate text-base font-semibold sm:text-lg">{pageTitle}</h2>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-              <div className="relative hidden lg:block">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search..."
-                  className="h-10 w-72 rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setMobileSearchOpen((open) => !open)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:hidden"
-                aria-label="Toggle search"
-              >
-                <Search className="h-5 w-5" />
-              </button>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <AppShellControls onOpenSpotlight={() => setSpotlightOpen(true)} />
 
               <button
                 type="button"
                 onClick={handleRefresh}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 aria-label="Refresh data"
                 disabled={isRefreshing}
               >
@@ -260,7 +255,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
               <button
                 type="button"
                 onClick={() => setNotificationsOpen((open) => !open)}
-                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 aria-label="Notifications"
               >
                 <Bell className="h-5 w-5" />
@@ -274,14 +269,14 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                     type="button"
                     aria-label="Close notifications"
                     onClick={() => setNotificationsOpen(false)}
-                    className="fixed inset-0 z-30 bg-slate-900/25"
+                    className="fixed inset-0 z-30 bg-slate-900/25 dark:bg-black/40"
                   />
                   <div
                     ref={notificationsRef}
-                    className="absolute right-2 top-14 z-40 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:right-16 sm:max-w-[calc(100vw-2rem)]"
+                    className="absolute right-2 top-14 z-40 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:right-16 sm:max-w-[calc(100vw-2rem)]"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
                       <button
                         type="button"
                         className="text-xs text-slate-500 hover:text-slate-900"
@@ -304,12 +299,12 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                               }
                             }}
                             className={cn(
-                              'w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50',
-                              !alert.isRead && 'bg-indigo-50',
+                              'w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/80',
+                              !alert.isRead && 'bg-indigo-50 dark:bg-indigo-950/40',
                             )}
                           >
-                            <p className="text-sm font-medium text-slate-900">{alert.title}</p>
-                            <p className="mt-0.5 text-xs text-slate-500">{alert.message}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{alert.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{alert.message}</p>
                           </button>
                         ))
                       )}
@@ -322,22 +317,22 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                 <button
                   type="button"
                   onClick={() => setProfileOpen((open) => !open)}
-                  className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-slate-100"
+                  className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <div className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-sm shadow-md', avatar.bgClass)}>
                     <span aria-label={`${avatar.kind} avatar`} role="img">{avatar.emoji}</span>
                   </div>
                   <div className="hidden text-left md:block">
-                    <div className="text-sm font-medium leading-tight text-slate-900">{user?.name}</div>
-                    <div className="text-xs text-slate-500">{user?.role}</div>
+                    <div className="text-sm font-medium leading-tight text-slate-900 dark:text-slate-100">{user?.name}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{user?.role}</div>
                   </div>
                   <ChevronDown className="hidden h-4 w-4 text-slate-500 md:block" />
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                    <div className="border-b border-slate-200 px-4 py-3">
-                      <div className="text-sm font-medium text-slate-900">{user?.name}</div>
+                  <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{user?.name}</div>
                       <div className="text-xs text-slate-500">{user?.email}</div>
                       {user?.shop && (
                         <div className="mt-0.5 text-xs text-indigo-600">{user.shop.shopName}</div>
@@ -366,24 +361,11 @@ export function AppLayout({ children, active }: AppLayoutProps) {
             </div>
           </div>
 
-          {mobileSearchOpen && (
-            <div className="border-t px-4 py-3 lg:hidden">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search..."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/40"
-                />
-              </div>
-            </div>
-          )}
         </header>
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
-          <div className="mx-auto w-full max-w-[1400px]">{children}</div>
+        <main className="flex min-w-0 flex-1 flex-col p-4 sm:p-6">
+          <div className="mx-auto w-full max-w-[1400px] flex-1">{children}</div>
+          <AppFooter />
         </main>
       </div>
 

@@ -1,3 +1,4 @@
+import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -15,6 +16,7 @@ type DataTablePaginationProps = {
   limit: number;
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
+  className?: string;
 };
 
 export function DataTablePagination({
@@ -24,12 +26,18 @@ export function DataTablePagination({
   limit,
   onPageChange,
   onLimitChange,
+  className,
 }: DataTablePaginationProps) {
   const start = total === 0 ? 0 : (page - 1) * limit + 1;
   const end = Math.min(page * limit, total);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-100 px-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        'flex flex-col gap-2 border-t border-slate-100 px-2 py-3 sm:flex-row sm:items-center sm:justify-between',
+        className,
+      )}
+    >
       <div className="text-sm text-slate-500">
         Showing {start}-{end} of {total}
       </div>

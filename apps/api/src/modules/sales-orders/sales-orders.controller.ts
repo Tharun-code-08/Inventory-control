@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ListSalesOrdersDto } from './dto/list-sales-orders.dto';
+import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { SalesOrdersService } from './sales-orders.service';
 
 @ApiTags('sales-orders')
@@ -34,6 +35,24 @@ export class SalesOrdersController {
   @ApiOperation({ summary: 'Get a sales order by id' })
   get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesOrders.get(user, id);
+  }
+
+  @RequirePermission('shop:write')
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a DRAFT sales order' })
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateSalesOrderDto,
+  ) {
+    return this.salesOrders.update(user, id, dto);
+  }
+
+  @RequirePermission('shop:write')
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a DRAFT sales order' })
+  remove(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.salesOrders.remove(user, id);
   }
 
   @RequirePermission('shop:write')

@@ -35,6 +35,9 @@ This creates `apps/api/.env` from `apps/api/.env.example` and auto-generates str
 | `REDIS_PORT` | Redis port | `6379` |
 | `EXPORT_STORAGE_DIR` | PDF/XLSX output directory | `./storage/exports` |
 | `VITE_API_URL` | API base URL for Vite dev | `http://localhost:3000` |
+| `MAIL_FROM` | Sender for RFQ supplier invites | `office@softdigitconsulting.com` |
+| `PUBLIC_WEB_URL` | SPA URL embedded in supplier portal emails | `http://localhost:5173` |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | SMTP for RFQ invite emails (required to **Send** an RFQ) | e.g. `smtp.office365.com` |
 
 ## One-command setup (npm)
 

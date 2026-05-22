@@ -13,6 +13,7 @@ import {
   XCircle,
   ArrowRightFromLine,
   ClipboardList,
+  Download,
   ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -79,11 +80,17 @@ import {
 import { useProducts, type Product } from '@/hooks/use-products';
 import { useRfqs } from '@/hooks/use-rfqs';
 import { useContracts } from '@/hooks/use-contracts';
-import { useSuppliers } from '@/hooks/use-suppliers';
+import { useSuppliers, useCreateSupplier } from '@/hooks/use-suppliers';
+import { useCompanies } from '@/hooks/use-companies';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
 import { hasPermission } from '@/lib/permissions';
+import { parsePoRemarks } from '@/lib/po-document';
+import { resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
+import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf';
+import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
+import type { PoDocumentMeta } from '@/lib/po-document';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -107,12 +114,24 @@ const poFormSchema = z.object({
   storageLocationId: z.string().optional(),
   deliveryAddress: z.string().optional(),
   remarks: z.string().optional(),
+  requisitioner: z.string().optional(),
+  requisitionerPreset: z.string().optional(),
+  shipVia: z.string().optional(),
+  fob: z.string().optional(),
+  shippingTerms: z.string().optional(),
+  taxPercent: z.union([z.string(), z.number()]).optional(),
+  cgstPercent: z.union([z.string(), z.number()]).optional(),
+  sgstPercent: z.union([z.string(), z.number()]).optional(),
   items: z.array(poItemSchema).min(1, 'Add at least one item'),
 });
 
 type POFormValues = z.infer<typeof poFormSchema>;
 
 const PAGE_SIZE = 10;
+const CREATE_SUPPLIER_OPTION = '__create_supplier__';
+/** Compact listboxes in the PO create sheet */
+const PO_SELECT_TRIGGER = 'h-8 min-h-8 py-1 px-2 text-xs';
+const PO_SELECT_CONTENT = 'max-h-52 text-xs';
 
 function tomorrowDateString() {
   const d = new Date();
@@ -127,6 +146,32 @@ function tomorrowDateString() {
  */
 function getProductPlant(product: Product, shopId: string) {
   return product.plants.find((p) => p.shopId === shopId);
+}
+
+function defaultPoLogisticsFields(userName?: string) {
+  return {
+    requisitioner: userName ?? '',
+    requisitionerPreset: userName ? 'auto' : '__custom__',
+    shipVia: '',
+    fob: '',
+    shippingTerms: '',
+    taxPercent: '' as string | number,
+    cgstPercent: '' as string | number,
+    sgstPercent: '' as string | number,
+  };
+}
+
+function logisticsFieldsFromDocument(doc: PoDocumentMeta) {
+  return {
+    requisitioner: doc.requisitioner ?? '',
+    requisitionerPreset: '__custom__',
+    shipVia: doc.shipVia ?? '',
+    fob: doc.fob ?? '',
+    shippingTerms: doc.shippingTerms ?? '',
+    taxPercent: doc.taxPercent != null ? String(doc.taxPercent) : '',
+    cgstPercent: doc.cgstPercent != null ? String(doc.cgstPercent) : '',
+    sgstPercent: doc.sgstPercent != null ? String(doc.sgstPercent) : '',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -220,10 +265,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
 
-  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 500 });
+  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
   const { data: rfqs = [] } = useRfqs();
   const { data: contracts = [] } = useContracts();
   const { data: suppliers = [] } = useSuppliers();
+  const { data: companies = [] } = useCompanies();
+  const createSupplier = useCreateSupplier();
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [quickSupplier, setQuickSupplier] = useState({
+    supplierName: '',
+    contactPerson: '',
+    email: '',
+    phone: '',
+  });
   const products = useMemo(() => {
     const raw = productsQuery.data;
     if (!raw) return [];
@@ -250,6 +304,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       storageLocationId: '',
       deliveryAddress: '',
       remarks: '',
+      ...defaultPoLogisticsFields(user?.name),
       items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
     },
   });
@@ -288,13 +343,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         storageLocationId: '',
         deliveryAddress: '',
       remarks: '',
+      ...defaultPoLogisticsFields(user?.name),
       items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
     });
     setSheetOpen(true);
     setSourceType('DIRECT');
     setSourceRfqId('');
     setSourceContractId('');
-  }, [form, shopId]);
+  }, [form, shopId, user?.name]);
 
   type PoPrefillState = {
     poPrefill?: {
@@ -361,6 +417,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const openEdit = useCallback(
     (po: PurchaseOrder) => {
       setEditingPO(po);
+      const { humanRemarks, document: docMeta } = parsePoRemarks(po.remarks);
+      const shop = shops.find((s) => s.id === po.shopId);
       form.reset({
         poDate: po.poDate.slice(0, 10),
         priority: 'Medium',
@@ -368,8 +426,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         supplier: po.supplier,
         deliveryPlantId: po.shopId,
         storageLocationId: '',
-        deliveryAddress: '',
-        remarks: po.remarks ?? '',
+        deliveryAddress: shop?.address ?? '',
+        remarks: humanRemarks,
+        ...logisticsFieldsFromDocument(docMeta),
         items: po.items.map((it) => ({
           productId: it.productId,
           currentStock: it.currentStock,
@@ -381,8 +440,28 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       });
       setSheetOpen(true);
     },
-    [form],
+    [form, shops],
   );
+
+  function handleDownloadPoPdf(po: PurchaseOrder) {
+    const supplier = suppliers.find((s) => s.supplierName === po.supplier);
+    const shop = shops.find((s) => s.id === po.shopId);
+    const document = resolvePoDocumentForPdf({
+      po,
+      company: companies[0],
+      supplier,
+      shop,
+    });
+    try {
+      downloadPurchaseOrderPdf(po, {
+        document,
+        buyerCompanyName: companies[0]?.companyName,
+      });
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Could not generate PDF');
+    }
+  }
 
   // Auto-fill product fields when product selection changes
   function handleProductChange(idx: number, productId: string) {
@@ -401,6 +480,32 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0);
   }
 
+  async function handleQuickSupplierCreate() {
+    if (!quickSupplier.supplierName.trim()) {
+      toast.error('Supplier name is required');
+      return;
+    }
+    try {
+      const created = await createSupplier.mutateAsync({
+        supplierName: quickSupplier.supplierName.trim(),
+        contactPerson: quickSupplier.contactPerson.trim() || 'Contact',
+        email: quickSupplier.email.trim() || `supplier-${Date.now()}@placeholder.local`,
+        phone: quickSupplier.phone.trim() || '0000000000',
+        companyId: companies[0]?.id,
+        paymentTerms: form.getValues('paymentTerms') || 'Net 30',
+        categories: [],
+      });
+      form.setValue('supplier', created.supplierName);
+      setSupplierDialogOpen(false);
+      setQuickSupplier({ supplierName: '', contactPerson: '', email: '', phone: '' });
+      toast.success(`Supplier "${created.supplierName}" created`);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data
+        ?.message;
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Failed to create supplier');
+    }
+  }
+
   async function handleSubmit(values: POFormValues) {
     try {
       const resolvedShopId = values.deliveryPlantId || shopId;
@@ -408,9 +513,11 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.error('Select a delivery plant');
         return;
       }
+      const deliveryShop = shops.find((s) => s.id === resolvedShopId);
       const payload = mapPoFormToCreatePayload({
         values,
         resolvedShopId,
+        shop: deliveryShop,
         sourceType,
         sourceContractId,
       });
@@ -501,10 +608,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     ];
   }
 
-  function lifecycleLabel(po: PurchaseOrder) {
-    return po.lifecycleStatus && po.lifecycleStatus !== po.status ? po.lifecycleStatus.replaceAll('_', ' ') : po.status;
-  }
-
   return (
     <AppLayout>
       <div className={createOnly ? 'create-page-shell p-4 sm:p-6' : ''}>
@@ -527,8 +630,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       {!createOnly && (
         <>
           {/* Toolbar */}
-          <Card className="surface-1 mb-4 p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
+          <Card className="surface-1 mb-3 p-3">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           {([
             ['ALL', 'All'],
             ['DRAFT', 'Draft'],
@@ -546,7 +649,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                 setLifecycleFilter(value);
                 setPage(1);
               }}
-              className="h-8"
+              className="h-7 px-2.5 text-xs"
             >
               {label} ({lifecycleCounts[value]})
             </Button>
@@ -619,44 +722,48 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           />
         ) : (
           <>
-            <Table>
+            <Table className="text-xs [&_th]:h-8 [&_th]:px-2 [&_th]:py-1 [&_th]:text-[11px] [&_td]:px-2 [&_td]:py-1.5">
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableHead>PO Number</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="w-[88px]">Date</TableHead>
                   <TableHead>Supplier</TableHead>
-                  <TableHead className="text-center">Items</TableHead>
-                  <TableHead className="text-right">Total Value</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-12 text-center">Items</TableHead>
+                  <TableHead className="w-28 text-right">Total</TableHead>
+                  <TableHead className="w-36">Status</TableHead>
+                  <TableHead className="w-10 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPoList.map((po) => (
-                  <TableRow key={po.id}>
-                    <TableCell className="font-medium">{po.poNumber}</TableCell>
-                    <TableCell>{new Date(po.poDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{po.supplier}</TableCell>
-                    <TableCell className="text-center">{po.items?.length ?? '—'}</TableCell>
-                    <TableCell className="text-right font-medium">
+                  <TableRow key={po.id} className="hover:bg-slate-50/80">
+                    <TableCell className="max-w-[200px] truncate font-medium font-mono text-[11px]">
+                      {po.poNumber}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {new Date(po.poDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="max-w-[160px] truncate">{po.supplier}</TableCell>
+                    <TableCell className="text-center tabular-nums">{po.items?.length ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                       {po.totalValue != null ? formatCurrency(po.totalValue) : '—'}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <StatusBadge status={po.status} />
-                        <span className="text-[11px] text-muted-foreground">{lifecycleLabel(po)}</span>
-                      </div>
+                      <StatusBadge status={po.lifecycleStatus ?? po.status} compact />
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => setDetailId(po.id)}>
                             <Eye className="mr-2 h-4 w-4" /> View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDownloadPoPdf(po)}>
+                            <Download className="mr-2 h-4 w-4" /> Download PDF
                           </DropdownMenuItem>
 
                           {po.status === 'DRAFT' && (
@@ -694,7 +801,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </TableBody>
             </Table>
             <Separator />
-            <DataTablePagination page={page} pageSize={PAGE_SIZE} total={poTotal ?? filteredPoList.length} onPageChange={setPage} />
+            <DataTablePagination
+              page={page}
+              totalPages={Math.max(1, Math.ceil((poTotal ?? filteredPoList.length) / PAGE_SIZE))}
+              total={poTotal ?? filteredPoList.length}
+              limit={PAGE_SIZE}
+              onPageChange={setPage}
+              onLimitChange={() => {}}
+              className="py-2"
+            />
           </>
         )}
           </Card>
@@ -726,12 +841,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             className="mt-6 space-y-6"
           >
             {!editingPO && (
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>PO Type</Label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">PO Type</Label>
                   <Select value={sourceType} onValueChange={(v: 'DIRECT' | 'RFQ' | 'CONTRACT') => setSourceType(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue /></SelectTrigger>
+                    <SelectContent className={PO_SELECT_CONTENT}>
                       <SelectItem value="DIRECT">Direct PO</SelectItem>
                       <SelectItem value="RFQ">From RFQ</SelectItem>
                       <SelectItem value="CONTRACT">From Contract</SelectItem>
@@ -739,30 +854,38 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   </Select>
                 </div>
                 {sourceType === 'RFQ' && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>RFQ</Label>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs">RFQ</Label>
                     <Select
-                      value={sourceRfqId}
+                      value={sourceRfqId || undefined}
                       onValueChange={(id) => {
                         setSourceRfqId(id);
                         const rfq = rfqs.find((r) => r.id === id);
                         if (!rfq) return;
+                        const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
+                        if (plantId) {
+                          form.setValue('deliveryPlantId', plantId);
+                          if (!user?.shopId) setSelectedShopId(plantId);
+                          const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
+                          form.setValue('deliveryAddress', plant?.address ?? '');
+                          form.setValue('storageLocationId', '');
+                        }
                         form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
                         form.setValue(
                           'items',
                           (rfq.items ?? []).map((it) => ({
-                            productId: it.productId ?? '',
+                            productId: it.productId ?? it.product?.id ?? '',
                             currentStock: 0,
                             minStock: 0,
                             suggestedQty: Number(it.quantity ?? 0),
                             orderQty: Number(it.quantity ?? 0),
-                            rate: 0,
+                            rate: Number(it.product?.purchasePrice ?? 0),
                           })),
                         );
                       }}
                     >
-                      <SelectTrigger><SelectValue placeholder="Select RFQ" /></SelectTrigger>
-                      <SelectContent>
+                      <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
+                      <SelectContent className={PO_SELECT_CONTENT}>
                         {rfqs.map((r) => (
                           <SelectItem key={r.id} value={r.id}>{r.rfqNumber} - {r.title}</SelectItem>
                         ))}
@@ -771,8 +894,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   </div>
                 )}
                 {sourceType === 'CONTRACT' && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Contract</Label>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs">Contract</Label>
                     <Select
                       value={sourceContractId}
                       onValueChange={(id) => {
@@ -795,8 +918,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                         );
                       }}
                     >
-                      <SelectTrigger><SelectValue placeholder="Select Contract" /></SelectTrigger>
-                      <SelectContent>
+                      <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select Contract" /></SelectTrigger>
+                      <SelectContent className={PO_SELECT_CONTENT}>
                         {contracts.map((c) => (
                           <SelectItem key={c.id} value={c.id}>{c.contractNumber} - {c.title}</SelectItem>
                         ))}
@@ -807,131 +930,243 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </div>
             )}
 
-            {/* Order details */}
-            <div className="space-y-3">
-              <Label className="text-base font-semibold">Order Details</Label>
-              <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="supplier">Supplier *</Label>
-                <Controller
-                  control={form.control}
-                  name="supplier"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map((s) => (
-                          <SelectItem key={s.id} value={s.supplierName}>{s.supplierName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            {/* Order details + delivery */}
+            <div className="space-y-2 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+              <Label className="text-sm font-semibold">Order Details & Delivery</Label>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1 sm:col-span-2">
+                  <Label htmlFor="supplier" className="text-xs">Supplier *</Label>
+                  <Controller
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => {
+                          if (v === CREATE_SUPPLIER_OPTION) {
+                            setSupplierDialogOpen(true);
+                            return;
+                          }
+                          field.onChange(v);
+                        }}
+                      >
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Select supplier" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT}>
+                          <SelectItem value={CREATE_SUPPLIER_OPTION} className="font-medium text-indigo-700">
+                            + Create new supplier
+                          </SelectItem>
+                          {suppliers.map((s) => (
+                            <SelectItem key={s.id} value={s.supplierName}>
+                              {s.supplierName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.supplier && (
+                    <p className="text-[10px] text-destructive">{form.formState.errors.supplier.message}</p>
                   )}
-                />
-                {form.formState.errors.supplier && (
-                  <p className="text-xs text-destructive">{form.formState.errors.supplier.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Controller
-                  control={form.control}
-                  name="priority"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Payment Terms</Label>
+                  <Controller
+                    control={form.control}
+                    name="paymentTerms"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Payment terms" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT}>
+                          <SelectItem value="Immediate">Immediate</SelectItem>
+                          <SelectItem value="Net 15">Net 15</SelectItem>
+                          <SelectItem value="Net 30">Net 30</SelectItem>
+                          <SelectItem value="Net 45">Net 45</SelectItem>
+                          <SelectItem value="Net 60">Net 60</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Priority</Label>
+                  <Controller
+                    control={form.control}
+                    name="priority"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Priority" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT}>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
+                  <Input
+                    id="poDate"
+                    type="date"
+                    min={tomorrowDateString()}
+                    className="h-8 text-xs"
+                    {...form.register('poDate')}
+                  />
+                  {form.formState.errors.poDate && (
+                    <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
                   )}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="poDate">Delivery Date</Label>
-                <Input id="poDate" type="date" min={tomorrowDateString()} {...form.register('poDate')} />
-                {form.formState.errors.poDate && (
-                  <p className="text-xs text-destructive">{form.formState.errors.poDate.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Payment Terms</Label>
-                <Controller
-                  control={form.control}
-                  name="paymentTerms"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Select payment terms" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Net 15">Net 15</SelectItem>
-                        <SelectItem value="Net 30">Net 30</SelectItem>
-                        <SelectItem value="Net 45">Net 45</SelectItem>
-                        <SelectItem value="Net 60">Net 60</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-            </div>
-
-            {/* Delivery location */}
-            <div className="space-y-3">
-              <Label className="text-base font-semibold">Delivery Location</Label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Delivery Plant</Label>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Delivery Plant</Label>
                   <Controller
                     control={form.control}
                     name="deliveryPlantId"
                     render={({ field }) => (
                       <Select
-                        value={field.value}
+                        value={field.value || undefined}
                         onValueChange={(value) => {
                           field.onChange(value);
+                          if (!user?.shopId) setSelectedShopId(value);
                           const selected = shops.find((s) => s.id === value);
                           form.setValue('deliveryAddress', selected?.address ?? '');
                           form.setValue('storageLocationId', '');
                         }}
                       >
-                        <SelectTrigger><SelectValue placeholder="Delivery Plant" /></SelectTrigger>
-                        <SelectContent>
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Plant" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
                           {shops.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.shopName}</SelectItem>
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.shopName}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Storage Location</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Storage Location</Label>
                   <Controller
                     control={form.control}
                     name="storageLocationId"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger><SelectValue placeholder="Storage Location" /></SelectTrigger>
-                        <SelectContent>
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={field.onChange}
+                        disabled={!selectedDeliveryPlantId}
+                      >
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Storage" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
                           {storageLocations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                            <SelectItem key={loc.id} value={loc.id}>
+                              {loc.name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Delivery Address</Label>
-                <Input placeholder="Delivery address" {...form.register('deliveryAddress')} />
+                <div className="space-y-1 sm:col-span-2 lg:col-span-4">
+                  <Label className="text-xs">Delivery Address</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Delivery address"
+                    {...form.register('deliveryAddress')}
+                  />
+                </div>
               </div>
             </div>
 
+            <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create Supplier</DialogTitle>
+                  <DialogDescription>Add a supplier and use it on this purchase order.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-3 py-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Supplier Name *</Label>
+                    <Input
+                      className="h-8 text-sm"
+                      value={quickSupplier.supplierName}
+                      onChange={(e) =>
+                        setQuickSupplier((p) => ({ ...p, supplierName: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Contact Person</Label>
+                    <Input
+                      className="h-8 text-sm"
+                      value={quickSupplier.contactPerson}
+                      onChange={(e) =>
+                        setQuickSupplier((p) => ({ ...p, contactPerson: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Email</Label>
+                      <Input
+                        className="h-8 text-sm"
+                        type="email"
+                        value={quickSupplier.email}
+                        onChange={(e) => setQuickSupplier((p) => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone</Label>
+                      <Input
+                        className="h-8 text-sm"
+                        value={quickSupplier.phone}
+                        onChange={(e) => setQuickSupplier((p) => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSupplierDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={createSupplier.isPending}
+                    onClick={handleQuickSupplierCreate}
+                  >
+                    {createSupplier.isPending ? 'Saving…' : 'Create & Select'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <PoLogisticsTaxFields
+              form={form}
+              plantLabel={
+                shops.find((s) => s.id === selectedDeliveryPlantId)?.shopName
+              }
+            />
+
             <div className="space-y-2">
               <Label htmlFor="remarks">Remarks</Label>
-              <Textarea id="remarks" rows={2} placeholder="Optional notes..." {...form.register('remarks')} />
+              <Textarea
+                id="remarks"
+                rows={2}
+                placeholder="Optional notes…"
+                {...form.register('remarks')}
+              />
             </div>
 
             <Separator />
@@ -995,10 +1230,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                                     handleProductChange(idx, v);
                                   }}
                                 >
-                                  <SelectTrigger className="w-full">
+                                  <SelectTrigger className={cn('w-full', PO_SELECT_TRIGGER)}>
                                     <SelectValue placeholder="Select product..." />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent className={PO_SELECT_CONTENT}>
                                     <div className="p-2">
                                       <Input
                                         placeholder="Search products..."
@@ -1131,11 +1366,26 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       <Dialog open={!!detailId} onOpenChange={(open) => !open && setDetailId(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <ClipboardList className="h-5 w-5" />
-              {detailPO?.poNumber ?? 'Purchase Order'}
-            </DialogTitle>
-            <DialogDescription>Purchase order details and line items</DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-3">
+                  <ClipboardList className="h-5 w-5" />
+                  {detailPO?.poNumber ?? 'Purchase Order'}
+                </DialogTitle>
+                <DialogDescription>Purchase order details and line items</DialogDescription>
+              </div>
+              {detailPO && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-emerald-200 text-emerald-800"
+                  onClick={() => handleDownloadPoPdf(detailPO)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              )}
+            </div>
           </DialogHeader>
 
           {detailQuery.isLoading ? (
@@ -1162,10 +1412,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                 </div>
               </div>
 
-              {detailPO.remarks && (
+              {parsePoRemarks(detailPO.remarks).humanRemarks && (
                 <div>
                   <p className="text-xs text-muted-foreground">Remarks</p>
-                  <p className="text-sm">{detailPO.remarks}</p>
+                  <p className="text-sm">{parsePoRemarks(detailPO.remarks).humanRemarks}</p>
                 </div>
               )}
 

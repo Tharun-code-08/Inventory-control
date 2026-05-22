@@ -72,6 +72,7 @@ export class ReportsService {
         product_id: a.productId,
         product_code: a.product.productCode,
         description: a.product.description,
+        category: a.product.category,
         shop_id: a.shopId,
         current_stock: stockByKey.get(`${a.shopId}:${a.productId}`) ?? new Prisma.Decimal(0),
         min_stock_level: a.minStockLevel,
@@ -79,11 +80,13 @@ export class ReportsService {
       .filter((r) => (lowOnly ? r.current_stock.lt(r.min_stock_level) : true));
   }
 
-  async lowStock(user: RequestUser, shop_id?: string) {
-    const data = await this.inventory(user, { shop_id, low_stock_only: true });
+  async lowStock(user: RequestUser, shop_id?: string, category?: string) {
+    const data = await this.inventory(user, { shop_id, category, low_stock_only: true });
     return data.map((r) => ({
       product_id: r.product_id,
       product_code: r.product_code,
+      description: r.description,
+      category: r.category,
       current_stock: r.current_stock,
       min_stock_level: r.min_stock_level,
     }));
@@ -200,14 +203,28 @@ export class ReportsService {
       }
     }
 
-    return this.prisma.stockLedger.findMany({
+    const rows = await this.prisma.stockLedger.findMany({
       where: {
         ...(product_id ? { productId: product_id } : {}),
         ...((validatedProductShopId ?? scopedShopId) ? { shopId: validatedProductShopId ?? scopedShopId } : {}),
         transactionDate: { gte: from, lte: to },
       },
       orderBy: { transactionDate: 'asc' },
+      include: {
+        product: { select: { productCode: true, description: true } },
+      },
     });
+    return rows.map((row) => ({
+      id: row.id,
+      transaction_date: row.transactionDate,
+      transaction_type: row.transactionType,
+      product_code: row.product.productCode,
+      description: row.product.description,
+      in_qty: row.inQty,
+      out_qty: row.outQty,
+      balance_qty: row.balanceQty,
+      reference_number: row.transactionRef,
+    }));
   }
 
   async shopSummary(user: RequestUser, shop_id?: string) {

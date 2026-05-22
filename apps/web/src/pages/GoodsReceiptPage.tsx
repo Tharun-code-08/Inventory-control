@@ -184,7 +184,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const { data: productsData } = useProducts({
     shopId: shopId || undefined,
     isActive: true,
-    limit: 500,
+    limit: 100,
+    page: 1,
   });
 
   const productList: Product[] = productsData?.items ?? [];

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,15 +7,19 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   AlertTriangle,
   Package,
   ChevronLeft,
   ChevronRight,
-  X,
   Loader2,
+  Download,
+  Upload,
+  Eye,
+  CheckCircle2,
+  Shapes,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -73,6 +77,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
+import { PageHeader, SearchInput } from '@/components/shared';
+import { Card, CardContent } from '@/components/ui/card';
+import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
 
 /** Lets users clear a numeric field while typing; commits 0 on blur if left empty. */
 function PlantNumericInput({
@@ -145,7 +152,100 @@ const UOM_OPTIONS = [
   { value: 'mg', label: 'Milligram (mg)' },
   { value: 'oz', label: 'Ounce (oz)' },
 ] as const;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 25;
+/** API rejects limit > 100 (ListProductsDto @Max(100)). */
+const STATS_FETCH_LIMIT = 100;
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function resolveProductStock(product: Product, shopId?: string): number {
+  if (shopId) {
+    return product.stockByShop?.[shopId] ?? 0;
+  }
+  return product.totalStock ?? product.currentStock ?? 0;
+}
+
+function resolveMinStock(product: Product, shopId?: string): number {
+  if (shopId) {
+    const plant = product.plants.find((p) => p.shopId === shopId);
+    return plant?.minStockLevel ?? 0;
+  }
+  if (product.plants.length === 0) return 0;
+  return Math.min(...product.plants.map((p) => Number(p.minStockLevel ?? 0)));
+}
+
+function isLowStock(stock: number, min: number): boolean {
+  return min > 0 && stock > 0 && stock < min;
+}
+
+function isOutOfStock(stock: number): boolean {
+  return stock <= 0;
+}
+
+type KpiCardProps = {
+  label: string;
+  value: number;
+  accent: string;
+  icon: React.ReactNode;
+};
+
+function KpiCard({ label, value, accent, icon }: KpiCardProps) {
+  return (
+    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+          {icon}
+        </div>
+        <div>
+          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StockCell({ stock, min }: { stock: number; min: number }) {
+  if (isOutOfStock(stock)) {
+    return (
+      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-sm font-medium tabular-nums text-red-700">
+        {stock}
+      </span>
+    );
+  }
+  if (isLowStock(stock, min)) {
+    return (
+      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md bg-orange-100 px-2 py-0.5 text-sm font-medium tabular-nums text-orange-800">
+        {stock}
+      </span>
+    );
+  }
+  return <span className="text-sm tabular-nums text-slate-700">{stock}</span>;
+}
+
+function ProductStatusPill({ active }: { active: boolean }) {
+  if (!active) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+        Inactive
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      Active
+    </span>
+  );
+}
 
 const productPlantSchema = z
   .object({
@@ -434,11 +534,11 @@ export function ProductsPage() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -457,13 +557,18 @@ export function ProductsPage() {
   const filters: ProductFilters = {
     page,
     limit: PAGE_SIZE,
-    search: debouncedSearch || undefined,
+    search: search || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
     shopId: listShopId,
   };
 
   const { data, isLoading, isError } = useProducts(filters);
+  const statsQuery = useProducts({
+    page: 1,
+    limit: STATS_FETCH_LIMIT,
+    shopId: listShopId,
+  });
   const { categories: categoryConfig } = useProductCategories();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -471,19 +576,45 @@ export function ProductsPage() {
 
   const items: Product[] = data?.items ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 };
+  const catalogTotal = meta.total;
 
-  const debounceTimer = useState<ReturnType<typeof setTimeout> | null>(null);
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearch(value);
-      if (debounceTimer[0]) clearTimeout(debounceTimer[0]);
-      debounceTimer[0] = setTimeout(() => {
-        setDebouncedSearch(value);
-        setPage(1);
-      }, 400);
-    },
-    [debounceTimer],
-  );
+  const stats = useMemo(() => {
+    const statsRows = statsQuery.data?.items ?? [];
+    const rows = statsRows.length > 0 ? statsRows : items;
+    const total = statsQuery.data?.meta.total ?? meta.total ?? rows.length;
+
+    let active = 0;
+    let lowStock = 0;
+    let outOfStock = 0;
+    for (const product of rows) {
+      if (!product.isActive) continue;
+      active += 1;
+      const stock = resolveProductStock(product, listShopId);
+      const min = resolveMinStock(product, listShopId);
+      if (isOutOfStock(stock)) outOfStock += 1;
+      else if (isLowStock(stock, min)) lowStock += 1;
+    }
+
+    return { total, active, lowStock, outOfStock };
+  }, [statsQuery.data, items, meta.total, listShopId]);
+
+  function onExportCsv() {
+    const columns: CsvColumn<Product>[] = [
+      { header: 'SKU', value: (r) => r.productCode },
+      { header: 'Name', value: (r) => r.description },
+      { header: 'Category', value: (r) => r.category },
+      { header: 'Unit', value: (r) => r.uom },
+      { header: 'Selling Price', value: (r) => r.sellingPrice },
+      { header: 'Cost Price', value: (r) => r.purchasePrice },
+      {
+        header: 'Stock',
+        value: (r) => resolveProductStock(r, listShopId),
+      },
+      { header: 'Status', value: (r) => (r.isActive ? 'Active' : 'Inactive') },
+    ];
+    downloadCsv('products.csv', toCsv(items, columns));
+    toast.success('CSV exported');
+  }
 
   const form = useForm<FormShape>({
     resolver: zodResolver(productSchema),
@@ -648,7 +779,6 @@ export function ProductsPage() {
         );
         setPage(1);
         setSearch('');
-        setDebouncedSearch('');
         setCategoryFilter('all');
         setStatusFilter('all');
         if (!isShopOnlyUser(user)) {
@@ -691,14 +821,6 @@ export function ProductsPage() {
         (err as { response?: { data?: { error?: { message?: string } } } })
           .response?.data?.error?.message ?? 'Failed to delete product';
       toast.error(msg);
-    }
-  };
-
-  const onStatusToggleClick = (product: Product) => {
-    if (product.isActive) {
-      setDeactivateTarget(product);
-    } else {
-      handleToggleStatus(product);
     }
   };
 
@@ -884,334 +1006,288 @@ export function ProductsPage() {
 
   return (
     <AppLayout active="Products">
-      <div className="space-y-5">
-        {/* Page Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Products</h1>
-            <p className="text-sm text-slate-500">
-              Manage your product catalog and inventory levels
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleImportFile}
-            />
-            <Button type="button" variant="outline" onClick={downloadProductTemplate} className="w-full sm:w-auto">
-              Download Template
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isImporting}
-              onClick={() => importInputRef.current?.click()}
-              className="w-full sm:w-auto"
-            >
-              {isImporting ? 'Importing...' : 'Upload Excel'}
-            </Button>
-            <Button
-              type="button"
-              variant={importDryRun ? 'default' : 'outline'}
-              title="Applies to Excel upload only, not Add Product"
-              onClick={() => setImportDryRun((v) => !v)}
-              className="w-full sm:w-auto"
-            >
-              {importDryRun ? 'Excel dry run: ON' : 'Excel dry run: OFF'}
-            </Button>
-            <Button onClick={openCreate} className="w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
-          </div>
-        </div>
+      <div className="space-y-6">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleImportFile}
+        />
+
+        <PageHeader
+          title="Products"
+          description={`${catalogTotal} product${catalogTotal === 1 ? '' : 's'} in catalog`}
+        >
+          <Button variant="outline" onClick={onExportCsv} disabled={items.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isImporting}
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isImporting ? 'Uploading…' : 'Upload'}
+          </Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Product
+          </Button>
+        </PageHeader>
+
         {lastImportFailures.length > 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">Last import had {lastImportFailures.length} failed row(s). First error: {lastImportFailures[0]}</p>
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Last import had {lastImportFailures.length} failed row(s). First error: {lastImportFailures[0]}
+            {' · '}
+            <button type="button" className="font-medium underline" onClick={downloadProductTemplate}>
+              Download template
+            </button>
+            {importDryRun ? ' · Dry run is ON (no rows saved)' : ''}
+          </p>
         ) : null}
 
-        {/* Toolbar */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px] sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by code or description..."
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9"
-            />
-            {search && (
-              <button
-                onClick={() => {
-                  setSearch('');
-                  setDebouncedSearch('');
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            label="Total Products"
+            value={stats.total}
+            accent="bg-indigo-500"
+            icon={<Shapes className="h-5 w-5 text-indigo-600" />}
+          />
+          <KpiCard
+            label="Active"
+            value={stats.active}
+            accent="bg-emerald-500"
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          />
+          <KpiCard
+            label="Low Stock"
+            value={stats.lowStock}
+            accent="bg-orange-500"
+            icon={<AlertTriangle className="h-5 w-5 text-orange-600" />}
+          />
+          <KpiCard
+            label="Out of Stock"
+            value={stats.outOfStock}
+            accent="bg-red-500"
+            icon={<ShoppingCart className="h-5 w-5 text-red-600" />}
+          />
+        </div>
+
+        <Card className="border-slate-200/90 shadow-sm">
+          <CardContent className="space-y-4 p-4 pt-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <SearchInput
+                placeholder="Search by name or SKU…"
+                value={search}
+                onChange={(v) => {
+                  setSearch(v);
                   setPage(1);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          <Select
-            value={categoryFilter}
-            onValueChange={(v) => {
-              setCategoryFilter(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categoryConfig.map((c) => (
-                <SelectItem key={c.code} value={c.name}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              setStatusFilter(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[130px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-          {isAdmin && shopList.length > 0 && (
-            <Select
-              value={listShopFilter}
-              onValueChange={(v) => {
-                setListShopFilter(v);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Shop" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Shops</SelectItem>
-                {shopList.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.shopName} ({s.shopNumber})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-        {isAdmin && listShopFilter !== 'all' && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Showing products assigned to{' '}
-            <span className="font-medium">
-              {shopList.find((s) => s.id === listShopFilter)?.shopName ?? 'one plant'}
-            </span>{' '}
-            only. New products for other plants are hidden — switch to{' '}
-            <button
-              type="button"
-              className="font-semibold underline"
-              onClick={() => {
-                setListShopFilter('all');
-                setPage(1);
-              }}
-            >
-              All Shops
-            </button>{' '}
-            to see everything.
-          </p>
-        )}
+                className="max-w-md"
+              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(v) => {
+                    setCategoryFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {categoryConfig.map((c) => (
+                      <SelectItem key={c.code} value={c.name}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-full sm:w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+                {isAdmin && shopList.length > 0 && (
+                  <Select
+                    value={listShopFilter}
+                    onValueChange={(v) => {
+                      setListShopFilter(v);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                      <SelectValue placeholder="Plant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All plants</SelectItem>
+                      {shopList.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.shopName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
 
-        {/* Table Card */}
-        <div className="surface-1 rounded-xl shadow-sm">
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 flex-1" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-12" />
+            <div className="overflow-x-auto rounded-lg border">
+              {isLoading ? (
+                <div className="space-y-3 p-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : isError ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-              <AlertTriangle className="h-10 w-10 text-destructive mb-3" />
-              <p className="text-sm font-medium text-destructive">
-                Failed to load products
-              </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                Please try refreshing the page
-              </p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => window.location.reload()}>
-                  Retry
-                </Button>
-            </div>
-          ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Package className="h-12 w-12 text-muted-foreground/50 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">
-                No products found
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {debouncedSearch || categoryFilter !== 'all' || statusFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : 'Get started by adding your first product'}
-              </p>
-              {!debouncedSearch && categoryFilter === 'all' && statusFilter === 'all' && (
-                <Button size="sm" className="mt-4" onClick={openCreate}>
-                  <Plus className="h-4 w-4" />
-                  Add Product
-                </Button>
+              ) : isError ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <AlertTriangle className="mb-3 h-10 w-10 text-destructive" />
+                  <p className="text-sm font-medium text-destructive">Failed to load products</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => window.location.reload()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Package className="mb-3 h-12 w-12 text-muted-foreground/50" />
+                  <p className="text-sm font-medium text-muted-foreground">No products found</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {search || categoryFilter !== 'all' || statusFilter !== 'all'
+                      ? 'Try adjusting your filters'
+                      : 'Get started by adding your first product'}
+                  </p>
+                  {!search && categoryFilter === 'all' && statusFilter === 'all' && (
+                    <Button size="sm" className="mt-4 bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Product
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">SKU</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Name</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Category</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+                      <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">
+                        Selling Price
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">
+                        Cost Price
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">Stock</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
+                      <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((product) => {
+                      const stockValue = resolveProductStock(product, listShopId);
+                      const minStockValue = resolveMinStock(product, listShopId);
+
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell>
+                            <button
+                              type="button"
+                              onClick={() => setViewingProduct(product)}
+                              className="font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                            >
+                              {product.productCode}
+                            </button>
+                          </TableCell>
+                          <TableCell className="max-w-[220px] truncate font-medium text-slate-900">
+                            {product.description}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="font-normal">
+                              {product.category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">{product.uom}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums text-slate-700">
+                            {formatAmount(product.sellingPrice)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm tabular-nums text-slate-700">
+                            {formatAmount(product.purchasePrice)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <StockCell stock={stockValue} min={minStockValue} />
+                          </TableCell>
+                          <TableCell>
+                            <ProductStatusPill active={product.isActive} />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-500"
+                                aria-label="View product"
+                                onClick={() => setViewingProduct(product)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-500"
+                                aria-label="Edit product"
+                                onClick={() => openEdit(product)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                aria-label="Delete product"
+                                onClick={() => setDeleteTarget(product)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               )}
             </div>
-          ) : (
-            <>
-              <Table className="text-[13px]">
-                <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead className="font-semibold">Code</TableHead>
-                    <TableHead className="font-semibold">Description</TableHead>
-                    <TableHead className="font-semibold">Category</TableHead>
-                    <TableHead className="font-semibold text-right">Buy Price</TableHead>
-                    <TableHead className="font-semibold text-right">Sell Price</TableHead>
-                    <TableHead className="font-semibold text-right">Stock</TableHead>
-                    <TableHead className="font-semibold">Plants</TableHead>
-                    <TableHead className="font-semibold">Unit</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((product) => {
-                    // When the list is filtered to a single shop, show that
-                    // plant's stock + min-stock; otherwise show the total
-                    // across all assignments and a count of plants.
-                    const filteredPlant = listShopId
-                      ? product.plants.find((p) => p.shopId === listShopId)
-                      : undefined;
-                    const stockValue =
-                      listShopId && filteredPlant
-                        ? (product.stockByShop?.[listShopId] ?? 0)
-                        : (product.totalStock ?? product.currentStock ?? 0);
-                    const minStockValue =
-                      filteredPlant?.minStockLevel ??
-                      (product.plants.length > 0
-                        ? Math.min(
-                            ...product.plants.map((p) => Number(p.minStockLevel ?? 0)),
-                          )
-                        : 0);
-                    const isLowStock =
-                      stockValue !== undefined && stockValue < minStockValue && minStockValue > 0;
 
-                    return (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-mono text-xs">
-                          {product.productCode}
-                        </TableCell>
-                        <TableCell className="font-medium max-w-[200px] truncate">
-                          {product.description}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="font-normal">
-                            {product.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {product.purchasePrice.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {product.sellingPrice.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span className="tabular-nums">{stockValue}</span>
-                            {isLowStock && (
-                              <Badge variant="warning" className="text-[10px] px-1.5 py-0">
-                                <AlertTriangle className="h-3 w-3 mr-0.5" />
-                                Low
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {listShopId && filteredPlant ? (
-                            <span className="text-xs text-slate-600">
-                              Min: {filteredPlant.minStockLevel}
-                              {filteredPlant.maxStockLevel != null && (
-                                <> · Max: {filteredPlant.maxStockLevel}</>
-                              )}
-                            </span>
-                          ) : (
-                            <Badge variant="secondary" className="font-normal">
-                              {product.plants.length} plant{product.plants.length === 1 ? '' : 's'}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs">{product.uom}</TableCell>
-                        <TableCell>
-                          <Badge variant={product.isActive ? 'success' : 'outline'}>
-                            {product.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => openEdit(product)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => setDeleteTarget(product)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Switch
-                              checked={product.isActive}
-                              onCheckedChange={() => onStatusToggleClick(product)}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              {/* Pagination */}
-              <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            {!isLoading && !isError && items.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
                   Showing{' '}
-                  <span className="font-medium">
-                    {(meta.page - 1) * meta.limit + 1}
-                  </span>
-                  –
-                  <span className="font-medium">
-                    {Math.min(meta.page * meta.limit, meta.total)}
-                  </span>{' '}
-                  of <span className="font-medium">{meta.total}</span> products
+                  <span className="font-medium">{(meta.page - 1) * meta.limit + 1}</span>–
+                  <span className="font-medium">{Math.min(meta.page * meta.limit, meta.total)}</span> of{' '}
+                  <span className="font-medium">{meta.total}</span>
                 </p>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1235,10 +1311,105 @@ export function ProductsPage() {
                   </Button>
                 </div>
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <Sheet open={!!viewingProduct} onOpenChange={(open) => !open && setViewingProduct(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{viewingProduct?.description}</SheetTitle>
+            <SheetDescription className="font-mono text-indigo-600">
+              {viewingProduct?.productCode}
+            </SheetDescription>
+          </SheetHeader>
+          {viewingProduct && (
+            <dl className="mt-6 space-y-4 text-sm">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Category</dt>
+                <dd className="mt-1 text-slate-900">{viewingProduct.category}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Unit</dt>
+                <dd className="mt-1 text-slate-900">{viewingProduct.uom}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Selling price</dt>
+                  <dd className="mt-1 tabular-nums text-slate-900">
+                    {formatAmount(viewingProduct.sellingPrice)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Cost price</dt>
+                  <dd className="mt-1 tabular-nums text-slate-900">
+                    {formatAmount(viewingProduct.purchasePrice)}
+                  </dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Stock</dt>
+                <dd className="mt-1">
+                  <StockCell
+                    stock={resolveProductStock(viewingProduct, listShopId)}
+                    min={resolveMinStock(viewingProduct, listShopId)}
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</dt>
+                <dd className="mt-1">
+                  <ProductStatusPill active={viewingProduct.isActive} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Plants</dt>
+                <dd className="mt-1 text-slate-700">
+                  {viewingProduct.plants.length} assignment
+                  {viewingProduct.plants.length === 1 ? '' : 's'}
+                </dd>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    const p = viewingProduct;
+                    setViewingProduct(null);
+                    openEdit(p);
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                {!viewingProduct.isActive ? (
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      handleToggleStatus(viewingProduct);
+                      setViewingProduct({ ...viewingProduct, isActive: true });
+                    }}
+                  >
+                    Activate
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setViewingProduct(null);
+                      setDeactivateTarget(viewingProduct);
+                    }}
+                  >
+                    Deactivate
+                  </Button>
+                )}
+              </div>
+            </dl>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Product Form Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>

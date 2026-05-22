@@ -27,6 +27,7 @@ import { api } from '@/api/client';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
+import { BrandLogo } from '@/components/BrandLogo';
 
 type SidebarProps = {
   collapsed: boolean;
@@ -45,8 +46,8 @@ function isActive(currentPath: string, itemPath: string) {
 
 function sectionFor(path: string) {
   if (['/companies', '/plants', '/storage-locations', '/products', '/suppliers', '/customers'].includes(path)) return 'Master Data';
-  if (['/rfqs', '/quotations', '/contracts', '/purchase-orders', '/goods-receipts', '/supplier-portal'].includes(path)) return 'Procurement';
-  if (['/sales', '/goods-issues', '/invoices', '/payments'].includes(path)) return 'Sales & Finance';
+  if (['/rfqs', '/contracts', '/purchase-orders', '/goods-receipts', '/supplier-portal'].includes(path)) return 'Procurement';
+  if (['/quotations', '/sales', '/goods-issues', '/invoices', '/payments'].includes(path)) return 'Sales & Finance';
   return 'Operations';
 }
 
@@ -84,13 +85,13 @@ export function Sidebar({
 
       // Procurement
       ...(has('rfq:read') ? [{ label: 'RFQs', icon: FileText, path: '/rfqs' }] : []),
-      ...(has('quote:read') ? [{ label: 'Quotations', icon: FileCheck, path: '/quotations' }] : []),
       ...(has('contract:read') ? [{ label: 'Contracts', icon: FileSignature, path: '/contracts' }] : []),
       ...(has('purchase_order:read') ? [{ label: 'Purchase Orders', icon: ClipboardList, path: '/purchase-orders' }] : []),
       { label: 'Goods Receipt', icon: ArrowDownToLine, path: '/goods-receipts' },
       ...(has('supplier:read') ? [{ label: 'Supplier Portal', icon: Truck, path: '/supplier-portal' }] : []),
 
       // Sales
+      ...(has('shop:read') ? [{ label: 'Sales Quotations', icon: FileCheck, path: '/quotations' }] : []),
       ...(has('shop:read') ? [{ label: 'Sales', icon: ShoppingCart, path: '/sales' }] : []),
       ...(has('goods_issue:read') ? [{ label: 'Goods Issue', icon: ArrowUpFromLine, path: '/goods-issues' }] : []),
       ...(has('shop:read') ? [{ label: 'Invoices', icon: FileText, path: '/invoices' }] : []),
@@ -192,7 +193,7 @@ export function Sidebar({
 
       <aside
         className={cn(
-          'sidebar no-print fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-300 ease-in-out',
+          'sidebar no-print fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-950',
           isMobile
             ? [
                 'w-[280px] max-w-[85vw] shadow-2xl md:hidden',
@@ -201,21 +202,11 @@ export function Sidebar({
             : [collapsed ? 'w-[72px]' : 'w-[240px]', 'translate-x-0'],
         )}
       >
-        <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3">
+        <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
           {showLabels ? (
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="avatar-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
-                IMS
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-900">Retail IMS</div>
-                <div className="truncate text-[11px] text-slate-500">Inventory Control</div>
-              </div>
-            </div>
+            <BrandLogo size={40} />
           ) : (
-            <div className="avatar-ring mx-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
-              R
-            </div>
+            <BrandLogo size={36} iconOnly className="mx-auto" />
           )}
 
           {isMobile ? (
@@ -266,10 +257,17 @@ export function Sidebar({
                   }}
                   className={cn(
                     'sidebar-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
-                    active ? 'active text-slate-900' : 'text-slate-600 hover:text-slate-900',
+                    active
+                      ? 'active'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
                   )}
                 >
-                  <item.icon className="h-5 w-5 shrink-0" />
+                  <item.icon
+                    className={cn(
+                      'h-5 w-5 shrink-0',
+                      active ? 'selection-active-icon' : 'text-slate-500 dark:text-slate-400',
+                    )}
+                  />
                   {showLabels && <span className="font-medium">{item.label}</span>}
                 </button>
               </div>

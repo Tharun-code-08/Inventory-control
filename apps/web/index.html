@@ -18,7 +18,7 @@
       content="Practical technology and inventory workflows for multi-store retail. Retail IMS sign-in available on this domain."
     />
     <meta property="og:url" content="https://softdigitconsulting.com/" />
-    <meta property="og:image" content="https://softdigitconsulting.com/favicon.svg" />
+    <meta property="og:image" content="https://softdigitconsulting.com/logo.svg" />
 
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Softdigit Consulting | Retail operations &amp; Retail IMS" />
@@ -27,8 +27,11 @@
       content="Practical technology and inventory workflows for multi-store retail."
     />
 
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg?v=4" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png?v=4" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=4" sizes="180x180" />
+    <link rel="manifest" href="/manifest.webmanifest?v=4" />
 
     <title>Softdigit Consulting | Retail operations &amp; Retail IMS</title>
     <!-- Visible boot shell: paints before the JS bundle (fixes empty-root NO_FCP in Lighthouse). Replaced on React mount. -->
@@ -90,15 +93,19 @@
   <body>
     <div id="root">
       <div id="app-boot-shell">
-        <header>
-          <div class="brand">Softdigit Consulting</div>
-          <div class="tag">Retail operations &amp; technology</div>
+        <header style="display:flex;align-items:center;gap:0.75rem;">
+          <img src="/logo.svg" width="40" height="40" alt="" aria-hidden="true" />
+          <div>
+            <div class="brand">Softdigit Consulting</div>
+            <div class="tag">Retail operations &amp; technology</div>
+          </div>
         </header>
         <main id="main">
           <h1>Practical technology for retailers who need clarity, control, and calm operations.</h1>
           <p>
             Inventory workflows, dependable tooling, and Retail IMS — sign in to manage stock across your stores.
           </p>
+          <p style="font-size:0.875rem;color:#64748b;">Powered by softdigits</p>
           <p><a href="/login">Sign in to Retail IMS</a> · <a href="/">Home</a></p>
         </main>
       </div>
