@@ -14,7 +14,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, roundMoney } from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -36,7 +36,7 @@ export class ReturnsService {
   // -- Customer returns -----------------------------------------------------
 
   async createCustomerReturn(user: RequestUser, dto: CreateCustomerReturnDto) {
-    const shopId = dto.shopId ?? defaultShopFilter(user) ?? user.shopId;
+    const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
 
@@ -204,7 +204,7 @@ export class ReturnsService {
   // -- Supplier returns -----------------------------------------------------
 
   async createSupplierReturn(user: RequestUser, dto: CreateSupplierReturnDto) {
-    const shopId = dto.shopId ?? defaultShopFilter(user) ?? user.shopId;
+    const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
 
@@ -328,9 +328,8 @@ export class ReturnsService {
   }
 
   async listCustomerReturns(user: RequestUser) {
-    const shopId = defaultShopFilter(user);
     return this.prisma.customerReturn.findMany({
-      where: shopId ? { shopId } : undefined,
+      where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { customer: true },
@@ -338,9 +337,8 @@ export class ReturnsService {
   }
 
   async listSupplierReturns(user: RequestUser) {
-    const shopId = defaultShopFilter(user);
     return this.prisma.supplierReturn.findMany({
-      where: shopId ? { shopId } : undefined,
+      where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });

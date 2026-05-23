@@ -29,6 +29,16 @@ export class GoodsReceiptLineDto {
   @Type(() => Number)
   @Min(0)
   purchaseRate!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  batchNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
 }
 
 export class CreateGoodsReceiptDto {

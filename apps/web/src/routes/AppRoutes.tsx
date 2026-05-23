@@ -1,47 +1,60 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Skeleton } from '@/components/ui/skeleton';
-const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
+import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
-
-const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
-const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const ProductsPage = lazy(() => import('@/pages/ProductsPage').then((m) => ({ default: m.ProductsPage })));
-const GoodsReceiptPage = lazy(() => import('@/pages/GoodsReceiptPage').then((m) => ({ default: m.GoodsReceiptPage })));
-const GoodsIssuePage = lazy(() => import('@/pages/GoodsIssuePage').then((m) => ({ default: m.GoodsIssuePage })));
-const PurchaseOrdersPage = lazy(() => import('@/pages/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })));
-const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const CompaniesPage = lazy(() => import('@/pages/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
-const PlantsPage = lazy(() => import('@/pages/PlantsPage').then((m) => ({ default: m.PlantsPage })));
-const StorageLocationsPage = lazy(() => import('@/pages/StorageLocationsPage').then((m) => ({ default: m.StorageLocationsPage })));
-const SuppliersPage = lazy(() => import('@/pages/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
-const RfqsPage = lazy(() => import('@/pages/RfqsPage').then((m) => ({ default: m.RfqsPage })));
-const RfqDetailPage = lazy(() =>
-  import('@/pages/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })),
+const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
+const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
+const SignupPage = lazyPage(() => import('@/pages/SignupPage'), 'SignupPage');
+const DashboardPage = lazyPage(() => import('@/pages/DashboardPage'), 'DashboardPage');
+const ProductsPage = lazyPage(() => import('@/pages/ProductsPage'), 'ProductsPage');
+const GoodsReceiptPage = lazyPage(() => import('@/pages/GoodsReceiptPage'), 'GoodsReceiptPage');
+const GoodsIssuePage = lazyPage(() => import('@/pages/GoodsIssuePage'), 'GoodsIssuePage');
+const GoodsIssueCreatePage = lazyPage(
+  () => import('@/pages/GoodsIssueCreatePage'),
+  'GoodsIssueCreatePage',
 );
-const RfqComparePage = lazy(() =>
-  import('@/pages/RfqComparePage').then((m) => ({ default: m.RfqComparePage })),
+const PurchaseOrdersPage = lazyPage(() => import('@/pages/PurchaseOrdersPage'), 'PurchaseOrdersPage');
+const ReportsPage = lazyPage(() => import('@/pages/ReportsPage'), 'ReportsPage');
+const SettingsPage = lazyPage(() => import('@/pages/SettingsPage'), 'SettingsPage');
+const CompaniesPage = lazyPage(() => import('@/pages/CompaniesPage'), 'CompaniesPage');
+const PlantsPage = lazyPage(() => import('@/pages/PlantsPage'), 'PlantsPage');
+const StorageLocationsPage = lazyPage(
+  () => import('@/pages/StorageLocationsPage'),
+  'StorageLocationsPage',
 );
-const QuotationsPage = lazy(() => import('@/pages/QuotationsPage').then((m) => ({ default: m.QuotationsPage })));
-const ContractsPage = lazy(() => import('@/pages/ContractsPage').then((m) => ({ default: m.ContractsPage })));
-const CustomersPage = lazy(() => import('@/pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
-const SupplierPortalPage = lazy(() => import('@/pages/SupplierPortalPage').then((m) => ({ default: m.SupplierPortalPage })));
-const SupplierPortalSubmitPage = lazy(() =>
-  import('@/pages/SupplierPortalSubmitPage').then((m) => ({ default: m.SupplierPortalSubmitPage })),
+const SuppliersPage = lazyPage(() => import('@/pages/SuppliersPage'), 'SuppliersPage');
+const RfqsPage = lazyPage(() => import('@/pages/RfqsPage'), 'RfqsPage');
+const RfqDetailPage = lazyPage(() => import('@/pages/RfqDetailPage'), 'RfqDetailPage');
+const RfqComparePage = lazyPage(() => import('@/pages/RfqComparePage'), 'RfqComparePage');
+const QuotationsPage = lazyPage(() => import('@/pages/QuotationsPage'), 'QuotationsPage');
+const ContractsPage = lazyPage(() => import('@/pages/ContractsPage'), 'ContractsPage');
+const CustomersPage = lazyPage(() => import('@/pages/CustomersPage'), 'CustomersPage');
+const SupplierPortalPage = lazyPage(() => import('@/pages/SupplierPortalPage'), 'SupplierPortalPage');
+const SupplierPortalSubmitPage = lazyPage(
+  () => import('@/pages/SupplierPortalSubmitPage'),
+  'SupplierPortalSubmitPage',
 );
-const SupplierDeleteConfirmPage = lazy(() =>
-  import('@/pages/SupplierDeleteConfirmPage').then((m) => ({ default: m.SupplierDeleteConfirmPage })),
+const SupplierDeleteConfirmPage = lazyPage(
+  () => import('@/pages/SupplierDeleteConfirmPage'),
+  'SupplierDeleteConfirmPage',
 );
-const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default: m.SalesPage })));
-const SalesOrderDetailPage = lazy(() =>
-  import('@/pages/SalesOrderDetailPage').then((m) => ({ default: m.SalesOrderDetailPage })),
+const QuotationPortalPage = lazyPage(
+  () => import('@/pages/QuotationPortalPage'),
+  'QuotationPortalPage',
 );
-const WarehousePage = lazy(() => import('@/pages/WarehousePage').then((m) => ({ default: m.WarehousePage })));
-const InvoicesPage = lazy(() => import('@/pages/InvoicesPage').then((m) => ({ default: m.InvoicesPage })));
-const PaymentsPage = lazy(() => import('@/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
-const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const InviteAcceptPage = lazyPage(() => import('@/pages/InviteAcceptPage'), 'InviteAcceptPage');
+const SalesPage = lazyPage(() => import('@/pages/SalesPage'), 'SalesPage');
+const SalesOrderDetailPage = lazyPage(
+  () => import('@/pages/SalesOrderDetailPage'),
+  'SalesOrderDetailPage',
+);
+const WarehousePage = lazyPage(() => import('@/pages/WarehousePage'), 'WarehousePage');
+const InvoicesPage = lazyPage(() => import('@/pages/InvoicesPage'), 'InvoicesPage');
+const PaymentsPage = lazyPage(() => import('@/pages/PaymentsPage'), 'PaymentsPage');
+const NotificationsPage = lazyPage(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
+const HelpSupportPage = lazyPage(() => import('@/pages/HelpSupportPage'), 'HelpSupportPage');
 
 function Protected({ children }: { children: React.ReactNode }) {
   const initialized = useAuthStore((s) => s.initialized);
@@ -89,8 +102,11 @@ export function AppRoutes() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/supplier-portal/submit" element={<SupplierPortalSubmitPage />} />
+          <Route path="/quotation-portal/review" element={<QuotationPortalPage />} />
           <Route path="/supplier-delete/confirm" element={<SupplierDeleteConfirmPage />} />
+          <Route path="/invite/accept" element={<InviteAcceptPage />} />
           <Route
             path="/dashboard"
             element={
@@ -124,12 +140,14 @@ export function AppRoutes() {
           <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
           <Route path="/goods-receipts/new" element={<Protected><GoodsReceiptPage createOnly /></Protected>} />
           <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />
+          <Route path="/goods-issues/new" element={<Protected><GoodsIssueCreatePage /></Protected>} />
           <Route path="/purchase-orders" element={<Protected><PurchaseOrdersPage /></Protected>} />
           <Route path="/purchase-orders/new" element={<Protected><PurchaseOrdersPage createOnly /></Protected>} />
           <Route path="/payments/new" element={<Protected><PaymentsPage createOnly /></Protected>} />
           <Route path="/plants/new" element={<Protected><PlantsPage createOnly /></Protected>} />
           <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="/help" element={<Protected><HelpSupportPage /></Protected>} />
           <Route path="/profile" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -14,20 +14,21 @@ import {
   FileText,
   LayoutDashboard,
   Bell,
-  LogOut,
   Package,
   Settings,
   ShoppingCart,
   Truck,
-  UserCircle,
   Users,
   Warehouse,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { resetClientSessionState } from '@/lib/reset-session-state';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
 
 type SidebarProps = {
   collapsed: boolean;
@@ -59,6 +60,7 @@ export function Sidebar({
   onMobileOpenChange,
 }: SidebarProps) {
   const nav = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
@@ -147,6 +149,7 @@ export function Sidebar({
     }, 800);
     window.setTimeout(() => {
       delete api.defaults.headers.common.Authorization;
+      resetClientSessionState(queryClient);
       clear();
       onMobileOpenChange?.(false);
       nav('/login', { replace: true });
@@ -305,24 +308,15 @@ export function Sidebar({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
+              <ProfileMenuLinks
+                variant="sidebar"
+                onNavigate={(path) => {
                   setDropdownOpen(false);
                   onMobileOpenChange?.(false);
-                  nav('/profile');
+                  nav(path);
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-              >
-                <UserCircle className="h-4 w-4" /> Profile & Settings
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
-              >
-                <LogOut className="h-4 w-4" /> Logout
-              </button>
+                onLogout={handleLogout}
+              />
             </div>
           )}
         </div>

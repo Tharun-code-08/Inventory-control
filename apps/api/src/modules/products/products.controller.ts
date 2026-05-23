@@ -8,13 +8,18 @@ import { BulkInventoryDto } from './dto/bulk-inventory.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsDto } from './dto/list-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { SearchHsnDto } from './dto/search-hsn.dto';
+import { GstHsnService } from './gst-hsn.service';
 import { ProductsService } from './products.service';
 
 @ApiTags('products')
 @ApiBearerAuth()
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly gstHsn: GstHsnService,
+  ) {}
 
   @RequirePermission('product:read')
   @Get()
@@ -45,6 +50,15 @@ export class ProductsController {
   })
   bulkInventory(@CurrentUser() user: RequestUser, @Body() dto: BulkInventoryDto) {
     return this.products.bulkUpdateInventory(user, dto);
+  }
+
+  @RequirePermission('product:read')
+  @Get('hsn/search')
+  @ApiOperation({
+    summary: 'Search HSN codes via GST portal (description or code prefix)',
+  })
+  searchHsn(@Query() query: SearchHsnDto) {
+    return this.gstHsn.search(query.q);
   }
 
   @RequirePermission('product:read')

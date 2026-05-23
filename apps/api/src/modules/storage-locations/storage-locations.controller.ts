@@ -15,8 +15,8 @@ export class StorageLocationsController {
 
   @RequirePermission('storage_location:read')
   @Get()
-  list(@Query('shop_id') shopId?: string) {
-    return this.storageLocations.list({ shop_id: shopId });
+  list(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
+    return this.storageLocations.list(user, { shop_id: shopId });
   }
 
   @RequirePermission('storage_location:write')

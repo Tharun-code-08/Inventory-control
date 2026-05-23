@@ -6,6 +6,12 @@ import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import {
+  assertCompanyScope,
+  assertSupplierInTenant,
+  companyIdForUser,
+  supplierListWhere,
+} from '../../common/utils/shop-scope';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
@@ -20,11 +26,12 @@ export class SuppliersService {
     private readonly config: ConfigService,
   ) {}
 
-  async list(query: { search?: string; is_active?: boolean; cursor?: string; take?: number }) {
+  async list(user: RequestUser, query: { search?: string; is_active?: boolean; cursor?: string; take?: number }) {
     const take = clampTake(query.take);
     const search = query.search?.trim();
     const where: Prisma.SupplierWhereInput = {
       deletedAt: null,
+      ...supplierListWhere(user),
       ...(search
         ? {
             OR: [
@@ -71,13 +78,20 @@ export class SuppliersService {
   }
 
   async create(user: RequestUser, dto: CreateSupplierDto) {
-    const count = await this.prisma.supplier.count();
+    const companyId = companyIdForUser(user);
+    if (!companyId) {
+      throw new BadRequestException('Organisation context is required to create a supplier');
+    }
+    if (dto.companyId && dto.companyId !== companyId) {
+      assertCompanyScope(user, dto.companyId);
+    }
+    const count = await this.prisma.supplier.count({ where: { companyId } });
     const code = dto.supplierCode?.trim() || `SUP-${String(count + 1).padStart(4, '0')}`;
     return this.prisma.supplier.create({
       data: {
         supplierCode: code,
         supplierName: dto.supplierName,
-        companyId: dto.companyId ?? null,
+        companyId,
         taxId: dto.taxId ?? null,
         vatNumber: dto.vatNumber ?? null,
         rating: dto.rating ?? 3,
@@ -102,14 +116,15 @@ export class SuppliersService {
     });
   }
 
-  async get(id: string) {
+  async get(user: RequestUser, id: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id }, include: { company: true } });
     if (!supplier) throw new NotFoundException('Supplier not found');
+    assertSupplierInTenant(user, supplier.companyId);
     return supplier;
   }
 
   async update(user: RequestUser, id: string, dto: UpdateSupplierDto) {
-    await this.get(id);
+    await this.get(user, id);
     return this.prisma.supplier.update({
       where: { id },
       data: {
@@ -140,8 +155,8 @@ export class SuppliersService {
     });
   }
 
-  async getDeletionImpact(id: string) {
-    const supplier = await this.get(id);
+  async getDeletionImpact(user: RequestUser, id: string) {
+    const supplier = await this.get(user, id);
     if (supplier.deletedAt) {
       throw new BadRequestException('Supplier is already deleted');
     }
@@ -224,7 +239,7 @@ export class SuppliersService {
   }
 
   async requestDeletion(user: RequestUser, id: string) {
-    const impact = await this.getDeletionImpact(id);
+    const impact = await this.getDeletionImpact(user, id);
 
     if (!this.mail.isConfigured()) {
       throw new BadRequestException(

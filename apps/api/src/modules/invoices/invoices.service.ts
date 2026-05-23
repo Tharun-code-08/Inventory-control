@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { AuditAction, InvoiceStatus, Prisma, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, assertNonNegativeMoney, roundMoney } from '../../common/utils/money';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
@@ -29,12 +29,12 @@ export class InvoicesService {
 
   async list(user: RequestUser, query: InvoiceListQuery = {}) {
     const take = clampTake(query.take);
-    const scopedShop = defaultShopFilter(user);
-    const shopId = scopedShop ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
-    const where: Prisma.InvoiceHeaderWhereInput = {};
-    if (shopId) where.shopId = shopId;
+    const where: Prisma.InvoiceHeaderWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
+    };
     if (query.status) where.status = query.status;
     if (query.customer_id) where.customerId = query.customer_id;
     if (query.date_from || query.date_to) {
@@ -70,6 +70,14 @@ export class InvoicesService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: dto.customerId },
+      select: { shopId: true },
+    });
+    if (!customer || customer.shopId !== shopId) {
+      throw new BadRequestException('Customer must belong to the selected shop');
+    }
 
     const totalValue = roundMoney(asMoney(dto.totalValue ?? 0));
     assertNonNegativeMoney(totalValue, 'Invoice total');

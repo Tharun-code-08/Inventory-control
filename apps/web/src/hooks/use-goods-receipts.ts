@@ -10,10 +10,12 @@ export type GoodsReceiptItem = {
   uom: string;
   purchaseRate: number;
   lineValue: number;
-  product: {
+  batchNumber?: string | null;
+  serialNumber?: string | null;
+  product?: {
     description: string;
     productCode: string;
-  };
+  } | null;
 };
 
 export type GoodsReceipt = {

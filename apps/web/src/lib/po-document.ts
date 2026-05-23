@@ -24,7 +24,9 @@ export type PoDocumentMeta = {
   fob?: string;
   shippingTerms?: string;
   paymentTerms?: string;
-  /** Combined GST % (optional; splits to CGST/SGST if those unset). */
+  /** Per-line tax % stored by product id (current POs). */
+  lineItemTaxes?: Array<{ productId: string; taxPercent: number }>;
+  /** @deprecated Legacy header-level tax; kept for older saved POs. */
   taxPercent?: number;
   cgstPercent?: number;
   sgstPercent?: number;
@@ -65,9 +67,10 @@ export function parsePoRemarks(remarks?: string | null): {
 
 export function encodePoRemarks(humanRemarks: string, document: PoDocumentMeta): string {
   const trimmed = humanRemarks.trim();
-  const hasDoc = Object.values(document).some(
-    (v) => v !== undefined && v !== null && String(v).trim() !== '',
-  );
+  const hasDoc = Object.entries(document).some(([key, v]) => {
+    if (key === 'lineItemTaxes') return Array.isArray(v) && v.length > 0;
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  });
   if (!hasDoc) return trimmed;
   const payload = `${MARKER}${JSON.stringify(document)}${MARKER_END}`;
   return trimmed ? `${trimmed}\n${payload}` : payload;

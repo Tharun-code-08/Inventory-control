@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopIdsForUser, shopListWhere } from '../../common/utils/shop-scope';
 
 @Injectable()
 export class ReportsService {
@@ -26,14 +26,16 @@ export class ReportsService {
       : { from: validTo, to: validFrom };
   }
 
-  private shop(user: RequestUser, shopId?: string) {
-    const scoped = defaultShopFilter(user) ?? shopId;
+  private shopWhere(user: RequestUser, shopId?: string): Prisma.ShopWhereInput {
     if (shopId) assertShopScope(user, shopId);
-    return scoped;
+    if (shopId) {
+      return { ...shopListWhere(user), id: shopId };
+    }
+    return shopListWhere(user);
   }
 
   async inventory(user: RequestUser, filters: { shop_id?: string; category?: string; low_stock_only?: boolean }) {
-    const shopId = this.shop(user, filters.shop_id);
+    const shopWhere = this.shopWhere(user, filters.shop_id);
     const lowOnly = filters.low_stock_only === true;
     // Inventory is now per-plant. Drive the listing off ProductPlant so each
     // assignment becomes one row, even when a single Product is stocked at
@@ -45,7 +47,7 @@ export class ReportsService {
           isActive: true,
           ...(filters.category ? { category: filters.category } : {}),
         },
-        ...(shopId ? { shopId } : {}),
+        shop: shopWhere,
       },
       include: {
         product: { select: { id: true, productCode: true, description: true, category: true } },
@@ -143,21 +145,22 @@ export class ReportsService {
   }
 
   async damagedRegister(user: RequestUser, shop_id?: string) {
-    const shopId = this.shop(user, shop_id);
+    const shopWhere = this.shopWhere(user, shop_id);
     return this.prisma.damagedStock.findMany({
-      where: shopId ? { shopId } : {},
+      where: { shop: shopWhere, ...(shop_id ? { shopId: shop_id } : {}) },
       orderBy: { damageDate: 'desc' },
       include: { product: true, shop: true },
     });
   }
 
   async grRegister(user: RequestUser, date_from?: string, date_to?: string, shop_id?: string) {
-    const shopId = this.shop(user, shop_id);
+    const shopWhere = this.shopWhere(user, shop_id);
     const { from, to } = this.resolveDateRange(date_from, date_to);
     return this.prisma.goodsReceiptHeader.findMany({
       where: {
         grDate: { gte: from, lte: to },
-        ...(shopId ? { shopId } : {}),
+        shop: shopWhere,
+        ...(shop_id ? { shopId: shop_id } : {}),
       },
       orderBy: { grDate: 'desc' },
       include: { shop: true, items: true },
@@ -165,12 +168,13 @@ export class ReportsService {
   }
 
   async giRegister(user: RequestUser, date_from?: string, date_to?: string, shop_id?: string) {
-    const shopId = this.shop(user, shop_id);
+    const shopWhere = this.shopWhere(user, shop_id);
     const { from, to } = this.resolveDateRange(date_from, date_to);
     return this.prisma.goodsIssueHeader.findMany({
       where: {
         giDate: { gte: from, lte: to },
-        ...(shopId ? { shopId } : {}),
+        shop: shopWhere,
+        ...(shop_id ? { shopId: shop_id } : {}),
       },
       orderBy: { giDate: 'desc' },
       include: { shop: true, items: true },
@@ -179,7 +183,8 @@ export class ReportsService {
 
   async stockLedger(user: RequestUser, product_id?: string, date_from?: string, date_to?: string, shop_id?: string) {
     const { from, to } = this.resolveDateRange(date_from, date_to);
-    const scopedShopId = this.shop(user, shop_id);
+    const shopWhere = this.shopWhere(user, shop_id);
+    const scopedShopId = shop_id;
     let validatedProductShopId: string | undefined;
 
     if (product_id) {
@@ -205,6 +210,7 @@ export class ReportsService {
 
     const rows = await this.prisma.stockLedger.findMany({
       where: {
+        shop: shopWhere,
         ...(product_id ? { productId: product_id } : {}),
         ...((validatedProductShopId ?? scopedShopId) ? { shopId: validatedProductShopId ?? scopedShopId } : {}),
         transactionDate: { gte: from, lte: to },
@@ -228,7 +234,15 @@ export class ReportsService {
   }
 
   async shopSummary(user: RequestUser, shop_id?: string) {
-    const shopId = this.shop(user, shop_id);
+    const tenantShops = shopIdsForUser(user) ?? [];
+    if (shop_id) assertShopScope(user, shop_id);
+    const allowedShops = shop_id ? [shop_id] : tenantShops;
+    if (allowedShops.length === 0) {
+      throw new ForbiddenException('Organisation scope is required');
+    }
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      allowedShops.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
     const rows = await this.prisma.$queryRaw<
       { shop_id: string; shop_name: string; sku_count: number; stock_value: Prisma.Decimal | null }[]
     >(Prisma.sql`
@@ -239,7 +253,7 @@ export class ReportsService {
       LEFT JOIN product_plants pp ON pp.shop_id = sh.id AND pp.is_active = true
       LEFT JOIN products p ON p.id = pp.product_id AND p.is_active = true
       LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-      WHERE (${shopId ? Prisma.sql`sh.id = ${shopId}::uuid` : Prisma.sql`TRUE`})
+      WHERE sh.id = ANY(${shopArray})
       GROUP BY sh.id, sh.shop_name
       ORDER BY sh.shop_name ASC
     `);

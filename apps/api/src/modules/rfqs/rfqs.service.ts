@@ -3,7 +3,7 @@ import { DocumentStatus, Prisma } from '@prisma/client';
 import { MailService, type RfqInviteDeliverySummary } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
 import { UpdateRfqDto } from './dto/update-rfq.dto';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -17,9 +17,8 @@ export class RfqsService {
   ) {}
 
   async list(user: RequestUser) {
-    const scopedShop = defaultShopFilter(user);
     return this.prisma.rfqHeader.findMany({
-      where: scopedShop ? { shopId: scopedShop } : undefined,
+      where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
       include: {
         shop: true,

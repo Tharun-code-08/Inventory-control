@@ -11,6 +11,14 @@ export type SalesQuotationItem = {
   product?: { id: string; productCode?: string; description?: string };
 };
 
+export type QuotationEmailDelivery = {
+  messageId: string;
+  to: string;
+  from: string;
+  replyTo: string;
+  bcc?: string;
+};
+
 export type SalesQuotation = {
   id: string;
   quoteNumber: string;
@@ -20,10 +28,13 @@ export type SalesQuotation = {
   customerId: string;
   shopId: string;
   totalValue?: string | number | null;
+  customerRequestedTotal?: string | number | null;
+  customerRequestNote?: string | null;
   salesOrderId?: string | null;
-  customer?: { id: string; customerCode?: string; customerName: string };
+  customer?: { id: string; customerCode?: string; customerName: string; email?: string | null };
   items?: SalesQuotationItem[];
   salesOrder?: { id: string; soNumber: string; status: string } | null;
+  emailDelivery?: QuotationEmailDelivery;
 };
 
 export type CreateSalesQuotationPayload = {
@@ -34,6 +45,8 @@ export type CreateSalesQuotationPayload = {
   remarks?: string;
   items: Array<{ productId: string; quantity: number; uom?: string; unitPrice: number }>;
 };
+
+export type UpdateSalesQuotationPayload = Partial<CreateSalesQuotationPayload>;
 
 const keys = {
   all: ['sales-quotations'] as const,
@@ -99,5 +112,38 @@ export function useConvertSalesQuotationToOrder() {
       qc.invalidateQueries({ queryKey: keys.all });
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
     },
+  });
+}
+
+export function useUpdateSalesQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: UpdateSalesQuotationPayload }) => {
+      const res = await api.patch(`/sales-quotations/${id}`, payload);
+      return res.data.data as SalesQuotation;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useResendSalesQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/sales-quotations/${id}/resend`);
+      return res.data.data as SalesQuotation;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useCancelSalesQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/sales-quotations/${id}/cancel`);
+      return res.data.data as SalesQuotation;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }

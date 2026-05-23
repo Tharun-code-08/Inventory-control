@@ -37,6 +37,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
+import { QuotationPortalModule } from './modules/quotation-portal/quotation-portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { QueuesModule } from './common/queues/queues.module';
@@ -144,6 +145,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     ReturnsModule,
     AlertsModule,
     SupplierPortalModule,
+    QuotationPortalModule,
     NotificationsModule,
     HealthModule,
   ],

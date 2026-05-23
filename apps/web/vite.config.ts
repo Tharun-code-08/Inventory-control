@@ -48,12 +48,16 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/jspdf')) return 'jspdf';
           if (id.includes('node_modules/xlsx')) return 'xlsx';
           if (id.includes('node_modules/recharts')) return 'recharts';
+          if (id.includes('/src/pages/ProductsPage')) return 'page-products';
         },
       },
     },

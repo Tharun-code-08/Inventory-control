@@ -119,6 +119,24 @@ function formatDateOnly(value: string | null | undefined) {
   return `${d}/${m}/${y}`;
 }
 
+function resolveGrLineProduct(
+  item: { productId: string; product?: { description?: string; productCode?: string } | null },
+  productMap: Map<string, Product>,
+) {
+  const fromLine = item.product;
+  const fromCatalog = productMap.get(item.productId);
+  return {
+    description:
+      fromLine?.description?.trim() ||
+      fromCatalog?.description ||
+      'Unknown product',
+    productCode:
+      fromLine?.productCode?.trim() ||
+      fromCatalog?.productCode ||
+      item.productId,
+  };
+}
+
 function poSuggestedItems(po: PurchaseOrder) {
   if (po.receiptProgress?.length) {
     return po.receiptProgress
@@ -336,8 +354,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       quantity: item.quantity,
       uom: item.uom,
       purchaseRate: item.purchaseRate,
-      batchNumber: '',
-      serialNumber: '',
+      batchNumber: item.batchNumber ?? '',
+      serialNumber: item.serialNumber ?? '',
     }));
     const linkedPo = availablePoList.find((po) => po.id === gr.purchaseOrderId);
     const fallbackItems = linkedPo ? poSuggestedItems(linkedPo) : [{ ...emptyItem }];
@@ -375,6 +393,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           quantity: item.quantity,
           uom: item.uom,
           purchaseRate: item.purchaseRate,
+          batchNumber: item.batchNumber?.trim() || undefined,
+          serialNumber: item.serialNumber?.trim() || undefined,
         }));
         await updateGR.mutateAsync({
           id: editingGR.id,
@@ -393,6 +413,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           quantity: item.quantity,
           uom: item.uom,
           purchaseRate: item.purchaseRate,
+          batchNumber: item.batchNumber?.trim() || undefined,
+          serialNumber: item.serialNumber?.trim() || undefined,
         }));
         await createGR.mutateAsync({
           shopId: resolvedShopId,
@@ -752,20 +774,24 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                       <TableHead className="font-semibold">Product</TableHead>
                       <TableHead className="font-semibold text-right">Received Quantity</TableHead>
                       <TableHead className="font-semibold">UOM</TableHead>
+                      <TableHead className="font-semibold">Batch</TableHead>
+                      <TableHead className="font-semibold">Serial</TableHead>
                       <TableHead className="font-semibold text-right">Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(viewingGR.items ?? []).map((item, idx) => (
-                      <TableRow key={item.id}>
+                    {(viewingGR.items ?? []).map((item, idx) => {
+                      const product = resolveGrLineProduct(item, productMap);
+                      return (
+                      <TableRow key={item.id ?? `${item.productId}-${idx}`}>
                         <TableCell className="text-muted-foreground">
                           {idx + 1}
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{item.product.description}</p>
+                            <p className="font-medium">{product.description}</p>
                             <p className="text-xs text-muted-foreground font-mono">
-                              {item.product.productCode}
+                              {product.productCode}
                             </p>
                           </div>
                         </TableCell>
@@ -773,11 +799,14 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                           {item.quantity}
                         </TableCell>
                         <TableCell className="text-xs">{item.uom}</TableCell>
+                        <TableCell className="text-xs">{item.batchNumber?.trim() || '—'}</TableCell>
+                        <TableCell className="text-xs">{item.serialNumber?.trim() || '—'}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
-                          {item.lineValue.toFixed(2)}
+                          {Number(item.lineValue ?? 0).toFixed(2)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

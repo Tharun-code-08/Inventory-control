@@ -24,7 +24,7 @@ export class CreateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  shopId?: string;
+  shopId?: string | null;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

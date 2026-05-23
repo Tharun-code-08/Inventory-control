@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  Send,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,9 +64,11 @@ import { useProductCategories } from '@/hooks/use-product-categories';
 import {
   useUsers,
   useCreateUser,
+  useInviteUser,
   useUpdateUser,
   useDeleteUser,
   type User,
+  type InviteUserPayload,
 } from '@/hooks/use-users';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
@@ -111,6 +114,13 @@ const userFormSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>;
 type PasswordForm = z.infer<typeof passwordSchema>;
 type UserFormValues = z.infer<typeof userFormSchema>;
+const inviteFormSchema = z.object({
+  email: z.string().email('Invalid email'),
+  name: z.string().optional(),
+  roleId: z.string().min(1, 'Role is required'),
+  shopId: z.string().min(1, 'Shop is required'),
+});
+type InviteFormValues = z.infer<typeof inviteFormSchema>;
 
 // --- Role definitions (system-defined, read-only) ---
 
@@ -712,10 +722,12 @@ function UsersTab() {
   const { data: users, isLoading } = useUsers();
   const { data: shops } = useShops();
   const createUser = useCreateUser();
+  const inviteUser = useInviteUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null);
 
@@ -730,6 +742,15 @@ function UsersTab() {
       isActive: true,
     },
   });
+  const inviteForm = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteFormSchema),
+    defaultValues: {
+      email: '',
+      name: '',
+      roleId: '',
+      shopId: ALL_SHOPS_OPTION,
+    },
+  });
 
   const openCreate = () => {
     setEditingUser(null);
@@ -742,6 +763,16 @@ function UsersTab() {
       isActive: true,
     });
     setDialogOpen(true);
+  };
+
+  const openInvite = () => {
+    inviteForm.reset({
+      email: '',
+      name: '',
+      roleId: '',
+      shopId: ALL_SHOPS_OPTION,
+    });
+    setInviteDialogOpen(true);
   };
 
   const openEdit = (u: User) => {
@@ -785,6 +816,23 @@ function UsersTab() {
     }
   };
 
+  const onInviteSubmit = async (values: InviteFormValues) => {
+    try {
+      const resolvedShopId = normalizeAllShopsSelection(values.shopId);
+      const payload: InviteUserPayload = {
+        email: values.email,
+        name: values.name?.trim() || undefined,
+        roleId: values.roleId,
+        shopId: resolvedShopId ?? undefined,
+      };
+      await inviteUser.mutateAsync(payload);
+      toast.success('Invitation sent.');
+      setInviteDialogOpen(false);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to send invitation.'));
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -802,7 +850,11 @@ function UsersTab() {
 
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 gap-2">
+        <Button size="sm" variant="outline" onClick={openInvite}>
+          <Send className="h-4 w-4 mr-1.5" />
+          Invite User
+        </Button>
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-1.5" />
           Add User
@@ -866,6 +918,90 @@ function UsersTab() {
           )}
         </TableBody>
       </Table>
+
+      {/* Invite Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite User</DialogTitle>
+            <DialogDescription>Send an invite link so the user sets their own password.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={inviteForm.handleSubmit(onInviteSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" {...inviteForm.register('email')} />
+              {inviteForm.formState.errors.email && (
+                <p className="text-sm text-destructive">
+                  {inviteForm.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Display name (optional)</Label>
+              <Input {...inviteForm.register('name')} />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select
+                value={inviteForm.watch('roleId')}
+                onValueChange={(v) => inviteForm.setValue('roleId', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SYSTEM_ROLES.map((r) => (
+                    <SelectItem key={`${r.name}-${r.value}`} value={r.value}>
+                      {r.name.replace(/_/g, ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {inviteForm.formState.errors.roleId && (
+                <p className="text-sm text-destructive">
+                  {inviteForm.formState.errors.roleId.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Shop</Label>
+              <Select
+                value={inviteForm.watch('shopId')}
+                onValueChange={(v) => inviteForm.setValue('shopId', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select shop" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SHOPS_OPTION}>All Shops</SelectItem>
+                  {(shops ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.shopName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {inviteForm.formState.errors.shopId && (
+                <p className="text-sm text-destructive">
+                  {inviteForm.formState.errors.shopId.message}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setInviteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviteUser.isPending}>
+                {inviteUser.isPending ? 'Sending...' : 'Send invite'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

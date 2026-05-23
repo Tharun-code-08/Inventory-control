@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, RefreshCw, UserCircle } from 'lucide-react';
+import { Bell, ChevronDown, Menu, RefreshCw } from 'lucide-react';
+import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
 import { AppShellControls } from '@/components/AppShellControls';
 import { CommandSpotlight } from '@/components/CommandSpotlight';
 import { useQueryClient } from '@tanstack/react-query';
+import { resetClientSessionState } from '@/lib/reset-session-state';
 import { Sidebar } from './Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/authStore';
@@ -12,6 +14,7 @@ import { cn } from '@/lib/cn';
 import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { AppFooter } from '@/components/AppFooter';
+import { OrganisationIdBadge } from '@/components/OrganisationIdBadge';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -31,11 +34,13 @@ const pageTitles: Record<string, string> = {
   '/warehouse': 'Warehouse',
   '/products': 'Products',
   '/goods-receipts': 'Goods Receipt',
-  '/goods-issues': 'Goods Issue',
+  '/goods-issues': 'Goods Issues',
+  '/goods-issues/new': 'Create Goods Issue',
   '/purchase-orders': 'Purchase Orders',
   '/reports': 'Reports',
   '/settings': 'Settings',
   '/profile': 'Profile',
+  '/help': 'Help & Support',
 };
 
 function resolveTitle(pathname: string): string {
@@ -157,6 +162,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
     }, 800);
     window.setTimeout(() => {
       delete api.defaults.headers.common.Authorization;
+      resetClientSessionState(queryClient);
       clear();
       nav('/login', { replace: true });
     }, 1120);
@@ -218,8 +224,8 @@ export function AppLayout({ children, active }: AppLayoutProps) {
         )}
       >
         <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90 dark:border-slate-800 dark:bg-slate-950/90 dark:shadow-slate-950/50">
-          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
                 onClick={() =>
@@ -239,7 +245,9 @@ export function AppLayout({ children, active }: AppLayoutProps) {
               <h2 className="premium-title truncate text-base font-semibold sm:text-lg">{pageTitle}</h2>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <OrganisationIdBadge className="hidden shrink-0 sm:flex" />
+
+            <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
               <AppShellControls onOpenSpotlight={() => setSpotlightOpen(true)} />
 
               <button
@@ -279,7 +287,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
                       <button
                         type="button"
-                        className="text-xs text-slate-500 hover:text-slate-900"
+                        className="text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => nav('/notifications')}
                       >
                         Manage
@@ -287,7 +295,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {alerts.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm text-slate-500">No notifications</div>
+                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</div>
                       ) : (
                         alerts.slice(0, 8).map((alert) => (
                           <button
@@ -338,23 +346,14 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                         <div className="mt-0.5 text-xs text-indigo-600">{user.shop.shopName}</div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
+                    <ProfileMenuLinks
+                      variant="header"
+                      onNavigate={(path) => {
                         setProfileOpen(false);
-                        nav('/profile');
+                        nav(path);
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      <UserCircle className="h-4 w-4" /> Profile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10"
-                    >
-                      <LogOut className="h-4 w-4" /> Logout
-                    </button>
+                      onLogout={handleLogout}
+                    />
                   </div>
                 )}
               </div>

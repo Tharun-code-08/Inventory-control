@@ -8,4 +8,3 @@ export class UpdateRolePermissionsDto {
   @IsString({ each: true })
   permissions!: string[];
 }
-

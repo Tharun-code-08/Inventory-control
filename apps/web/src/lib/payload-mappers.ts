@@ -1,7 +1,7 @@
 import type { CreatePurchaseOrderPayload } from '@/hooks/use-purchase-orders';
 import type { Shop } from '@/hooks/use-shops';
-import { encodePoFormRemarks, type PoLogisticsTaxForm } from '@/lib/po-form-document';
-import type { CreateProductPayload, UpdateProductPayload } from '@/hooks/use-products';
+import { encodePoFormRemarks, type PoLogisticsForm } from '@/lib/po-form-document';
+import type { CreateProductPayload, TaxPreference, UpdateProductPayload } from '@/hooks/use-products';
 import type { CreateUserPayload, UpdateUserPayload } from '@/hooks/use-users';
 
 function devAssert(condition: unknown, message: string): asserts condition {
@@ -14,9 +14,10 @@ type PoFormItem = {
   productId: string;
   orderQty: number;
   rate: number;
+  taxPercent?: number | string;
 };
 
-type PoFormValues = PoLogisticsTaxForm & {
+type PoFormValues = PoLogisticsForm & {
   poDate: string;
   supplier: string;
   items: PoFormItem[];
@@ -71,8 +72,11 @@ export type ProductFormValues = {
   productCode: string;
   description: string;
   category: string;
+  hsnCode?: string;
   materialGroup?: string;
   drawingReference?: string;
+  brand?: string;
+  taxPreference?: TaxPreference;
   purchasePrice: number;
   sellingPrice: number;
   uom: string;
@@ -105,8 +109,11 @@ export function mapProductFormToPayload(args: {
     description: values.description,
     uom: values.uom,
     category: values.category,
+    hsnCode: values.hsnCode?.trim() ? values.hsnCode.trim() : undefined,
     materialGroup: values.materialGroup?.trim() ? values.materialGroup.trim() : undefined,
     drawingReference: values.drawingReference?.trim() ? values.drawingReference.trim() : undefined,
+    brand: values.brand?.trim() ? values.brand.trim() : undefined,
+    taxPreference: values.taxPreference ?? 'TAXABLE',
     purchasePrice: values.purchasePrice,
     sellingPrice: values.sellingPrice,
     isActive: values.isActive,

@@ -23,17 +23,32 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<RequestUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { role: true },
+      include: { role: true, shop: { select: { companyId: true } } },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException();
     }
+
+    const companyId = user.shop?.companyId ?? null;
+    let tenantShopIds: string[] = [];
+    if (companyId) {
+      const shops = await this.prisma.shop.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true },
+      });
+      tenantShopIds = shops.map((shop) => shop.id);
+    } else if (user.shopId) {
+      tenantShopIds = [user.shopId];
+    }
+
     const permissions = user.role.permissions as unknown as string[];
     return {
       id: user.id,
       email: user.email,
       role: user.role.name,
       shopId: user.shopId,
+      companyId,
+      tenantShopIds,
       permissions,
     };
   }

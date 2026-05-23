@@ -12,6 +12,7 @@ import {
   FileText,
   LayoutDashboard,
   Package,
+  HelpCircle,
   Settings,
   ShoppingCart,
   Truck,
@@ -130,6 +131,12 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
   }
 
   push('settings', 'Settings', 'Preferences', '/settings', 'System', Settings, ['profile']);
+  push('help', 'Help & Support', 'Guides and workflows', '/help', 'System', HelpCircle, [
+    'faq',
+    'guide',
+    'support',
+    'workflow',
+  ]);
 
   return items;
 }

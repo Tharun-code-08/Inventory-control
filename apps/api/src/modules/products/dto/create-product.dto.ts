@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { TaxPreference } from '@prisma/client';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsOptional,
   IsString,
   Matches,
@@ -45,6 +47,17 @@ export class CreateProductDto {
   @IsString()
   category!: string;
 
+  @ApiPropertyOptional({ description: 'Harmonized System of Nomenclature code (4, 6, or 8 digits)' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  })
+  @IsString()
+  @Matches(/^\d{4}(\d{2}){0,2}$/, { message: 'HSN code must be 4, 6, or 8 digits' })
+  hsnCode?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? normalizeSpaces(value) : value))
@@ -58,6 +71,22 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(120)
   drawingReference?: string;
+
+  @ApiPropertyOptional({ example: 'Bosch' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = normalizeSpaces(value);
+    return trimmed === '' ? undefined : trimmed;
+  })
+  @IsString()
+  @MaxLength(120)
+  brand?: string;
+
+  @ApiPropertyOptional({ enum: TaxPreference, default: TaxPreference.TAXABLE })
+  @IsOptional()
+  @IsEnum(TaxPreference)
+  taxPreference?: TaxPreference;
 
   @ApiProperty()
   @Type(() => Number)

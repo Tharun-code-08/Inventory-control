@@ -9,15 +9,24 @@ export const dashboardKeys = {
   summary: () => [...dashboardKeys.all, 'summary'] as const,
 };
 
+function toNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && !Number.isNaN(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+    return Number(value);
+  }
+  return fallback;
+}
+
 function normalizeSummary(raw: unknown): DashboardViewData | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  if (typeof o.totalProducts !== 'number') return null;
+  const totalProducts = toNumber(o.totalProducts, NaN);
+  if (Number.isNaN(totalProducts)) return null;
   return {
-    totalProducts: o.totalProducts as number,
-    totalStockValue: typeof o.totalStockValue === 'number' ? o.totalStockValue : 0,
-    lowStockCount: typeof o.lowStockCount === 'number' ? o.lowStockCount : 0,
-    recentTransactions: typeof o.recentTransactions === 'number' ? o.recentTransactions : 0,
+    totalProducts,
+    totalStockValue: toNumber(o.totalStockValue),
+    lowStockCount: toNumber(o.lowStockCount),
+    recentTransactions: toNumber(o.recentTransactions),
     monthlyMovement: Array.isArray(o.monthlyMovement) ? (o.monthlyMovement as DashboardViewData['monthlyMovement']) : [],
     categoryBreakdown: Array.isArray(o.categoryBreakdown)
       ? (o.categoryBreakdown as DashboardViewData['categoryBreakdown'])
@@ -31,19 +40,21 @@ function normalizeSummary(raw: unknown): DashboardViewData | null {
     lowStockProducts: Array.isArray(o.lowStockProducts)
       ? (o.lowStockProducts as DashboardViewData['lowStockProducts'])
       : [],
+    topProducts: Array.isArray(o.topProducts)
+      ? (o.topProducts as DashboardViewData['topProducts'])
+      : [],
   };
 }
 
-export function useDashboard() {
+export function useDashboard(shopId?: string) {
   return useQuery({
-    queryKey: dashboardKeys.summary(),
+    queryKey: [...dashboardKeys.summary(), shopId ?? 'default'],
     queryFn: async () => {
-      try {
-        const res = await api.get('/dashboard/summary');
-        return normalizeSummary(res.data?.data) ?? EMPTY_DASHBOARD;
-      } catch {
-        return EMPTY_DASHBOARD;
-      }
+      const res = await api.get('/dashboard/summary', {
+        params: shopId ? { shop_id: shopId } : undefined,
+      });
+      const payload = res.data?.data ?? res.data;
+      return normalizeSummary(payload) ?? EMPTY_DASHBOARD;
     },
     staleTime: 60_000,
     gcTime: 10 * 60_000,

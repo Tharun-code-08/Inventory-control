@@ -31,6 +31,11 @@ export class AppErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    const isDevModuleUrl = /\.tsx(\?|$)/i.test(this.state.message);
+    const isChunkError =
+      /Failed to fetch dynamically imported module/i.test(this.state.message) ||
+      /Loading chunk/i.test(this.state.message);
+
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="surface-1 w-full max-w-xl rounded-xl border border-destructive/30 p-6 shadow-xl">
@@ -40,11 +45,17 @@ export class AppErrorBoundary extends Component<Props, State> {
             </div>
             <div>
               <h2 className="text-lg font-semibold">Something went wrong on this page</h2>
-              <p className="text-sm text-muted-foreground">Please reload the page. If it happens again, contact support.</p>
+              <p className="text-sm text-muted-foreground">
+                {isDevModuleUrl
+                  ? 'The site is not serving a production build. Redeploy using npm run build and serve the dist folder (not the Vite dev server).'
+                  : isChunkError
+                    ? 'A page file failed to load — often after an update. Reload once; if it persists, clear cache or contact support.'
+                    : 'Please reload the page. If it happens again, contact support.'}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-md border border-white/10 bg-black/20 px-3 py-2 font-mono text-xs text-amber-200">
+          <div className="rounded-md border border-border bg-muted/50 px-3 py-2 font-mono text-xs text-foreground">
             {this.state.message}
           </div>
 

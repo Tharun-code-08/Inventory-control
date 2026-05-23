@@ -15,8 +15,8 @@ export class CompaniesController {
 
   @RequirePermission('company:read')
   @Get()
-  list() {
-    return this.companies.list();
+  list(@CurrentUser() user: RequestUser) {
+    return this.companies.list(user);
   }
 
   @RequirePermission('company:write')
@@ -27,8 +27,8 @@ export class CompaniesController {
 
   @RequirePermission('company:read')
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.companies.get(id);
+  get(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.companies.get(user, id);
   }
 
   @RequirePermission('company:write')
@@ -43,4 +43,3 @@ export class CompaniesController {
     return this.companies.remove(user, id);
   }
 }
-

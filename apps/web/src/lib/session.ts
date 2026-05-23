@@ -1,7 +1,13 @@
 import { api, applyAccessToken, extractAuthPayload } from '@/api/client';
 import { useAuthStore } from '@/store/authStore';
+import { resetClientSessionState } from '@/lib/reset-session-state';
 
-export async function initializeSessionFromAuthResponse(payload: unknown) {
+export async function initializeSessionFromAuthResponse(
+  payload: unknown,
+  queryClient?: import('@tanstack/react-query').QueryClient,
+) {
+  resetClientSessionState(queryClient);
+
   const authPayload = extractAuthPayload(payload);
   if (!authPayload) {
     throw new Error('Unexpected response from server');

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { PurchaseOrder } from '@/hooks/use-purchase-orders';
 import type { PoDocumentMeta } from '@/lib/po-document';
 import { computeGstAmounts } from '@/lib/po-form-document';
+import { computePoLineAmounts, taxPercentForProduct } from '@/lib/po-line-calculations';
 
 const GREEN: [number, number, number] = [0, 140, 74];
 const GREEN_LIGHT: [number, number, number] = [240, 248, 243];
@@ -225,11 +226,12 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
   // ---- Line items ----
   const cols = [
-    { label: 'Item #', w: 24, align: 'left' as const },
-    { label: 'Description', w: 62, align: 'left' as const },
-    { label: 'Qty', w: 16, align: 'right' as const },
-    { label: 'Unit Price', w: 30, align: 'right' as const },
-    { label: 'Total', w: CONTENT_W - 24 - 62 - 16 - 30, align: 'right' as const },
+    { label: 'Item #', w: 22, align: 'left' as const },
+    { label: 'Description', w: 48, align: 'left' as const },
+    { label: 'Qty', w: 14, align: 'right' as const },
+    { label: 'Unit Price', w: 26, align: 'right' as const },
+    { label: 'Tax %', w: 16, align: 'right' as const },
+    { label: 'Line Total', w: CONTENT_W - 22 - 48 - 14 - 26 - 16, align: 'right' as const },
   ];
   let cx = INNER;
   const tableHdrH = 6;
@@ -243,6 +245,7 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   const fillerRows = items.length > 0 ? Math.min(2, Math.max(0, 4 - items.length)) : 0;
   const rowCount = items.length + fillerRows;
   let subtotal = 0;
+  let taxTotal = 0;
   const rowH = 9;
 
   for (let i = 0; i < rowCount; i++) {
@@ -261,8 +264,10 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
     if (item) {
       const qty = Number(item.orderQty);
       const rate = Number(item.rate);
-      const lineTotal = Number(item.lineValue) || qty * rate;
-      subtotal += lineTotal;
+      const taxPct = taxPercentForProduct(doc.lineItemTaxes, item.productId);
+      const line = computePoLineAmounts({ orderQty: qty, rate, taxPercent: taxPct });
+      subtotal += line.subtotal;
+      taxTotal += line.taxAmount;
 
       pdf.text(item.product?.productCode ?? '—', colsPos[0].x + PAD, baseline);
       const desc = item.product?.description ?? '';
@@ -271,17 +276,39 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
       pdf.text(String(qty), colsPos[2].x + colsPos[2].w - PAD, baseline, { align: 'right' });
       pdf.text(money(rate), colsPos[3].x + colsPos[3].w - PAD, baseline, { align: 'right' });
+      pdf.text(taxPct > 0 ? `${taxPct}%` : '—', colsPos[4].x + colsPos[4].w - PAD, baseline, {
+        align: 'right',
+      });
       pdf.setFont('helvetica', 'bold');
-      pdf.text(money(lineTotal), colsPos[4].x + colsPos[4].w - PAD, baseline, { align: 'right' });
+      pdf.text(money(line.lineTotal), colsPos[5].x + colsPos[5].w - PAD, baseline, { align: 'right' });
       pdf.setFont('helvetica', 'normal');
     }
 
     y += rowH;
   }
 
-  const { cgst, sgst, totalTax } = computeGstAmounts(subtotal, doc);
+  if (taxTotal === 0 && doc.lineItemTaxes?.length) {
+    taxTotal = items.reduce((sum, item) => {
+      if (!item) return sum;
+      const taxPct = taxPercentForProduct(doc.lineItemTaxes, item.productId);
+      const line = computePoLineAmounts({
+        orderQty: item.orderQty,
+        rate: item.rate,
+        taxPercent: taxPct,
+      });
+      return sum + line.taxAmount;
+    }, 0);
+    subtotal = items.reduce((sum, item) => {
+      if (!item) return sum;
+      return sum + computePoLineAmounts({ orderQty: item.orderQty, rate: item.rate }).subtotal;
+    }, 0);
+  }
+
+  const legacyGst = computeGstAmounts(subtotal, doc);
   const legacyTax = Number(doc.taxAmount) || 0;
-  const taxTotal = totalTax > 0 ? totalTax : legacyTax;
+  if (taxTotal === 0) {
+    taxTotal = legacyGst.totalTax > 0 ? legacyGst.totalTax : legacyTax;
+  }
   const shippingAmt = Number(doc.shippingAmount) || 0;
   const other = Number(doc.otherAmount) || 0;
   const grandTotal = subtotal + taxTotal + shippingAmt + other;
@@ -297,27 +324,10 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   const humanNote = po.remarks?.split('<!--PO_DOCUMENT')[0]?.trim();
 
   const totalsX = INNER + commentsW + gap;
-  const cgstLabel =
-    doc.cgstPercent != null && doc.cgstPercent > 0 ? `CGST (${doc.cgstPercent}%)` : 'CGST';
-  const sgstLabel =
-    doc.sgstPercent != null && doc.sgstPercent > 0 ? `SGST (${doc.sgstPercent}%)` : 'SGST';
-  const taxPctLabel =
-    doc.taxPercent != null && doc.taxPercent > 0 ? `Tax (${doc.taxPercent}%)` : 'Tax';
-
   const totalRows: Array<{ label: string; value: string; highlight?: boolean }> = [
     { label: 'Subtotal', value: money(subtotal) },
+    { label: 'Tax', value: taxTotal > 0 ? money(taxTotal) : '—' },
   ];
-  if (cgst > 0 || doc.cgstPercent) {
-    totalRows.push({ label: cgstLabel, value: cgst > 0 ? money(cgst) : '—' });
-  }
-  if (sgst > 0 || doc.sgstPercent) {
-    totalRows.push({ label: sgstLabel, value: sgst > 0 ? money(sgst) : '—' });
-  }
-  if (totalTax === 0 && legacyTax > 0) {
-    totalRows.push({ label: taxPctLabel, value: money(legacyTax) });
-  } else if (totalTax === 0 && doc.taxPercent) {
-    totalRows.push({ label: taxPctLabel, value: '—' });
-  }
   totalRows.push(
     { label: 'Shipping', value: shippingAmt ? money(shippingAmt) : '—' },
     { label: 'Other', value: other ? money(other) : '—' },

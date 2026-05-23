@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
@@ -12,9 +12,9 @@ export class ShopsService {
 
   async list(user: RequestUser, query: { is_active?: boolean; cursor?: string; take?: number }) {
     const take = clampTake(query.take);
-    const shopScope = defaultShopFilter(user);
-    const where: Prisma.ShopWhereInput = {};
-    if (shopScope) where.id = shopScope;
+    const where: Prisma.ShopWhereInput = {
+      ...shopListWhere(user),
+    };
     if (query.is_active !== undefined) where.isActive = query.is_active;
 
     const rows = await this.prisma.shop.findMany({

@@ -182,9 +182,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  // Prefer platform-provided PORT, fall back to API_PORT/.env and default 3000
+  // Prefer platform-provided PORT, fall back to API_PORT/.env and default 3000.
+  // Bind 0.0.0.0 so phones/emulators on the LAN can reach the API (not only 127.0.0.1).
   const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
-  await app.listen(port);
+  const host = process.env.API_HOST?.trim() || '0.0.0.0';
+  await app.listen(port, host);
+  httpLogger.log(`API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
 }
 
 bootstrap();

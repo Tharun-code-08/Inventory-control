@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
+export type TaxPreference = 'TAXABLE' | 'NON_TAXABLE';
+
+export const TAX_PREFERENCE_OPTIONS: Array<{ value: TaxPreference; label: string }> = [
+  { value: 'TAXABLE', label: 'Taxable' },
+  { value: 'NON_TAXABLE', label: 'Non-Taxable' },
+];
+
+export function formatTaxPreference(value?: TaxPreference | null): string {
+  return TAX_PREFERENCE_OPTIONS.find((opt) => opt.value === value)?.label ?? 'Taxable';
+}
+
 export type ProductPlantAssignment = {
   id?: string;
   shopId: string;
@@ -30,8 +41,11 @@ export type Product = {
   description: string;
   uom: string;
   category: string;
+  hsnCode?: string | null;
   materialGroup?: string | null;
   drawingReference?: string | null;
+  brand?: string | null;
+  taxPreference?: TaxPreference;
   purchasePrice: number;
   sellingPrice: number;
   isActive: boolean;
@@ -59,8 +73,11 @@ export type CreateProductPayload = {
   description: string;
   uom: string;
   category: string;
+  hsnCode?: string;
   materialGroup?: string;
   drawingReference?: string;
+  brand?: string;
+  taxPreference?: TaxPreference;
   purchasePrice: number;
   sellingPrice: number;
   isActive?: boolean;
@@ -158,8 +175,12 @@ export function normalizeProduct(payload: unknown): Product {
     description: String(product.description ?? ''),
     uom: String(product.uom ?? ''),
     category: String(product.category ?? ''),
+    hsnCode: (product.hsnCode as string | null | undefined) ?? null,
     materialGroup: (product.materialGroup as string | null | undefined) ?? null,
     drawingReference: (product.drawingReference as string | null | undefined) ?? null,
+    brand: (product.brand as string | null | undefined) ?? null,
+    taxPreference:
+      product.taxPreference === 'NON_TAXABLE' ? 'NON_TAXABLE' : 'TAXABLE',
     purchasePrice: normalizeNumber(product.purchasePrice),
     sellingPrice: normalizeNumber(product.sellingPrice),
     isActive: product.isActive !== false,

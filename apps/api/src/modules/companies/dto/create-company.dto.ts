@@ -25,4 +25,3 @@ export class CreateCompanyDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

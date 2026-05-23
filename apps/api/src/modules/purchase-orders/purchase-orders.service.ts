@@ -3,7 +3,7 @@ import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { AuditService } from '../audit/audit.service';
@@ -33,6 +33,12 @@ export class PurchaseOrdersService {
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
   ) {}
+
+  private idempotencyScope(user: RequestUser): string {
+    if (user.companyId) return `company:${user.companyId}`;
+    if (user.shopId) return `shop:${user.shopId}`;
+    return 'global';
+  }
 
   private withLifecycle(
     po: {
@@ -173,11 +179,11 @@ export class PurchaseOrdersService {
     const page = query.page && query.page > 0 ? query.page : 1;
     const skip = (page - 1) * take;
     const useCursor = Boolean(query.cursor);
-    const shopScope = defaultShopFilter(user);
-    const shopId = shopScope ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
     const where: Prisma.PurchaseOrderHeaderWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.search?.trim()
         ? {
@@ -188,8 +194,6 @@ export class PurchaseOrdersService {
           }
         : {}),
     };
-    if (shopId) where.shopId = shopId;
-
     const orderBy: Prisma.PurchaseOrderHeaderOrderByWithRelationInput = useCursor
       ? { id: 'asc' }
       : { poDate: 'desc' };
@@ -233,11 +237,13 @@ export class PurchaseOrdersService {
     assertShopScope(user, dto.shopId);
     const poDate = new Date(dto.poDate);
     assertFuture(poDate);
+    const idempotencyScope = this.idempotencyScope(user);
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await getIdempotentResult<{ poId: string }>(
         tx,
         dto.idempotencyKey ? `po:create:${dto.idempotencyKey}` : undefined,
+        idempotencyScope,
       );
       if (existing?.poId) {
         const prior = await tx.purchaseOrderHeader.findUnique({
@@ -344,7 +350,7 @@ export class PurchaseOrdersService {
         dto.idempotencyKey,
         { poId: created.id },
         user.id,
-        'po:create',
+        idempotencyScope,
       );
       return this.serialize(this.withLifecycle(created as any));
     });
@@ -449,9 +455,10 @@ export class PurchaseOrdersService {
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CONFIRMED) return po;
     if (po.status !== PurchaseOrderStatus.DRAFT) throw new BadRequestException('Invalid status');
+    const idempotencyScope = this.idempotencyScope(user);
     return this.prisma.$transaction(async (tx) => {
       const cacheKey = idempotencyKey ? `${id}:${idempotencyKey}` : undefined;
-      const existing = await getIdempotentResult<{ poId: string }>(tx, cacheKey, 'po:confirm');
+      const existing = await getIdempotentResult<{ poId: string }>(tx, cacheKey, idempotencyScope);
       if (existing?.poId) {
         const prior = await tx.purchaseOrderHeader.findUnique({
           where: { id: existing.poId },
@@ -484,7 +491,7 @@ export class PurchaseOrdersService {
         },
         tx,
       );
-      await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, 'po:confirm');
+      await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, idempotencyScope);
       return this.serialize(this.withLifecycle(updated as any));
     });
   }
@@ -492,9 +499,10 @@ export class PurchaseOrdersService {
   async cancel(user: RequestUser, id: string, idempotencyKey?: string) {
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CANCELLED) return po;
+    const idempotencyScope = this.idempotencyScope(user);
     return this.prisma.$transaction(async (tx) => {
       const cacheKey = idempotencyKey ? `${id}:${idempotencyKey}` : undefined;
-      const existing = await getIdempotentResult<{ poId: string }>(tx, cacheKey, 'po:cancel');
+      const existing = await getIdempotentResult<{ poId: string }>(tx, cacheKey, idempotencyScope);
       if (existing?.poId) {
         const prior = await tx.purchaseOrderHeader.findUnique({
           where: { id: existing.poId },
@@ -526,7 +534,7 @@ export class PurchaseOrdersService {
         },
         tx,
       );
-      await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, 'po:cancel');
+      await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, idempotencyScope);
       return this.serialize(this.withLifecycle(updated as any));
     });
   }

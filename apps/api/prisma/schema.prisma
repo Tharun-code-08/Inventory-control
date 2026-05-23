@@ -45,6 +45,11 @@ enum CostingMethod {
   FIFO
 }
 
+enum TaxPreference {
+  TAXABLE
+  NON_TAXABLE
+}
+
 enum FulfillmentStatus {
   NONE
   PARTIAL
@@ -90,6 +95,7 @@ model Role {
   createdById String?  @map("created_by") @db.Uuid
   updatedById String? @map("updated_by") @db.Uuid
   users       User[]
+  invitations UserInvitation[]
 
   @@map("roles")
 }
@@ -114,6 +120,7 @@ model Shop {
 
   company             Company? @relation(fields: [companyId], references: [id])
   users               User[]
+  invitations         UserInvitation[]
   productPlants       ProductPlant[]
   goodsReceipts       GoodsReceiptHeader[]
   goodsIssues         GoodsIssueHeader[]
@@ -160,6 +167,43 @@ model StorageLocation {
   @@map("storage_locations")
 }
 
+model SignupVerification {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String
+  payload      Json
+  otpHash      String    @map("otp_hash")
+  attemptCount Int       @default(0) @map("attempt_count")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt   DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("signup_verifications")
+}
+
+model UserInvitation {
+  id          String    @id @default(uuid()) @db.Uuid
+  email       String
+  name        String?
+  roleId      String    @map("role_id") @db.Uuid
+  shopId      String?   @map("shop_id") @db.Uuid
+  tokenHash   String    @map("token_hash")
+  invitedById String    @map("invited_by") @db.Uuid
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  role      Role @relation(fields: [roleId], references: [id])
+  shop      Shop? @relation(fields: [shopId], references: [id])
+  invitedBy User @relation("UserInvitationsSent", fields: [invitedById], references: [id])
+
+  @@index([email])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("user_invitations")
+}
+
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
   name               String
@@ -181,6 +225,7 @@ model User {
 
   role Role @relation(fields: [roleId], references: [id])
   shop Shop? @relation(fields: [shopId], references: [id])
+  sentInvitations UserInvitation[] @relation("UserInvitationsSent")
 
   auditLogs AuditLog[]
   sessions  Session[]
@@ -213,8 +258,11 @@ model Product {
   description       String
   uom               String
   category          String
+  hsnCode           String?  @map("hsn_code")
   materialGroup     String?  @map("material_group")
   drawingReference  String?  @map("drawing_reference")
+  brand             String?
+  taxPreference     TaxPreference @default(TAXABLE) @map("tax_preference")
   purchasePrice     Decimal  @map("purchase_price") @db.Decimal(12, 2)
   sellingPrice      Decimal  @map("selling_price") @db.Decimal(12, 2)
   isActive          Boolean  @default(true) @map("is_active")
@@ -523,6 +571,8 @@ model GoodsReceiptItem {
   uom          String
   purchaseRate Decimal  @map("purchase_rate") @db.Decimal(12, 2)
   lineValue    Decimal  @map("line_value") @db.Decimal(14, 2)
+  batchNumber  String?  @map("batch_number")
+  serialNumber String?  @map("serial_number")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById  String?  @map("created_by") @db.Uuid
@@ -814,6 +864,8 @@ enum SalesQuotationStatus {
   DRAFT
   SENT
   ACCEPTED
+  USER_REQUESTED
+  CANCELLED
   CONVERTED
 }
 
@@ -863,20 +915,24 @@ model Customer {
 }
 
 model SalesQuotationHeader {
-  id           String               @id @default(uuid()) @db.Uuid
-  quoteNumber  String               @unique @map("quote_number")
-  quoteDate    DateTime             @map("quote_date") @db.Date
-  validUntil   DateTime?            @map("valid_until") @db.Date
-  customerId   String               @map("customer_id") @db.Uuid
-  shopId       String               @map("shop_id") @db.Uuid
-  status       SalesQuotationStatus @default(DRAFT)
-  salesOrderId String?              @unique @map("sales_order_id") @db.Uuid
-  remarks      String?
-  totalValue   Decimal?             @map("total_value") @db.Decimal(14, 2)
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById  String?              @map("created_by") @db.Uuid
-  updatedById  String?              @map("updated_by") @db.Uuid
+  id                     String               @id @default(uuid()) @db.Uuid
+  quoteNumber            String               @unique @map("quote_number")
+  quoteDate              DateTime             @map("quote_date") @db.Date
+  validUntil             DateTime?            @map("valid_until") @db.Date
+  customerId             String               @map("customer_id") @db.Uuid
+  shopId                 String               @map("shop_id") @db.Uuid
+  status                 SalesQuotationStatus @default(DRAFT)
+  salesOrderId           String?              @unique @map("sales_order_id") @db.Uuid
+  portalToken            String?              @unique @map("portal_token")
+  remarks                String?
+  totalValue             Decimal?             @map("total_value") @db.Decimal(14, 2)
+  customerRequestedTotal Decimal?             @map("customer_requested_total") @db.Decimal(14, 2)
+  customerRequestNote    String?              @map("customer_request_note")
+  customerRespondedAt    DateTime?            @map("customer_responded_at") @db.Timestamptz(6)
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?              @map("created_by") @db.Uuid
+  updatedById            String?              @map("updated_by") @db.Uuid
 
   customer   Customer            @relation(fields: [customerId], references: [id])
   shop       Shop                @relation(fields: [shopId], references: [id])

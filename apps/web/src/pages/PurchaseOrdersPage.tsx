@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -87,10 +87,11 @@ import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
 import { hasPermission } from '@/lib/permissions';
 import { parsePoRemarks } from '@/lib/po-document';
-import { resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
+import { resolvePoDeliveryAddress, resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
 import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf';
 import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
 import type { PoDocumentMeta } from '@/lib/po-document';
+import { computePoLineAmounts, sumPoLineTotals, taxPercentForProduct } from '@/lib/po-line-calculations';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -103,6 +104,7 @@ const poItemSchema = z.object({
   suggestedQty: z.coerce.number().min(0),
   orderQty: z.coerce.number().positive('Order qty must be > 0'),
   rate: z.coerce.number().positive('Rate must be > 0'),
+  taxPercent: z.coerce.number().min(0).max(100).optional(),
 });
 
 const poFormSchema = z.object({
@@ -110,8 +112,8 @@ const poFormSchema = z.object({
   priority: z.string().optional(),
   paymentTerms: z.string().optional(),
   supplier: z.string().min(1, 'Supplier is required'),
-  deliveryPlantId: z.string().optional(),
-  storageLocationId: z.string().optional(),
+  deliveryPlantId: z.string().min(1, 'Delivery plant is required'),
+  storageLocationId: z.string().min(1, 'Storage location is required'),
   deliveryAddress: z.string().optional(),
   remarks: z.string().optional(),
   requisitioner: z.string().optional(),
@@ -119,9 +121,6 @@ const poFormSchema = z.object({
   shipVia: z.string().optional(),
   fob: z.string().optional(),
   shippingTerms: z.string().optional(),
-  taxPercent: z.union([z.string(), z.number()]).optional(),
-  cgstPercent: z.union([z.string(), z.number()]).optional(),
-  sgstPercent: z.union([z.string(), z.number()]).optional(),
   items: z.array(poItemSchema).min(1, 'Add at least one item'),
 });
 
@@ -155,9 +154,6 @@ function defaultPoLogisticsFields(userName?: string) {
     shipVia: '',
     fob: '',
     shippingTerms: '',
-    taxPercent: '' as string | number,
-    cgstPercent: '' as string | number,
-    sgstPercent: '' as string | number,
   };
 }
 
@@ -168,10 +164,24 @@ function logisticsFieldsFromDocument(doc: PoDocumentMeta) {
     shipVia: doc.shipVia ?? '',
     fob: doc.fob ?? '',
     shippingTerms: doc.shippingTerms ?? '',
-    taxPercent: doc.taxPercent != null ? String(doc.taxPercent) : '',
-    cgstPercent: doc.cgstPercent != null ? String(doc.cgstPercent) : '',
-    sgstPercent: doc.sgstPercent != null ? String(doc.sgstPercent) : '',
   };
+}
+
+function defaultPoLineItem() {
+  return {
+    productId: '',
+    currentStock: 0,
+    minStock: 0,
+    suggestedQty: 0,
+    orderQty: 0,
+    rate: 0,
+    taxPercent: '' as string | number,
+  };
+}
+
+function taxPercentFromDocument(doc: PoDocumentMeta, productId: string): string | number {
+  const pct = taxPercentForProduct(doc.lineItemTaxes, productId);
+  return pct > 0 ? pct : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -302,17 +312,27 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       supplier: '',
       deliveryPlantId: shopId ?? '',
       storageLocationId: '',
-      deliveryAddress: '',
+      deliveryAddress: resolvePoDeliveryAddress(shops.find((s) => s.id === shopId)),
       remarks: '',
       ...defaultPoLogisticsFields(user?.name),
-      items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
+      items: [defaultPoLineItem()],
     },
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
-  const watchedItems = form.watch('items');
+  const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
   const { data: storageLocations = [] } = useStorageLocations(selectedDeliveryPlantId || undefined);
+
+  const applyDeliveryAddressFromPlant = useCallback(
+    (plantId?: string) => {
+      const id = plantId ?? form.getValues('deliveryPlantId');
+      if (!id) return;
+      const plant = shops.find((s) => s.id === id);
+      form.setValue('deliveryAddress', resolvePoDeliveryAddress(plant));
+    },
+    [form, shops],
+  );
   const targetProductShopId = selectedDeliveryPlantId || shopId || '';
   // Multi-plant: a product is "selectable for this PO" if it's assigned to
   // the delivery plant. We still fall back to all products when no plant is
@@ -325,12 +345,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [products, targetProductShopId],
   );
   const productMap = useMemo(() => new Map(selectableProducts.map((p) => [p.id, p])), [selectableProducts]);
-
-  const totalValue = fields.reduce(
-    (acc, _field, idx) =>
-      acc + (Number(watchedItems?.[idx]?.orderQty) || 0) * (Number(watchedItems?.[idx]?.rate) || 0),
-    0,
-  );
+  const lineTotals = sumPoLineTotals(watchedItems);
 
   const openCreate = useCallback(() => {
     setEditingPO(null);
@@ -341,16 +356,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       supplier: '',
         deliveryPlantId: shopId ?? '',
         storageLocationId: '',
-        deliveryAddress: '',
+        deliveryAddress: resolvePoDeliveryAddress(shops.find((s) => s.id === shopId)),
       remarks: '',
       ...defaultPoLogisticsFields(user?.name),
-      items: [{ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 }],
+      items: [defaultPoLineItem()],
     });
     setSheetOpen(true);
     setSourceType('DIRECT');
     setSourceRfqId('');
     setSourceContractId('');
-  }, [form, shopId, user?.name]);
+  }, [form, shopId, shops, user?.name]);
 
   type PoPrefillState = {
     poPrefill?: {
@@ -391,7 +406,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       supplier: prefill.supplier ?? '',
       deliveryPlantId: prefill.shopId,
       storageLocationId: '',
-      deliveryAddress: '',
+      deliveryAddress: resolvePoDeliveryAddress(shops.find((s) => s.id === prefill.shopId)),
       remarks:
         prefill.hasPriorOrder && prefill.lastPoNumber
           ? `Reorder (low stock) — last PO ${prefill.lastPoNumber}`
@@ -404,6 +419,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           suggestedQty: prefill.suggestedQty,
           orderQty: prefill.orderQty,
           rate: prefill.rate,
+          taxPercent: '',
         },
       ],
     });
@@ -412,7 +428,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     setSourceRfqId('');
     setSourceContractId('');
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, location.state, openCreate, productMap, form, navigate, user?.shopId]);
+  }, [location.pathname, location.state, openCreate, productMap, form, navigate, shops, user?.shopId]);
 
   const openEdit = useCallback(
     (po: PurchaseOrder) => {
@@ -426,7 +442,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         supplier: po.supplier,
         deliveryPlantId: po.shopId,
         storageLocationId: '',
-        deliveryAddress: shop?.address ?? '',
+        deliveryAddress: resolvePoDeliveryAddress(shop),
         remarks: humanRemarks,
         ...logisticsFieldsFromDocument(docMeta),
         items: po.items.map((it) => ({
@@ -436,6 +452,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           suggestedQty: it.suggestedQty,
           orderQty: it.orderQty,
           rate: it.rate,
+          taxPercent: taxPercentFromDocument(docMeta, it.productId),
         })),
       });
       setSheetOpen(true);
@@ -867,8 +884,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           form.setValue('deliveryPlantId', plantId);
                           if (!user?.shopId) setSelectedShopId(plantId);
                           const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
-                          form.setValue('deliveryAddress', plant?.address ?? '');
                           form.setValue('storageLocationId', '');
+                          applyDeliveryAddressFromPlant(plantId);
                         }
                         form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
                         form.setValue(
@@ -880,6 +897,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             suggestedQty: Number(it.quantity ?? 0),
                             orderQty: Number(it.quantity ?? 0),
                             rate: Number(it.product?.purchasePrice ?? 0),
+                            taxPercent: '',
                           })),
                         );
                       }}
@@ -933,8 +951,86 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             {/* Order details + delivery */}
             <div className="space-y-2 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
               <Label className="text-sm font-semibold">Order Details & Delivery</Label>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1 sm:col-span-2">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Delivery Plant *</Label>
+                  <Controller
+                    control={form.control}
+                    name="deliveryPlantId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          if (!user?.shopId) setSelectedShopId(value);
+                          form.setValue('storageLocationId', '');
+                          applyDeliveryAddressFromPlant(value);
+                        }}
+                        disabled={!!user?.shopId}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            PO_SELECT_TRIGGER,
+                            form.formState.errors.deliveryPlantId && 'border-destructive',
+                          )}
+                        >
+                          <SelectValue placeholder="Select plant" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
+                          {shops.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.shopName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.deliveryPlantId && (
+                    <p className="text-[10px] text-destructive">
+                      {form.formState.errors.deliveryPlantId.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Storage Location *</Label>
+                  <Controller
+                    control={form.control}
+                    name="storageLocationId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={(locId) => {
+                          field.onChange(locId);
+                          applyDeliveryAddressFromPlant();
+                        }}
+                        disabled={!selectedDeliveryPlantId}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            PO_SELECT_TRIGGER,
+                            form.formState.errors.storageLocationId && 'border-destructive',
+                          )}
+                        >
+                          <SelectValue placeholder="Select storage" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
+                          {storageLocations.map((loc) => (
+                            <SelectItem key={loc.id} value={loc.id}>
+                              {loc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.storageLocationId && (
+                    <p className="text-[10px] text-destructive">
+                      {form.formState.errors.storageLocationId.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
                   <Label htmlFor="supplier" className="text-xs">Supplier *</Label>
                   <Controller
                     control={form.control}
@@ -950,7 +1046,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           field.onChange(v);
                         }}
                       >
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                        <SelectTrigger
+                          className={cn(
+                            PO_SELECT_TRIGGER,
+                            form.formState.errors.supplier && 'border-destructive',
+                          )}
+                        >
                           <SelectValue placeholder="Select supplier" />
                         </SelectTrigger>
                         <SelectContent className={PO_SELECT_CONTENT}>
@@ -970,6 +1071,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <p className="text-[10px] text-destructive">{form.formState.errors.supplier.message}</p>
                   )}
                 </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1">
                   <Label className="text-xs">Payment Terms</Label>
                   <Controller
@@ -1022,61 +1125,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   {form.formState.errors.poDate && (
                     <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
                   )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Delivery Plant</Label>
-                  <Controller
-                    control={form.control}
-                    name="deliveryPlantId"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          if (!user?.shopId) setSelectedShopId(value);
-                          const selected = shops.find((s) => s.id === value);
-                          form.setValue('deliveryAddress', selected?.address ?? '');
-                          form.setValue('storageLocationId', '');
-                        }}
-                      >
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
-                          <SelectValue placeholder="Plant" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
-                          {shops.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.shopName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Storage Location</Label>
-                  <Controller
-                    control={form.control}
-                    name="storageLocationId"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={field.onChange}
-                        disabled={!selectedDeliveryPlantId}
-                      >
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
-                          <SelectValue placeholder="Storage" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
-                          {storageLocations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id}>
-                              {loc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
                 </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-4">
                   <Label className="text-xs">Delivery Address</Label>
@@ -1179,7 +1227,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => append({ productId: '', currentStock: 0, minStock: 0, suggestedQty: 0, orderQty: 0, rate: 0 })}
+                  onClick={() => append(defaultPoLineItem())}
                   disabled={!selectedDeliveryPlantId || !form.watch('storageLocationId')}
                   className="w-full sm:w-auto"
                 >
@@ -1198,27 +1246,30 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
               {/* Items table */}
               <div className="overflow-x-auto rounded-md border">
-                <Table>
+                <Table className="table-fixed w-full min-w-[760px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-[200px]">Product</TableHead>
-                      <TableHead className="w-[90px] text-right">Stock</TableHead>
-                      <TableHead className="w-[100px] text-right">Order Qty</TableHead>
-                      <TableHead className="w-[100px] text-right">Rate</TableHead>
-                      <TableHead className="w-[110px] text-right">Line Value</TableHead>
-                      <TableHead className="w-[50px]" />
+                      <TableHead className="w-[22%]">Product</TableHead>
+                      <TableHead className="w-[8%] text-right">Stock</TableHead>
+                      <TableHead className="w-[11%]">Category</TableHead>
+                      <TableHead className="w-[10%] text-right">Order Qty</TableHead>
+                      <TableHead className="w-[8%]">UOM</TableHead>
+                      <TableHead className="w-[11%] text-right">Rate</TableHead>
+                      <TableHead className="w-[8%] text-right">Tax %</TableHead>
+                      <TableHead className="w-[12%] text-right">Line Value</TableHead>
+                      <TableHead className="w-[7%]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {fields.map((field, idx) => {
-                      const orderQty = Number(watchedItems[idx]?.orderQty) || 0;
-                      const rate = Number(watchedItems[idx]?.rate) || 0;
-                      const lineValue = orderQty * rate;
+                      const row = watchedItems[idx] ?? {};
+                      const line = computePoLineAmounts(row);
+                      const product = productMap.get(row.productId ?? '');
 
                       return (
                         <TableRow key={field.id}>
                           {/* Product select */}
-                          <TableCell>
+                          <TableCell className="overflow-hidden">
                             <Controller
                               control={form.control}
                               name={`items.${idx}.productId`}
@@ -1230,8 +1281,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                                     handleProductChange(idx, v);
                                   }}
                                 >
-                                  <SelectTrigger className={cn('w-full', PO_SELECT_TRIGGER)}>
-                                    <SelectValue placeholder="Select product..." />
+                                  <SelectTrigger className={cn('h-8 w-full max-w-full text-xs', PO_SELECT_TRIGGER)}>
+                                    <SelectValue placeholder="Product…" className="truncate" />
                                   </SelectTrigger>
                                   <SelectContent className={PO_SELECT_CONTENT}>
                                     <div className="p-2">
@@ -1267,8 +1318,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           <TableCell className="text-right">
                             <Input
                               readOnly
-                              className="h-8 bg-muted text-right text-xs"
+                              className="h-8 w-full bg-muted text-right text-xs"
                               {...form.register(`items.${idx}.currentStock`, { valueAsNumber: true })}
+                            />
+                          </TableCell>
+
+                          {/* Category (from product) */}
+                          <TableCell>
+                            <Input
+                              readOnly
+                              tabIndex={-1}
+                              className="h-8 w-full truncate bg-muted text-xs"
+                              value={product?.category ?? ''}
+                              placeholder="—"
                             />
                           </TableCell>
 
@@ -1278,7 +1340,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               type="number"
                               min={1}
                               step={1}
-                              className="h-8 text-right text-xs"
+                              className="h-8 w-full text-right text-xs"
                               {...form.register(`items.${idx}.orderQty`, { valueAsNumber: true })}
                             />
                             {form.formState.errors.items?.[idx]?.orderQty && (
@@ -1288,20 +1350,44 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             )}
                           </TableCell>
 
+                          {/* UOM (from product) */}
+                          <TableCell>
+                            <Input
+                              readOnly
+                              tabIndex={-1}
+                              className="h-8 w-full truncate bg-muted text-xs"
+                              value={product?.uom ?? ''}
+                              placeholder="—"
+                            />
+                          </TableCell>
+
                           {/* Rate (editable) */}
                           <TableCell className="text-right">
                             <Input
                               type="number"
                               min={0}
                               step={0.01}
-                              className="h-8 text-right text-xs"
+                              className="h-8 w-full text-right text-xs"
                               {...form.register(`items.${idx}.rate`, { valueAsNumber: true })}
                             />
                           </TableCell>
 
-                          {/* Line Value (computed) */}
-                          <TableCell className="text-right font-medium text-sm">
-                            {formatCurrency(lineValue)}
+                          {/* Tax % (per line) */}
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              className="h-8 w-full text-right text-xs"
+                              placeholder="0"
+                              {...form.register(`items.${idx}.taxPercent`, { valueAsNumber: true })}
+                            />
+                          </TableCell>
+
+                          {/* Line Value (qty × rate + tax) */}
+                          <TableCell className="text-right text-sm font-medium tabular-nums">
+                            {formatCurrency(line.lineTotal)}
                           </TableCell>
 
                           {/* Remove */}
@@ -1323,11 +1409,29 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-right font-semibold">
+                      <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
+                        Subtotal
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {formatCurrency(lineTotals.subtotal)}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
+                        Tax
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {formatCurrency(lineTotals.taxTotal)}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-right font-semibold">
                         Total
                       </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {formatCurrency(totalValue)}
+                      <TableCell className="text-right font-bold tabular-nums">
+                        {formatCurrency(lineTotals.grandTotal)}
                       </TableCell>
                       <TableCell />
                     </TableRow>

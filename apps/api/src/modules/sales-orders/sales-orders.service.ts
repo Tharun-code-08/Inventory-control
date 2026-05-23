@@ -9,7 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, roundMoney } from '../../common/utils/money';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
@@ -42,12 +42,12 @@ export class SalesOrdersService {
 
   async list(user: RequestUser, query: SalesOrderListQuery = {}) {
     const take = clampTake(query.take);
-    const scopedShop = defaultShopFilter(user);
-    const shopId = scopedShop ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
-    const where: Prisma.SalesOrderHeaderWhereInput = {};
-    if (shopId) where.shopId = shopId;
+    const where: Prisma.SalesOrderHeaderWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
+    };
     if (query.status) where.status = query.status;
     if (query.customer_id) where.customerId = query.customer_id;
     if (query.date_from || query.date_to) {
@@ -128,6 +128,13 @@ export class SalesOrdersService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+
+    if (dto.customerId) {
+      const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
+      if (!customer || customer.shopId !== shopId) {
+        throw new BadRequestException('Customer must belong to the selected shop');
+      }
+    }
 
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
     const { lines, total, totalDiscount, totalTax } = this.computeLineTotals(dto.items);

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 
 export type Supplier = {
   id: string;
@@ -52,8 +53,14 @@ export type CreateSupplierPayload = {
 
 const keys = {
   all: ['suppliers'] as const,
-  list: (search?: string) => [...keys.all, 'list', search ?? ''] as const,
+  list: (tenant?: string | null, search?: string) =>
+    [...keys.all, 'list', tenant ?? 'anon', search ?? ''] as const,
 };
+
+function currentTenantKey() {
+  const user = useAuthStore.getState().user;
+  return user?.companyId ?? user?.id ?? 'anon';
+}
 
 function normalizeSupplier(raw: unknown): Supplier {
   const row = raw as Partial<Supplier> & { rating?: unknown; categories?: unknown };
@@ -84,8 +91,9 @@ function normalizeSupplier(raw: unknown): Supplier {
 }
 
 export function useSuppliers(search?: string) {
+  const tenant = currentTenantKey();
   return useQuery({
-    queryKey: keys.list(search),
+    queryKey: keys.list(tenant, search),
     queryFn: async () => {
       const res = await api.get('/suppliers', { params: { search, take: 100 } });
       const payload = res.data as { data?: unknown };
@@ -101,7 +109,7 @@ function appendSupplierToListCache(
   created: Supplier,
   search?: string,
 ) {
-  const key = keys.list(search);
+  const key = keys.list(currentTenantKey(), search);
   qc.setQueryData<Supplier[]>(key, (current) => {
     if (!current) return [created];
     if (current.some((s) => s.id === created.id)) return current;

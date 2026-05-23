@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertShopScope, storageLocationListWhere } from '../../common/utils/shop-scope';
 import { CreateStorageLocationDto } from './dto/create-storage-location.dto';
 import { UpdateStorageLocationDto } from './dto/update-storage-location.dto';
 
@@ -9,9 +9,9 @@ import { UpdateStorageLocationDto } from './dto/update-storage-location.dto';
 export class StorageLocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: { shop_id?: string }) {
+  async list(user: RequestUser, query: { shop_id?: string }) {
     return this.prisma.storageLocation.findMany({
-      where: { ...(query.shop_id ? { shopId: query.shop_id } : {}) },
+      where: storageLocationListWhere(user, query.shop_id),
       orderBy: [{ shopId: 'asc' }, { code: 'asc' }],
       include: { shop: true },
     });

@@ -36,28 +36,28 @@
   }
 
   .dark {
-    --background: 222 24% 10%;
-    --foreground: 220 20% 93%;
-    --card: 224 22% 13%;
-    --card-foreground: 220 20% 93%;
-    --popover: 224 22% 13%;
-    --popover-foreground: 220 20% 93%;
-    --primary: 223 74% 62%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 18% 18%;
-    --secondary-foreground: 220 16% 90%;
-    --muted: 222 18% 18%;
-    --muted-foreground: 220 12% 68%;
-    --accent: 222 18% 18%;
-    --accent-foreground: 220 16% 90%;
-    --destructive: 0 70% 54%;
+    --background: 222 26% 9%;
+    --foreground: 210 25% 96%;
+    --card: 222 22% 12%;
+    --card-foreground: 210 22% 96%;
+    --popover: 222 22% 11%;
+    --popover-foreground: 210 22% 96%;
+    --primary: 223 78% 65%;
+    --primary-foreground: 222 30% 10%;
+    --secondary: 222 18% 17%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 222 16% 16%;
+    --muted-foreground: 215 14% 72%;
+    --accent: 223 22% 20%;
+    --accent-foreground: 210 22% 96%;
+    --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 100%;
-    --border: 223 14% 24%;
-    --input: 223 14% 24%;
-    --ring: 223 74% 62%;
-    --sidebar: 224 22% 13%;
-    --sidebar-foreground: 220 18% 90%;
-    --sidebar-accent: 223 18% 20%;
+    --border: 222 14% 22%;
+    --input: 222 14% 20%;
+    --ring: 223 78% 65%;
+    --sidebar: 222 24% 10%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-accent: 223 20% 18%;
   }
 }
 
@@ -70,6 +70,7 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     margin: 0;
     min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.15s ease;
     background:
       radial-gradient(circle at 12% -8%, rgb(99 102 241 / 0.08), transparent 35%),
       radial-gradient(circle at 90% -2%, rgb(56 189 248 / 0.06), transparent 32%),
@@ -77,9 +78,12 @@
   }
   .dark body {
     background:
-      radial-gradient(circle at 8% -10%, rgb(99 102 241 / 0.14), transparent 40%),
-      radial-gradient(circle at 92% 0%, rgb(14 165 233 / 0.08), transparent 35%),
+      radial-gradient(circle at 8% -10%, rgb(99 102 241 / 0.12), transparent 42%),
+      radial-gradient(circle at 92% 0%, rgb(14 165 233 / 0.06), transparent 38%),
       hsl(var(--background));
+  }
+  html.dark {
+    color-scheme: dark;
   }
   #root {
     min-height: 100vh;
@@ -93,9 +97,9 @@
     box-shadow: 0 10px 30px rgb(15 23 42 / 0.08);
   }
   .dark .glass-panel {
-    background: rgb(30 41 59 / 0.92);
-    border: 1px solid rgb(51 65 85 / 0.9);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+    background: hsl(var(--card) / 0.96);
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
   }
   .sidebar {
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -193,6 +197,17 @@
     border: 1px solid #e2e8f0;
     border-radius: 1rem;
     box-shadow: 0 16px 36px rgb(15 23 42 / 0.08);
+  }
+  .dark .create-page-shell {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 16px 36px rgb(0 0 0 / 0.35);
+  }
+  .dark .avatar-ring {
+    box-shadow: 0 0 0 3px hsl(var(--card)), 0 0 0 5px rgb(99 102 241 / 0.35);
+  }
+  .dark .sidebar-scroll {
+    scrollbar-color: rgb(71 85 105 / 0.55) transparent;
   }
   .avatar-ring {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);

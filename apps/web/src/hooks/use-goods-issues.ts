@@ -21,22 +21,29 @@ export type GoodsIssue = {
   giDate: string;
   shopId: string;
   issueReason: string;
-  remarks: string;
+  remarks: string | null;
   status: GoodsIssueStatus;
   items: GoodsIssueItem[];
   createdAt: string;
+  shop?: {
+    id: string;
+    shopName: string;
+    shopNumber?: string;
+  };
 };
 
 export type GoodsIssueFilters = {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: GoodsIssueStatus;
   shopId?: string;
+  status?: GoodsIssueStatus;
+  take?: number;
 };
 
-export type CreateGoodsIssuePayload = Omit<GoodsIssue, 'id' | 'giNumber' | 'createdAt' | 'status'> & {
-  items: Omit<GoodsIssueItem, 'id' | 'availableStockSnapshot' | 'product'>[];
+export type CreateGoodsIssuePayload = {
+  giDate: string;
+  shopId: string;
+  issueReason: string;
+  remarks?: string;
+  items: Array<{ productId: string; quantity: number; uom: string }>;
 };
 
 export type UpdateGoodsIssuePayload = Partial<CreateGoodsIssuePayload>;
@@ -49,19 +56,28 @@ export const giKeys = {
   detail: (id: string) => [...giKeys.details(), id] as const,
 };
 
+function extractGiRows(payload: unknown): GoodsIssue[] {
+  if (Array.isArray(payload)) return payload as GoodsIssue[];
+  if (!payload || typeof payload !== 'object') return [];
+  const source = payload as { data?: unknown; items?: unknown[] };
+  if (Array.isArray(source.items)) return source.items as GoodsIssue[];
+  if (Array.isArray(source.data)) return source.data as GoodsIssue[];
+  return [];
+}
+
 export function useGoodsIssues(filters: GoodsIssueFilters = {}) {
   return useQuery({
     queryKey: giKeys.list(filters),
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.limit) params.set('limit', String(filters.limit));
-      if (filters.search) params.set('search', filters.search);
-      if (filters.status) params.set('status', filters.status);
-      if (filters.shopId) params.set('shopId', filters.shopId);
-      const res = await api.get(`/goods-issues?${params}`);
-      return res.data.data;
+      const params: Record<string, string | number> = {
+        take: filters.take ?? 300,
+      };
+      if (filters.shopId) params.shop_id = filters.shopId;
+      if (filters.status) params.status = filters.status;
+      const res = await api.get('/goods-issues', { params });
+      return extractGiRows(res.data?.data ?? res.data);
     },
+    staleTime: 30_000,
   });
 }
 

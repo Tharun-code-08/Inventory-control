@@ -35,8 +35,8 @@ export class SuppliersController {
   @RequirePermission('supplier:read')
   @Get()
   @ApiOperation({ summary: 'List suppliers (paginated)' })
-  list(@Query() query: ListSuppliersDto) {
-    return this.suppliers.list(query);
+  list(@CurrentUser() user: RequestUser, @Query() query: ListSuppliersDto) {
+    return this.suppliers.list(user, query);
   }
 
   @ApiBearerAuth()
@@ -51,16 +51,16 @@ export class SuppliersController {
   @RequirePermission('supplier:read')
   @Get(':id/deletion-impact')
   @ApiOperation({ summary: 'Impact summary before deleting a supplier' })
-  deletionImpact(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.suppliers.getDeletionImpact(id);
+  deletionImpact(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.suppliers.getDeletionImpact(user, id);
   }
 
   @ApiBearerAuth()
   @RequirePermission('supplier:read')
   @Get(':id')
   @ApiOperation({ summary: 'Get a supplier by id' })
-  get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.suppliers.get(id);
+  get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.suppliers.get(user, id);
   }
 
   @ApiBearerAuth()

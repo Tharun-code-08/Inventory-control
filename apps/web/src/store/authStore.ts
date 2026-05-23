@@ -18,6 +18,7 @@ export type AuthUser = {
   name: string;
   role: string;
   shopId: string | null;
+  companyId?: string | null;
   permissions: string[];
   shop?: AuthShop | null;
   avatarUrl?: string | null;

@@ -44,6 +44,7 @@ import {
 } from '@/hooks/use-companies';
 import { useShops, type Shop } from '@/hooks/use-shops';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAuthStore } from '@/store/authStore';
 
 type CompanyFormState = {
   companyCode: string;
@@ -243,6 +244,8 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
 
 function CompaniesListView() {
   const navigate = useNavigate();
+  const companyId = useAuthStore((s) => s.user?.companyId);
+  const canCreateCompany = !companyId;
   const { data: companies = [], isLoading: companiesLoading } = useCompanies();
   const { data: shops = [], isLoading: shopsLoading } = useShops();
   const updateCompany = useUpdateCompany();
@@ -339,12 +342,18 @@ function CompaniesListView() {
     <div className="space-y-6">
       <PageHeader
         title="Companies"
-        description="Legal entities and company master for plants and suppliers"
+        description={
+          canCreateCompany
+            ? 'Legal entities and company master for plants and suppliers'
+            : 'Your organisation profile (created when you signed up)'
+        }
       >
-        <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/companies/new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Company
-        </Button>
+        {canCreateCompany ? (
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/companies/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Company
+          </Button>
+        ) : null}
       </PageHeader>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -378,17 +387,21 @@ function CompaniesListView() {
         <Card className="border-dashed border-slate-200">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Building2 className="mb-3 h-12 w-12 text-slate-300" />
-            <p className="font-medium text-slate-700">No companies yet</p>
+            <p className="font-medium text-slate-700">No organisation found</p>
             <p className="mt-1 text-sm text-slate-500">
-              Add a company to group plants and suppliers under one legal entity.
+              {canCreateCompany
+                ? 'Add a company to group plants and suppliers under one legal entity.'
+                : 'Your workspace company could not be loaded. Sign out and sign in again, or contact support.'}
             </p>
-            <Button
-              className="mt-4 bg-indigo-600 hover:bg-indigo-700"
-              onClick={() => navigate('/companies/new')}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Company
-            </Button>
+            {canCreateCompany ? (
+              <Button
+                className="mt-4 bg-indigo-600 hover:bg-indigo-700"
+                onClick={() => navigate('/companies/new')}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Company
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : (

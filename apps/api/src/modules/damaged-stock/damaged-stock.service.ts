@@ -3,7 +3,7 @@ import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/cl
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -27,12 +27,12 @@ export class DamagedStockService {
 
   async list(user: RequestUser, query: { shop_id?: string; cursor?: string; take?: number }) {
     const take = clampTake(query.take);
-    const shopScope = defaultShopFilter(user);
-    const shopId = shopScope ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
-    const where: Prisma.DamagedStockWhereInput = {};
-    if (shopId) where.shopId = shopId;
+    const where: Prisma.DamagedStockWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
+    };
 
     const rows = await this.prisma.damagedStock.findMany({
       where,

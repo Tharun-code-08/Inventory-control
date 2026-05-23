@@ -15,6 +15,7 @@ export const envValidationSchema = Joi.object({
   AUTH_COOKIE_SAME_SITE: Joi.string().valid('lax', 'strict', 'none').optional(),
 
   BCRYPT_ROUNDS: Joi.number().integer().min(10).max(14).default(12),
+  INVITE_TTL_HOURS: Joi.number().integer().min(1).max(168).default(72),
 
   WEB_ORIGIN: Joi.string().optional(),
   /** Public SPA base URL for links in outbound emails (defaults to first WEB_ORIGIN). */
@@ -27,7 +28,11 @@ export const envValidationSchema = Joi.object({
   SMTP_SECURE: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
   SMTP_USER: Joi.string().optional(),
   SMTP_PASS: Joi.string().optional(),
-  MAIL_FROM: Joi.string().email().default('office@softdigitconsulting.com'),
+  /** Defaults to SMTP_USER when unset (required for Zoho and most SMTP providers). */
+  MAIL_FROM: Joi.string().email().optional(),
+  MAIL_REPLY_TO: Joi.string().email().optional(),
+  /** Optional BCC copy (e.g. office@…) for outbound quotation emails. */
+  MAIL_BCC: Joi.string().email().optional(),
   ADMIN_NOTIFICATION_EMAIL: Joi.string().email().optional(),
 
   RATE_LIMIT_AUTH_TTL: Joi.number().integer().min(1).default(60),
@@ -48,6 +53,13 @@ export const envValidationSchema = Joi.object({
   // Phase 3 lockout knobs (used by AuthService).
   LOCKOUT_THRESHOLD: Joi.number().integer().min(3).max(20).default(5),
   LOCKOUT_DURATION_MIN: Joi.number().integer().min(1).max(720).default(15),
+
+  SIGNUP_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(true),
+  SIGNUP_OTP_TTL_MIN: Joi.number().integer().min(5).max(60).default(15),
+  SIGNUP_OTP_MAX_ATTEMPTS: Joi.number().integer().min(3).max(10).default(5),
+  /** Optional Cloudflare Turnstile; empty string in .env is treated as unset. */
+  TURNSTILE_SITE_KEY: Joi.string().trim().empty('').optional(),
+  TURNSTILE_SECRET_KEY: Joi.string().trim().empty('').optional(),
 
   // Phase 2 observability knobs.
   SLOW_QUERY_MS: Joi.number().integer().min(50).default(200),

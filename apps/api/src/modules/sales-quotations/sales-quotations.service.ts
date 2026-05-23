@@ -1,17 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma, SalesOrderStatus, SalesQuotationStatus } from '@prisma/client';
+import { randomBytes } from 'crypto';
+import { MailService, type EmailDeliveryResult } from '../../common/mail/mail.service';
+import { buildQuotationPortalReviewUrl } from '../../common/mail/portal-url';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, roundMoney } from '../../common/utils/money';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateSalesQuotationDto } from './dto/create-sales-quotation.dto';
+import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
 
 @Injectable()
 export class SalesQuotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
   ) {}
 
   private computeLines(items: CreateSalesQuotationDto['items']) {
@@ -32,16 +39,59 @@ export class SalesQuotationsService {
     return { lines, total: roundMoney(total) };
   }
 
+  private newPortalToken(): string {
+    return randomBytes(32).toString('hex');
+  }
+
+  private async emailQuotation(
+    row: Awaited<ReturnType<typeof this.get>>,
+    options: { portalToken: string; isRevision?: boolean },
+  ): Promise<EmailDeliveryResult> {
+    const customerEmail = row.customer.email?.trim();
+    if (!customerEmail) {
+      throw new BadRequestException(
+        'Customer has no email address. Add an email on the customer profile before sending.',
+      );
+    }
+
+    const portalUrl = buildQuotationPortalReviewUrl(this.config, options.portalToken);
+    const emailContent = this.mail.buildSalesQuotationEmailContent({
+      customerName: row.customer.customerName,
+      quoteNumber: row.quoteNumber,
+      quoteDate: row.quoteDate,
+      validUntil: row.validUntil,
+      shopName: row.shop.shopName,
+      remarks: row.remarks,
+      totalValue: row.totalValue ?? 0,
+      items: row.items,
+      portalUrl,
+      isRevision: options.isRevision ?? false,
+    });
+
+    return this.mail.sendSalesQuotationToCustomer({
+      to: customerEmail,
+      content: emailContent,
+    });
+  }
+
+  private withEmailDelivery<T extends Record<string, unknown>>(
+    row: T,
+    delivery: EmailDeliveryResult,
+  ) {
+    return { ...row, emailDelivery: delivery };
+  }
+
   async list(user: RequestUser, customerId?: string) {
-    const scopedShop = defaultShopFilter(user);
     return this.prisma.salesQuotationHeader.findMany({
       where: {
-        ...(scopedShop ? { shopId: scopedShop } : {}),
+        shop: shopListWhere(user),
         ...(customerId ? { customerId } : {}),
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { id: true, customerCode: true, customerName: true } },
+        customer: {
+          select: { id: true, customerCode: true, customerName: true, email: true },
+        },
         items: { include: { product: { select: { id: true, productCode: true, description: true } } } },
       },
     });
@@ -52,6 +102,7 @@ export class SalesQuotationsService {
       where: { id },
       include: {
         customer: true,
+        shop: { select: { id: true, shopName: true, shopNumber: true } },
         items: { include: { product: true } },
         salesOrder: { select: { id: true, soNumber: true, status: true } },
       },
@@ -104,14 +155,126 @@ export class SalesQuotationsService {
     });
   }
 
+  async update(user: RequestUser, id: string, dto: UpdateSalesQuotationDto) {
+    const row = await this.get(user, id);
+    if (
+      row.status !== SalesQuotationStatus.DRAFT &&
+      row.status !== SalesQuotationStatus.USER_REQUESTED
+    ) {
+      throw new BadRequestException('Only draft or customer-requested quotations can be edited');
+    }
+
+    const computed = dto.items?.length ? this.computeLines(dto.items) : null;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.items?.length) {
+        await tx.salesQuotationItem.deleteMany({ where: { quoteHeaderId: id } });
+      }
+
+      return tx.salesQuotationHeader.update({
+        where: { id },
+        data: {
+          ...(dto.quoteDate ? { quoteDate: new Date(dto.quoteDate) } : {}),
+          ...(dto.validUntil !== undefined
+            ? { validUntil: dto.validUntil ? new Date(dto.validUntil) : null }
+            : {}),
+          ...(dto.remarks !== undefined ? { remarks: dto.remarks ?? null } : {}),
+          ...(computed ? { totalValue: computed.total } : {}),
+          updatedById: user.id,
+          ...(computed
+            ? {
+                items: {
+                  create: computed.lines.map((line) => ({
+                    ...line,
+                    createdById: user.id,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          customer: true,
+          shop: { select: { id: true, shopName: true, shopNumber: true } },
+          items: { include: { product: true } },
+        },
+      });
+    });
+  }
+
   async send(user: RequestUser, id: string) {
     const row = await this.get(user, id);
     if (row.status !== SalesQuotationStatus.DRAFT) {
       throw new BadRequestException('Only draft quotations can be sent');
     }
+
+    const portalToken = row.portalToken ?? this.newPortalToken();
+    const delivery = await this.emailQuotation(row, { portalToken });
+
+    const updated = await this.prisma.salesQuotationHeader.update({
+      where: { id },
+      data: {
+        status: SalesQuotationStatus.SENT,
+        portalToken,
+        customerRequestedTotal: null,
+        customerRequestNote: null,
+        customerRespondedAt: null,
+        updatedById: user.id,
+      },
+      include: {
+        customer: true,
+        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        items: { include: { product: true } },
+      },
+    });
+
+    return this.withEmailDelivery(updated, delivery);
+  }
+
+  async resend(user: RequestUser, id: string) {
+    const row = await this.get(user, id);
+    if (row.status !== SalesQuotationStatus.USER_REQUESTED) {
+      throw new BadRequestException(
+        'Only quotations with a customer pricing request can be resent',
+      );
+    }
+
+    const portalToken = row.portalToken ?? this.newPortalToken();
+    const delivery = await this.emailQuotation(row, { portalToken, isRevision: true });
+
+    const updated = await this.prisma.salesQuotationHeader.update({
+      where: { id },
+      data: {
+        status: SalesQuotationStatus.SENT,
+        portalToken,
+        customerRequestedTotal: null,
+        customerRequestNote: null,
+        customerRespondedAt: null,
+        updatedById: user.id,
+      },
+      include: {
+        customer: true,
+        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        items: { include: { product: true } },
+      },
+    });
+
+    return this.withEmailDelivery(updated, delivery);
+  }
+
+  async cancel(user: RequestUser, id: string) {
+    const row = await this.get(user, id);
+    if (
+      row.status !== SalesQuotationStatus.USER_REQUESTED &&
+      row.status !== SalesQuotationStatus.SENT
+    ) {
+      throw new BadRequestException(
+        'Only sent quotations or customer pricing requests can be cancelled',
+      );
+    }
+
     return this.prisma.salesQuotationHeader.update({
       where: { id },
-      data: { status: SalesQuotationStatus.SENT, updatedById: user.id },
+      data: { status: SalesQuotationStatus.CANCELLED, updatedById: user.id },
       include: {
         customer: true,
         items: { include: { product: true } },

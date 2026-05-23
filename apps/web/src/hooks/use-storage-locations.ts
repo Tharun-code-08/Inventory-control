@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 
 export type StorageLocation = {
   id: string;
@@ -12,8 +13,14 @@ export type StorageLocation = {
 
 const keys = {
   all: ['storage-locations'] as const,
-  list: () => [...keys.all, 'list'] as const,
+  list: (tenant?: string | null, shopId?: string) =>
+    [...keys.all, 'list', tenant ?? 'anon', shopId ?? 'all'] as const,
 };
+
+function currentTenantKey() {
+  const user = useAuthStore.getState().user;
+  return user?.companyId ?? user?.id ?? 'anon';
+}
 
 function extractStorageLocationRows(payload: unknown): StorageLocation[] {
   if (Array.isArray(payload)) return payload as StorageLocation[];
@@ -25,8 +32,9 @@ function extractStorageLocationRows(payload: unknown): StorageLocation[] {
 }
 
 export function useStorageLocations(shopId?: string) {
+  const tenant = currentTenantKey();
   return useQuery({
-    queryKey: [...keys.list(), shopId ?? 'all'],
+    queryKey: keys.list(tenant, shopId),
     queryFn: async () => {
       const res = await api.get('/storage-locations', {
         params: shopId ? { shop_id: shopId } : undefined,

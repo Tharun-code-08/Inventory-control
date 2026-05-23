@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -27,10 +28,19 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import type { RequestUser } from '../../common/types/request-user';
 import { avatarMulterOptions } from '../../common/upload/avatar-multer.options';
 import { AuthService } from './auth.service';
+import { InviteService } from './invite.service';
+import { SignupService } from './signup.service';
 import { LoginDto } from './dto/login.dto';
+import { SignupRequestDto } from './dto/signup-request.dto';
+import { SignupResendDto } from './dto/signup-resend.dto';
+import { SignupVerifyDto } from './dto/signup-verify.dto';
+import { MobileLogoutDto } from './dto/mobile-logout.dto';
+import { MobileRefreshDto } from './dto/mobile-refresh.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { InviteTokenDto } from './dto/invite-token.dto';
+import { InviteAcceptDto } from './dto/invite-accept.dto';
 
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
@@ -39,6 +49,8 @@ const REFRESH_COOKIE_PATH = '/api/v1/auth';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly signup: SignupService,
+    private readonly invite: InviteService,
     private readonly config: ConfigService,
   ) {}
 
@@ -104,6 +116,58 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
+  @Post('signup/request')
+  @ApiOperation({ summary: 'Start organisation signup — sends email OTP' })
+  async signupRequest(@Body() dto: SignupRequestDto) {
+    return this.signup.requestSignup(dto);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('signup/resend')
+  @ApiOperation({ summary: 'Resend signup email OTP' })
+  async signupResend(@Body() dto: SignupResendDto) {
+    return this.signup.resendOtp(dto);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('signup/verify')
+  @ApiOperation({ summary: 'Verify signup OTP and create organisation workspace' })
+  async signupVerify(
+    @Req() req: Request,
+    @Body() dto: SignupVerifyDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.signup.verifySignup(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Get('invite')
+  @ApiOperation({ summary: 'Preview invitation details (no auth)' })
+  async invitePreview(@Query() query: InviteTokenDto) {
+    return this.invite.preview(query.token);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('invite/accept')
+  @ApiOperation({ summary: 'Accept invitation, set password, and sign in' })
+  async inviteAccept(
+    @Req() req: Request,
+    @Body() dto: InviteAcceptDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.invite.accept(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('login')
   @ApiOperation({
@@ -123,6 +187,56 @@ export class AuthController {
   private loginCtx(req: Request) {
     const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip;
     return { ip: ip ?? null, userAgent: (req.headers['user-agent'] as string | undefined) ?? null };
+  }
+
+  private mobileAuthResponse(result: {
+    accessToken: string;
+    refreshCookieValue: string;
+    user: unknown;
+  }) {
+    return {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshCookieValue,
+      user: result.user,
+    };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('mobile/login')
+  @ApiOperation({
+    summary: 'Mobile: authenticate with email + password',
+    description:
+      'Returns access and refresh tokens in the JSON body (no httpOnly cookies). For native Expo clients.',
+  })
+  @ApiResponse({ status: 201, description: 'Login successful.' })
+  async mobileLogin(@Req() req: Request, @Body() dto: LoginDto) {
+    const result = await this.auth.login(dto, this.loginCtx(req));
+    return this.mobileAuthResponse(result);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 30 } })
+  @Post('mobile/refresh')
+  @ApiOperation({
+    summary: 'Mobile: rotate refresh token and return new access token',
+    description: 'Accepts refresh token in JSON body. No CSRF cookie required.',
+  })
+  async mobileRefresh(@Req() req: Request, @Body() dto: MobileRefreshDto) {
+    const result = await this.auth.refreshFromToken(dto.refreshToken, this.loginCtx(req));
+    return this.mobileAuthResponse(result);
+  }
+
+  @Post('mobile/logout')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mobile: revoke refresh session' })
+  async mobileLogout(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: MobileLogoutDto,
+  ) {
+    const sessionId = await this.auth.getSessionIdFromRefreshToken(dto.refreshToken);
+    await this.auth.logout(user.id, sessionId);
+    return { ok: true };
   }
 
   @Public()

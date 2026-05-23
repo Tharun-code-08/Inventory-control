@@ -3,11 +3,12 @@ import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/cl
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
+import { InventoryLotService } from '../stock/inventory-lot.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 
@@ -20,6 +21,7 @@ export class GoodsIssuesService {
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
+    private readonly inventoryLots: InventoryLotService,
   ) {}
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
@@ -34,12 +36,12 @@ export class GoodsIssuesService {
     query: { shop_id?: string; date_from?: string; date_to?: string; status?: DocumentStatus; cursor?: string; take?: number },
   ) {
     const take = clampTake(query.take);
-    const shopScope = defaultShopFilter(user);
-    const shopId = shopScope ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
-    const where: Prisma.GoodsIssueHeaderWhereInput = {};
-    if (shopId) where.shopId = shopId;
+    const where: Prisma.GoodsIssueHeaderWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
+    };
     if (query.status) where.status = query.status;
     if (query.date_from || query.date_to) {
       where.giDate = {};
@@ -222,6 +224,12 @@ export class GoodsIssuesService {
           idempotencyKey: `gi:${fresh.id}:${line.id}`,
           userId: user.id,
         });
+        await this.inventoryLots.consumeFifo(
+          tx,
+          fresh.shopId,
+          line.productId,
+          new Prisma.Decimal(line.quantity),
+        );
       }
 
       const posted = await tx.goodsIssueHeader.findUniqueOrThrow({

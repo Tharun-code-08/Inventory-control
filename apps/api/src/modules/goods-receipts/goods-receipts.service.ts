@@ -3,7 +3,7 @@ import { AuditAction, CostingMethod, DocumentStatus, Prisma, TransactionType } f
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -86,12 +86,12 @@ export class GoodsReceiptsService {
     query: { shop_id?: string; date_from?: string; date_to?: string; status?: DocumentStatus; cursor?: string; take?: number },
   ) {
     const take = clampTake(query.take);
-    const shopScope = defaultShopFilter(user);
-    const shopId = shopScope ?? query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
-    const where: Prisma.GoodsReceiptHeaderWhereInput = {};
-    if (shopId) where.shopId = shopId;
+    const where: Prisma.GoodsReceiptHeaderWhereInput = {
+      shop: shopListWhere(user),
+      ...(query.shop_id ? { shopId: query.shop_id } : {}),
+    };
     if (query.status) where.status = query.status;
     if (query.date_from || query.date_to) {
       where.grDate = {};
@@ -114,6 +114,15 @@ export class GoodsReceiptsService {
             uom: true,
             purchaseRate: true,
             lineValue: true,
+            batchNumber: true,
+            serialNumber: true,
+            product: {
+              select: {
+                id: true,
+                productCode: true,
+                description: true,
+              },
+            },
           },
         },
       },
@@ -171,6 +180,8 @@ export class GoodsReceiptsService {
               uom: i.uom,
               purchaseRate: new Prisma.Decimal(i.purchaseRate),
               lineValue: new Prisma.Decimal(i.quantity).mul(new Prisma.Decimal(i.purchaseRate)),
+              batchNumber: i.batchNumber?.trim() || null,
+              serialNumber: i.serialNumber?.trim() || null,
               createdById: user.id,
             })),
           },
@@ -227,6 +238,8 @@ export class GoodsReceiptsService {
                     uom: i.uom,
                     purchaseRate: new Prisma.Decimal(i.purchaseRate),
                     lineValue: new Prisma.Decimal(i.quantity).mul(new Prisma.Decimal(i.purchaseRate)),
+                    batchNumber: i.batchNumber?.trim() || null,
+                    serialNumber: i.serialNumber?.trim() || null,
                     createdById: user.id,
                   })),
                 },
@@ -288,6 +301,12 @@ export class GoodsReceiptsService {
           sourceLineId: line.id,
           idempotencyKey: `gr:${fresh.id}:${line.id}`,
           userId: user.id,
+          remarks: [
+            line.batchNumber?.trim() ? `batch:${line.batchNumber.trim()}` : null,
+            line.serialNumber?.trim() ? `serial:${line.serialNumber.trim()}` : null,
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
         });
         await this.costing.recordInflow(tx, {
           shopId: fresh.shopId,

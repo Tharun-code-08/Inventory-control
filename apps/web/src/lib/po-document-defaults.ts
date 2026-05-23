@@ -35,12 +35,18 @@ export function defaultVendorFromSupplier(
   };
 }
 
+/** Delivery address for PO forms — uses the plant (shop) address as the ship-to location. */
+export function resolvePoDeliveryAddress(shop?: Shop | null): string {
+  return shop?.address?.trim() ?? '';
+}
+
 export function defaultShipToFromShop(shop?: Shop | null, deliveryAddress?: string): PoDocumentMeta {
   if (!shop) return { shipToAddress: deliveryAddress };
+  const shipToAddress = deliveryAddress?.trim() || resolvePoDeliveryAddress(shop);
   return {
     shipToName: shop.contactPerson,
     shipToCompany: shop.shopName,
-    shipToAddress: deliveryAddress || shop.address,
+    shipToAddress,
     shipToPhone: shop.mobile,
     contactName: shop.contactPerson,
     contactPhone: shop.mobile,

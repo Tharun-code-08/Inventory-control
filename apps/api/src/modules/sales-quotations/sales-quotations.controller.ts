@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { CreateSalesQuotationDto } from './dto/create-sales-quotation.dto';
+import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
 import { SalesQuotationsService } from './sales-quotations.service';
 
 @ApiTags('sales-quotations')
@@ -34,9 +35,33 @@ export class SalesQuotationsController {
   }
 
   @RequirePermission('shop:write')
+  @Patch(':id')
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateSalesQuotationDto,
+  ) {
+    return this.salesQuotations.update(user, id, dto);
+  }
+
+  @RequirePermission('shop:write')
   @Post(':id/send')
   send(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesQuotations.send(user, id);
+  }
+
+  @RequirePermission('shop:write')
+  @Post(':id/resend')
+  @ApiOperation({ summary: 'Resend revised quotation after customer pricing request' })
+  resend(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.salesQuotations.resend(user, id);
+  }
+
+  @RequirePermission('shop:write')
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel quotation (customer request or awaiting response)' })
+  cancel(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.salesQuotations.cancel(user, id);
   }
 
   @RequirePermission('shop:write')

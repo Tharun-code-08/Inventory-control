@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 
 import { AppLayout } from '@/components/AppLayout';
+import { ColumnFilter } from '@/components/shared/column-filter';
 import { PageHeader } from '@/components/shared/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,8 +55,12 @@ import {
   type BulkInventoryRow,
   type Product,
 } from '@/hooks/use-products';
+import { useGoodsReceipts } from '@/hooks/use-goods-receipts';
 import { useShops } from '@/hooks/use-shops';
+import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { downloadCsv, parseCsv, toCsv, type CsvColumn } from '@/lib/csv';
+import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
+import { useAuthStore } from '@/store/authStore';
 
 const CATEGORY_COLORS = [
   '#3b82f6',
@@ -79,12 +84,15 @@ const TEMPLATE_HEADERS = [
   'reorder_qty',
 ];
 
+const DEFAULT_LOCATION_FILTER = '__default__';
+
 type StockRow = {
   key: string;
   productId: string;
   sku: string;
   productName: string;
   shopId: string;
+  storageLocationId: string;
   plant: string;
   location: string;
   currentStock: number;
@@ -105,6 +113,7 @@ function flattenStockRows(
         sku: product.productCode,
         productName: product.description,
         shopId: '',
+        storageLocationId: '',
         plant: '-',
         location: 'DEFAULT',
         currentStock: Number(product.currentStock ?? product.totalStock ?? 0),
@@ -121,6 +130,7 @@ function flattenStockRows(
         sku: product.productCode,
         productName: product.description,
         shopId: plant.shopId,
+        storageLocationId: plant.storageLocationId ?? '',
         plant: shopNameById.get(plant.shopId) ?? '-',
         location: plant.storageLocation?.name || plant.storageLocation?.code || 'DEFAULT',
         currentStock,
@@ -216,14 +226,49 @@ function extractProductRows(raw: unknown): Product[] {
   return [];
 }
 
+function rowMatchesLocationFilter(row: StockRow, locationFilter: string): boolean {
+  if (locationFilter === 'all') return true;
+  if (locationFilter === DEFAULT_LOCATION_FILTER) {
+    return !row.storageLocationId;
+  }
+  return row.storageLocationId === locationFilter;
+}
+
 export function WarehousePage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = isAdminUser(user);
+  const shopLocked = isShopOnlyUser(user);
   const { data: alerts = [] } = useAlerts();
   const runChecks = useRunAlertChecks();
   const markRead = useMarkAlertRead();
   const { data: dashboard } = useDashboard();
-  const productsQuery = useProducts({ isActive: true, limit: 100, page: 1 });
+  const [plantFilter, setPlantFilter] = useState(
+    shopLocked && user?.shopId ? user.shopId : 'all',
+  );
+  const [locationFilter, setLocationFilter] = useState('all');
+
+  useEffect(() => {
+    if (shopLocked && user?.shopId) {
+      setPlantFilter(user.shopId);
+    }
+  }, [shopLocked, user?.shopId]);
+  const listShopId = productListShopId(user, plantFilter);
+  const productsQuery = useProducts({
+    isActive: true,
+    limit: 100,
+    page: 1,
+    shopId: listShopId,
+  });
+  const postedGrQuery = useGoodsReceipts({
+    status: 'POSTED',
+    shopId: listShopId,
+    limit: 200,
+    page: 1,
+  });
   const { data: shops = [] } = useShops();
+  const selectedPlantId = plantFilter === 'all' ? undefined : plantFilter;
+  const { data: storageLocations = [] } = useStorageLocations(selectedPlantId);
   const products = useMemo(() => extractProductRows(productsQuery.data), [productsQuery.data]);
   const shopNameById = useMemo(
     () => new Map(shops.map((s) => [s.id, `${s.shopName}`])),
@@ -239,39 +284,97 @@ export function WarehousePage() {
     [products, shopNameById],
   );
 
+  /** Latest batch per product+plant from posted goods receipts (newest GR first). */
+  const batchByProductShop = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const gr of postedGrQuery.data?.items ?? []) {
+      if (!gr.shopId) continue;
+      for (const item of gr.items ?? []) {
+        const batch = item.batchNumber?.trim();
+        if (!batch) continue;
+        const key = `${item.productId}:${gr.shopId}`;
+        if (!map.has(key)) map.set(key, batch);
+      }
+    }
+    return map;
+  }, [postedGrQuery.data?.items]);
+
   const [search, setSearch] = useState('');
+
+  const locationFilterOptions = useMemo(() => {
+    if (selectedPlantId) {
+      return storageLocations
+        .filter((loc) => loc.isActive)
+        .map((loc) => ({
+          id: loc.id,
+          label: loc.name || loc.code,
+        }));
+    }
+    const seen = new Map<string, string>();
+    for (const row of stockRows) {
+      if (row.storageLocationId) {
+        seen.set(row.storageLocationId, row.location);
+      }
+    }
+    return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
+  }, [selectedPlantId, storageLocations, stockRows]);
+
+  const hasDefaultLocationRows = useMemo(
+    () => stockRows.some((row) => !row.storageLocationId),
+    [stockRows],
+  );
+
+  const plantFilteredRows = useMemo(() => {
+    if (plantFilter === 'all') return stockRows;
+    return stockRows.filter((row) => row.shopId === plantFilter);
+  }, [stockRows, plantFilter]);
+
+  const scopeFilteredRows = useMemo(() => {
+    return plantFilteredRows.filter((row) => rowMatchesLocationFilter(row, locationFilter));
+  }, [plantFilteredRows, locationFilter]);
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return stockRows;
-    return stockRows.filter(
+    if (!q) return scopeFilteredRows;
+    return scopeFilteredRows.filter(
       (row) =>
         row.sku.toLowerCase().includes(q) ||
         row.productName.toLowerCase().includes(q) ||
         row.plant.toLowerCase().includes(q) ||
-        row.location.toLowerCase().includes(q),
+        row.location.toLowerCase().includes(q) ||
+        (row.shopId
+          ? (batchByProductShop.get(`${row.productId}:${row.shopId}`) ?? '')
+          : ''
+        )
+          .toLowerCase()
+          .includes(q),
     );
-  }, [stockRows, search]);
+  }, [scopeFilteredRows, search, batchByProductShop]);
 
   const productsInStock = useMemo(
-    () => stockRows.filter((row) => row.currentStock > 0).length,
-    [stockRows],
+    () => scopeFilteredRows.filter((row) => row.currentStock > 0).length,
+    [scopeFilteredRows],
   );
   const zeroStockCount = useMemo(
-    () => stockRows.filter((row) => row.currentStock <= 0).length,
-    [stockRows],
+    () => scopeFilteredRows.filter((row) => row.currentStock <= 0).length,
+    [scopeFilteredRows],
   );
   const totalUnits = useMemo(
-    () => stockRows.reduce((sum, row) => sum + (row.currentStock > 0 ? row.currentStock : 0), 0),
-    [stockRows],
+    () =>
+      scopeFilteredRows.reduce(
+        (sum, row) => sum + (row.currentStock > 0 ? row.currentStock : 0),
+        0,
+      ),
+    [scopeFilteredRows],
   );
 
   const topByStock = useMemo(() => {
-    return [...stockRows]
+    return [...scopeFilteredRows]
       .filter((row) => row.currentStock > 0)
       .sort((a, b) => b.currentStock - a.currentStock)
       .slice(0, 8)
       .map((row) => ({ name: row.productName, stock: row.currentStock }));
-  }, [stockRows]);
+  }, [scopeFilteredRows]);
 
   const categoryData = dashboard?.categoryBreakdown ?? [];
 
@@ -281,7 +384,11 @@ export function WarehousePage() {
       { header: 'Product', value: (r) => r.productName },
       { header: 'Plant', value: (r) => r.plant },
       { header: 'Location', value: (r) => r.location },
-      { header: 'Batch', value: () => '' },
+      {
+        header: 'Batch',
+        value: (r) =>
+          r.shopId ? batchByProductShop.get(`${r.productId}:${r.shopId}`) ?? '' : '',
+      },
       { header: 'Expiry', value: () => '' },
       { header: 'Current Stock', value: (r) => r.currentStock },
       { header: 'Min Stock', value: (r) => r.minStock },
@@ -316,7 +423,7 @@ export function WarehousePage() {
               <KpiCard
                 title="Total Products"
                 value={dashboard?.totalProducts ?? products.length}
-                hint={`${stockRows.length} slots across all plants & locations`}
+                hint={`${scopeFilteredRows.length} slot(s) in current view`}
                 accent="blue"
                 icon={PackageCheck}
               />
@@ -443,11 +550,23 @@ export function WarehousePage() {
 
             <StockTableSection
               rows={filteredRows}
-              totalCount={stockRows.length}
+              totalCount={scopeFilteredRows.length}
               search={search}
               onSearch={setSearch}
               onExport={onExport}
               shopNumberById={shopNumberById}
+              batchByProductShop={batchByProductShop}
+              shops={shops}
+              showPlantFilter={isAdmin && shops.length > 0}
+              plantFilter={plantFilter}
+              onPlantFilterChange={(value) => {
+                setPlantFilter(value);
+                setLocationFilter('all');
+              }}
+              locationFilter={locationFilter}
+              onLocationFilterChange={setLocationFilter}
+              locationOptions={locationFilterOptions}
+              hasDefaultLocationRows={hasDefaultLocationRows}
             />
           </CardContent>
         </Card>
@@ -507,6 +626,15 @@ function StockTableSection({
   onSearch,
   onExport,
   shopNumberById,
+  batchByProductShop,
+  shops,
+  showPlantFilter,
+  plantFilter,
+  onPlantFilterChange,
+  locationFilter,
+  onLocationFilterChange,
+  locationOptions,
+  hasDefaultLocationRows,
 }: {
   rows: StockRow[];
   totalCount: number;
@@ -514,8 +642,30 @@ function StockTableSection({
   onSearch: (next: string) => void;
   onExport: () => void;
   shopNumberById: Map<string, string>;
+  batchByProductShop: Map<string, string>;
+  shops: Array<{ id: string; shopName: string; shopNumber: string }>;
+  showPlantFilter: boolean;
+  plantFilter: string;
+  onPlantFilterChange: (value: string) => void;
+  locationFilter: string;
+  onLocationFilterChange: (value: string) => void;
+  locationOptions: Array<{ id: string; label: string }>;
+  hasDefaultLocationRows: boolean;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
+
+  const plantOptions = useMemo(
+    () => shops.map((s) => ({ value: s.id, label: s.shopName })),
+    [shops],
+  );
+
+  const storageOptions = useMemo(() => {
+    const opts = locationOptions.map((loc) => ({ value: loc.id, label: loc.label }));
+    if (hasDefaultLocationRows) {
+      opts.unshift({ value: DEFAULT_LOCATION_FILTER, label: 'Default / unassigned' });
+    }
+    return opts;
+  }, [hasDefaultLocationRows, locationOptions]);
 
   return (
     <div className="space-y-3">
@@ -524,13 +674,37 @@ function StockTableSection({
         plant/storage location.
       </p>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search by product name or SKU..."
-          className="w-full sm:max-w-xs"
-        />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <Input
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Search by product name or SKU..."
+            className="h-9 w-full sm:max-w-xs"
+          />
+          <div className="flex flex-wrap items-center gap-1">
+            {showPlantFilter ? (
+              <ColumnFilter
+                label="SHOP"
+                filterLabel="Filter by plant"
+                value={plantFilter}
+                onChange={onPlantFilterChange}
+                options={plantOptions}
+                allValue="all"
+                allLabel="All plants"
+              />
+            ) : null}
+            <ColumnFilter
+              label="STORAGE"
+              filterLabel="Filter by storage location"
+              value={locationFilter}
+              onChange={onLocationFilterChange}
+              options={storageOptions}
+              allValue="all"
+              allLabel="All locations"
+            />
+          </div>
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button variant="outline" onClick={() => setUploadOpen(true)}>
             <Upload className="mr-2 h-4 w-4" /> Upload Inventory
@@ -567,13 +741,17 @@ function StockTableSection({
               rows.map((row) => {
                 const stock = stockBadgeVariant(row);
                 const belowMin = row.minStock > 0 && row.currentStock < row.minStock;
+                const batch =
+                  row.shopId
+                    ? batchByProductShop.get(`${row.productId}:${row.shopId}`)
+                    : undefined;
                 return (
                   <TableRow key={row.key}>
                     <TableCell className="font-medium text-indigo-600">{row.sku}</TableCell>
                     <TableCell>{row.productName}</TableCell>
                     <TableCell>{row.plant}</TableCell>
                     <TableCell>{row.location}</TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
+                    <TableCell className="text-sm">{batch ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">—</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={stock.variant}>{stock.label}</Badge>

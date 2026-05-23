@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,14 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { downloadProductImportTemplate } from '@/lib/product-import-template';
+import {
+  buildProductCategoryEntry,
+  useProductCategories,
+} from '@/hooks/use-product-categories';
+import { useGstHsnSearch } from '@/hooks/use-gst-hsn-search';
+import { resolveHsnSuggestion, type HsnSuggestion } from '@/lib/hsn-suggest';
+import { resolveStorageLocationIdForImport } from '@/lib/resolve-storage-location';
 import { useAuthStore } from '@/store/authStore';
 import {
   useProducts,
@@ -31,9 +39,10 @@ import {
   useDeleteProduct,
   type Product,
   type ProductFilters,
+  TAX_PREFERENCE_OPTIONS,
+  formatTaxPreference,
 } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
-import { useProductCategories } from '@/hooks/use-product-categories';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { mapProductFormToPayload, type ProductFormValues } from '@/lib/payload-mappers';
 import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
@@ -76,6 +85,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader, SearchInput } from '@/components/shared';
 import { Card, CardContent } from '@/components/ui/card';
@@ -153,6 +170,7 @@ const UOM_OPTIONS = [
   { value: 'oz', label: 'Ounce (oz)' },
 ] as const;
 const PAGE_SIZE = 25;
+const CREATE_CATEGORY_OPTION = '__create_category__';
 /** API rejects limit > 100 (ListProductsDto @Max(100)). */
 const STATS_FETCH_LIMIT = 100;
 
@@ -197,15 +215,15 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
+    <Card className="overflow-hidden border-border bg-card shadow-sm">
       <CardContent className="flex items-center gap-3 p-4">
         <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           {icon}
         </div>
         <div>
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -280,8 +298,16 @@ const productSchema = z.object({
   productCode: z.string().min(1, 'Product code is required'),
   description: z.string().min(2, 'Description must be at least 2 characters'),
   category: z.string().min(1, 'Category is required'),
+  hsnCode: z
+    .string()
+    .optional()
+    .refine((v) => !v?.trim() || /^\d{4}(\d{2}){0,2}$/.test(v.trim()), {
+      message: 'HSN code must be 4, 6, or 8 digits',
+    }),
   materialGroup: z.string().optional(),
   drawingReference: z.string().optional(),
+  brand: z.string().optional(),
+  taxPreference: z.enum(['TAXABLE', 'NON_TAXABLE']),
   purchasePrice: z.coerce.number().min(0, 'Must be 0 or more'),
   sellingPrice: z.coerce.number().min(0, 'Must be 0 or more'),
   uom: z.string().min(1, 'Unit of measure is required'),
@@ -306,8 +332,11 @@ const defaultValues: FormShape = {
   productCode: '',
   description: '',
   category: '',
+  hsnCode: '',
   materialGroup: '',
   drawingReference: '',
+  brand: '',
+  taxPreference: 'TAXABLE',
   purchasePrice: 0,
   sellingPrice: 0,
   uom: 'pcs',
@@ -529,6 +558,9 @@ export function ProductsPage() {
   const shops = useShops();
   const shopList = shops.data ?? [];
   const defaultShopId = isShopOnlyUser(user) ? user!.shopId! : '';
+  const { data: importStorageLocations = [] } = useStorageLocations(
+    isShopOnlyUser(user) ? user!.shopId! : undefined,
+  );
   const [listShopFilter, setListShopFilter] = useState<string>('all');
   const listShopId = productListShopId(user, listShopFilter);
 
@@ -569,7 +601,11 @@ export function ProductsPage() {
     limit: STATS_FETCH_LIMIT,
     shopId: listShopId,
   });
-  const { categories: categoryConfig } = useProductCategories();
+  const { categories: categoryConfig, addCategory } = useProductCategories();
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [quickCategory, setQuickCategory] = useState({ name: '', description: '', defaultHsnCode: '' });
+  const [hsnSuggestion, setHsnSuggestion] = useState<HsnSuggestion | null>(null);
+  const [hsnLookupDebounced, setHsnLookupDebounced] = useState('');
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -603,6 +639,8 @@ export function ProductsPage() {
       { header: 'SKU', value: (r) => r.productCode },
       { header: 'Name', value: (r) => r.description },
       { header: 'Category', value: (r) => r.category },
+      { header: 'Brand', value: (r) => r.brand ?? '' },
+      { header: 'Tax Preference', value: (r) => formatTaxPreference(r.taxPreference) },
       { header: 'Unit', value: (r) => r.uom },
       { header: 'Selling Price', value: (r) => r.sellingPrice },
       { header: 'Cost Price', value: (r) => r.purchasePrice },
@@ -655,8 +693,68 @@ export function ProductsPage() {
     : 'this plant';
 
   const selectedCategory = form.watch('category');
-  const currentPrefix =
-    categoryConfig.find((c) => c.name === selectedCategory)?.skuPrefix ?? 'PRD';
+  const watchedDescription = form.watch('description');
+  const watchedHsnCode = form.watch('hsnCode');
+  const selectedCategoryConfig = categoryConfig.find((c) => c.name === selectedCategory);
+  const currentPrefix = selectedCategoryConfig?.skuPrefix ?? 'PRD';
+
+  const hsnLookupRaw = useMemo(() => {
+    const hsn = (watchedHsnCode ?? '').trim();
+    const desc = (watchedDescription ?? '').trim();
+    if (/^\d{3,}$/.test(hsn)) return hsn;
+    if (desc.length >= 3) return desc;
+    return '';
+  }, [watchedHsnCode, watchedDescription]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHsnLookupDebounced(hsnLookupRaw), 400);
+    return () => window.clearTimeout(timer);
+  }, [hsnLookupRaw]);
+
+  const gstHsnQuery = useGstHsnSearch(hsnLookupDebounced, sheetOpen);
+
+  const refreshHsnSuggestion = useCallback(() => {
+    const gstTop = gstHsnQuery.data?.[0];
+    if (gstTop) {
+      setHsnSuggestion({
+        code: gstTop.code,
+        description: gstTop.description,
+        source: 'gst',
+        confidence: 'high',
+      });
+      return;
+    }
+    const suggestion = resolveHsnSuggestion({
+      description: watchedDescription ?? '',
+      categoryName: selectedCategory,
+      categoryDefaultHsn: selectedCategoryConfig?.defaultHsnCode,
+    });
+    setHsnSuggestion(suggestion);
+  }, [
+    gstHsnQuery.data,
+    selectedCategory,
+    selectedCategoryConfig?.defaultHsnCode,
+    watchedDescription,
+  ]);
+
+  useEffect(() => {
+    refreshHsnSuggestion();
+  }, [refreshHsnSuggestion]);
+
+  const applyHsnSuggestion = () => {
+    if (!hsnSuggestion) return;
+    form.setValue('hsnCode', hsnSuggestion.code, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const applyHsnCode = (code: string) => {
+    form.setValue('hsnCode', code, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const hsnSuggestionSourceLabel = (source: HsnSuggestion['source']) => {
+    if (source === 'gst') return 'from GST portal';
+    if (source === 'category') return 'from category';
+    return 'from product name';
+  };
 
   const composedProductCode = `${currentPrefix}${skuNumber}`;
 
@@ -665,6 +763,39 @@ export function ProductsPage() {
       form.setValue('productCode', composedProductCode, { shouldValidate: true });
     }
   }, [composedProductCode, editingProduct, form]);
+
+  function handleQuickCategoryCreate() {
+    const name = quickCategory.name.trim();
+    if (!name) {
+      toast.error('Category name is required');
+      return;
+    }
+    if (categoryConfig.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('A category with this name already exists');
+      return;
+    }
+    const entry = buildProductCategoryEntry(
+      name,
+      categoryConfig,
+      quickCategory.description,
+      quickCategory.defaultHsnCode,
+    );
+    addCategory(entry);
+    form.setValue('category', entry.name, { shouldValidate: true, shouldDirty: true });
+    setQuickCategory({ name: '', description: '', defaultHsnCode: '' });
+    setHsnSuggestion(
+      entry.defaultHsnCode
+        ? {
+            code: entry.defaultHsnCode,
+            description: `${entry.name} (category default)`,
+            source: 'category',
+            confidence: 'high',
+          }
+        : null,
+    );
+    setCategoryDialogOpen(false);
+    toast.success(`Category "${entry.name}" created`);
+  }
 
   const openCreate = () => {
     setEditingProduct(null);
@@ -690,8 +821,11 @@ export function ProductsPage() {
       productCode: product.productCode,
       description: product.description,
       category: product.category,
+      hsnCode: product.hsnCode ?? '',
       materialGroup: product.materialGroup ?? '',
       drawingReference: product.drawingReference ?? '',
+      brand: product.brand ?? '',
+      taxPreference: product.taxPreference ?? 'TAXABLE',
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
       uom: product.uom,
@@ -734,8 +868,11 @@ export function ProductsPage() {
         productCode: finalProductCode,
         description: rawValues.description,
         category: rawValues.category,
+        hsnCode: rawValues.hsnCode,
         materialGroup: rawValues.materialGroup,
         drawingReference: rawValues.drawingReference,
+        brand: rawValues.brand,
+        taxPreference: rawValues.taxPreference,
         purchasePrice: rawValues.purchasePrice,
         sellingPrice: rawValues.sellingPrice,
         uom: rawValues.uom,
@@ -827,36 +964,33 @@ export function ProductsPage() {
   const isMutating = createProduct.isPending || updateProduct.isPending;
 
   const downloadProductTemplate = () => {
-    const headings = [
-      'Shop',
-      'Product Code',
-      'Description',
-      'Category',
-      'Purchase Price',
-      'Selling Price',
-      'Opening Stock',
-      'Min Stock Level',
-      'Reorder Qty',
-      'Unit of Measure',
-      'Active Status',
-    ];
-    const sampleRow = {
-      Shop: user?.shopId ? '' : shopList[0]?.shopNumber ?? '',
-      'Product Code': 'PRD001',
-      Description: 'Sample Product',
-      Category: categoryConfig[0]?.name ?? '',
-      'Purchase Price': 100,
-      'Selling Price': 120,
-      'Opening Stock': 50,
-      'Min Stock Level': 10,
-      'Reorder Qty': 20,
-      'Unit of Measure': 'pcs',
-      'Active Status': 'true',
-    };
-    const worksheet = XLSX.utils.json_to_sheet([sampleRow], { header: headings });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
-    XLSX.writeFile(workbook, 'products-bulk-template.xlsx');
+    const fixedShop = user?.shopId
+      ? shopList.find((s) => s.id === user.shopId)?.shopNumber
+      : undefined;
+    const sampleShopNumber = fixedShop ?? shopList[0]?.shopNumber ?? '';
+    const sampleShopId =
+      user?.shopId ?? shopList.find((s) => s.shopNumber === sampleShopNumber)?.id ?? shopList[0]?.id;
+    const sampleLocation = importStorageLocations.find(
+      (loc) => loc.isActive && (!sampleShopId || loc.shopId === sampleShopId),
+    );
+    downloadProductImportTemplate({
+      fixedShopNumber: fixedShop,
+      sampleShopNumber,
+      sampleStorageLocationCode: sampleLocation?.code ?? '',
+      categories: categoryConfig.map((c) => c.name),
+      shopNumbers: shopList.map((s) => `${s.shopNumber} — ${s.shopName}`),
+      storageLocations: importStorageLocations.map((loc) => {
+        const shop = shopList.find((s) => s.id === loc.shopId);
+        return {
+          shopNumber: shop?.shopNumber ?? '',
+          shopName: shop?.shopName ?? '',
+          code: loc.code,
+          name: loc.name,
+          isActive: loc.isActive,
+        };
+      }),
+    });
+    toast.success('Template downloaded — fill the Products sheet (see Storage Locations sheet for codes)');
   };
 
   const parseBoolean = (value: unknown, fallback = true) => {
@@ -889,13 +1023,15 @@ export function ProductsPage() {
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheet = workbook.SheetNames[0];
-      if (!firstSheet) {
+      const productsSheetName =
+        workbook.SheetNames.find((name) => name.trim().toLowerCase() === 'products') ??
+        workbook.SheetNames[0];
+      if (!productsSheetName) {
         toast.error('No worksheet found in the uploaded file');
         return;
       }
 
-      const worksheet = workbook.Sheets[firstSheet];
+      const worksheet = workbook.Sheets[productsSheetName];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
       if (rows.length === 0) {
         toast.error('Excel file is empty');
@@ -925,6 +1061,27 @@ export function ProductsPage() {
           const openingStock = Number(getByNormalizedKey(row, 'Opening Stock') ?? 0);
           const minStockLevel = Number(getByNormalizedKey(row, 'Min Stock Level') ?? 0);
           const reorderQty = Number(getByNormalizedKey(row, 'Reorder Qty') ?? 0);
+          const maxStockRaw = getByNormalizedKey(row, 'Max Stock Level');
+          const maxStockLevel =
+            maxStockRaw === '' || maxStockRaw === undefined || maxStockRaw === null
+              ? undefined
+              : Number(maxStockRaw);
+          const hsnCode = String(getByNormalizedKey(row, 'HSN Code') ?? getByNormalizedKey(row, 'HSN') ?? '').trim();
+          const materialGroup = String(getByNormalizedKey(row, 'Material Group') ?? '').trim();
+          const drawingReference = String(getByNormalizedKey(row, 'Drawing Reference') ?? '').trim();
+          const brand = String(getByNormalizedKey(row, 'Brand') ?? '').trim();
+          const taxPreferenceRaw = String(
+            getByNormalizedKey(row, 'Tax Preference') ?? getByNormalizedKey(row, 'Tax preference') ?? '',
+          )
+            .trim()
+            .toLowerCase();
+          const taxPreference =
+            taxPreferenceRaw === 'non-taxable' ||
+            taxPreferenceRaw === 'non taxable' ||
+            taxPreferenceRaw === 'nontaxable' ||
+            taxPreferenceRaw === 'non_taxable'
+              ? ('NON_TAXABLE' as const)
+              : ('TAXABLE' as const);
           const isActive = parseBoolean(getByNormalizedKey(row, 'Active Status'), true);
 
           const shopCell = String(getByNormalizedKey(row, 'Shop') ?? '').trim();
@@ -941,15 +1098,36 @@ export function ProductsPage() {
             fallbackShopId;
 
           if (!resolvedShopId) throw new Error('Shop is missing');
+
+          const storageLocationCode = String(
+            getByNormalizedKey(row, 'Storage Location Code') ??
+              getByNormalizedKey(row, 'Storage Location') ??
+              '',
+          ).trim();
+          const storageLocationId = resolveStorageLocationIdForImport(
+            resolvedShopId,
+            storageLocationCode,
+            importStorageLocations,
+          );
+
           if (!code) throw new Error('Product Code is required');
           if (!description) throw new Error('Description is required');
           if (!category) throw new Error('Category is required');
+          if (hsnCode && !/^\d{4}(\d{2}){0,2}$/.test(hsnCode)) {
+            throw new Error('HSN code must be 4, 6, or 8 digits');
+          }
           if (!uom) throw new Error('Unit of Measure is required');
           if (!Number.isFinite(purchasePrice) || purchasePrice < 0) throw new Error('Invalid Purchase Price');
           if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error('Invalid Selling Price');
           if (!Number.isFinite(openingStock) || openingStock < 0) throw new Error('Invalid Opening Stock');
           if (!Number.isFinite(minStockLevel) || minStockLevel < 0) throw new Error('Invalid Min Stock Level');
           if (!Number.isFinite(reorderQty) || reorderQty < 0) throw new Error('Invalid Reorder Qty');
+          if (
+            maxStockLevel !== undefined &&
+            (!Number.isFinite(maxStockLevel) || maxStockLevel < 0)
+          ) {
+            throw new Error('Invalid Max Stock Level');
+          }
 
           const dedupeKey = code.toLowerCase();
           if (seenCodes.has(dedupeKey)) throw new Error('Duplicate Product Code in upload file');
@@ -965,6 +1143,11 @@ export function ProductsPage() {
             productCode: code,
             description,
             category,
+            hsnCode: hsnCode || undefined,
+            materialGroup: materialGroup || undefined,
+            drawingReference: drawingReference || undefined,
+            brand: brand || undefined,
+            taxPreference,
             purchasePrice,
             sellingPrice,
             uom,
@@ -972,8 +1155,10 @@ export function ProductsPage() {
             plants: [
               {
                 shopId: resolvedShopId,
+                storageLocationId,
                 openingStock,
                 minStockLevel,
+                maxStockLevel,
                 reorderQty: reorderQty || undefined,
               },
             ],
@@ -1022,6 +1207,10 @@ export function ProductsPage() {
           <Button variant="outline" onClick={onExportCsv} disabled={items.length === 0}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
+          </Button>
+          <Button type="button" variant="outline" onClick={downloadProductTemplate}>
+            <Download className="mr-2 h-4 w-4" />
+            Download template
           </Button>
           <Button
             type="button"
@@ -1330,6 +1519,22 @@ export function ProductsPage() {
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Category</dt>
                 <dd className="mt-1 text-slate-900">{viewingProduct.category}</dd>
               </div>
+              {viewingProduct.hsnCode ? (
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">HSN Code</dt>
+                  <dd className="mt-1 font-mono text-slate-900">{viewingProduct.hsnCode}</dd>
+                </div>
+              ) : null}
+              {viewingProduct.brand ? (
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Brand</dt>
+                  <dd className="mt-1 text-slate-900">{viewingProduct.brand}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Tax preference</dt>
+                <dd className="mt-1 text-slate-900">{formatTaxPreference(viewingProduct.taxPreference)}</dd>
+              </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Unit</dt>
                 <dd className="mt-1 text-slate-900">{viewingProduct.uom}</dd>
@@ -1450,11 +1655,26 @@ export function ProductsPage() {
                     control={form.control}
                     name="category"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => {
+                          if (v === CREATE_CATEGORY_OPTION) {
+                            setCategoryDialogOpen(true);
+                            return;
+                          }
+                          field.onChange(v);
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem
+                            value={CREATE_CATEGORY_OPTION}
+                            className="font-medium text-indigo-700"
+                          >
+                            + Create new category
+                          </SelectItem>
                           {categoryConfig.map((c) => (
                             <SelectItem key={c.code} value={c.name}>
                               {c.name}
@@ -1498,11 +1718,94 @@ export function ProductsPage() {
                   )}
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="hsnCode">HSN Code</Label>
+                  <Input
+                    id="hsnCode"
+                    inputMode="numeric"
+                    maxLength={8}
+                    {...form.register('hsnCode')}
+                    placeholder="e.g. 84314900"
+                  />
+                  {form.formState.errors.hsnCode && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.hsnCode.message}
+                    </p>
+                  )}
+                  {gstHsnQuery.isFetching && hsnLookupDebounced.length >= 3 ? (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Searching GST portal…
+                    </p>
+                  ) : null}
+                  {gstHsnQuery.isError && hsnLookupDebounced.length >= 3 ? (
+                    <p className="text-xs text-amber-700">
+                      GST portal search unavailable — using local suggestions or enter HSN manually.
+                    </p>
+                  ) : null}
+                  {(gstHsnQuery.data?.length ?? 0) > 0 ? (
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-slate-600">
+                        GST portal ({gstHsnQuery.data!.length} result
+                        {gstHsnQuery.data!.length === 1 ? '' : 's'})
+                      </p>
+                    <ul className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white text-xs shadow-sm">
+                      {gstHsnQuery.data!.map((row) => (
+                        <li key={row.code} className="border-b border-slate-100 last:border-0">
+                          <button
+                            type="button"
+                            className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-indigo-50 sm:flex-row sm:items-center sm:gap-2"
+                            onClick={() => applyHsnCode(row.code)}
+                          >
+                            <span className="font-mono font-semibold text-indigo-900">{row.code}</span>
+                            <span className="text-slate-600">{row.description}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    </div>
+                  ) : null}
+                  {hsnSuggestion && watchedHsnCode?.trim() !== hsnSuggestion.code ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs text-indigo-900">
+                      <span>
+                        Suggested:{' '}
+                        <span className="font-mono font-semibold">{hsnSuggestion.code}</span>
+                        <span className="text-indigo-700"> — {hsnSuggestion.description}</span>
+                        <span className="ml-1 text-indigo-600">
+                          ({hsnSuggestionSourceLabel(hsnSuggestion.source)})
+                        </span>
+                      </span>
+                      <Button type="button" variant="outline" size="sm" className="h-7" onClick={applyHsnSuggestion}>
+                        Use this HSN
+                      </Button>
+                    </div>
+                  ) : null}
+                  <p className="text-[11px] text-muted-foreground">
+                    GST portal results are indicative — verify on the{' '}
+                    <a
+                      href="https://services.gst.gov.in/services/searchhsn"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-600 underline"
+                    >
+                      GST HSN search
+                    </a>{' '}
+                    before invoicing.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="materialGroup">Material Group</Label>
                   <Input
                     id="materialGroup"
                     {...form.register('materialGroup')}
                     placeholder="e.g. Stainless Steel"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brand">Brand</Label>
+                  <Input
+                    id="brand"
+                    {...form.register('brand')}
+                    placeholder="e.g. Bosch"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1565,6 +1868,32 @@ export function ProductsPage() {
                   {form.formState.errors.purchasePrice && (
                     <p className="text-xs text-destructive">
                       {form.formState.errors.purchasePrice.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="taxPreference">Tax Preference *</Label>
+                  <Controller
+                    control={form.control}
+                    name="taxPreference"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="taxPreference">
+                          <SelectValue placeholder="Select tax preference" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TAX_PREFERENCE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.taxPreference && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.taxPreference.message}
                     </p>
                   )}
                 </div>
@@ -1734,6 +2063,72 @@ export function ProductsPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={categoryDialogOpen}
+        onOpenChange={(open) => {
+          setCategoryDialogOpen(open);
+          if (!open) setQuickCategory({ name: '', description: '', defaultHsnCode: '' });
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Category</DialogTitle>
+            <DialogDescription>
+              Add a category and use it on this product. SKU prefix is assigned automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Category Name *</Label>
+              <Input
+                className="h-9"
+                value={quickCategory.name}
+                onChange={(e) => setQuickCategory((p) => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. Fasteners"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Description (optional)</Label>
+              <Input
+                className="h-9"
+                value={quickCategory.description}
+                onChange={(e) =>
+                  setQuickCategory((p) => ({ ...p, description: e.target.value }))
+                }
+                placeholder="Short note for this category"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default HSN Code (optional)</Label>
+              <Input
+                className="h-9 font-mono"
+                inputMode="numeric"
+                maxLength={8}
+                value={quickCategory.defaultHsnCode}
+                onChange={(e) =>
+                  setQuickCategory((p) => ({
+                    ...p,
+                    defaultHsnCode: e.target.value.replace(/\D/g, ''),
+                  }))
+                }
+                placeholder="e.g. 84072900"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                New products in this category can use this HSN automatically.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleQuickCategoryCreate}>
+              Create & Select
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!deleteTarget}

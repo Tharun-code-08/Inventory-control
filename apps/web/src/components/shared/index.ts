@@ -1,8 +1,10 @@
 export { PageHeader } from './page-header';
-export { StatusBadge } from './status-badge';
+export { KpiCard, type KpiCardProps } from './kpi-card';
+export { SearchInput } from './search-input';
+export { P2PFlowTimeline, type P2PStep } from './p2p-flow-timeline';
+export { ColumnFilter } from './column-filter';
 export { ConfirmDialog } from './confirm-dialog';
 export { DataTablePagination } from './data-table-pagination';
-export { SearchInput } from './search-input';
-export { LoadingSkeleton } from './loading-skeleton';
 export { EmptyState } from './empty-state';
-export { P2PFlowTimeline, type P2PStep } from './p2p-flow-timeline';
+export { LoadingSkeleton } from './loading-skeleton';
+export { StatusBadge } from './status-badge';

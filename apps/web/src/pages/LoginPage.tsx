@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Sparkles, Zap } from 'lucide-react';
 import { api } from '@/api/client';
 import { initializeSessionFromAuthResponse } from '@/lib/session';
@@ -9,8 +10,9 @@ import { BRAND } from '@/lib/brand';
 
 export function LoginPage() {
   const nav = useNavigate();
-  const [email, setEmail] = useState('admin@retailims.com');
-  const [password, setPassword] = useState('Admin@123');
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [errDetails, setErrDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,7 +28,7 @@ export function LoginPage() {
     setErrDetails('');
     try {
       const res = await api.post('/auth/login', { email, password });
-      await initializeSessionFromAuthResponse(res.data);
+      await initializeSessionFromAuthResponse(res.data, queryClient);
       const signedInUser = useAuthStore.getState().user;
       const avatar = animalAvatarForUser(signedInUser);
       setSplashAvatar(avatar);
@@ -45,15 +47,21 @@ export function LoginPage() {
         setErr('Cannot reach API. Is the server running on port 3000?');
         return;
       }
-      const apiErr = ax.response?.data?.error as
-        | { message?: string; code?: string; details?: string }
+      const payload = ax.response?.data as
+        | { error?: { message?: string; code?: string; details?: string } }
         | undefined;
+      const apiErr = payload?.error;
       const code = apiErr?.code;
       const msg = apiErr?.message;
       const details = typeof apiErr?.details === 'string' ? apiErr.details : '';
       setErrDetails(details);
       const base =
-        msg ?? (ax.response?.status === 401 ? 'Invalid email or password' : 'Login failed');
+        msg ??
+        (ax.response?.status === 401
+          ? 'Invalid email or password'
+          : ax.response?.status === 502
+            ? 'API server is not running. Start it with: npm run dev (from retail-ims folder).'
+            : 'Login failed');
       const statusNote = ax.response?.status ? ` [${ax.response.status}]` : '';
       setErr(code && code !== 'HTTP_ERROR' ? `${base}${statusNote} (${code})` : `${base}${statusNote}`);
       setIsSubmitting(false);
@@ -193,9 +201,12 @@ export function LoginPage() {
             >
               {isSubmitting ? 'Signing in...' : 'Sign in'}
             </button>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              Demo credentials prefilled: <span className="font-medium text-slate-700">admin@retailims.com / Admin@123</span>
-            </div>
+            <p className="text-center text-sm text-slate-500">
+              New organisation?{' '}
+              <Link to="/signup" className="font-medium text-indigo-600 hover:underline">
+                Create account with email verification
+              </Link>
+            </p>
           </form>
         </section>
       </div>

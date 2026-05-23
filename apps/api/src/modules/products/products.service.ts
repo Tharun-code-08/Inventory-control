@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, Prisma, PurchaseOrderStatus, TransactionType } from '@prisma/client';
+import { AuditAction, Prisma, PurchaseOrderStatus, TaxPreference, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
@@ -88,9 +88,16 @@ export class ProductsService {
     const limit = clampTake(query.limit);
     const page = query.page && query.page > 0 ? query.page : 1;
     const skip = (page - 1) * limit;
-    const shopScope = defaultShopFilter(user);
-    const shopId = shopScope ?? query.shop_id;
+    const companyId = requireCompanyId(user);
+    const shopId = query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
+    const tenantShopIds = shopIdsForUser(user);
+    const plantScope =
+      shopId != null
+        ? { shopId }
+        : tenantShopIds && tenantShopIds.length > 0
+          ? { shopId: { in: tenantShopIds } }
+          : { shop: { companyId } };
 
     const where: Prisma.ProductWhereInput = {
       ...(query.category ? { category: query.category } : {}),
@@ -103,9 +110,7 @@ export class ProductsService {
             ],
           }
         : {}),
-      // When scoped to a shop (either by user role or query filter), only
-      // surface products that actually have an assignment to that plant.
-      ...(shopId ? { plants: { some: { shopId } } } : {}),
+      ...(plantScope ? { plants: { some: plantScope } } : {}),
     };
 
     const [products, total] = await this.prisma.$transaction([
@@ -127,7 +132,11 @@ export class ProductsService {
       ? await this.prisma.stockSummary.findMany({
           where: {
             productId: { in: productIds },
-            ...(shopId ? { shopId } : {}),
+            ...(shopId
+              ? { shopId }
+              : tenantShopIds && tenantShopIds.length > 0
+                ? { shopId: { in: tenantShopIds } }
+                : { shop: { companyId } }),
           },
           select: { productId: true, shopId: true, currentStock: true },
         })
@@ -178,8 +187,11 @@ export class ProductsService {
           description: dto.description,
           uom: dto.uom,
           category: dto.category,
+          hsnCode: dto.hsnCode ?? null,
           materialGroup: dto.materialGroup ?? null,
           drawingReference: dto.drawingReference ?? null,
+          brand: dto.brand ?? null,
+          taxPreference: dto.taxPreference ?? TaxPreference.TAXABLE,
           purchasePrice: new Prisma.Decimal(dto.purchasePrice),
           sellingPrice: new Prisma.Decimal(dto.sellingPrice),
           isActive: dto.isActive ?? true,
@@ -302,10 +314,9 @@ export class ProductsService {
       include: PRODUCT_INCLUDE,
     });
     if (!product) throw new NotFoundException('Product not found');
-    // Shop users may only see products that have an active assignment to
-    // their shop. Admins/inventory managers see everything.
-    if (user.shopId) {
-      const accessible = product.plants.some((plant) => plant.shopId === user.shopId);
+    const tenantShopIds = shopIdsForUser(user);
+    if (tenantShopIds) {
+      const accessible = product.plants.some((plant) => tenantShopIds.includes(plant.shopId));
       if (!accessible) throw new NotFoundException('Product not found');
     }
     return {
@@ -325,9 +336,12 @@ export class ProductsService {
 
     if (dto.plants) {
       await this.validateAssignments(user, dto.plants);
-    } else if (user.shopId) {
-      const accessible = existing.plants.some((plant) => plant.shopId === user.shopId);
-      if (!accessible) throw new NotFoundException('Product not found');
+    } else {
+      const tenantShopIds = shopIdsForUser(user);
+      if (tenantShopIds) {
+        const accessible = existing.plants.some((plant) => tenantShopIds.includes(plant.shopId));
+        if (!accessible) throw new NotFoundException('Product not found');
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -338,8 +352,11 @@ export class ProductsService {
           description: dto.description,
           uom: dto.uom,
           category: dto.category,
+          hsnCode: dto.hsnCode === undefined ? undefined : dto.hsnCode ?? null,
           materialGroup: dto.materialGroup ?? undefined,
           drawingReference: dto.drawingReference ?? undefined,
+          brand: dto.brand === undefined ? undefined : dto.brand ?? null,
+          taxPreference: dto.taxPreference ?? undefined,
           purchasePrice:
             dto.purchasePrice !== undefined ? new Prisma.Decimal(dto.purchasePrice) : undefined,
           sellingPrice:

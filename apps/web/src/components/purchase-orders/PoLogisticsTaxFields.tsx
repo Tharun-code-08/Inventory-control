@@ -24,26 +24,15 @@ type Props = {
   plantLabel?: string;
 };
 
+/** Shipping / logistics fields for the PO PDF (tax is per line item). */
 export function PoLogisticsTaxFields({ form, plantLabel }: Props) {
-  const taxPercent = form.watch('taxPercent');
-
-  function onTaxPercentChange(raw: string) {
-    const pct = Number(raw) || 0;
-    form.setValue('taxPercent', raw);
-    if (pct > 0) {
-      const half = String(pct / 2);
-      if (!form.getValues('cgstPercent')) form.setValue('cgstPercent', half);
-      if (!form.getValues('sgstPercent')) form.setValue('sgstPercent', half);
-    }
-  }
-
   return (
     <div className="space-y-3 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
       <div>
-        <p className="text-sm font-semibold text-slate-900">Shipping & tax (PDF)</p>
+        <p className="text-sm font-semibold text-slate-900">Shipping (PDF)</p>
         <p className="text-xs text-slate-500">
           Ship to on the PDF uses the delivery plant
-          {plantLabel ? `: ${plantLabel}` : ''}. Tax amounts are calculated from % on subtotal.
+          {plantLabel ? `: ${plantLabel}` : ''}. Tax % is entered on each line item below.
         </p>
       </div>
 
@@ -140,46 +129,6 @@ export function PoLogisticsTaxFields({ form, plantLabel }: Props) {
                 </SelectContent>
               </Select>
             )}
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Tax % (total GST)</Label>
-          <Input
-            type="number"
-            min={0}
-            max={100}
-            step={0.01}
-            className={trigger}
-            placeholder="e.g. 18"
-            value={taxPercent ?? ''}
-            onChange={(e) => onTaxPercentChange(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">CGST %</Label>
-          <Input
-            type="number"
-            min={0}
-            max={100}
-            step={0.01}
-            className={trigger}
-            placeholder="e.g. 9"
-            {...form.register('cgstPercent')}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">SGST %</Label>
-          <Input
-            type="number"
-            min={0}
-            max={100}
-            step={0.01}
-            className={trigger}
-            placeholder="e.g. 9"
-            {...form.register('sgstPercent')}
           />
         </div>
       </div>

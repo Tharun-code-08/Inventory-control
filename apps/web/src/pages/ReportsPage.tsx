@@ -122,17 +122,24 @@ function LowStockTab({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {isAdmin ? (
+        <div className="flex flex-wrap items-center gap-1">
+          {isAdmin ? (
+            <ColumnFilter
+              label="SHOP"
+              filterLabel="Filter by Shop"
+              value={shopValue}
+              onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
+              options={shops.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          ) : null}
           <ColumnFilter
-            label="SHOP"
-            filterLabel="Filter by Shop"
-            value={shopValue}
-            onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
-            options={shops.map((s) => ({ value: s.id, label: s.name }))}
+            label="CATEGORY"
+            filterLabel="Filter by Category"
+            value={categoryValue}
+            onChange={(v) => onChange({ category: v === ALL ? undefined : v })}
+            options={categoryOptions}
           />
-        ) : (
-          <span />
-        )}
+        </div>
         <ReportExportButton onExport={handleExport} disabled={isLoading} />
       </div>
       {isLoading ? (
@@ -143,17 +150,7 @@ function LowStockTab({
             <TableRow>
               <TableHead>Product Code</TableHead>
               <TableHead>Description</TableHead>
-              <TableHead>
-                <ColumnFilter
-                  label="CATEGORY"
-                  filterLabel="Filter by Category"
-                  value={categoryValue}
-                  onChange={(v) =>
-                    onChange({ category: v === ALL ? undefined : v })
-                  }
-                  options={categoryOptions}
-                />
-              </TableHead>
+              <TableHead>Category</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
               <TableHead className="text-right">Min Level</TableHead>
               <TableHead className="text-right">Shortfall</TableHead>
@@ -252,17 +249,29 @@ function StockLedgerTab({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {isAdmin ? (
-          <ColumnFilter
-            label="SHOP"
-            filterLabel="Filter by Shop"
-            value={shopValue}
-            onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
-            options={shops.map((s) => ({ value: s.id, label: s.name }))}
+        <div className="flex flex-wrap items-center gap-1">
+          {isAdmin ? (
+            <ColumnFilter
+              label="SHOP"
+              filterLabel="Filter by Shop"
+              value={shopValue}
+              onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
+              options={shops.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          ) : null}
+          <DateRangeColumnFilter
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
           />
-        ) : (
-          <span />
-        )}
+          <ColumnFilter
+            label="PRODUCT"
+            filterLabel="Filter by Product"
+            value={productFilter}
+            onChange={setProductFilter}
+            options={productOptions}
+          />
+        </div>
         <ReportExportButton onExport={handleExport} disabled={isLoading} />
       </div>
       {isLoading ? (
@@ -271,22 +280,8 @@ function StockLedgerTab({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>
-                <DateRangeColumnFilter
-                  dateFrom={filters.dateFrom}
-                  dateTo={filters.dateTo}
-                  onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
-                />
-              </TableHead>
-              <TableHead>
-                <ColumnFilter
-                  label="PRODUCT"
-                  filterLabel="Filter by Product"
-                  value={productFilter}
-                  onChange={setProductFilter}
-                  options={productOptions}
-                />
-              </TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Product</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">In Qty</TableHead>
               <TableHead className="text-right">Out Qty</TableHead>
@@ -382,17 +377,29 @@ function GrRegisterTab({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {isAdmin ? (
-          <ColumnFilter
-            label="SHOP"
-            filterLabel="Filter by Shop"
-            value={shopValue}
-            onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
-            options={shops.map((s) => ({ value: s.id, label: s.name }))}
+        <div className="flex flex-wrap items-center gap-1">
+          {isAdmin ? (
+            <ColumnFilter
+              label="SHOP"
+              filterLabel="Filter by Shop"
+              value={shopValue}
+              onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
+              options={shops.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          ) : null}
+          <DateRangeColumnFilter
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
           />
-        ) : (
-          <span />
-        )}
+          <ColumnFilter
+            label="SUPPLIER"
+            filterLabel="Filter by Supplier"
+            value={supplierFilter}
+            onChange={setSupplierFilter}
+            options={supplierOptions}
+          />
+        </div>
         <ReportExportButton onExport={handleExport} disabled={isLoading} />
       </div>
       {isLoading ? (
@@ -403,22 +410,8 @@ function GrRegisterTab({
             <TableHeader>
               <TableRow>
                 <TableHead>GR Number</TableHead>
-                <TableHead>
-                  <DateRangeColumnFilter
-                    dateFrom={filters.dateFrom}
-                    dateTo={filters.dateTo}
-                    onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
-                  />
-                </TableHead>
-                <TableHead>
-                  <ColumnFilter
-                    label="SUPPLIER"
-                    filterLabel="Filter by Supplier"
-                    value={supplierFilter}
-                    onChange={setSupplierFilter}
-                    options={supplierOptions}
-                  />
-                </TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Supplier</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead className="text-right">Total Value</TableHead>
                 <TableHead>Status</TableHead>
@@ -535,17 +528,29 @@ function GiRegisterTab({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {isAdmin ? (
-          <ColumnFilter
-            label="SHOP"
-            filterLabel="Filter by Shop"
-            value={shopValue}
-            onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
-            options={shops.map((s) => ({ value: s.id, label: s.name }))}
+        <div className="flex flex-wrap items-center gap-1">
+          {isAdmin ? (
+            <ColumnFilter
+              label="SHOP"
+              filterLabel="Filter by Shop"
+              value={shopValue}
+              onChange={(v) => onChange({ shopId: v === ALL ? undefined : v })}
+              options={shops.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          ) : null}
+          <DateRangeColumnFilter
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
           />
-        ) : (
-          <span />
-        )}
+          <ColumnFilter
+            label="REASON"
+            filterLabel="Filter by Reason"
+            value={reasonFilter}
+            onChange={setReasonFilter}
+            options={reasonOptions}
+          />
+        </div>
         <ReportExportButton onExport={handleExport} disabled={isLoading} />
       </div>
       {isLoading ? (
@@ -556,22 +561,8 @@ function GiRegisterTab({
             <TableHeader>
               <TableRow>
                 <TableHead>GI Number</TableHead>
-                <TableHead>
-                  <DateRangeColumnFilter
-                    dateFrom={filters.dateFrom}
-                    dateTo={filters.dateTo}
-                    onChange={(from, to) => onChange({ dateFrom: from, dateTo: to })}
-                  />
-                </TableHead>
-                <TableHead>
-                  <ColumnFilter
-                    label="REASON"
-                    filterLabel="Filter by Reason"
-                    value={reasonFilter}
-                    onChange={setReasonFilter}
-                    options={reasonOptions}
-                  />
-                </TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Reason</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -726,7 +717,7 @@ export function ReportsPage() {
   const [filters, setFilters] = useState<ReportFilters>({});
   const { data: shopsData } = useShops();
   const { categories } = useProductCategories();
-  const shops = (shopsData ?? []).map((s) => ({ id: s.id, name: s.name }));
+  const shops = (shopsData ?? []).map((s) => ({ id: s.id, name: s.shopName }));
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.name, label: c.name })),

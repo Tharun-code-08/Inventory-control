@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, defaultShopFilter } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -16,10 +16,9 @@ export class CustomersService {
     query: { search?: string; cursor?: string; take?: number } = {},
   ) {
     const take = clampTake(query.take);
-    const scopedShop = defaultShopFilter(user);
     const search = query.search?.trim();
     const where: Prisma.CustomerWhereInput = {
-      ...(scopedShop ? { shopId: scopedShop } : {}),
+      shop: shopListWhere(user),
       ...(search
         ? {
             OR: [

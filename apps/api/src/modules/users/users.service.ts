@@ -1,10 +1,30 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditAction, RoleName } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, RoleName } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
+import { createHash, randomBytes } from 'crypto';
 import type { RequestUser } from '../../common/types/request-user';
+import { MailService } from '../../common/mail/mail.service';
+import {
+  userInviteHtml,
+  userInviteSubject,
+  userInviteText,
+  type UserInviteEmailContent,
+} from '../../common/mail/user-invite.template';
+import { buildUserInviteAcceptUrl } from '../../common/mail/portal-url';
+import { assertUserInTenant, shopIdsForUser, userListWhere } from '../../common/utils/shop-scope';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -12,10 +32,11 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private bcryptRounds() {
-    const value = Number(this.config.get<string | number>('BCRYPT_ROUNDS') ?? 12);
+    const value = Number(this.config.get('BCRYPT_ROUNDS') ?? 12);
     return Number.isFinite(value) && value >= 10 && value <= 14 ? value : 12;
   }
 
@@ -24,30 +45,35 @@ export class UsersService {
   }
 
   private assertCanManageShop(actor: RequestUser, targetShopId: string | null | undefined) {
-    if (this.isAdmin(actor)) return;
-    if (!actor.shopId) {
-      throw new ForbiddenException('Operation requires a shop scope');
+    if (targetShopId) {
+      assertUserInTenant(actor, targetShopId);
+      return;
     }
-    if (targetShopId && targetShopId !== actor.shopId) {
-      throw new ForbiddenException('Cannot manage users from another shop');
+    if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
+      throw new ForbiddenException('Operation requires a shop in your organisation');
     }
   }
 
-  private normalizeRoleName(roleName: string): RoleName {
+  private normalizeRoleName(roleName: string): RoleName | string {
     const normalized = roleName.toUpperCase().trim();
     const aliasMap: Record<string, RoleName> = {
       SHOP_MANAGER: RoleName.INVENTORY_MANAGER,
       SHOP_STAFF: RoleName.SHOP_USER,
       VIEWER: RoleName.SHOP_USER,
     };
-    return aliasMap[normalized] ?? (normalized as RoleName);
+    return aliasMap[normalized] ?? normalized;
   }
 
-  private async resolveRoleId(roleIdOrName: string) {
+  private inviteTtlMs() {
+    const hours = Number(this.config.get('INVITE_TTL_HOURS') ?? 72);
+    return Math.max(1, hours) * 60 * 60 * 1000;
+  }
+
+  private async resolveRoleId(roleIdOrName: string): Promise<string> {
     const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (uuidLike.test(roleIdOrName)) return roleIdOrName;
     const targetName = this.normalizeRoleName(roleIdOrName);
-    const role = await this.prisma.role.findFirst({ where: { name: targetName } });
+    const role = await this.prisma.role.findFirst({ where: { name: targetName as RoleName } });
     if (!role) throw new NotFoundException('Role not found');
     return role.id;
   }
@@ -70,12 +96,14 @@ export class UsersService {
       throw new ForbiddenException('Only an administrator can edit role permissions');
     }
     const targetName = this.normalizeRoleName(roleName);
-    const role = await this.prisma.role.findFirst({ where: { name: targetName } });
+    const role = await this.prisma.role.findFirst({ where: { name: targetName as RoleName } });
     if (!role) throw new NotFoundException('Role not found');
+
     const updated = await this.prisma.role.update({
       where: { id: role.id },
       data: { permissions },
     });
+
     await this.audit.log({
       userId: actor.id,
       action: AuditAction.UPDATE,
@@ -84,28 +112,41 @@ export class UsersService {
       oldValues: { permissions: role.permissions },
       newValues: { permissions },
     });
+
     return updated;
+  }
+
+  private resolveShopForActor(actor: RequestUser, requestedShopId?: string | null): string | null {
+    if (requestedShopId !== undefined) {
+      this.assertCanManageShop(actor, requestedShopId);
+      return requestedShopId ?? null;
+    }
+
+    const tenantShops = shopIdsForUser(actor);
+    if (tenantShops && tenantShops.length > 0) {
+      return actor.shopId ?? tenantShops[0];
+    }
+    if (actor.shopId) {
+      return actor.shopId;
+    }
+    return null;
   }
 
   async list(actor: RequestUser) {
     return this.prisma.user.findMany({
-      where: this.isAdmin(actor) ? undefined : { shopId: actor.shopId ?? '__never__' },
+      where: userListWhere(actor),
       orderBy: { createdAt: 'desc' },
       include: { role: true, shop: true },
     });
   }
 
-  async create(
-    actor: RequestUser,
-    dto: { name: string; email: string; password: string; roleId: string; shopId?: string; isActive?: boolean },
-  ) {
-    if (dto.shopId !== undefined) {
-      this.assertCanManageShop(actor, dto.shopId);
-    } else if (!this.isAdmin(actor)) {
-      // Non-admins can only create users in their own shop scope.
-      dto = { ...dto, shopId: actor.shopId ?? undefined };
-      if (!dto.shopId) {
-        throw new BadRequestException('shopId is required');
+  async create(actor: RequestUser, dto: CreateUserDto) {
+    const resolvedShopId = this.resolveShopForActor(actor, dto.shopId);
+    dto = { ...dto, shopId: resolvedShopId };
+
+    if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
+      if (!dto.shopId || !actor.tenantShopIds.includes(dto.shopId)) {
+        throw new ForbiddenException('User must belong to your organisation');
       }
     }
 
@@ -124,7 +165,7 @@ export class UsersService {
         email: dto.email.toLowerCase().trim(),
         passwordHash,
         roleId,
-        shopId: dto.shopId,
+        shopId: dto.shopId ?? null,
         isActive: dto.isActive ?? true,
       },
       include: { role: true, shop: true },
@@ -145,6 +186,96 @@ export class UsersService {
     return created;
   }
 
+  async invite(actor: RequestUser, dto: InviteUserDto) {
+    const email = dto.email.toLowerCase().trim();
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { shop: { include: { company: true } } },
+    });
+
+    const exists = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (exists) throw new ConflictException('Email already in use');
+
+    const roleId = await this.resolveRoleId(dto.roleId);
+    await this.assertRoleAssignable(actor, roleId);
+
+    const shopId = this.resolveShopForActor(actor, dto.shopId);
+    if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
+      if (shopId && !actor.tenantShopIds.includes(shopId)) {
+        throw new ForbiddenException('User must belong to your organisation');
+      }
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + this.inviteTtlMs());
+
+    const invitation = await this.prisma.$transaction(async (tx) => {
+      await tx.userInvitation.updateMany({
+        where: { email, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      return tx.userInvitation.create({
+        data: {
+          email,
+          name: dto.name?.trim(),
+          roleId,
+          shopId,
+          tokenHash,
+          invitedById: actor.id,
+          expiresAt,
+        },
+        include: {
+          role: true,
+          shop: { include: { company: true } },
+        },
+      });
+    });
+
+    const inviteUrl = buildUserInviteAcceptUrl(this.config, token);
+    const companyName =
+      invitation.shop?.company?.companyName ??
+      inviter?.shop?.company?.companyName ??
+      'Retail IMS';
+
+    const mailContent: UserInviteEmailContent = {
+      inviteUrl,
+      companyName,
+      inviteeEmail: email,
+      inviteeName: dto.name,
+      inviterName: inviter?.name ?? inviter?.email ?? 'Admin',
+      roleName: invitation.role.name,
+      shopName: invitation.shop?.shopName,
+      expiresHours: Math.round(this.inviteTtlMs() / (60 * 60 * 1000)),
+    };
+
+    try {
+      await this.mail.sendMail({
+        to: email,
+        subject: userInviteSubject(companyName),
+        text: userInviteText(mailContent),
+        html: userInviteHtml(mailContent),
+      });
+    } catch (err) {
+      throw new ServiceUnavailableException(
+        (err as Error).message || 'Email delivery is not configured. Please check SMTP settings.',
+      );
+    }
+
+    await this.audit.log({
+      userId: actor.id,
+      action: AuditAction.CREATE,
+      entityType: 'USER_INVITATION',
+      entityId: invitation.id,
+      newValues: { email, roleId, shopId, expiresAt },
+    });
+
+    return { ok: true, email, expiresAt };
+  }
+
   async get(actor: RequestUser, id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -155,21 +286,29 @@ export class UsersService {
     return user;
   }
 
-  async update(
-    actor: RequestUser,
-    id: string,
-    dto: Partial<{ name: string; email: string; password: string; roleId: string; shopId: string | null; isActive: boolean }>,
-  ) {
+  async update(actor: RequestUser, id: string, dto: UpdateUserDto) {
     const existing = await this.get(actor, id);
 
     if (dto.shopId !== undefined) {
       this.assertCanManageShop(actor, dto.shopId);
+      if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
+        if (!dto.shopId || !actor.tenantShopIds.includes(dto.shopId)) {
+          throw new ForbiddenException('User must belong to your organisation');
+        }
+      }
     }
 
     let resolvedRoleId: string | undefined;
     if (dto.roleId) {
       resolvedRoleId = await this.resolveRoleId(dto.roleId);
       await this.assertRoleAssignable(actor, resolvedRoleId);
+    }
+
+    if (dto.email) {
+      const exists = await this.prisma.user.findFirst({
+        where: { email: dto.email.toLowerCase().trim(), id: { not: id } },
+      });
+      if (exists) throw new ConflictException('Email already in use');
     }
 
     const passwordHash = dto.password
@@ -180,7 +319,7 @@ export class UsersService {
       where: { id },
       data: {
         name: dto.name?.trim(),
-        email: dto.email?.toLowerCase().trim(),
+        email: dto.email ? dto.email.toLowerCase().trim() : undefined,
         passwordHash,
         roleId: resolvedRoleId,
         shopId: dto.shopId === null ? null : dto.shopId,
@@ -191,7 +330,7 @@ export class UsersService {
 
     await this.audit.log({
       userId: actor.id,
-      action: dto.password ? AuditAction.UPDATE : AuditAction.UPDATE,
+      action: AuditAction.UPDATE,
       entityType: 'USER',
       entityId: existing.id,
       oldValues: {
@@ -217,12 +356,17 @@ export class UsersService {
     if (existing.id === actor.id) {
       throw new BadRequestException('You cannot disable your own account');
     }
-    // Soft-delete: clear active flag AND stamp deletedAt so the soft-delete
-    // middleware filters this row out of subsequent list/count queries.
+    if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
+      if (!existing.shopId || !actor.tenantShopIds.includes(existing.shopId)) {
+        throw new ForbiddenException('User is outside your organisation');
+      }
+    }
+
     await this.prisma.user.update({
       where: { id },
       data: { isActive: false, deletedAt: new Date() },
     });
+
     await this.audit.log({
       userId: actor.id,
       action: AuditAction.UPDATE,
@@ -231,6 +375,7 @@ export class UsersService {
       oldValues: { isActive: existing.isActive, deletedAt: null },
       newValues: { isActive: false, deletedAt: new Date().toISOString() },
     });
+
     return { ok: true };
   }
 }

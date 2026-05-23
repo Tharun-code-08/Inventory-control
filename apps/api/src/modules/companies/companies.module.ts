@@ -8,4 +8,3 @@ import { CompaniesService } from './companies.service';
   exports: [CompaniesService],
 })
 export class CompaniesModule {}
-

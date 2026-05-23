@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 
 export type User = {
   id: string;
@@ -31,26 +32,40 @@ export type UpdateUserPayload = Partial<Omit<CreateUserPayload, 'password'>> & {
   password?: string;
 };
 
-export const userKeys = {
-  all: ['users'] as const,
-  lists: () => [...userKeys.all, 'list'] as const,
-  details: () => [...userKeys.all, 'detail'] as const,
-  detail: (id: string) => [...userKeys.details(), id] as const,
+export type InviteUserPayload = {
+  email: string;
+  name?: string;
+  roleId: string;
+  shopId?: string | null;
 };
 
-export function useUsers() {
+export const userKeys = {
+  all: ['users'] as const,
+  lists: (tenant?: string | null) => [...userKeys.all, 'list', tenant ?? 'anon'] as const,
+  detail: (tenant: string | null | undefined, id: string) => [...userKeys.all, 'detail', tenant ?? 'anon', id] as const,
+};
+
+function currentTenantKey() {
+  const user = useAuthStore.getState().user;
+  return user?.companyId ?? user?.id ?? 'anon';
+}
+
+export function useUsers(enabled = true) {
+  const tenant = currentTenantKey();
   return useQuery({
-    queryKey: userKeys.lists(),
+    queryKey: userKeys.lists(tenant),
     queryFn: async () => {
       const res = await api.get('/users');
       return res.data.data as User[];
     },
+    enabled,
   });
 }
 
 export function useUser(id: string) {
+  const tenant = currentTenantKey();
   return useQuery({
-    queryKey: userKeys.detail(id),
+    queryKey: userKeys.detail(tenant, id),
     queryFn: async () => {
       const res = await api.get(`/users/${id}`);
       return res.data.data as User;
@@ -61,40 +76,57 @@ export function useUser(id: string) {
 
 export function useCreateUser() {
   const qc = useQueryClient();
+  const tenant = currentTenantKey();
   return useMutation({
     mutationFn: async (payload: CreateUserPayload) => {
       const res = await api.post('/users', payload);
       return res.data.data as User;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: userKeys.lists() });
+      qc.invalidateQueries({ queryKey: userKeys.lists(tenant) });
+    },
+  });
+}
+
+export function useInviteUser() {
+  const qc = useQueryClient();
+  const tenant = currentTenantKey();
+  return useMutation({
+    mutationFn: async (payload: InviteUserPayload) => {
+      const res = await api.post('/users/invite', payload);
+      return res.data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: userKeys.lists(tenant) });
     },
   });
 }
 
 export function useUpdateUser() {
   const qc = useQueryClient();
+  const tenant = currentTenantKey();
   return useMutation({
     mutationFn: async ({ id, ...payload }: UpdateUserPayload & { id: string }) => {
       const res = await api.patch(`/users/${id}`, payload);
       return res.data.data as User;
     },
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: userKeys.lists() });
-      qc.invalidateQueries({ queryKey: userKeys.detail(variables.id) });
+      qc.invalidateQueries({ queryKey: userKeys.lists(tenant) });
+      qc.invalidateQueries({ queryKey: userKeys.detail(tenant, variables.id) });
     },
   });
 }
 
 export function useDeleteUser() {
   const qc = useQueryClient();
+  const tenant = currentTenantKey();
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await api.delete(`/users/${id}`);
       return res.data.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: userKeys.lists() });
+      qc.invalidateQueries({ queryKey: userKeys.lists(tenant) });
     },
   });
 }

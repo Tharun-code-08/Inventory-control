@@ -35,6 +35,7 @@ type SessionUserRecord = {
     mobile: string;
     email: string;
     isActive: boolean;
+    companyId: string | null;
   } | null;
 };
 
@@ -87,6 +88,7 @@ export class AuthService {
       email: user.email,
       role: user.role.name,
       shopId: user.shopId,
+      companyId: user.shop?.companyId ?? null,
       permissions,
       avatarUrl: user.avatarUrl,
       shop: user.shop
@@ -99,6 +101,7 @@ export class AuthService {
             mobile: user.shop.mobile,
             email: user.shop.email,
             isActive: user.shop.isActive,
+            companyId: user.shop.companyId,
           }
         : null,
     };
@@ -448,5 +451,36 @@ export class AuthService {
       }),
     ]);
     return { ok: true };
+  }
+
+  /** Issue tokens after signup verification (same shape as login). */
+  async issueSessionForUser(userId: string, ctx: LoginContext = {}) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true, shop: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Account is not active');
+    }
+
+    const accessToken = await this.jwt.signAsync({
+      sub: user.id,
+      email: user.email,
+      role: String(user.role.name),
+    });
+
+    const session = await this.issueSession(user.id, ctx);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+    });
+
+    return {
+      accessToken,
+      refreshCookieValue: session.refreshToken,
+      sessionId: session.sessionId,
+      user: this.toSessionUser(user as SessionUserRecord),
+    };
   }
 }

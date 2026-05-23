@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '@/api/client';
@@ -21,9 +21,12 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   TrendingDown,
+  TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -36,10 +39,36 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { useDashboard, type DashboardViewData } from '@/hooks/use-dashboard';
+import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
+import { isAdminUser, productListShopId } from '@/lib/shop-scope';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const CHART_THEME = {
+  tick: '#64748b',
+  grid: '#e2e8f0',
+  tooltipBg: '#ffffff',
+  tooltipBorder: '#e2e8f0',
+  tooltipFg: '#0f172a',
+  legend: '#475569',
+} as const;
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
 
 function StatCard({
   title,
@@ -59,8 +88,8 @@ function StatCard({
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
           </div>
           <div
             className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}
@@ -110,7 +139,12 @@ type ReorderSuggestion = {
 export function DashboardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const { data, isLoading } = useDashboard();
+  const isAdmin = isAdminUser(user);
+  const { data: shopList = [] } = useShops();
+  const [shopFilter, setShopFilter] = useState<string>('all');
+  const dashboardShopId = productListShopId(user, shopFilter);
+  const { data, isLoading, isError, error, refetch } = useDashboard(dashboardShopId);
+  const chart = CHART_THEME;
 
   const handleLowStockReorder = async (p: {
     id: string;
@@ -172,11 +206,37 @@ export function DashboardPage() {
 
   return (
     <AppLayout active="Dashboard">
-      <div className="dashboard-normal space-y-5">
+      <div className="dashboard-normal space-y-6">
         <PageHeader
           title="Dashboard"
-          description={`Welcome back, ${user?.name ?? 'User'}`}
-        />
+          description={`Welcome back, ${user?.name ?? 'User'} — inventory overview at a glance`}
+        >
+          {isAdmin && shopList.length > 0 && (
+            <Select value={shopFilter} onValueChange={setShopFilter}>
+              <SelectTrigger className="h-9 w-full sm:w-[200px]">
+                <SelectValue placeholder="Plant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plants</SelectItem>
+                {shopList.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.shopName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </PageHeader>
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            Could not load dashboard data.
+            {error instanceof Error && error.message ? ` ${error.message}` : ''}
+            <Button variant="link" className="ml-2 h-auto p-0 text-destructive" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        )}
 
         {/* Stat cards */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -189,7 +249,7 @@ export function DashboardPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="surface-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-900">
+              <CardTitle className="text-sm font-semibold text-foreground">
                 Stock Movement (Last 6 Months)
               </CardTitle>
             </CardHeader>
@@ -199,19 +259,29 @@ export function DashboardPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={dashboard?.monthlyMovement ?? []}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      className="stroke-muted"
-                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
                     <XAxis
                       dataKey="month"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
+                      tick={{ fill: chart.tick }}
                     />
-                    <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip />
-                    <Legend />
+                    <YAxis
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: chart.tick }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: chart.tooltipBg,
+                        border: `1px solid ${chart.tooltipBorder}`,
+                        borderRadius: 8,
+                        color: chart.tooltipFg,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: chart.legend }} />
                     <Bar
                       dataKey="receipts"
                       name="Receipts"
@@ -232,7 +302,7 @@ export function DashboardPage() {
 
           <Card className="surface-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-900">Products by Category</CardTitle>
+              <CardTitle className="text-sm font-semibold text-foreground">Products by Category</CardTitle>
               <p className="text-xs text-muted-foreground font-normal">
                 Counts come from each product&apos;s saved category in the database (not the Settings
                 category list).
@@ -262,8 +332,15 @@ export function DashboardPage() {
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
-                    <Legend />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: chart.tooltipBg,
+                        border: `1px solid ${chart.tooltipBorder}`,
+                        borderRadius: 8,
+                        color: chart.tooltipFg,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: chart.legend }} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
@@ -275,7 +352,7 @@ export function DashboardPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="surface-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-900">
+              <CardTitle className="text-sm font-semibold text-foreground">
                 Recent Goods Receipts
               </CardTitle>
             </CardHeader>
@@ -323,7 +400,7 @@ export function DashboardPage() {
 
           <Card className="surface-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-900">Recent Goods Issues</CardTitle>
+              <CardTitle className="text-sm font-semibold text-foreground">Recent Goods Issues</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -364,10 +441,84 @@ export function DashboardPage() {
           </Card>
         </div>
 
+        {/* Top products by stock value */}
+        <Card className="surface-1">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-2">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                Top Products by Stock Value
+              </CardTitle>
+              <p className="text-xs font-normal text-muted-foreground">
+                Highest inventory value (selling price × on-hand stock) for your plant.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => navigate('/products')}
+            >
+              View all products
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <TableSkeleton rows={5} />
+            ) : !dashboard?.topProducts?.length ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No products with stock value yet. Add products and post goods receipts to see rankings.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">#</TableHead>
+                    <TableHead>Product Code</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Stock Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboard.topProducts.map((p, index) => (
+                    <TableRow
+                      key={p.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate('/products')}
+                    >
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell className="font-medium">{p.productCode}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{p.description}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="font-normal">
+                          {p.category}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{p.currentStock}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {formatAmount(p.sellingPrice)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatAmount(p.stockValue)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Low stock alerts */}
         <Card className="surface-1">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <TrendingDown className="h-4 w-4 text-amber-500" />
               Low Stock Alerts
             </CardTitle>
@@ -411,7 +562,7 @@ export function DashboardPage() {
                     return (
                       <TableRow
                         key={`${p.id}-${p.shopId}`}
-                        className="cursor-pointer hover:bg-slate-50"
+                        className="cursor-pointer hover:bg-muted/50"
                         onClick={() => handleLowStockReorder(p)}
                       >
                         <TableCell className="font-medium">

@@ -29,6 +29,15 @@ export type DashboardViewData = {
     currentStock: number;
     minStockLevel: number;
   }>;
+  topProducts: Array<{
+    id: string;
+    productCode: string;
+    description: string;
+    category: string;
+    currentStock: number;
+    sellingPrice: number;
+    stockValue: number;
+  }>;
 };
 
 export const EMPTY_DASHBOARD: DashboardViewData = {
@@ -41,4 +50,5 @@ export const EMPTY_DASHBOARD: DashboardViewData = {
   recentGoodsReceipts: [],
   recentGoodsIssues: [],
   lowStockProducts: [],
+  topProducts: [],
 };
