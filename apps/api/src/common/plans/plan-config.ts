@@ -1,0 +1,84 @@
+import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+
+export type PlanId = 'trial' | 'pro' | 'plus';
+export type BillingInterval = 'monthly' | 'yearly';
+
+export const TRIAL_DAYS = 7;
+
+export const PLAN_LIMITS = {
+  TRIAL: { maxUsers: 2, maxWarehouses: 1, maxSkus: 100 },
+  PRO: { maxUsers: 10, maxWarehouses: 3, maxSkus: null as number | null },
+  PLUS: { maxUsers: null as number | null, maxWarehouses: null as number | null, maxSkus: null as number | null },
+} as const;
+
+export const PLAN_PRICING = {
+  pro: {
+    monthly: { display: 399, original: 499, paise: 39900 },
+    yearly: { displayPerMonth: 349, paiseTotal: 349 * 12 * 100 },
+  },
+  plus: {
+    monthly: { display: 599, original: 699, paise: 59900 },
+    yearly: { displayPerMonth: 549, paiseTotal: 549 * 12 * 100 },
+  },
+} as const;
+
+/** Original Plus pricing — restore by clearing BILLING_DEMO_PLUS_PRICE_INR. */
+export const PLUS_PRICING_ORIGINAL = PLAN_PRICING.plus;
+
+function demoPlusPriceInr(): number | null {
+  const raw = process.env.BILLING_DEMO_PLUS_PRICE_INR?.trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 1) return null;
+  return Math.round(value);
+}
+
+export function isDemoPlusPricing(): boolean {
+  return demoPlusPriceInr() != null;
+}
+
+export function orderAmountPaise(plan: Exclude<PlanId, 'trial'>, interval: BillingInterval): number {
+  if (plan === 'plus') {
+    const demo = demoPlusPriceInr();
+    if (demo != null) return demo * 100;
+  }
+  const pricing = PLAN_PRICING[plan][interval];
+  return 'paiseTotal' in pricing ? pricing.paiseTotal : pricing.paise;
+}
+
+export function toSubscriptionPlan(plan: PlanId): SubscriptionPlan {
+  if (plan === 'pro') return SubscriptionPlan.PRO;
+  if (plan === 'plus') return SubscriptionPlan.PLUS;
+  return SubscriptionPlan.TRIAL;
+}
+
+export function toBillingCycle(interval: BillingInterval): BillingCycle {
+  return interval === 'yearly' ? BillingCycle.YEARLY : BillingCycle.MONTHLY;
+}
+
+export function subscriptionEndDate(plan: SubscriptionPlan, cycle: BillingCycle, from = new Date()): Date {
+  const end = new Date(from);
+  if (cycle === BillingCycle.YEARLY) {
+    end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end.setMonth(end.getMonth() + 1);
+  }
+  return end;
+}
+
+export function trialEndDate(from = new Date()): Date {
+  const end = new Date(from);
+  end.setDate(end.getDate() + TRIAL_DAYS);
+  return end;
+}
+
+export function planAllowsFeature(
+  plan: SubscriptionPlan,
+  feature: 'reports' | 'purchase_orders' | 'integrations' | 'api' | 'vendor_portal' | 'audit_rbac',
+): boolean {
+  if (plan === SubscriptionPlan.PLUS) return true;
+  if (plan === SubscriptionPlan.PRO) {
+    return feature !== 'api' && feature !== 'vendor_portal' && feature !== 'audit_rbac';
+  }
+  return false;
+}

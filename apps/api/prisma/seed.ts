@@ -4,17 +4,8 @@ import * as bcrypt from 'bcrypt';
 
 /**
  * Idempotent seed used for local development AND fresh production bootstraps.
- * Creates the three baseline roles, a default shop, and an admin user.
- *
- * Production safety: refuses to run if `NODE_ENV=production` AND
- * `ALLOW_PROD_SEED` is not explicitly set, so accidentally running
- * `prisma migrate deploy --seed` against prod won't reset credentials.
+ * Creates six system roles, a default shop, and an owner user.
  */
-// Master list of every permission referenced by `@RequirePermission(...)` in
-// the API controllers. Keep this in sync with the controllers — any string a
-// controller checks for must exist here, or the corresponding endpoint is
-// unreachable for every role (the PermissionsGuard rejects with
-// "Missing permission").
 const ALL_PERMISSIONS = [
   'user:manage',
   'shop:read',
@@ -35,6 +26,7 @@ const ALL_PERMISSIONS = [
   'quote:write',
   'purchase_order:read',
   'purchase_order:create',
+  'purchase_order:approve',
   'goods_receipt:read',
   'goods_receipt:create',
   'goods_issue:read',
@@ -43,18 +35,26 @@ const ALL_PERMISSIONS = [
   'damage:create',
   'report:view',
   'report:export',
+  'audit_log:read',
+  'api:manage',
+  'billing:manage',
+  'vendor_portal:access',
 ];
 
-const ADMIN_ROLE_PERMISSIONS = [...ALL_PERMISSIONS];
+const OWNER_PERMISSIONS = [...ALL_PERMISSIONS];
 
-// Inventory managers do everything an admin does *except* manage user
-// accounts (creating/disabling users, role changes).
-const INVENTORY_MANAGER_PERMISSIONS = ALL_PERMISSIONS.filter((p) => p !== 'user:manage');
+const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((p) => p !== 'billing:manage');
 
-// Shop users can read everything in their scope and perform day-to-day
-// floor operations (receive/issue goods, log damaged stock) but can't edit
-// master data (products, suppliers, plants, contracts, etc.).
-const SHOP_USER_PERMISSIONS = [
+const INVENTORY_MANAGER_PERMISSIONS = ALL_PERMISSIONS.filter(
+  (p) =>
+    p !== 'user:manage' &&
+    p !== 'billing:manage' &&
+    p !== 'purchase_order:approve' &&
+    p !== 'audit_log:read' &&
+    p !== 'api:manage',
+);
+
+const WAREHOUSE_STAFF_PERMISSIONS = [
   'shop:read',
   'company:read',
   'contract:read',
@@ -73,10 +73,31 @@ const SHOP_USER_PERMISSIONS = [
   'report:view',
 ];
 
+const VIEWER_PERMISSIONS = [
+  'shop:read',
+  'company:read',
+  'contract:read',
+  'product:read',
+  'storage_location:read',
+  'supplier:read',
+  'rfq:read',
+  'quote:read',
+  'purchase_order:read',
+  'goods_receipt:read',
+  'goods_issue:read',
+  'damage:read',
+  'report:view',
+];
+
+const VENDOR_PERMISSIONS = ['vendor_portal:access'];
+
 const ROLE_DEFINITIONS: Array<{ name: RoleName; permissions: string[] }> = [
-  { name: RoleName.ADMIN, permissions: ADMIN_ROLE_PERMISSIONS },
+  { name: RoleName.OWNER, permissions: OWNER_PERMISSIONS },
+  { name: RoleName.ADMIN, permissions: ADMIN_PERMISSIONS },
   { name: RoleName.INVENTORY_MANAGER, permissions: INVENTORY_MANAGER_PERMISSIONS },
-  { name: RoleName.SHOP_USER, permissions: SHOP_USER_PERMISSIONS },
+  { name: RoleName.WAREHOUSE_STAFF, permissions: WAREHOUSE_STAFF_PERMISSIONS },
+  { name: RoleName.VIEWER, permissions: VIEWER_PERMISSIONS },
+  { name: RoleName.VENDOR, permissions: VENDOR_PERMISSIONS },
 ];
 
 async function main() {
@@ -110,7 +131,7 @@ async function main() {
     });
     console.log(`[seed] Default shop: ${defaultShop.shopNumber}`);
 
-    const adminRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.ADMIN } });
+    const ownerRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.OWNER } });
 
     const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? 'admin@retailims.com').toLowerCase();
     const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@123';
@@ -119,9 +140,9 @@ async function main() {
     await prisma.user.upsert({
       where: { email: adminEmail },
       update: {
-        name: 'Administrator',
+        name: 'Owner',
         passwordHash,
-        roleId: adminRole.id,
+        roleId: ownerRole.id,
         shopId: defaultShop.id,
         isActive: true,
         failedLoginCount: 0,
@@ -129,15 +150,15 @@ async function main() {
         refreshTokenHash: null,
       },
       create: {
-        name: 'Administrator',
+        name: 'Owner',
         email: adminEmail,
         passwordHash,
-        roleId: adminRole.id,
+        roleId: ownerRole.id,
         shopId: defaultShop.id,
         isActive: true,
       },
     });
-    console.log(`[seed] Admin user ready: ${adminEmail}`);
+    console.log(`[seed] Owner user ready: ${adminEmail}`);
     console.log('[seed] Done');
   } finally {
     await prisma.$disconnect();

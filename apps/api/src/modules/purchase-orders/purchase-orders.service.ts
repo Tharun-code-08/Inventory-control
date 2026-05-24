@@ -7,6 +7,7 @@ import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { AuditService } from '../audit/audit.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { assertFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -32,6 +33,7 @@ export class PurchaseOrdersService {
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private idempotencyScope(user: RequestUser): string {
@@ -235,6 +237,13 @@ export class PurchaseOrdersService {
 
   async create(user: RequestUser, dto: CreatePurchaseOrderDto) {
     assertShopScope(user, dto.shopId);
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: dto.shopId },
+      select: { companyId: true },
+    });
+    if (shop?.companyId) {
+      await this.subscriptions.assertFeature(shop.companyId, 'purchase_orders');
+    }
     const poDate = new Date(dto.poDate);
     assertFuture(poDate);
     const idempotencyScope = this.idempotencyScope(user);

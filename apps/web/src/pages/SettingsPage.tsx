@@ -16,7 +16,6 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  CheckCircle2,
   Send,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
@@ -72,6 +71,7 @@ import {
 } from '@/hooks/use-users';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
+import { SettingsRolesTab } from '@/components/settings/SettingsRolesTab';
 import {
   ANIMAL_AVATARS,
   animalAvatarByKind,
@@ -84,8 +84,11 @@ import { mapUserFormToCreatePayload, mapUserFormToUpdatePayload } from '@/lib/pa
 import { getApiErrorMessage } from '@/lib/api-error';
 import type { AuthUser } from '@/store/authStore';
 import { ALL_SHOPS_OPTION, normalizeAllShopsSelection, toAllShopsSelection } from '@/lib/shop-scope';
-
-// --- Schemas ---
+import { isOrgAdminUser, roleDisplayLabel } from '@/lib/roles';
+import {
+  SYSTEM_ROLES,
+  assignableRolesForActor,
+} from '@/lib/system-roles';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -121,90 +124,6 @@ const inviteFormSchema = z.object({
   shopId: z.string().min(1, 'Shop is required'),
 });
 type InviteFormValues = z.infer<typeof inviteFormSchema>;
-
-// --- Role definitions (system-defined, read-only) ---
-
-const SYSTEM_ROLES = [
-  {
-    name: 'ADMIN',
-    value: 'ADMIN',
-    description: 'Full system access',
-    permissions: [
-      'products.manage',
-      'goods-receipts.manage',
-      'goods-issues.manage',
-      'purchase-orders.manage',
-      'reports.view',
-      'reports.export',
-      'shops.manage',
-      'users.manage',
-      'settings.manage',
-    ],
-  },
-  {
-    name: 'SHOP_MANAGER',
-    value: 'INVENTORY_MANAGER',
-    description: 'Shop-level management',
-    permissions: [
-      'products.view',
-      'products.create',
-      'products.edit',
-      'goods-receipts.manage',
-      'goods-issues.manage',
-      'purchase-orders.create',
-      'reports.view',
-      'reports.export',
-    ],
-  },
-  {
-    name: 'SHOP_STAFF',
-    value: 'SHOP_USER',
-    description: 'Basic shop operations',
-    permissions: [
-      'products.view',
-      'goods-receipts.create',
-      'goods-issues.create',
-      'reports.view',
-    ],
-  },
-  {
-    name: 'VIEWER',
-    value: 'SHOP_USER',
-    description: 'Read-only access',
-    permissions: ['products.view', 'reports.view'],
-  },
-];
-
-const PERMISSION_OPTIONS = [
-  'company:read',
-  'company:write',
-  'shop:read',
-  'shop:write',
-  'storage_location:read',
-  'storage_location:write',
-  'product:read',
-  'product:write',
-  'supplier:read',
-  'supplier:write',
-  'rfq:read',
-  'rfq:write',
-  'quote:read',
-  'quote:write',
-  'contract:read',
-  'contract:write',
-  'goods_receipt:create',
-  'goods_receipt:read',
-  'goods_issue:create',
-  'goods_issue:read',
-  'damage:create',
-  'damage:read',
-  'purchase_order:create',
-  'purchase_order:read',
-  'report:view',
-  'report:export',
-  'user:manage',
-  'audit_log:read',
-];
 
 // --- Profile Tab ---
 
@@ -431,7 +350,7 @@ function ProfileTab() {
             <div className="space-y-2">
               <Label>Role</Label>
               <Input
-                value={user?.role ?? ''}
+                value={roleDisplayLabel(user?.role)}
                 readOnly
                 className="bg-muted capitalize"
               />
@@ -552,7 +471,7 @@ function ProfileTab() {
 function ShopDetailsTab() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+  const isAdmin = isOrgAdminUser(user);
   const { data: shops, isLoading } = useShops();
   const updateShop = useUpdateShop();
 
@@ -719,6 +638,9 @@ function ShopDetailsTab() {
 // --- Users Tab (Admin) ---
 
 function UsersTab() {
+  const actor = useAuthStore((s) => s.user);
+  const assignableRoleNames = assignableRolesForActor(actor?.role);
+  const inviteableRoles = SYSTEM_ROLES.filter((r) => assignableRoleNames.includes(r.name));
   const { data: users, isLoading } = useUsers();
   const { data: shops } = useShops();
   const createUser = useCreateUser();
@@ -886,7 +808,7 @@ function UsersTab() {
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="capitalize">
-                    {u.role?.name?.toLowerCase().replace(/_/g, ' ')}
+                    {roleDisplayLabel(u.role?.name)}
                   </Badge>
                 </TableCell>
                 <TableCell>{u.shop?.shopName ?? 'All Shops'}</TableCell>
@@ -950,9 +872,9 @@ function UsersTab() {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SYSTEM_ROLES.map((r) => (
-                    <SelectItem key={`${r.name}-${r.value}`} value={r.value}>
-                      {r.name.replace(/_/g, ' ')}
+                  {inviteableRoles.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>
+                      {r.title}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1056,9 +978,9 @@ function UsersTab() {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SYSTEM_ROLES.map((r) => (
-                    <SelectItem key={`${r.name}-${r.value}`} value={r.value}>
-                      {r.name.replace(/_/g, ' ')}
+                  {inviteableRoles.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>
+                      {r.title}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1168,129 +1090,6 @@ function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
-// --- Roles & Permissions Tab ---
-
-function RolesTab() {
-  const { data: roleRows = [] } = useQuery({
-    queryKey: ['roles', 'permissions'],
-    queryFn: async () => {
-      const res = await api.get('/users/roles/list');
-      return (res.data.data ?? []) as Array<{ name: string; permissions: string[] }>;
-    },
-  });
-  const [draftByRole, setDraftByRole] = useState<Record<string, string[]>>({});
-
-  const savePermissions = useMutation({
-    mutationFn: async ({ roleName, permissions }: { roleName: string; permissions: string[] }) => {
-      const res = await api.patch(`/users/roles/${roleName}/permissions`, { permissions });
-      return res.data.data;
-    },
-    onSuccess: () => toast.success('Role permissions updated'),
-    onError: (err: unknown) => {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to update permissions';
-      toast.error(msg);
-    },
-  });
-
-  const backendByName = new Map(roleRows.map((r) => [r.name, r.permissions]));
-  const permissionGroups = PERMISSION_OPTIONS.reduce<Record<string, string[]>>((acc, perm) => {
-    const [group] = perm.split(':');
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(perm);
-    return acc;
-  }, {});
-  const formatPermission = (perm: string) => perm.replace(':', ' · ').replace(/_/g, ' ');
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Role Permission Matrix</p>
-              <p className="text-xs text-muted-foreground">
-                Configure access role-wise with grouped permissions.
-              </p>
-            </div>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-              {PERMISSION_OPTIONS.length} permissions
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-      {SYSTEM_ROLES.map((role) => {
-        const currentPermissions = draftByRole[role.value] ?? backendByName.get(role.value) ?? role.permissions;
-        return (
-          <Card key={role.name} className="overflow-hidden">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-muted-foreground" />
-                    {role.name.replace(/_/g, ' ')}
-                  </CardTitle>
-                  <p className="mt-1 text-sm text-muted-foreground">{role.description}</p>
-                </div>
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                  {currentPermissions.length} enabled
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
-                {Object.entries(permissionGroups).map(([groupName, permissions]) => (
-                  <div key={groupName} className="rounded-xl border border-slate-200 bg-white p-2.5">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      {groupName.replace(/_/g, ' ')}
-                    </p>
-                    <div className="grid gap-1.5 sm:grid-cols-2">
-                      {permissions.map((perm) => {
-                        const checked = currentPermissions.includes(perm);
-                        return (
-                          <label
-                            key={perm}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-xs transition hover:border-blue-200 hover:bg-blue-50/80"
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                              checked={checked}
-                              onChange={(e) => {
-                                const next = e.target.checked
-                                  ? [...currentPermissions, perm]
-                                  : currentPermissions.filter((p) => p !== perm);
-                                setDraftByRole((prev) => ({ ...prev, [role.value]: Array.from(new Set(next)) }));
-                              }}
-                            />
-                            <span className="truncate">{formatPermission(perm)}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={() => savePermissions.mutate({ roleName: role.value, permissions: currentPermissions })}
-                disabled={savePermissions.isPending}
-              >
-                <CheckCircle2 className="mr-1 h-4 w-4" />
-                Save Permissions
-              </Button>
-            </CardContent>
-          </Card>
-        );
-      })}
-      </div>
-    </div>
-  );
-}
 
 function CategoriesTab() {
   const { categories, saveCategories } = useProductCategories();
@@ -1371,7 +1170,7 @@ function CategoriesTab() {
 
 export function SettingsPage() {
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+  const isAdmin = isOrgAdminUser(user);
 
   return (
     <AppLayout active="Settings">
@@ -1441,7 +1240,7 @@ export function SettingsPage() {
 
           {isAdmin && (
             <TabsContent value="roles">
-              <RolesTab />
+              <SettingsRolesTab />
             </TabsContent>
           )}
         </Tabs>

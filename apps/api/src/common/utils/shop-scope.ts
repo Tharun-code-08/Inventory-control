@@ -4,7 +4,12 @@ import type { RequestUser } from '../types/request-user';
 
 export function assertShopScope(user: RequestUser, shopId: string | null | undefined) {
   if (!shopId) return;
-  if (user.role === RoleName.SHOP_USER) {
+  if (
+    user.role === RoleName.SHOP_USER ||
+    user.role === RoleName.WAREHOUSE_STAFF ||
+    user.role === RoleName.VIEWER ||
+    user.role === RoleName.VENDOR
+  ) {
     if (!user.shopId || user.shopId !== shopId) {
       throw new ForbiddenException('Shop scope mismatch');
     }
@@ -31,7 +36,12 @@ export function assertShopScope(user: RequestUser, shopId: string | null | undef
 
 /** Default plant filter: shop users and tenant admins are scoped; platform admins are not. */
 export function defaultShopFilter(user: RequestUser): string | undefined {
-  if (user.role === RoleName.SHOP_USER) {
+  if (
+    user.role === RoleName.SHOP_USER ||
+    user.role === RoleName.WAREHOUSE_STAFF ||
+    user.role === RoleName.VIEWER ||
+    user.role === RoleName.VENDOR
+  ) {
     return user.shopId ?? undefined;
   }
   if (user.companyId && user.shopId) {

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BrandLogo } from '@/components/BrandLogo';
+import { PricingSection } from '@/components/PricingSection';
 import { BRAND } from '@/lib/brand';
 
 export function HomePage() {
@@ -22,6 +23,12 @@ export function HomePage() {
             subtitleClassName="text-slate-400"
           />
           <nav aria-label="Primary" className="flex items-center gap-2 sm:gap-5">
+            <a
+              href="#pricing"
+              className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:inline-block"
+            >
+              Pricing
+            </a>
             <a
               href="#services"
               className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:inline-block"
@@ -68,16 +75,16 @@ export function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to="/login"
+                to="/signup?plan=trial"
                 className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#04123b] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200"
               >
-                Open {BRAND.productName}
+                Start free trial
               </Link>
               <a
-                href="#contact"
+                href="#pricing"
                 className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-transparent px-5 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
               >
-                Talk to us
+                View pricing
               </a>
             </div>
             <p className="mt-4 text-sm text-slate-400">{BRAND.poweredBy}</p>
@@ -141,6 +148,8 @@ export function HomePage() {
             </div>
           </div>
         </section>
+
+        <PricingSection />
 
         <section id="contact" className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16" aria-labelledby="contact-heading">
           <h2 id="contact-heading" className="text-2xl font-semibold text-slate-100">

@@ -17,6 +17,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Sparkles,
   Truck,
   Users,
   Warehouse,
@@ -29,6 +30,7 @@ import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
+import { isOrgAdminUser } from '@/lib/roles';
 
 type SidebarProps = {
   collapsed: boolean;
@@ -69,13 +71,13 @@ export function Sidebar({
   const [logoutFadeOut, setLogoutFadeOut] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isAdmin = String(user?.role ?? '').toUpperCase() === 'ADMIN';
+  const isOrgAdmin = isOrgAdminUser(user);
   const perms = user?.permissions ?? [];
-  const has = (perm: string) => perms.includes(perm) || isAdmin;
+  const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
 
   const navItems = useMemo(
     () => [
-      ...(isAdmin ? [{ label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }] : []),
+      ...(isOrgAdmin ? [{ label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }] : []),
 
       // Master Data
       ...(has('company:read') ? [{ label: 'Companies', icon: Building2, path: '/companies' }] : []),
@@ -103,9 +105,10 @@ export function Sidebar({
       ...(has('report:view') ? [{ label: 'Warehouse', icon: Warehouse, path: '/warehouse' }] : []),
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
+      ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
-    [has, isAdmin],
+    [has, isOrgAdmin],
   );
 
   useEffect(() => {

@@ -10,6 +10,7 @@ import { RoleName } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import { MailService } from '../../common/mail/mail.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
 import { SignupRequestDto } from './dto/signup-request.dto';
@@ -25,6 +26,7 @@ export type SignupPendingPayload = {
   mobile: string;
   adminName: string;
   passwordHash: string;
+  paymentOrderId?: string;
 };
 
 @Injectable()
@@ -36,6 +38,7 @@ export class SignupService {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly auth: AuthService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private signupEnabled(): boolean {
@@ -114,6 +117,15 @@ export class SignupService {
       );
     }
 
+    if (dto.paymentOrderId?.trim()) {
+      const payment = await this.prisma.subscriptionPayment.findUnique({
+        where: { razorpayOrderId: dto.paymentOrderId.trim() },
+      });
+      if (!payment || payment.status !== 'paid' || payment.consumedAt) {
+        throw new BadRequestException('Payment is invalid or already used. Complete checkout again.');
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptRounds());
     const payload: SignupPendingPayload = {
       companyName: dto.companyName,
@@ -124,6 +136,7 @@ export class SignupService {
       mobile: dto.mobile,
       adminName: dto.adminName,
       passwordHash,
+      paymentOrderId: dto.paymentOrderId?.trim() || undefined,
     };
 
     const otp = this.generateOtp();
@@ -134,7 +147,7 @@ export class SignupService {
       where: { email, consumedAt: null },
     });
 
-    await this.prisma.signupVerification.create({
+    const verification = await this.prisma.signupVerification.create({
       data: {
         email,
         payload,
@@ -143,13 +156,21 @@ export class SignupService {
       },
     });
 
-    await this.mail.sendSignupOtp({
-      to: email,
-      adminName: dto.adminName,
-      companyName: dto.companyName,
-      otpCode: otp,
-      expiresMinutes: Math.round(this.otpTtlMs() / 60_000),
-    });
+    try {
+      await this.mail.sendSignupOtp({
+        to: email,
+        adminName: dto.adminName,
+        companyName: dto.companyName,
+        otpCode: otp,
+        expiresMinutes: Math.round(this.otpTtlMs() / 60_000),
+      });
+    } catch (err) {
+      await this.prisma.signupVerification.delete({ where: { id: verification.id } }).catch(() => undefined);
+      this.logger.error(`Signup OTP delivery failed for ${email}: ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Could not deliver the verification email. Try a Gmail address, check junk mail, or contact office@softdigitconsulting.com.',
+      );
+    }
 
     this.logger.log(`Signup OTP requested for ${email} (${dto.companyName})`);
 
@@ -192,13 +213,20 @@ export class SignupService {
       data: { otpHash, attemptCount: 0, expiresAt },
     });
 
-    await this.mail.sendSignupOtp({
-      to: email,
-      adminName: payload.adminName,
-      companyName: payload.companyName,
-      otpCode: otp,
-      expiresMinutes: Math.round(this.otpTtlMs() / 60_000),
-    });
+    try {
+      await this.mail.sendSignupOtp({
+        to: email,
+        adminName: payload.adminName,
+        companyName: payload.companyName,
+        otpCode: otp,
+        expiresMinutes: Math.round(this.otpTtlMs() / 60_000),
+      });
+    } catch (err) {
+      this.logger.error(`Signup OTP resend failed for ${email}: ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Could not deliver the verification email. Try a Gmail address, check junk mail, or contact office@softdigitconsulting.com.',
+      );
+    }
 
     return {
       ok: true,
@@ -239,13 +267,14 @@ export class SignupService {
     }
 
     const payload = pending.payload as SignupPendingPayload;
+    const paymentOrderId = dto.paymentOrderId?.trim() || payload.paymentOrderId;
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       throw new ConflictException('An account with this email already exists. Sign in instead.');
     }
 
-    const adminRole = await this.prisma.role.findFirst({ where: { name: RoleName.ADMIN } });
-    if (!adminRole) {
+    const ownerRole = await this.prisma.role.findFirst({ where: { name: RoleName.OWNER } });
+    if (!ownerRole) {
       throw new ServiceUnavailableException('System roles are not initialized. Run database seed.');
     }
 
@@ -259,6 +288,10 @@ export class SignupService {
           companyName: payload.companyName,
           address: payload.companyAddress ?? payload.plantAddress,
           isActive: true,
+          subscriptionPlan: 'TRIAL',
+          subscriptionStatus: 'ACTIVE',
+          trialStartsAt: new Date(),
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       });
 
@@ -280,7 +313,7 @@ export class SignupService {
           name: payload.adminName,
           email,
           passwordHash: payload.passwordHash,
-          roleId: adminRole.id,
+          roleId: ownerRole.id,
           shopId: shop.id,
           isActive: true,
         },
@@ -292,10 +325,20 @@ export class SignupService {
         data: { consumedAt: new Date(), attemptCount: pending.attemptCount },
       });
 
-      return user;
+      return { user, companyId: company.id };
     });
 
-    const session = await this.auth.issueSessionForUser(result.id, ctx);
+    if (paymentOrderId) {
+      try {
+        await this.subscriptions.consumeVerifiedPayment(paymentOrderId, result.companyId);
+      } catch (err) {
+        this.logger.warn(
+          `Paid signup payment not applied for ${email}: ${(err as Error).message}. Trial remains active.`,
+        );
+      }
+    }
+
+    const session = await this.auth.issueSessionForUser(result.user.id, ctx);
 
     this.logger.log(`Signup completed for ${email} (${payload.companyName})`);
 

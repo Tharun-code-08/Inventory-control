@@ -46,7 +46,15 @@ export class PermissionsGuard implements CanActivate {
       request.query?.shop_id ??
       request.query?.shopId;
 
-    if (user.role === RoleName.SHOP_USER && shopIdParam && user.shopId && shopIdParam !== user.shopId) {
+    if (
+      (user.role === RoleName.SHOP_USER ||
+        user.role === RoleName.WAREHOUSE_STAFF ||
+        user.role === RoleName.VIEWER ||
+        user.role === RoleName.VENDOR) &&
+      shopIdParam &&
+      user.shopId &&
+      shopIdParam !== user.shopId
+    ) {
       throw new ForbiddenException('Shop scope mismatch');
     }
     return true;

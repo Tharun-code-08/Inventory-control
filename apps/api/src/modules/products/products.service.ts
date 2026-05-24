@@ -5,6 +5,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
@@ -24,6 +25,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   /**
@@ -179,6 +181,10 @@ export class ProductsService {
       // future; today we silently accept.
     }
     await this.validateAssignments(user, dto.plants);
+    const companyId = requireCompanyId(user);
+    if (companyId) {
+      await this.subscriptions.assertSkuLimit(companyId);
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({

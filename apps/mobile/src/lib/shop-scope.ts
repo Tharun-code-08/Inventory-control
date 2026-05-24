@@ -5,7 +5,8 @@ export function isShopOnlyUser(user: AuthUser | null | undefined): boolean {
 }
 
 export function isAdminUser(user: AuthUser | null | undefined): boolean {
-  return user?.role === 'ADMIN';
+  const role = user?.role?.toUpperCase();
+  return role === 'ADMIN' || role === 'OWNER';
 }
 
 export function defaultShopId(user: AuthUser | null | undefined): string {

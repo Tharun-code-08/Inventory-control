@@ -318,7 +318,7 @@ export class AuthController {
     @CurrentUser() user: RequestUser,
     @Param('id', new ParseUUIDPipe()) sessionId: string,
   ) {
-    const isAdmin = user.role === RoleName.ADMIN;
+    const isAdmin = user.role === RoleName.OWNER || user.role === RoleName.ADMIN;
     return this.auth.revokeSession(user.id, sessionId, isAdmin);
   }
 
@@ -331,7 +331,7 @@ export class AuthController {
     @CurrentUser() actor: RequestUser,
     @Param('id', new ParseUUIDPipe()) userId: string,
   ) {
-    if (actor.role !== RoleName.ADMIN) {
+    if (actor.role !== RoleName.OWNER && actor.role !== RoleName.ADMIN) {
       throw new ForbiddenException('Only an administrator can revoke another user');
     }
     return this.auth.revokeAllForUser(userId);

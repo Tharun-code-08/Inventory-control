@@ -80,4 +80,9 @@ export class SignupRequestDto {
   @IsString()
   @MinLength(8)
   confirmPassword!: string;
+
+  @ApiPropertyOptional({ description: 'Verified Razorpay order id when signing up after payment' })
+  @IsOptional()
+  @IsString()
+  paymentOrderId?: string;
 }

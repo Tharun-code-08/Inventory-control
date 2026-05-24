@@ -45,6 +45,7 @@ import {
 import { useShops } from '@/hooks/use-shops';
 import { useProductCategories } from '@/hooks/use-product-categories';
 import { useAuthStore } from '@/store/authStore';
+import { isOrgAdminUser } from '@/lib/roles';
 import { AppLayout } from '@/components/AppLayout';
 import { exportReportCsv } from '@/lib/report-csv-export';
 import type { CsvColumn } from '@/lib/csv';
@@ -712,7 +713,7 @@ function ShopSummaryTab({
 
 export function ReportsPage() {
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
+  const isAdmin = isOrgAdminUser(user);
 
   const [filters, setFilters] = useState<ReportFilters>({});
   const { data: shopsData } = useShops();

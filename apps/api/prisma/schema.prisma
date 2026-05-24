@@ -8,9 +8,13 @@ datasource db {
 }
 
 enum RoleName {
+  OWNER
   ADMIN
-  SHOP_USER
   INVENTORY_MANAGER
+  WAREHOUSE_STAFF
+  VIEWER
+  VENDOR
+  SHOP_USER
 }
 
 enum DocumentStatus {
@@ -69,12 +73,35 @@ enum CreditNoteStatus {
   VOID
 }
 
+enum SubscriptionPlan {
+  TRIAL
+  PRO
+  PLUS
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 model Company {
   id          String   @id @default(uuid()) @db.Uuid
   companyCode String   @unique @map("company_code")
   companyName String   @map("company_name")
   address     String?
   isActive    Boolean  @default(true) @map("is_active")
+  subscriptionPlan     SubscriptionPlan     @default(TRIAL) @map("subscription_plan")
+  billingCycle         BillingCycle?        @map("billing_cycle")
+  subscriptionStatus   SubscriptionStatus   @default(ACTIVE) @map("subscription_status")
+  trialStartsAt        DateTime?            @map("trial_starts_at") @db.Timestamptz(6)
+  trialEndsAt          DateTime?            @map("trial_ends_at") @db.Timestamptz(6)
+  subscriptionEndsAt   DateTime?            @map("subscription_ends_at") @db.Timestamptz(6)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById String?  @map("created_by") @db.Uuid
@@ -82,6 +109,7 @@ model Company {
 
   shops     Shop[]
   suppliers Supplier[]
+  subscriptionPayments SubscriptionPayment[]
 
   @@map("companies")
 }
@@ -180,6 +208,26 @@ model SignupVerification {
   @@index([email])
   @@index([expiresAt])
   @@map("signup_verifications")
+}
+
+model SubscriptionPayment {
+  id                String           @id @default(uuid()) @db.Uuid
+  companyId         String?          @map("company_id") @db.Uuid
+  plan              SubscriptionPlan
+  billingCycle      BillingCycle     @map("billing_cycle")
+  amountPaise       Int              @map("amount_paise")
+  currency          String           @default("INR")
+  razorpayOrderId   String           @unique @map("razorpay_order_id")
+  razorpayPaymentId String?          @unique @map("razorpay_payment_id")
+  status            String           @default("pending")
+  verifiedAt        DateTime?        @map("verified_at") @db.Timestamptz(6)
+  consumedAt        DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@map("subscription_payments")
 }
 
 model UserInvitation {

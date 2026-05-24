@@ -6,9 +6,14 @@ import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { SubscriptionService } from '../billing/subscription.service';
+
 @Injectable()
 export class ShopsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionService,
+  ) {}
 
   async list(user: RequestUser, query: { is_active?: boolean; cursor?: string; take?: number }) {
     const take = clampTake(query.take);
@@ -29,6 +34,9 @@ export class ShopsService {
   }
 
   async create(user: RequestUser, dto: CreateShopDto) {
+    if (dto.companyId) {
+      await this.subscriptions.assertWarehouseLimit(dto.companyId);
+    }
     return this.prisma.shop.create({
       data: {
         shopNumber: dto.shopNumber,

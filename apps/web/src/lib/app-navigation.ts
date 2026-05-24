@@ -36,8 +36,9 @@ type UserLike = {
 };
 
 function hasPerm(user: UserLike | null | undefined, perm: string) {
-  const isAdmin = String(user?.role ?? '').toUpperCase() === 'ADMIN';
-  return isAdmin || (user?.permissions ?? []).includes(perm);
+  const role = String(user?.role ?? '').toUpperCase();
+  const isOrgAdmin = role === 'ADMIN' || role === 'OWNER';
+  return isOrgAdmin || (user?.permissions ?? []).includes(perm);
 }
 
 export function buildNavCommands(user: UserLike | null | undefined): NavCommand[] {
@@ -63,7 +64,7 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
     });
   };
 
-  if (String(user?.role ?? '').toUpperCase() === 'ADMIN') {
+  if (String(user?.role ?? '').toUpperCase() === 'ADMIN' || String(user?.role ?? '').toUpperCase() === 'OWNER') {
     push('dashboard', 'Dashboard', 'KPIs and activity', '/dashboard', 'Overview', LayoutDashboard, [
       'home',
       'kpi',

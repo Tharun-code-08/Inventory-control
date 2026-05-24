@@ -7,7 +7,6 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Helper policy fragment: allow when session company matches row company; allow
 -- all when session variable is not set.
-\echo 'Applying RLS policies for tenant isolation'
 
 -- Companies (tenant root)
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;

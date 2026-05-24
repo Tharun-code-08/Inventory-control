@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  ArrowLeft,
   Building2,
   Eye,
   EyeOff,
@@ -20,6 +21,10 @@ import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BRAND } from '@/lib/brand';
+import { dashboardHomePath } from '@/lib/roles';
+import { PLAN_CATALOG, type BillingInterval, type PlanId } from '@/lib/plans';
+import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
+import { toast } from 'sonner';
 
 type Step = 'details' | 'verify';
 
@@ -38,7 +43,15 @@ function parseApiError(e: unknown, fallback: string): string {
 
 export function SignupPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const selectedPlanParam = searchParams.get('plan');
+  const selectedPlan: PlanId =
+    selectedPlanParam === 'pro' || selectedPlanParam === 'plus' ? selectedPlanParam : 'trial';
+  const billing: BillingInterval =
+    searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly';
+  const isPaidPlan = selectedPlan === 'pro' || selectedPlan === 'plus';
+  const paidPlanLabel = isPaidPlan ? PLAN_CATALOG[selectedPlan].name : null;
   const [step, setStep] = useState<Step>('details');
   const [err, setErr] = useState('');
   const [info, setInfo] = useState('');
@@ -57,6 +70,7 @@ export function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const { checkout, loading: paying } = useRazorpayCheckout();
 
   async function requestOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +91,9 @@ export function SignupPage() {
         password,
         confirmPassword,
       });
-      setInfo(`We sent a 6-digit code to ${email}. Check your inbox (from office@softdigitconsulting.com).`);
+      setInfo(
+        `We sent a 6-digit code to ${email}. Check inbox and junk (from office@softdigitconsulting.com). Outlook/Hotmail may delay delivery — Gmail usually works faster.`,
+      );
       setStep('verify');
     } catch (error: unknown) {
       setErr(parseApiError(error, 'Could not start registration'));
@@ -92,13 +108,69 @@ export function SignupPage() {
     setIsSubmitting(true);
     setErr('');
     try {
-      const res = await api.post('/auth/signup/verify', { email, otp: otp.trim() });
+      const res = await api.post('/auth/signup/verify', {
+        email,
+        otp: otp.trim(),
+      });
       await initializeSessionFromAuthResponse(res.data, queryClient);
       const signedInUser = useAuthStore.getState().user;
-      setShowAvatarSplash(true);
-      window.setTimeout(() => {
-        nav(signedInUser?.role === 'ADMIN' ? '/dashboard' : '/products');
-      }, 1000);
+
+      async function goToApp(message?: string) {
+        if (message) {
+          setInfo(message);
+        }
+        setIsSubmitting(false);
+        setShowAvatarSplash(true);
+        window.setTimeout(() => {
+          const user = useAuthStore.getState().user;
+          nav(dashboardHomePath(user?.role));
+        }, 800);
+      }
+
+      if (isPaidPlan) {
+        const paidPlan: Exclude<PlanId, 'trial'> = selectedPlan === 'pro' ? 'pro' : 'plus';
+        try {
+          await checkout({
+            plan: paidPlan,
+            billing,
+            prefill: {
+              name: adminName || signedInUser?.name || undefined,
+              email,
+              contact: mobile || undefined,
+            },
+            onSuccess: async (response) => {
+              await api.post('/billing/upgrade', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+            },
+            onDismiss: () => {
+              toast.message(
+                'Payment cancelled. You are on the free trial; upgrade anytime from Settings → Upgrade.',
+              );
+            },
+          });
+          await goToApp('Payment verified. Your plan is now active.');
+          return;
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : '';
+          if (raw === 'Payment cancelled') {
+            await goToApp(
+              'Signed up on the free trial. Payment was skipped; you can upgrade anytime from Settings → Upgrade.',
+            );
+            return;
+          }
+          const msg = raw || 'Payment could not be completed. You are on the trial.';
+          setErr(parseApiError(err, msg));
+          await goToApp(
+            'Signed up on the free trial. You can upgrade anytime from Settings → Upgrade.',
+          );
+          return;
+        }
+      }
+
+      await goToApp();
     } catch (error: unknown) {
       setErr(parseApiError(error, 'Verification failed'));
       setIsSubmitting(false);
@@ -125,6 +197,14 @@ export function SignupPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
+      <Link
+        to="/"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:left-6 sm:top-6"
+        aria-label="Back to home page"
+      >
+        <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
+        Back to home
+      </Link>
       {showAvatarSplash ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90">
           <div className="flex flex-col items-center gap-4 text-center text-white">
@@ -163,6 +243,17 @@ export function SignupPage() {
 
           <section className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
             <div className="mb-6">
+              {paidPlanLabel ? (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                  You selected the <strong>{paidPlanLabel}</strong>{' '}
+                  {billing === 'yearly' ? '(Yearly)' : '(Monthly)'} plan. Verify your email to proceed to
+                  payment and activate your organisation.
+                </div>
+              ) : selectedPlan === 'trial' ? (
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  You are starting a <strong>7-day free trial</strong>. No credit card required.
+                </div>
+              ) : null}
               <p className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-indigo-700">
                 <Zap className="h-3.5 w-3.5" />
                 {step === 'details' ? 'Create account' : 'Verify email'}
@@ -330,16 +421,16 @@ export function SignupPage() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || otp.length !== 6}
+                  disabled={isSubmitting || paying || otp.length !== 6}
                   className="premium-button w-full rounded-xl py-2.5 font-medium text-white disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Verifying…' : 'Verify and create workspace'}
+                  {isSubmitting ? 'Verifying…' : isPaidPlan ? 'Verify & continue to payment' : 'Verify and create workspace'}
                 </button>
 
                 <button
                   type="button"
                   onClick={resendOtp}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || paying}
                   className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Resend code

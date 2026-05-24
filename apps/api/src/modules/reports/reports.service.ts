@@ -2,11 +2,22 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, shopIdsForUser, shopListWhere } from '../../common/utils/shop-scope';
+import { assertShopScope, requireCompanyId, shopIdsForUser, shopListWhere } from '../../common/utils/shop-scope';
+import { SubscriptionService } from '../billing/subscription.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionService,
+  ) {}
+
+  private async assertReportsAllowed(user: RequestUser) {
+    const companyId = requireCompanyId(user);
+    if (companyId) {
+      await this.subscriptions.assertFeature(companyId, 'reports');
+    }
+  }
 
   private resolveDateRange(dateFrom?: string, dateTo?: string) {
     const now = new Date();
@@ -35,6 +46,7 @@ export class ReportsService {
   }
 
   async inventory(user: RequestUser, filters: { shop_id?: string; category?: string; low_stock_only?: boolean }) {
+    await this.assertReportsAllowed(user);
     const shopWhere = this.shopWhere(user, filters.shop_id);
     const lowOnly = filters.low_stock_only === true;
     // Inventory is now per-plant. Drive the listing off ProductPlant so each
@@ -98,6 +110,7 @@ export class ReportsService {
     user: RequestUser,
     filters: { shop_id: string; date_from: string; date_to: string; limit?: number },
   ) {
+    await this.assertReportsAllowed(user);
     assertShopScope(user, filters.shop_id);
     const limit = Math.min(Math.max(filters.limit ?? 20, 1), 200);
     return this.prisma.$queryRaw<
@@ -145,6 +158,7 @@ export class ReportsService {
   }
 
   async damagedRegister(user: RequestUser, shop_id?: string) {
+    await this.assertReportsAllowed(user);
     const shopWhere = this.shopWhere(user, shop_id);
     return this.prisma.damagedStock.findMany({
       where: { shop: shopWhere, ...(shop_id ? { shopId: shop_id } : {}) },
@@ -154,6 +168,7 @@ export class ReportsService {
   }
 
   async grRegister(user: RequestUser, date_from?: string, date_to?: string, shop_id?: string) {
+    await this.assertReportsAllowed(user);
     const shopWhere = this.shopWhere(user, shop_id);
     const { from, to } = this.resolveDateRange(date_from, date_to);
     return this.prisma.goodsReceiptHeader.findMany({
@@ -168,6 +183,7 @@ export class ReportsService {
   }
 
   async giRegister(user: RequestUser, date_from?: string, date_to?: string, shop_id?: string) {
+    await this.assertReportsAllowed(user);
     const shopWhere = this.shopWhere(user, shop_id);
     const { from, to } = this.resolveDateRange(date_from, date_to);
     return this.prisma.goodsIssueHeader.findMany({
@@ -182,6 +198,7 @@ export class ReportsService {
   }
 
   async stockLedger(user: RequestUser, product_id?: string, date_from?: string, date_to?: string, shop_id?: string) {
+    await this.assertReportsAllowed(user);
     const { from, to } = this.resolveDateRange(date_from, date_to);
     const shopWhere = this.shopWhere(user, shop_id);
     const scopedShopId = shop_id;
@@ -234,6 +251,7 @@ export class ReportsService {
   }
 
   async shopSummary(user: RequestUser, shop_id?: string) {
+    await this.assertReportsAllowed(user);
     const tenantShops = shopIdsForUser(user) ?? [];
     if (shop_id) assertShopScope(user, shop_id);
     const allowedShops = shop_id ? [shop_id] : tenantShops;

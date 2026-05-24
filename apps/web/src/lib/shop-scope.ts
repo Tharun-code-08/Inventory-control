@@ -1,4 +1,5 @@
 import type { AuthUser } from '@/store/authStore';
+import { isOrgAdminUser, isShopScopedUser } from '@/lib/roles';
 
 /** Sentinel value for user forms meaning "no plant restriction" (admin users). */
 export const ALL_SHOPS_OPTION = '__all_shops__';
@@ -12,13 +13,13 @@ export function normalizeAllShopsSelection(value: string): string | undefined {
   return value;
 }
 
-/** Only SHOP_USER accounts are locked to a single plant. */
+/** Plant-locked accounts (warehouse staff, viewer, vendor, legacy shop user). */
 export function isShopOnlyUser(user: AuthUser | null | undefined): boolean {
-  return user?.role === 'SHOP_USER' && !!user.shopId;
+  return isShopScopedUser(user);
 }
 
 export function isAdminUser(user: AuthUser | null | undefined): boolean {
-  return user?.role === 'ADMIN';
+  return isOrgAdminUser(user);
 }
 
 /** Plant filter sent to GET /products — admins/inventory managers may use "all". */

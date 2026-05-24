@@ -22,6 +22,7 @@ import { buildUserInviteAcceptUrl } from '../../common/mail/portal-url';
 import { assertUserInTenant, shopIdsForUser, userListWhere } from '../../common/utils/shop-scope';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -33,6 +34,7 @@ export class UsersService {
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private bcryptRounds() {
@@ -40,8 +42,16 @@ export class UsersService {
     return Number.isFinite(value) && value >= 10 && value <= 14 ? value : 12;
   }
 
+  private isOwner(user: RequestUser) {
+    return user.role === RoleName.OWNER;
+  }
+
+  private isOrgAdmin(user: RequestUser) {
+    return user.role === RoleName.OWNER || user.role === RoleName.ADMIN;
+  }
+
   private isAdmin(user: RequestUser) {
-    return user.role === RoleName.ADMIN;
+    return this.isOrgAdmin(user);
   }
 
   private assertCanManageShop(actor: RequestUser, targetShopId: string | null | undefined) {
@@ -58,9 +68,13 @@ export class UsersService {
     const normalized = roleName.toUpperCase().trim();
     const aliasMap: Record<string, RoleName> = {
       SHOP_MANAGER: RoleName.INVENTORY_MANAGER,
-      SHOP_STAFF: RoleName.SHOP_USER,
-      VIEWER: RoleName.SHOP_USER,
+      SHOP_STAFF: RoleName.WAREHOUSE_STAFF,
+      WAREHOUSE_STAFF: RoleName.WAREHOUSE_STAFF,
+      VIEWER: RoleName.VIEWER,
+      VENDOR: RoleName.VENDOR,
+      OWNER: RoleName.OWNER,
     };
+    if (normalized === 'SHOP_USER') return RoleName.WAREHOUSE_STAFF;
     return aliasMap[normalized] ?? normalized;
   }
 
@@ -79,11 +93,25 @@ export class UsersService {
   }
 
   private async assertRoleAssignable(actor: RequestUser, roleId: string) {
-    if (this.isAdmin(actor)) return;
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
     if (!role) throw new NotFoundException('Role not found');
+
+    if (role.name === RoleName.OWNER) {
+      if (!this.isOwner(actor)) {
+        throw new ForbiddenException('Only the organisation owner can assign the Owner role');
+      }
+      return;
+    }
+
     if (role.name === RoleName.ADMIN) {
-      throw new ForbiddenException('Only an administrator can assign the ADMIN role');
+      if (!this.isOrgAdmin(actor)) {
+        throw new ForbiddenException('Only an administrator can assign the Admin role');
+      }
+      return;
+    }
+
+    if (!this.isOrgAdmin(actor)) {
+      throw new ForbiddenException('Insufficient privileges to assign this role');
     }
   }
 
@@ -92,7 +120,7 @@ export class UsersService {
   }
 
   async updateRolePermissions(actor: RequestUser, roleName: string, permissions: string[]) {
-    if (!this.isAdmin(actor)) {
+    if (!this.isOrgAdmin(actor)) {
       throw new ForbiddenException('Only an administrator can edit role permissions');
     }
     const targetName = this.normalizeRoleName(roleName);
@@ -157,6 +185,11 @@ export class UsersService {
 
     const roleId = await this.resolveRoleId(dto.roleId);
     await this.assertRoleAssignable(actor, roleId);
+
+    const companyId = await this.subscriptions.resolveCompanyIdForUser(actor);
+    if (companyId) {
+      await this.subscriptions.assertUserLimit(companyId);
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptRounds());
     const created = await this.prisma.user.create({

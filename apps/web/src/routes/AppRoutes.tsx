@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { isOrgAdminUser } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/skeleton';
 import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
@@ -55,6 +56,7 @@ const InvoicesPage = lazyPage(() => import('@/pages/InvoicesPage'), 'InvoicesPag
 const PaymentsPage = lazyPage(() => import('@/pages/PaymentsPage'), 'PaymentsPage');
 const NotificationsPage = lazyPage(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const HelpSupportPage = lazyPage(() => import('@/pages/HelpSupportPage'), 'HelpSupportPage');
+const UpgradePage = lazyPage(() => import('@/pages/UpgradePage'), 'UpgradePage');
 
 function Protected({ children }: { children: React.ReactNode }) {
   const initialized = useAuthStore((s) => s.initialized);
@@ -76,8 +78,8 @@ function Protected({ children }: { children: React.ReactNode }) {
 }
 
 function AdminOnly({ children }: { children: React.ReactNode }) {
-  const role = useAuthStore((s) => s.user?.role);
-  if (role !== 'ADMIN') {
+  const user = useAuthStore((s) => s.user);
+  if (!isOrgAdminUser(user)) {
     return <Navigate to="/products" replace />;
   }
   return <>{children}</>;
@@ -147,6 +149,7 @@ export function AppRoutes() {
           <Route path="/plants/new" element={<Protected><PlantsPage createOnly /></Protected>} />
           <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />
           <Route path="/help" element={<Protected><HelpSupportPage /></Protected>} />
           <Route path="/profile" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
