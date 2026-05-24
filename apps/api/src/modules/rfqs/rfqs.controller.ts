@@ -32,6 +32,12 @@ export class RfqsController {
   }
 
   @RequirePermission('rfq:read')
+  @Get(':id/fulfillment')
+  fulfillment(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.rfqs.fulfillment(user, id);
+  }
+
+  @RequirePermission('rfq:read')
   @Get(':id/deletion-impact')
   deletionImpact(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.rfqs.deletionImpact(user, id);

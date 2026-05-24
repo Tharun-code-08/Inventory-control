@@ -15,6 +15,8 @@ import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { AppFooter } from '@/components/AppFooter';
 import { OrganisationIdBadge } from '@/components/OrganisationIdBadge';
+import { TrialUpgradeBanner } from '@/components/TrialUpgradeBanner';
+import { useSubscription } from '@/hooks/use-subscription';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -96,6 +98,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const markRead = useMarkAlertRead();
   const alerts = alertsQuery.data ?? [];
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
+  const { data: subscription } = useSubscription(Boolean(user));
 
   const pageTitle = active ?? resolveTitle(location.pathname);
 
@@ -364,7 +367,10 @@ export function AppLayout({ children, active }: AppLayoutProps) {
         </header>
 
         <main className="flex min-w-0 flex-1 flex-col p-4 sm:p-6">
-          <div className="mx-auto w-full max-w-[1400px] flex-1">{children}</div>
+          <div className="mx-auto w-full max-w-[1400px] flex-1">
+            <TrialUpgradeBanner subscription={subscription} />
+            {children}
+          </div>
           <AppFooter />
         </main>
       </div>

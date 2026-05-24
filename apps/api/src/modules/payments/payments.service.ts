@@ -9,6 +9,7 @@ import { asMoney, assertNonNegativeMoney, assertPositiveMoney, roundMoney } from
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { SubscriptionService } from '../billing/subscription.service';
 
 @Injectable()
 export class PaymentsService {
@@ -16,6 +17,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly numbers: DocumentNumberService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   async list(
@@ -70,6 +72,7 @@ export class PaymentsService {
       const invoice = await tx.invoiceHeader.findUnique({ where: { id: dto.invoiceId } });
       if (!invoice) throw new NotFoundException('Invoice not found');
       assertShopScope(user, invoice.shopId);
+      await this.subscriptions.assertFeatureForShop(invoice.shopId, 'payments');
 
       if (invoice.status === InvoiceStatus.VOID) {
         throw new BadRequestException('Cannot collect payment on a voided invoice');

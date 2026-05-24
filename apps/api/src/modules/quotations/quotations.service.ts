@@ -6,12 +6,14 @@ import { assertShopScope } from '../../common/utils/shop-scope';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateQuotationDto, CreateQuotationItemDto } from './dto/create-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
+import { RfqsService } from '../rfqs/rfqs.service';
 
 @Injectable()
 export class QuotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
+    private readonly rfqs: RfqsService,
   ) {}
 
   async list(user: RequestUser, rfqId?: string) {
@@ -136,6 +138,20 @@ export class QuotationsService {
     if (quote.items.some((item) => !item.productId)) {
       throw new BadRequestException('All quotation items must reference products for auto-linking');
     }
+    if (quote.rfqId) {
+      const missingRfqItem = quote.items.find((item) => !item.rfqItemId);
+      if (missingRfqItem) {
+        throw new BadRequestException('Quotation items must reference RFQ lines to create linked purchase orders');
+      }
+      await this.rfqs.assertCanCreatePoFromRfq({
+        rfqId: quote.rfqId,
+        shopId: quote.shopId,
+        items: quote.items.map((item) => ({
+          rfqItemId: item.rfqItemId!,
+          orderQty: Number(item.quantity),
+        })),
+      });
+    }
     return this.prisma.$transaction(async (tx) => {
       const existingContract = await tx.contractHeader.findFirst({ where: { quotationId: quote.id } });
       if (existingContract) {
@@ -190,6 +206,7 @@ export class QuotationsService {
           poNumber,
           poDate: new Date(),
           shopId: quote.shopId,
+          rfqId: quote.rfqId,
           contractId: contract.id,
           supplier: quote.supplier.supplierName,
           status: PurchaseOrderStatus.CONFIRMED,
@@ -199,6 +216,7 @@ export class QuotationsService {
           items: {
             create: quote.items.map((item) => ({
               productId: item.productId!,
+              rfqItemId: item.rfqItemId ?? null,
               currentStock: new Prisma.Decimal(0),
               minStock: new Prisma.Decimal(0),
               suggestedQty: item.quantity,

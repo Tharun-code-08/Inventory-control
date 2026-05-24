@@ -72,13 +72,37 @@ export function trialEndDate(from = new Date()): Date {
   return end;
 }
 
-export function planAllowsFeature(
-  plan: SubscriptionPlan,
-  feature: 'reports' | 'purchase_orders' | 'integrations' | 'api' | 'vendor_portal' | 'audit_rbac',
-): boolean {
+export function subscriptionPlanTier(plan: SubscriptionPlan): number {
+  if (plan === SubscriptionPlan.PLUS) return 2;
+  if (plan === SubscriptionPlan.PRO) return 1;
+  return 0;
+}
+
+export function isDowngrade(current: SubscriptionPlan, target: SubscriptionPlan): boolean {
+  return subscriptionPlanTier(target) < subscriptionPlanTier(current);
+}
+
+export type PlanFeature =
+  | 'reports'
+  | 'purchase_orders'
+  | 'integrations'
+  | 'api'
+  | 'vendor_portal'
+  | 'audit_rbac'
+  | 'rfqs'
+  | 'contracts'
+  | 'sales_orders'
+  | 'sales_quotations'
+  | 'invoices'
+  | 'payments'
+  | 'supplier_portal';
+
+export function planAllowsFeature(plan: SubscriptionPlan, feature: PlanFeature): boolean {
   if (plan === SubscriptionPlan.PLUS) return true;
   if (plan === SubscriptionPlan.PRO) {
+    // Pro blocks: API, vendor portal, audit RBAC; allows the rest.
     return feature !== 'api' && feature !== 'vendor_portal' && feature !== 'audit_rbac';
   }
+  // Trial: only allowed features are those enforced elsewhere (core stock flows), everything here is gated.
   return false;
 }

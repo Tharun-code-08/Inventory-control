@@ -20,6 +20,7 @@ export type PoDocumentMeta = {
   shipToCityStateZip?: string;
   shipToPhone?: string;
   requisitioner?: string;
+  department?: string;
   shipVia?: string;
   fob?: string;
   shippingTerms?: string;

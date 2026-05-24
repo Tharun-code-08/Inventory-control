@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { RoleName } from '@prisma/client';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { PERMISSIONS_ANY_KEY } from '../decorators/require-any-permission.decorator';
 import { PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
 import type { RequestUser } from '../types/request-user';
 
@@ -18,11 +19,15 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
+    const requiredAny = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_ANY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required || required.length === 0) {
+    if ((!required || required.length === 0) && (!requiredAny || requiredAny.length === 0)) {
       return true;
     }
 
@@ -32,9 +37,16 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    for (const perm of required) {
-      if (!user.permissions.includes(perm)) {
+    if (requiredAny?.length) {
+      const allowed = requiredAny.some((perm) => user.permissions.includes(perm));
+      if (!allowed) {
         throw new ForbiddenException('Missing permission');
+      }
+    } else if (required?.length) {
+      for (const perm of required) {
+        if (!user.permissions.includes(perm)) {
+          throw new ForbiddenException('Missing permission');
+        }
       }
     }
 

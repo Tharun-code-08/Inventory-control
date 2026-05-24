@@ -124,6 +124,13 @@ export type SubscriptionSnapshot = {
   features: {
     reports: boolean;
     purchaseOrders: boolean;
+    rfqs?: boolean;
+    contracts?: boolean;
+    salesOrders?: boolean;
+    salesQuotations?: boolean;
+    invoices?: boolean;
+    payments?: boolean;
+    supplierPortal?: boolean;
     integrations: boolean;
     api: boolean;
     vendorPortal: boolean;
@@ -135,4 +142,11 @@ export function planDisplayName(plan: SubscriptionSnapshot['plan']) {
   if (plan === 'PRO') return 'Pro';
   if (plan === 'PLUS') return 'Plus';
   return 'Trial';
+}
+
+export function subscriptionPlanTier(plan: SubscriptionSnapshot['plan'] | PlanId): number {
+  const normalized = typeof plan === 'string' ? plan.toUpperCase() : plan;
+  if (normalized === 'PLUS' || normalized === 'plus') return 2;
+  if (normalized === 'PRO' || normalized === 'pro') return 1;
+  return 0;
 }

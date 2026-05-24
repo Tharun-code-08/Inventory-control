@@ -34,6 +34,7 @@ import { LoginDto } from './dto/login.dto';
 import { SignupRequestDto } from './dto/signup-request.dto';
 import { SignupResendDto } from './dto/signup-resend.dto';
 import { SignupVerifyDto } from './dto/signup-verify.dto';
+import { SignupCompletePaidDto } from './dto/signup-complete-paid.dto';
 import { MobileLogoutDto } from './dto/mobile-logout.dto';
 import { MobileRefreshDto } from './dto/mobile-refresh.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -134,13 +135,32 @@ export class AuthController {
   @Public()
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('signup/verify')
-  @ApiOperation({ summary: 'Verify signup OTP and create organisation workspace' })
+  @ApiOperation({
+    summary: 'Verify signup OTP (trial creates workspace; paid plans require payment next)',
+  })
   async signupVerify(
     @Req() req: Request,
     @Body() dto: SignupVerifyDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.signup.verifySignup(dto, this.loginCtx(req));
+    if ('requiresPayment' in result) {
+      return result;
+    }
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('signup/complete-paid')
+  @ApiOperation({ summary: 'Create organisation after paid signup (post OTP + Razorpay payment)' })
+  async signupCompletePaid(
+    @Req() req: Request,
+    @Body() dto: SignupCompletePaidDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.signup.completePaidSignup(dto, this.loginCtx(req));
     this.writeAuthCookies(res, result.refreshCookieValue);
     return { accessToken: result.accessToken, user: result.user };
   }

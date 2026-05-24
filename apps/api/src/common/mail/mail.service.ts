@@ -21,6 +21,12 @@ import {
   type SalesQuotationEmailContent,
 } from './sales-quotation.template';
 import {
+  purchaseOrderHtml,
+  purchaseOrderSubject,
+  purchaseOrderText,
+  type PurchaseOrderEmailContent,
+} from './purchase-order-supplier.template';
+import {
   signupOtpHtml,
   signupOtpSubject,
   signupOtpText,
@@ -181,6 +187,7 @@ export class MailService implements OnModuleInit {
     text: string;
     html: string;
     fromName?: string;
+    attachments?: Array<{ filename: string; content: Buffer | string }>;
   }): Promise<EmailDeliveryResult> {
     const transport = await this.getTransporter();
     const from = this.getFromAddress();
@@ -198,6 +205,7 @@ export class MailService implements OnModuleInit {
       subject: args.subject,
       text: args.text,
       html: args.html,
+      attachments: args.attachments,
       ...(useEnvelopeFrom
         ? { envelope: { from: authUser, to: args.to } }
         : {}),
@@ -414,6 +422,26 @@ export class MailService implements OnModuleInit {
       text: salesQuotationText(args.content),
       html: salesQuotationHtml(args.content),
       fromName: args.content.companyName,
+    });
+  }
+
+  async sendPurchaseOrderToSupplier(args: {
+    to: string;
+    content: PurchaseOrderEmailContent;
+    attachments?: Array<{ filename: string; content: Buffer | string }>;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+    return this.sendMail({
+      to: args.to,
+      subject: purchaseOrderSubject(args.content),
+      text: purchaseOrderText(args.content),
+      html: purchaseOrderHtml(args.content),
+      fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 

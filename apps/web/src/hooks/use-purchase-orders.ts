@@ -7,6 +7,7 @@ export type PurchaseOrderLifecycleStatus = 'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RE
 export type PurchaseOrderItem = {
   id: string;
   productId: string;
+  rfqItemId?: string | null;
   currentStock: number;
   minStock: number;
   suggestedQty: number;
@@ -25,6 +26,7 @@ export type PurchaseOrder = {
   poNumber: string;
   poDate: string;
   shopId: string;
+  rfqId?: string | null;
   shop?: { id: string; shopName?: string; shopNumber?: string };
   supplier: string;
   status: PurchaseOrderStatus;
@@ -68,9 +70,13 @@ export type CreatePurchaseOrderPayload = {
   supplier: string;
   remarks?: string;
   contractId?: string;
+  rfqId?: string;
   idempotencyKey?: string;
+  /** When true, newer APIs email the supplier as part of create. */
+  sendToSupplier?: boolean;
   items: Array<{
     productId: string;
+    rfqItemId?: string;
     orderQty: number;
     rate: number;
   }>;
@@ -171,6 +177,19 @@ export function useCancelPurchaseOrder() {
     },
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: poKeys.lists() });
+      qc.invalidateQueries({ queryKey: poKeys.detail(id) });
+    },
+  });
+}
+
+export function useSendPurchaseOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/purchase-orders/${id}/send`);
+      return res.data.data ?? res.data;
+    },
+    onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: poKeys.detail(id) });
     },
   });

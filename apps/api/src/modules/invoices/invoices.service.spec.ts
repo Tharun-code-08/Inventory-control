@@ -8,8 +8,15 @@ const adminUser: RequestUser = {
   email: 'admin@example.com',
   role: RoleName.ADMIN,
   shopId: null,
+  companyId: 'co-1',
+  tenantShopIds: ['s1'],
   permissions: [],
-} as unknown as RequestUser;
+};
+
+const subscriptions = () =>
+  ({
+    assertFeatureForShop: jest.fn().mockResolvedValue(undefined),
+  }) as any;
 
 function buildTx() {
   return {
@@ -21,7 +28,14 @@ function buildTx() {
 function makePrisma(tx: any) {
   return {
     $transaction: async (fn: (t: any) => any) => fn(tx),
+    customer: {
+      findUnique: jest.fn().mockResolvedValue({ shopId: 's1' }),
+    },
   } as any;
+}
+
+function makeInvoicesService(prisma: any, audit = auditFactory(), numbers = numbersFactory()) {
+  return new InvoicesService(prisma, audit, numbers, subscriptions());
 }
 
 const auditFactory = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
@@ -31,7 +45,7 @@ const numbersFactory = (n = 'INV-202605-00001') =>
 describe('InvoicesService.create', () => {
   it('rejects when shopId is unavailable', async () => {
     const tx = buildTx();
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
     await expect(
       service.create(adminUser, { customerId: 'c1', totalValue: 10 } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -39,7 +53,7 @@ describe('InvoicesService.create', () => {
 
   it('rejects when totalValue is negative', async () => {
     const tx = buildTx();
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
     await expect(
       service.create(adminUser, { shopId: 's1', customerId: 'c1', totalValue: -5 } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -53,7 +67,7 @@ describe('InvoicesService.create', () => {
       status: SalesOrderStatus.DRAFT,
       invoices: [],
     });
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
 
     await expect(
       service.create(adminUser, {
@@ -73,7 +87,7 @@ describe('InvoicesService.create', () => {
       status: SalesOrderStatus.CANCELLED,
       invoices: [],
     });
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
 
     await expect(
       service.create(adminUser, {
@@ -93,7 +107,7 @@ describe('InvoicesService.create', () => {
       status: SalesOrderStatus.CONFIRMED,
       invoices: [{ id: 'inv-existing', status: InvoiceStatus.ISSUED }],
     });
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
 
     await expect(
       service.create(adminUser, {
@@ -113,7 +127,7 @@ describe('InvoicesService.create', () => {
       status: SalesOrderStatus.CONFIRMED,
       invoices: [],
     });
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
 
     await expect(
       service.create(adminUser, {
@@ -128,7 +142,7 @@ describe('InvoicesService.create', () => {
   it('reports NotFoundException when the referenced sales order is missing', async () => {
     const tx = buildTx();
     tx.salesOrderHeader.findUnique.mockResolvedValue(null);
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbersFactory());
+    const service = makeInvoicesService(makePrisma(tx));
 
     await expect(
       service.create(adminUser, {
@@ -151,7 +165,7 @@ describe('InvoicesService.create', () => {
     });
     const numbers = numbersFactory('INV-202605-00001');
     const audit = auditFactory();
-    const service = new InvoicesService(makePrisma(tx), audit, numbers);
+    const service = makeInvoicesService(makePrisma(tx), audit, numbers);
 
     const created = await service.create(adminUser, {
       shopId: 's1',
@@ -180,7 +194,7 @@ describe('InvoicesService.create', () => {
       salesOrderId: null,
     });
     const numbers = numbersFactory();
-    const service = new InvoicesService(makePrisma(tx), auditFactory(), numbers);
+    const service = makeInvoicesService(makePrisma(tx), auditFactory(), numbers);
 
     await service.create(adminUser, {
       shopId: 's1',

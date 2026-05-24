@@ -9,12 +9,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { SubmitPortalQuoteDto } from './dto/submit-portal-quote.dto';
 import { VerifySupplierDto } from './dto/verify-supplier.dto';
+import { SubscriptionService } from '../billing/subscription.service';
 
 @Injectable()
 export class SupplierPortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private async resolveSupplier(email: string, companyName: string) {
@@ -49,6 +51,9 @@ export class SupplierPortalService {
 
   async verify(dto: VerifySupplierDto) {
     const supplier = await this.resolveSupplier(dto.email, dto.companyName);
+    if (supplier.companyId) {
+      await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
+    }
 
     const openRfqs = await this.prisma.rfqHeader.findMany({
       where: {
@@ -134,6 +139,13 @@ export class SupplierPortalService {
 
   async submitQuote(dto: SubmitPortalQuoteDto) {
     const rfq = await this.getRfqForSupplier(dto.rfqId, dto.supplierId);
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: dto.supplierId },
+      select: { companyId: true },
+    });
+    if (supplier?.companyId) {
+      await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
+    }
     const itemMap = new Map(rfq.items.map((i) => [i.id, i]));
 
     const lines = dto.items.map((line) => {

@@ -1,11 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 class PoLine {
   @ApiProperty()
   @IsUUID()
   productId!: string;
+
+  @ApiPropertyOptional({ description: 'RFQ line this PO line fulfills' })
+  @IsOptional()
+  @IsUUID()
+  rfqItemId?: string;
 
   @ApiProperty()
   @Type(() => Number)
@@ -32,6 +37,11 @@ export class CreatePurchaseOrderDto {
   @IsUUID()
   contractId?: string;
 
+  @ApiPropertyOptional({ description: 'RFQ that this PO fulfills' })
+  @IsOptional()
+  @IsUUID()
+  rfqId?: string;
+
   @ApiProperty()
   @IsString()
   supplier!: string;
@@ -52,4 +62,10 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
+
+  @ApiPropertyOptional({ description: 'If true, email the PO to the supplier after creation' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  sendToSupplier?: boolean;
 }

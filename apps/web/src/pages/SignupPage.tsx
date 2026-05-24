@@ -90,6 +90,8 @@ export function SignupPage() {
         email,
         password,
         confirmPassword,
+        plan: selectedPlan,
+        billing: isPaidPlan ? billing : undefined,
       });
       setInfo(
         `We sent a 6-digit code to ${email}. Check inbox and junk (from office@softdigitconsulting.com). Outlook/Hotmail may delay delivery — Gmail usually works faster.`,
@@ -108,12 +110,15 @@ export function SignupPage() {
     setIsSubmitting(true);
     setErr('');
     try {
-      const res = await api.post('/auth/signup/verify', {
+      const verifyRes = await api.post('/auth/signup/verify', {
         email,
         otp: otp.trim(),
       });
-      await initializeSessionFromAuthResponse(res.data, queryClient);
-      const signedInUser = useAuthStore.getState().user;
+      const verifyData = (verifyRes.data?.data ?? verifyRes.data) as {
+        requiresPayment?: boolean;
+        accessToken?: string;
+        user?: unknown;
+      };
 
       async function goToApp(message?: string) {
         if (message) {
@@ -127,49 +132,47 @@ export function SignupPage() {
         }, 800);
       }
 
-      if (isPaidPlan) {
+      if (verifyData.requiresPayment && isPaidPlan) {
         const paidPlan: Exclude<PlanId, 'trial'> = selectedPlan === 'pro' ? 'pro' : 'plus';
+        setInfo('Email verified. Complete payment to create your organisation.');
         try {
           await checkout({
             plan: paidPlan,
             billing,
             prefill: {
-              name: adminName || signedInUser?.name || undefined,
+              name: adminName,
               email,
               contact: mobile || undefined,
             },
             onSuccess: async (response) => {
-              await api.post('/billing/upgrade', {
+              const completeRes = await api.post('/auth/signup/complete-paid', {
+                email,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               });
+              await initializeSessionFromAuthResponse(completeRes.data, queryClient);
             },
             onDismiss: () => {
-              toast.message(
-                'Payment cancelled. You are on the free trial; upgrade anytime from Settings → Upgrade.',
-              );
+              toast.message('Payment cancelled. Your account was not created.');
             },
           });
-          await goToApp('Payment verified. Your plan is now active.');
+          await goToApp('Payment verified. Your organisation is ready.');
           return;
         } catch (err) {
           const raw = err instanceof Error ? err.message : '';
           if (raw === 'Payment cancelled') {
-            await goToApp(
-              'Signed up on the free trial. Payment was skipped; you can upgrade anytime from Settings → Upgrade.',
-            );
+            setErr('Payment was cancelled. No account was created. You can try payment again.');
+            setIsSubmitting(false);
             return;
           }
-          const msg = raw || 'Payment could not be completed. You are on the trial.';
-          setErr(parseApiError(err, msg));
-          await goToApp(
-            'Signed up on the free trial. You can upgrade anytime from Settings → Upgrade.',
-          );
+          setErr(parseApiError(err, raw || 'Payment could not be completed. No account was created.'));
+          setIsSubmitting(false);
           return;
         }
       }
 
+      await initializeSessionFromAuthResponse(verifyRes.data, queryClient);
       await goToApp();
     } catch (error: unknown) {
       setErr(parseApiError(error, 'Verification failed'));
@@ -246,8 +249,8 @@ export function SignupPage() {
               {paidPlanLabel ? (
                 <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                   You selected the <strong>{paidPlanLabel}</strong>{' '}
-                  {billing === 'yearly' ? '(Yearly)' : '(Monthly)'} plan. Verify your email to proceed to
-                  payment and activate your organisation.
+                  {billing === 'yearly' ? '(Yearly)' : '(Monthly)'} plan. Verify your email, then complete
+                  payment. Your organisation is only created after payment succeeds.
                 </div>
               ) : selectedPlan === 'trial' ? (
                 <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

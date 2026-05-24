@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope } from '../../common/utils/shop-scope';
 import { CreateContractDto, CreateContractItemDto } from './dto/create-contract.dto';
@@ -8,7 +9,10 @@ import { UpdateContractDto } from './dto/update-contract.dto';
 
 @Injectable()
 export class ContractsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionService,
+  ) {}
 
   async list(user: RequestUser) {
     return this.prisma.contractHeader.findMany({
@@ -26,6 +30,7 @@ export class ContractsService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+    await this.subscriptions.assertFeatureForShop(shopId, 'contracts');
     const count = await this.prisma.contractHeader.count({ where: { shopId } });
     const contractNumber = `CT-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
     return this.prisma.contractHeader.create({
@@ -72,11 +77,13 @@ export class ContractsService {
     });
     if (!contract) throw new NotFoundException('Contract not found');
     assertShopScope(user, contract.shopId);
+    await this.subscriptions.assertFeatureForShop(contract.shopId, 'contracts');
     return contract;
   }
 
   async update(user: RequestUser, id: string, dto: UpdateContractDto) {
     const existing = await this.get(user, id);
+    await this.subscriptions.assertFeatureForShop(existing.shopId, 'contracts');
     return this.prisma.$transaction(async (tx) => {
       await tx.contractItem.deleteMany({ where: { contractId: id } });
       return tx.contractHeader.update({
@@ -112,7 +119,8 @@ export class ContractsService {
   }
 
   async activate(user: RequestUser, id: string) {
-    await this.get(user, id);
+    const contract = await this.get(user, id);
+    await this.subscriptions.assertFeatureForShop(contract.shopId, 'contracts');
     return this.prisma.contractHeader.update({
       where: { id },
       data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
@@ -120,7 +128,8 @@ export class ContractsService {
   }
 
   async terminate(user: RequestUser, id: string) {
-    await this.get(user, id);
+    const contract = await this.get(user, id);
+    await this.subscriptions.assertFeatureForShop(contract.shopId, 'contracts');
     return this.prisma.contractHeader.update({
       where: { id },
       data: { notes: `[Terminated ${new Date().toISOString()}]`, updatedById: user.id },

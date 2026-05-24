@@ -8,8 +8,25 @@ const adminUser: RequestUser = {
   email: 'admin@example.com',
   role: RoleName.ADMIN,
   shopId: null,
+  companyId: 'co-1',
+  tenantShopIds: ['shop-1'],
   permissions: [],
-} as unknown as RequestUser;
+};
+
+const subscriptions = () =>
+  ({
+    assertFeatureForShop: jest.fn().mockResolvedValue(undefined),
+  }) as any;
+
+function makeService(
+  prisma: any,
+  stockSvc = stock(),
+  numbersSvc = numbers(),
+  auditSvc = audit(),
+  costingSvc = costing(),
+) {
+  return new SalesOrdersService(prisma, stockSvc, numbersSvc, auditSvc, costingSvc, subscriptions());
+}
 
 function buildTx() {
   return {
@@ -36,6 +53,9 @@ function makePrisma(tx: any) {
     shop: {
       findUnique: jest.fn().mockResolvedValue({ costingMethod: 'AVERAGE' }),
     },
+    customer: {
+      findUnique: jest.fn().mockResolvedValue({ shopId: 'shop-1' }),
+    },
   } as any;
 }
 
@@ -57,7 +77,7 @@ describe('SalesOrdersService.create', () => {
   it('rejects when shopId is absent on actor and DTO', async () => {
     const tx = buildTx();
     const prisma = makePrisma(tx);
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
 
     await expect(
       service.create(adminUser, { customerId: 'c1', items: [] } as any),
@@ -75,7 +95,7 @@ describe('SalesOrdersService.create', () => {
     const prisma = makePrisma(tx);
     const numbersSvc = numbers('SO-202605-00001');
     const auditSvc = audit();
-    const service = new SalesOrdersService(prisma, stock(), numbersSvc, auditSvc, costing());
+    const service = makeService(prisma, stock(), numbersSvc, auditSvc, costing());
 
     const created = await service.create(adminUser, {
       shopId: 'shop-1',
@@ -111,7 +131,7 @@ describe('SalesOrdersService.confirm', () => {
       status: SalesOrderStatus.DRAFT,
       items: [],
     });
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
 
     await expect(service.confirm(adminUser, 'so-1')).rejects.toBeInstanceOf(ConflictException);
   });
@@ -125,7 +145,7 @@ describe('SalesOrdersService.confirm', () => {
       status: SalesOrderStatus.FULFILLED,
       items: [],
     });
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
     await expect(service.confirm(adminUser, 'so-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -139,7 +159,7 @@ describe('SalesOrdersService.confirm', () => {
       items: [],
     };
     prisma.salesOrderHeader.findUnique.mockResolvedValue(so);
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
     const result = await service.confirm(adminUser, 'so-1');
     expect(result).toBe(so);
     expect(tx.salesOrderHeader.updateMany).not.toHaveBeenCalled();
@@ -178,7 +198,7 @@ describe('SalesOrdersService.fulfill', () => {
   it('throws ConflictException when the per-line atomic bump loses to a concurrent fulfilment', async () => {
     const { tx, prisma } = setupConfirmedSoWithOneLine();
     tx.salesOrderItem.updateMany.mockResolvedValue({ count: 0 });
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
     await expect(service.fulfill(adminUser, 'so-1')).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -186,7 +206,7 @@ describe('SalesOrdersService.fulfill', () => {
     const { tx, prisma } = setupConfirmedSoWithOneLine();
     tx.salesOrderItem.updateMany.mockResolvedValue({ count: 1 });
     const stockSvc = stock();
-    const service = new SalesOrdersService(prisma, stockSvc, numbers(), audit(), costing());
+    const service = makeService(prisma, stockSvc);
 
     await service.fulfill(adminUser, 'so-1');
 
@@ -205,7 +225,7 @@ describe('SalesOrdersService.fulfill', () => {
       status: SalesOrderStatus.DRAFT,
       items: [],
     });
-    const service = new SalesOrdersService(prisma, stock(), numbers(), audit(), costing());
+    const service = makeService(prisma);
     await expect(service.fulfill(adminUser, 'so-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

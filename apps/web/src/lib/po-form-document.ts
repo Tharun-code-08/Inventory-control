@@ -6,7 +6,10 @@ import { numPo } from '@/lib/po-line-calculations';
 export type PoLogisticsForm = {
   remarks?: string;
   deliveryAddress?: string;
+  paymentTerms?: string;
   requisitioner?: string;
+  department?: string;
+  /** @deprecated Legacy create-PO preset; mapped to department when department is empty. */
   requisitionerPreset?: string;
   shipVia?: string;
   fob?: string;
@@ -14,18 +17,23 @@ export type PoLogisticsForm = {
   items?: Array<{ productId: string; taxPercent?: number | string }>;
 };
 
-export function documentFromPoForm(values: PoLogisticsForm, shop?: Shop | null): PoDocumentMeta {
-  let requisitioner = values.requisitioner?.trim() ?? '';
-  if (values.requisitionerPreset === 'auto' && !requisitioner) {
-    requisitioner = 'Current user';
-  } else if (
-    values.requisitionerPreset &&
-    values.requisitionerPreset !== '__custom__' &&
-    values.requisitionerPreset !== 'auto'
-  ) {
-    requisitioner = values.requisitionerPreset;
-  }
+function resolveDepartment(values: PoLogisticsForm): string | undefined {
+  const explicit = values.department?.trim();
+  if (explicit) return explicit;
+  const preset = values.requisitionerPreset?.trim();
+  if (preset && preset !== '__custom__' && preset !== 'auto') return preset;
+  return undefined;
+}
 
+function resolveRequestedBy(values: PoLogisticsForm): string | undefined {
+  let name = values.requisitioner?.trim() ?? '';
+  if (!name && values.requisitionerPreset === 'auto') {
+    name = 'Current user';
+  }
+  return name || undefined;
+}
+
+export function documentFromPoForm(values: PoLogisticsForm, shop?: Shop | null): PoDocumentMeta {
   const lineItemTaxes = (values.items ?? [])
     .filter((it) => it.productId)
     .map((it) => ({
@@ -34,7 +42,9 @@ export function documentFromPoForm(values: PoLogisticsForm, shop?: Shop | null):
     }));
 
   return {
-    requisitioner: requisitioner || undefined,
+    requisitioner: resolveRequestedBy(values),
+    department: resolveDepartment(values),
+    paymentTerms: values.paymentTerms?.trim() || undefined,
     shipVia: values.shipVia || undefined,
     fob: values.fob || undefined,
     shippingTerms: values.shippingTerms || undefined,

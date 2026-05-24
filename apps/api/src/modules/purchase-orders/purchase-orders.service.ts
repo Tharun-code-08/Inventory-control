@@ -1,17 +1,25 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
-import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildPoPdfDataFromRecord } from '../../common/pdf/build-po-pdf-data';
+import {
+  buildPurchaseOrderPrintHtml,
+  purchaseOrderPdfFilename,
+  renderPurchaseOrderPdfBuffer,
+} from '../../common/pdf/purchase-order-pdf';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { AuditService } from '../audit/audit.service';
 import { SubscriptionService } from '../billing/subscription.service';
+import { RfqsService } from '../rfqs/rfqs.service';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { assertFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
+import { MailService } from '../../common/mail/mail.service';
+import type { PurchaseOrderEmailContent } from '../../common/mail/purchase-order-supplier.template';
 import type { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
 
 const RECEIPT_INCLUDE = {
@@ -29,11 +37,15 @@ const ITEM_WITH_PRODUCT = {
 
 @Injectable()
 export class PurchaseOrdersService {
+  private readonly logger = new Logger(PurchaseOrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
     private readonly subscriptions: SubscriptionService,
+    private readonly mail: MailService,
+    private readonly rfqs: RfqsService,
   ) {}
 
   private idempotencyScope(user: RequestUser): string {
@@ -134,6 +146,7 @@ export class PurchaseOrdersService {
       poNumber: base.poNumber,
       poDate: base.poDate instanceof Date ? base.poDate.toISOString() : base.poDate,
       shopId: base.shopId,
+      rfqId: (base as { rfqId?: string | null }).rfqId ?? null,
       contractId: base.contractId,
       supplier: base.supplier,
       status: base.status,
@@ -153,6 +166,7 @@ export class PurchaseOrdersService {
       items: base.items.map((item) => ({
         id: item.id ?? `${item.productId}:${String(item.orderQty)}`,
         productId: item.productId,
+        rfqItemId: (item as { rfqItemId?: string | null }).rfqItemId ?? null,
         currentStock: Number(item.currentStock),
         minStock: Number(item.minStock),
         suggestedQty: Number(item.suggestedQty),
@@ -244,6 +258,20 @@ export class PurchaseOrdersService {
     if (shop?.companyId) {
       await this.subscriptions.assertFeature(shop.companyId, 'purchase_orders');
     }
+    if (dto.rfqId) {
+      const missingRfqItem = dto.items.find((line) => !line.rfqItemId);
+      if (missingRfqItem) {
+        throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
+      }
+      await this.rfqs.assertCanCreatePoFromRfq({
+        rfqId: dto.rfqId,
+        shopId: dto.shopId,
+        items: dto.items.map((line) => ({
+          rfqItemId: line.rfqItemId!,
+          orderQty: line.orderQty,
+        })),
+      });
+    }
     const poDate = new Date(dto.poDate);
     assertFuture(poDate);
     const idempotencyScope = this.idempotencyScope(user);
@@ -313,6 +341,7 @@ export class PurchaseOrdersService {
         total = total.add(lineValue);
         lines.push({
           productId: line.productId,
+          rfqItemId: line.rfqItemId ?? null,
           currentStock,
           minStock,
           suggestedQty: suggested,
@@ -328,6 +357,7 @@ export class PurchaseOrdersService {
           poNumber,
           poDate,
           shopId: dto.shopId,
+          rfqId: dto.rfqId ?? null,
           contractId: dto.contractId ?? null,
           supplier: dto.supplier.trim(),
           remarks: dto.remarks?.trim(),
@@ -384,6 +414,22 @@ export class PurchaseOrdersService {
     if (existing.status !== PurchaseOrderStatus.DRAFT) throw new BadRequestException('Only DRAFT can be edited');
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
+    const nextRfqId = dto.rfqId ?? existing.rfqId ?? null;
+    if (nextRfqId && dto.items) {
+      const missingRfqItem = dto.items.find((line) => !line.rfqItemId);
+      if (missingRfqItem) {
+        throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
+      }
+      await this.rfqs.assertCanCreatePoFromRfq({
+        rfqId: nextRfqId,
+        shopId: dto.shopId ?? existing.shopId,
+        items: dto.items.map((line) => ({
+          rfqItemId: line.rfqItemId!,
+          orderQty: line.orderQty ?? 0,
+        })),
+      });
+    }
+
     const poDate = dto.poDate ? new Date(dto.poDate) : new Date(existing.poDate);
     assertFuture(poDate);
 
@@ -432,6 +478,7 @@ export class PurchaseOrdersService {
           creates.push({
             poHeaderId: id,
             productId: line.productId,
+            rfqItemId: line.rfqItemId ?? null,
             currentStock,
             minStock,
             suggestedQty: suggested,
@@ -450,6 +497,7 @@ export class PurchaseOrdersService {
         data: {
           poDate,
           shopId: dto.shopId ?? undefined,
+          rfqId: nextRfqId ?? undefined,
           supplier: dto.supplier?.trim(),
           remarks: dto.remarks?.trim(),
           updatedById: user.id,
@@ -550,28 +598,107 @@ export class PurchaseOrdersService {
 
   async printHtml(user: RequestUser, id: string) {
     const po = await this.get(user, id);
-    const poDate = new Date(po.poDate);
-    const tpl = Handlebars.compile(`<!doctype html><html><head><meta charset="utf-8"><title>{{no}}</title>
-      <style>body{font-family:Arial;padding:24px} table{width:100%;border-collapse:collapse} td,th{border:1px solid #ccc;padding:8px}</style>
-      </head><body>
-      <h2>Purchase Order {{no}}</h2>
-      <p>Date: {{d}} | Shop: {{shop}} | Supplier: {{supplier}}</p>
-      <table><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Value</th></tr></thead><tbody>
-      {{#each lines}}<tr><td>{{code}}</td><td>{{qty}}</td><td>{{rate}}</td><td>{{value}}</td></tr>{{/each}}
-      </tbody></table>
-      </body></html>`);
-    return tpl({
-      no: po.poNumber,
-      d: poDate.toISOString().slice(0, 10),
-      shop: po.shop?.shopName ?? '',
-      supplier: po.supplier,
-      lines: po.items.map((i) => ({
-        code: i.product?.productCode ?? i.productId,
-        qty: String(i.orderQty),
-        rate: String(i.rate),
-        value: String(i.lineValue),
-      })),
+    const shopRow = await this.prisma.shop.findUnique({
+      where: { id: po.shopId },
+      select: { companyId: true },
     });
+    if (!shopRow?.companyId) throw new BadRequestException('Shop not linked to a company');
+    return buildPurchaseOrderPrintHtml(await buildPoPdfDataFromRecord(this.prisma, po, shopRow.companyId));
+  }
+
+  private formatMoney(value: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(
+      Number.isFinite(value) ? value : 0,
+    );
+  }
+
+  private buildPoEmailContent(po: ReturnType<PurchaseOrdersService['serialize']> & { shop?: { shopName?: string } }): PurchaseOrderEmailContent {
+    const poDate = po.poDate ? new Date(po.poDate) : new Date();
+    const lines =
+      po.items?.map((line) => ({
+        code: line.product?.productCode ?? line.productId,
+        description: line.product?.description ?? '',
+        quantity: String(line.orderQty),
+        uom: line.product?.description ? 'UNIT' : '',
+        unitPrice: this.formatMoney(line.rate),
+        lineValue: this.formatMoney(line.lineValue),
+      })) ?? [];
+
+    const totalValue =
+      typeof po.totalValue === 'number'
+        ? this.formatMoney(po.totalValue)
+        : this.formatMoney(
+            lines.reduce((acc, l) => acc + Number.parseFloat(l.lineValue.replace(/[^0-9.-]/g, '') || '0'), 0),
+          );
+
+    return {
+      supplierName: po.supplier,
+      poNumber: po.poNumber,
+      poDate: poDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      shopName: po.shop?.shopName ?? '',
+      remarks: po.remarks ?? null,
+      totalValue,
+      companyName: 'Softdigit Consulting',
+      lines,
+    };
+  }
+
+  async sendToSupplier(user: RequestUser, id: string) {
+    const po = await this.get(user, id);
+    const shopRow = await this.prisma.shop.findUnique({
+      where: { id: po.shopId },
+      select: { companyId: true },
+    });
+    if (!shopRow?.companyId) {
+      throw new BadRequestException('Shop not linked to a company');
+    }
+    await this.subscriptions.assertFeature(shopRow.companyId, 'purchase_orders');
+
+    const supplierName = po.supplier.trim();
+    const supplier = await this.prisma.supplier.findFirst({
+      where: {
+        companyId: shopRow.companyId,
+        supplierName: { equals: supplierName, mode: 'insensitive' },
+      },
+      select: { email: true, supplierName: true },
+    });
+    const email = supplier?.email?.trim();
+    if (!email) {
+      throw new BadRequestException(
+        `Supplier email is missing for "${supplierName}". Open Suppliers, add an email to that supplier, and try again.`,
+      );
+    }
+
+    const content = this.buildPoEmailContent(po);
+    const pdfFilename = purchaseOrderPdfFilename(po.poNumber);
+    let attachments: Array<{ filename: string; content: Buffer }> | undefined;
+    try {
+      const pdfBuffer = await renderPurchaseOrderPdfBuffer(
+        await buildPoPdfDataFromRecord(this.prisma, po, shopRow.companyId),
+      );
+      attachments = [{ filename: pdfFilename, content: pdfBuffer }];
+    } catch (err) {
+      const message = (err as Error).message ?? 'PDF generation failed';
+      this.logger.warn(`PO PDF attachment skipped for ${po.poNumber}: ${message}`);
+    }
+
+    if (!this.mail.isConfigured()) {
+      throw new BadRequestException(
+        'Email is not configured on the server (SMTP_HOST / SMTP_USER / SMTP_PASS). Contact your administrator.',
+      );
+    }
+
+    await this.mail.sendPurchaseOrderToSupplier({
+      to: email,
+      content,
+      attachments,
+    });
+    return {
+      sent: true,
+      to: email,
+      attachment: attachments ? pdfFilename : null,
+      pdfAttached: Boolean(attachments),
+    };
   }
 }
 

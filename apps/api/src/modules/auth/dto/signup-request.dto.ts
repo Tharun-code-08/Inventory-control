@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
@@ -81,8 +82,13 @@ export class SignupRequestDto {
   @MinLength(8)
   confirmPassword!: string;
 
-  @ApiPropertyOptional({ description: 'Verified Razorpay order id when signing up after payment' })
+  @ApiPropertyOptional({ enum: ['trial', 'pro', 'plus'], default: 'trial' })
   @IsOptional()
-  @IsString()
-  paymentOrderId?: string;
+  @IsIn(['trial', 'pro', 'plus'])
+  plan?: 'trial' | 'pro' | 'plus';
+
+  @ApiPropertyOptional({ enum: ['monthly', 'yearly'], default: 'monthly' })
+  @IsOptional()
+  @IsIn(['monthly', 'yearly'])
+  billing?: 'monthly' | 'yearly';
 }

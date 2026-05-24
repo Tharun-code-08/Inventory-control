@@ -9,8 +9,10 @@ const adminUser: RequestUser = {
   email: 'admin@example.com',
   role: RoleName.ADMIN,
   shopId: null,
+  companyId: 'co-1',
+  tenantShopIds: ['s1'],
   permissions: [],
-} as unknown as RequestUser;
+};
 
 function buildTx(overrides: Record<string, any> = {}) {
   return {

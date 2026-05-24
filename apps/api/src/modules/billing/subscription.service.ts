@@ -11,9 +11,11 @@ import {
 } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import {
+  isDowngrade,
   planAllowsFeature,
   PLAN_LIMITS,
   subscriptionEndDate,
+  subscriptionPlanTier,
   trialEndDate,
 } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -35,6 +37,13 @@ export type SubscriptionSnapshot = {
   features: {
     reports: boolean;
     purchaseOrders: boolean;
+    rfqs: boolean;
+    contracts: boolean;
+    salesOrders: boolean;
+    salesQuotations: boolean;
+    invoices: boolean;
+    payments: boolean;
+    supplierPortal: boolean;
     integrations: boolean;
     api: boolean;
     vendorPortal: boolean;
@@ -104,6 +113,13 @@ export class SubscriptionService {
       features: {
         reports: planAllowsFeature(company.subscriptionPlan, 'reports'),
         purchaseOrders: planAllowsFeature(company.subscriptionPlan, 'purchase_orders'),
+        rfqs: planAllowsFeature(company.subscriptionPlan, 'rfqs'),
+        contracts: planAllowsFeature(company.subscriptionPlan, 'contracts'),
+        salesOrders: planAllowsFeature(company.subscriptionPlan, 'sales_orders'),
+        salesQuotations: planAllowsFeature(company.subscriptionPlan, 'sales_quotations'),
+        invoices: planAllowsFeature(company.subscriptionPlan, 'invoices'),
+        payments: planAllowsFeature(company.subscriptionPlan, 'payments'),
+        supplierPortal: planAllowsFeature(company.subscriptionPlan, 'supplier_portal'),
         integrations: planAllowsFeature(company.subscriptionPlan, 'integrations'),
         api: planAllowsFeature(company.subscriptionPlan, 'api'),
         vendorPortal: planAllowsFeature(company.subscriptionPlan, 'vendor_portal'),
@@ -138,6 +154,17 @@ export class SubscriptionService {
         `This feature requires a paid plan. Upgrade from Settings → Upgrade.`,
       );
     }
+  }
+
+  async assertFeatureForShop(shopId: string, feature: Parameters<typeof planAllowsFeature>[1]): Promise<void> {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { companyId: true },
+    });
+    if (!shop?.companyId) {
+      throw new NotFoundException('Shop not found or missing company');
+    }
+    await this.assertFeature(shop.companyId, feature);
   }
 
   async assertUserLimit(companyId: string): Promise<void> {
@@ -200,6 +227,18 @@ export class SubscriptionService {
     }
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.findUnique({
+        where: { id: args.companyId },
+        select: { subscriptionPlan: true },
+      });
+      if (!company) {
+        throw new NotFoundException('Company not found');
+      }
+      if (isDowngrade(company.subscriptionPlan, args.plan)) {
+        throw new BadRequestException(
+          `Downgrades are not allowed. Current plan: ${company.subscriptionPlan}, requested: ${args.plan}.`,
+        );
+      }
       await tx.company.update({
         where: { id: args.companyId },
         data: {

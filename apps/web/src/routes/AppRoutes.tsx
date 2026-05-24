@@ -5,6 +5,8 @@ import { isOrgAdminUser } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/skeleton';
 import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import { useSubscription } from '@/hooks/use-subscription';
+import { TrialFeatureGate } from '@/components/TrialFeatureGate';
 const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
 const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
 const SignupPage = lazyPage(() => import('@/pages/SignupPage'), 'SignupPage');
@@ -98,6 +100,8 @@ function PageFallback() {
 }
 
 export function AppRoutes() {
+  const user = useAuthStore((s) => s.user);
+  const { data: subscription } = useSubscription(Boolean(user));
   return (
     <AppErrorBoundary>
       <Suspense fallback={<PageFallback />}>
@@ -125,29 +129,155 @@ export function AppRoutes() {
           <Route path="/plants" element={<Protected><PlantsPage /></Protected>} />
           <Route path="/storage-locations" element={<Protected><StorageLocationsPage /></Protected>} />
           <Route path="/suppliers" element={<Protected><SuppliersPage /></Protected>} />
-          <Route path="/rfqs" element={<Protected><RfqsPage /></Protected>} />
-          <Route path="/rfqs/:id/compare" element={<Protected><RfqComparePage /></Protected>} />
-          <Route path="/rfqs/:id" element={<Protected><RfqDetailPage /></Protected>} />
-          <Route path="/quotations" element={<Protected><QuotationsPage /></Protected>} />
-          <Route path="/contracts" element={<Protected><ContractsPage /></Protected>} />
+          <Route
+            path="/rfqs"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="rfqs">
+                  <RfqsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/rfqs/:id/compare"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="rfqs">
+                  <RfqComparePage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/rfqs/:id"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="rfqs">
+                  <RfqDetailPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/quotations"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="salesQuotations">
+                  <QuotationsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/contracts"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="contracts">
+                  <ContractsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
           <Route path="/customers" element={<Protected><CustomersPage /></Protected>} />
-          <Route path="/supplier-portal" element={<Protected><SupplierPortalPage /></Protected>} />
-          <Route path="/portal" element={<Protected><SupplierPortalPage /></Protected>} />
-          <Route path="/sales" element={<Protected><SalesPage /></Protected>} />
-          <Route path="/sales/:id" element={<Protected><SalesOrderDetailPage /></Protected>} />
-          <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
-          <Route path="/payments" element={<Protected><PaymentsPage /></Protected>} />
+          <Route
+            path="/supplier-portal"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="supplierPortal">
+                  <SupplierPortalPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/portal"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="supplierPortal">
+                  <SupplierPortalPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/sales"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="salesOrders">
+                  <SalesPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/sales/:id"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="salesOrders">
+                  <SalesOrderDetailPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/invoices"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="invoices">
+                  <InvoicesPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/payments"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="payments">
+                  <PaymentsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
           <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
           <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
           <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
           <Route path="/goods-receipts/new" element={<Protected><GoodsReceiptPage createOnly /></Protected>} />
           <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />
           <Route path="/goods-issues/new" element={<Protected><GoodsIssueCreatePage /></Protected>} />
-          <Route path="/purchase-orders" element={<Protected><PurchaseOrdersPage /></Protected>} />
-          <Route path="/purchase-orders/new" element={<Protected><PurchaseOrdersPage createOnly /></Protected>} />
+          <Route
+            path="/purchase-orders"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="purchaseOrders">
+                  <PurchaseOrdersPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/purchase-orders/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="purchaseOrders">
+                  <PurchaseOrdersPage createOnly />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
           <Route path="/payments/new" element={<Protected><PaymentsPage createOnly /></Protected>} />
           <Route path="/plants/new" element={<Protected><PlantsPage createOnly /></Protected>} />
-          <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
+          <Route
+            path="/reports"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="reports">
+                  <ReportsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />
           <Route path="/help" element={<Protected><HelpSupportPage /></Protected>} />

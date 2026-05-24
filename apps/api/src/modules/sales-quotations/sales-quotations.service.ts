@@ -11,6 +11,7 @@ import { asMoney, roundMoney } from '../../common/utils/money';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateSalesQuotationDto } from './dto/create-sales-quotation.dto';
 import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
+import { SubscriptionService } from '../billing/subscription.service';
 
 @Injectable()
 export class SalesQuotationsService {
@@ -19,6 +20,7 @@ export class SalesQuotationsService {
     private readonly numbers: DocumentNumberService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private computeLines(items: CreateSalesQuotationDto['items']) {
@@ -109,6 +111,7 @@ export class SalesQuotationsService {
     });
     if (!row) throw new NotFoundException('Sales quotation not found');
     assertShopScope(user, row.shopId);
+    await this.subscriptions.assertFeatureForShop(row.shopId, 'sales_quotations');
     return row;
   }
 
@@ -117,6 +120,7 @@ export class SalesQuotationsService {
     if (!customer) throw new NotFoundException('Customer not found');
     const shopId = dto.shopId ?? customer.shopId;
     assertShopScope(user, shopId);
+    await this.subscriptions.assertFeatureForShop(shopId, 'sales_quotations');
 
     const quoteDate = dto.quoteDate ? new Date(dto.quoteDate) : new Date();
     const { lines, total } = this.computeLines(dto.items);

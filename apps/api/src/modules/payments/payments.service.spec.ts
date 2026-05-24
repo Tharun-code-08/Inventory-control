@@ -35,8 +35,19 @@ const adminUser: RequestUser = {
   email: 'admin@example.com',
   role: RoleName.ADMIN,
   shopId: null,
+  companyId: 'co-1',
+  tenantShopIds: ['shop-1'],
   permissions: [],
-} as unknown as RequestUser;
+};
+
+const subscriptions = () =>
+  ({
+    assertFeatureForShop: jest.fn().mockResolvedValue(undefined),
+  }) as any;
+
+function makePaymentsService(prisma: any, audit = makeAudit(), numbers = makeNumbers()) {
+  return new PaymentsService(prisma, audit as any, numbers as any, subscriptions());
+}
 
 const shopUser: RequestUser = {
   id: 'user-shop',
@@ -58,7 +69,7 @@ describe('PaymentsService.create', () => {
   it('rejects non-positive amounts before opening a transaction', async () => {
     const tx = buildTx();
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(adminUser, {
@@ -72,7 +83,7 @@ describe('PaymentsService.create', () => {
     const tx = buildTx();
     tx.invoiceHeader.findUnique.mockResolvedValue(null);
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(adminUser, { invoiceId: 'inv-missing', amount: 10 } as any),
@@ -89,7 +100,7 @@ describe('PaymentsService.create', () => {
       paidValue: new Prisma.Decimal('0.00'),
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(adminUser, { invoiceId: 'inv-1', amount: 10 } as any),
@@ -106,7 +117,7 @@ describe('PaymentsService.create', () => {
           paidValue: new Prisma.Decimal('80.00'),
         });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(adminUser, { invoiceId: 'inv-1', amount: 25 } as any),
@@ -127,7 +138,7 @@ describe('PaymentsService.create', () => {
       },
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(adminUser, { invoiceId: 'inv-1', amount: 50 } as any),
@@ -159,7 +170,7 @@ describe('PaymentsService.create', () => {
       },
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, audit as any, numbers as any);
+    const service = makePaymentsService(prisma, audit, numbers);
 
     const result = await service.create(adminUser, {
       invoiceId: 'inv-1',
@@ -189,7 +200,7 @@ describe('PaymentsService.create', () => {
       },
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     const result = await service.create(adminUser, {
       invoiceId: 'inv-1',
@@ -212,7 +223,7 @@ describe('PaymentsService.create', () => {
       paidValue: new Prisma.Decimal('0.00'),
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await expect(
       service.create(shopUser, { invoiceId: 'inv-1', amount: 10 } as any),
@@ -242,7 +253,7 @@ describe('PaymentsService.create', () => {
       },
     });
     const prisma = makePrismaWithTx(tx);
-    const service = new PaymentsService(prisma, makeAudit() as any, makeNumbers() as any);
+    const service = makePaymentsService(prisma);
 
     await service.create(adminUser, { invoiceId: 'inv-1', amount: 30 } as any);
 

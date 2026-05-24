@@ -8,6 +8,7 @@ import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { SubscriptionService } from '../billing/subscription.service';
 
 export type InvoiceListQuery = {
   shop_id?: string;
@@ -25,6 +26,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly numbers: DocumentNumberService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   async list(user: RequestUser, query: InvoiceListQuery = {}) {
@@ -70,6 +72,7 @@ export class InvoicesService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+    await this.subscriptions.assertFeatureForShop(shopId, 'invoices');
 
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
@@ -163,6 +166,7 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     assertShopScope(user, invoice.shopId);
+    await this.subscriptions.assertFeatureForShop(invoice.shopId, 'invoices');
     return invoice;
   }
 }

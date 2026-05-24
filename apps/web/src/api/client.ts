@@ -107,10 +107,24 @@ function setRequestAuthorization(config: InternalAxiosRequestConfig | undefined,
   config.headers.set('Authorization', value);
 }
 
+function gatewayErrorMessage(status: number | undefined): string | undefined {
+  if (status === 502) {
+    return 'Backend API is unavailable (502). Start the API with npm run dev:api (listens on port 3000) and keep your Cloudflare tunnel running.';
+  }
+  if (status === 504) {
+    return 'Request timed out (504). Email with PDF can take up to a minute—try again in a moment.';
+  }
+  return undefined;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const status = error.response?.status;
+    const gatewayMsg = gatewayErrorMessage(status);
+    if (gatewayMsg) {
+      error.message = gatewayMsg;
+    }
     const original = error.config as InternalAxiosRequestConfig & { __isRetry?: boolean };
 
     if (status === 401 && !original?.__isRetry && requestHadAuthorization(original) && !isPublicAuthEndpoint(original)) {

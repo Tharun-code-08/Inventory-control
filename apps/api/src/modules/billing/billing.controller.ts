@@ -14,6 +14,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import {
+  isDowngrade,
   orderAmountPaise,
   toBillingCycle,
   toSubscriptionPlan,
@@ -129,6 +130,18 @@ export class BillingController {
     }
     if (payment.consumedAt && payment.companyId && payment.companyId !== companyId) {
       throw new BadRequestException('Payment already used by another organisation');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { subscriptionPlan: true },
+    });
+    if (!company) {
+      throw new BadRequestException('Organisation not found');
+    }
+    if (isDowngrade(company.subscriptionPlan, payment.plan)) {
+      throw new BadRequestException(
+        `Downgrades are not allowed. Current plan: ${company.subscriptionPlan}, requested: ${payment.plan}.`,
+      );
     }
     await this.subscriptions.activatePaidPlan({
       companyId,

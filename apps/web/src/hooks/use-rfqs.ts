@@ -1,6 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
+export type RfqFulfillmentLine = {
+  rfqItemId: string;
+  productId?: string | null;
+  rfqQty: number;
+  orderedQty: number;
+  remainingQty: number;
+};
+
+export type RfqFulfillment = {
+  totalLines: number;
+  linesFullyOrdered: number;
+  linesRemaining: number;
+  maxPos: number;
+  posCreated: number;
+  posRemaining: number;
+  lines: RfqFulfillmentLine[];
+};
+
 export type Rfq = {
   id: string;
   rfqNumber: string;
@@ -20,6 +38,7 @@ export type Rfq = {
     specifications?: string | null;
     product?: { id: string; productCode?: string; description?: string; purchasePrice?: number | string };
   }>;
+  fulfillment?: RfqFulfillment;
 };
 
 export type CreateRfqPayload = {
@@ -53,6 +72,17 @@ export function useRfq(id: string | undefined) {
     queryFn: async () => {
       const res = await api.get(`/rfqs/${id}`);
       return res.data.data as Rfq;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+export function useRfqFulfillment(id: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.all, 'fulfillment', id],
+    queryFn: async () => {
+      const res = await api.get(`/rfqs/${id}/fulfillment`);
+      return res.data.data as { rfqId: string; fulfillment: RfqFulfillment };
     },
     enabled: Boolean(id),
   });

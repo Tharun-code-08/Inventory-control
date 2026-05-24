@@ -468,6 +468,9 @@ export function RfqsPage() {
                           Status
                         </TableHead>
                         <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                          Fulfillment
+                        </TableHead>
+                        <TableHead className="text-xs font-semibold uppercase tracking-wide">
                           Deadline
                         </TableHead>
                         <TableHead className="text-xs font-semibold uppercase tracking-wide">
@@ -481,7 +484,7 @@ export function RfqsPage() {
                     <TableBody>
                       {filteredRfqs.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                          <TableCell colSpan={9} className="py-10 text-center text-slate-500">
                             No RFQs in this view.
                           </TableCell>
                         </TableRow>
@@ -490,6 +493,7 @@ export function RfqsPage() {
                           const responseCount = quotesByRfq.get(r.id) ?? 0;
                           const deleteBlock = rfqDeleteBlockReason(r.id);
                           const supplierCount = r.suppliers?.length ?? 0;
+                          const fulfillment = r.fulfillment;
                           return (
                             <TableRow key={r.id} className="hover:bg-slate-50/50">
                               <TableCell>
@@ -521,6 +525,11 @@ export function RfqsPage() {
                               </TableCell>
                               <TableCell>
                                 <StatusBadge status={rfqStatusLabel(r.status)} />
+                              </TableCell>
+                              <TableCell className="text-sm text-slate-600">
+                                {fulfillment
+                                  ? `${fulfillment.linesFullyOrdered}/${fulfillment.totalLines} lines · ${fulfillment.posCreated}/${fulfillment.maxPos} POs`
+                                  : '—'}
                               </TableCell>
                               <TableCell className="text-sm text-slate-600">
                                 {formatRfqDate(r.deadline)}

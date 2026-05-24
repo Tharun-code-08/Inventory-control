@@ -19,6 +19,7 @@ import { StockService } from '../stock/stock.service';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateSalesOrderDto, CreateSalesOrderItemDto } from './dto/create-sales-order.dto';
 import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
+import { SubscriptionService } from '../billing/subscription.service';
 
 export type SalesOrderListQuery = {
   shop_id?: string;
@@ -38,6 +39,7 @@ export class SalesOrdersService {
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
     private readonly costing: CostingService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   async list(user: RequestUser, query: SalesOrderListQuery = {}) {
@@ -128,6 +130,7 @@ export class SalesOrdersService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+    await this.subscriptions.assertFeatureForShop(shopId, 'sales_orders');
 
     if (dto.customerId) {
       const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
@@ -212,6 +215,7 @@ export class SalesOrdersService {
     });
     if (!so) throw new NotFoundException('Sales order not found');
     assertShopScope(user, so.shopId);
+    await this.subscriptions.assertFeatureForShop(so.shopId, 'sales_orders');
     return so;
   }
 

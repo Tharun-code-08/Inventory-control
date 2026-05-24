@@ -1,12 +1,20 @@
 /** Preset options for PO logistics fields (Create PO + PDF). */
 
-export const REQUISITIONER_PRESETS = [
-  { value: '__custom__', label: 'Type name…' },
-  { value: 'auto', label: 'Current user (auto)' },
+/** Departments shown on the PO PDF header bar (template: "Department"). */
+export const DEPARTMENT_OPTIONS = [
   { value: 'Procurement', label: 'Procurement' },
   { value: 'IT', label: 'IT' },
   { value: 'Operations', label: 'Operations' },
   { value: 'Warehouse', label: 'Warehouse' },
+  { value: 'Sales', label: 'Sales' },
+  { value: 'Finance', label: 'Finance' },
+] as const;
+
+/** @deprecated Use department + requisitioner (requested by) instead. */
+export const REQUISITIONER_PRESETS = [
+  { value: '__custom__', label: 'Type name…' },
+  { value: 'auto', label: 'Current user (auto)' },
+  ...DEPARTMENT_OPTIONS,
 ] as const;
 
 export const SHIP_VIA_OPTIONS = [

@@ -4,9 +4,12 @@ import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import ExcelJS from 'exceljs';
 import * as fs from 'fs/promises';
-import * as Handlebars from 'handlebars';
 import * as path from 'path';
-import * as puppeteer from 'puppeteer';
+import { buildPoPdfDataFromRecord } from '../../common/pdf/build-po-pdf-data';
+import {
+  purchaseOrderPdfFilename,
+  renderPurchaseOrderPdfBuffer,
+} from '../../common/pdf/purchase-order-pdf';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JobFailureService } from '../../common/queues/job-failure.service';
 import { MetricsService } from '../../common/observability/metrics.service';
@@ -52,44 +55,21 @@ export class ExportProcessor extends WorkerHost {
     if (job.data.type === 'po-pdf') {
       const po = await this.prisma.purchaseOrderHeader.findUnique({
         where: { id: job.data.purchaseOrderId },
-        include: { items: { include: { product: true } }, shop: true },
+        include: { items: { include: { product: true } }, shop: { select: { shopName: true, companyId: true } } },
       });
       if (!po) {
         throw new Error('Purchase order not found');
       }
-      const tpl = Handlebars.compile(`<!doctype html><html><head><meta charset="utf-8"><title>{{no}}</title>
-        <style>body{font-family:Arial;padding:24px} table{width:100%;border-collapse:collapse} td,th{border:1px solid #ccc;padding:8px}</style>
-        </head><body>
-        <h2>Purchase Order {{no}}</h2>
-        <p>Date: {{d}} | Shop: {{shop}} | Supplier: {{supplier}}</p>
-        <table><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Value</th></tr></thead><tbody>
-        {{#each lines}}<tr><td>{{code}}</td><td>{{qty}}</td><td>{{rate}}</td><td>{{value}}</td></tr>{{/each}}
-        </tbody></table>
-        </body></html>`);
-      const html = tpl({
-        no: po.poNumber,
-        d: po.poDate.toISOString().slice(0, 10),
-        shop: po.shop.shopName,
-        supplier: po.supplier,
-        lines: po.items.map((i) => ({
-          code: i.product.productCode,
-          qty: i.orderQty.toString(),
-          rate: i.rate.toString(),
-          value: i.lineValue.toString(),
-        })),
-      });
-
-      const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-      try {
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-        const fileName = `po-${job.data.purchaseOrderId}.pdf`;
-        const outPath = path.join(dir, fileName);
-        await page.pdf({ path: outPath, format: 'A4' });
-        return { downloadUrl: `/api/v1/export/files/${fileName}`, fileName };
-      } finally {
-        await browser.close();
+      if (!po.shop.companyId) {
+        throw new Error('Shop not linked to a company');
       }
+      const fileName = purchaseOrderPdfFilename(po.poNumber);
+      const outPath = path.join(dir, fileName);
+      const pdfBuffer = await renderPurchaseOrderPdfBuffer(
+        await buildPoPdfDataFromRecord(this.prisma, po, po.shop.companyId),
+      );
+      await fs.writeFile(outPath, pdfBuffer);
+      return { downloadUrl: `/api/v1/export/files/${fileName}`, fileName };
     }
 
     if (job.data.type === 'report-xlsx') {

@@ -13,6 +13,7 @@ import {
   XCircle,
   ArrowRightFromLine,
   ClipboardList,
+  Send,
   Download,
   ShoppingCart,
 } from 'lucide-react';
@@ -74,6 +75,7 @@ import {
   useCreatePurchaseOrder,
   useConfirmPurchaseOrder,
   useCancelPurchaseOrder,
+  useSendPurchaseOrder,
   type PurchaseOrder,
   type PurchaseOrderStatus,
 } from '@/hooks/use-purchase-orders';
@@ -85,13 +87,26 @@ import { useCompanies } from '@/hooks/use-companies';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
-import { hasPermission } from '@/lib/permissions';
+import { hasAnyPermission, hasPermission } from '@/lib/permissions';
 import { parsePoRemarks } from '@/lib/po-document';
 import { resolvePoDeliveryAddress, resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
 import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf';
+import { DEPARTMENT_OPTIONS } from '@/lib/po-form-options';
 import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
 import type { PoDocumentMeta } from '@/lib/po-document';
-import { computePoLineAmounts, sumPoLineTotals, taxPercentForProduct } from '@/lib/po-line-calculations';
+import {
+  computePoLineAmounts,
+  numPo,
+  sumPoLineTotals,
+  taxPercentForProduct,
+} from '@/lib/po-line-calculations';
+
+/** Roles that must use their assigned plant and cannot switch delivery plant. */
+const SHOP_SCOPED_ROLES = new Set(['SHOP_USER', 'WAREHOUSE_STAFF', 'VIEWER', 'VENDOR']);
+
+function isShopScopedRole(role?: string | null): boolean {
+  return !!role && SHOP_SCOPED_ROLES.has(role);
+}
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -99,6 +114,7 @@ import { computePoLineAmounts, sumPoLineTotals, taxPercentForProduct } from '@/l
 
 const poItemSchema = z.object({
   productId: z.string().min(1, 'Select a product'),
+  rfqItemId: z.string().optional(),
   currentStock: z.coerce.number().min(0),
   minStock: z.coerce.number().min(0),
   suggestedQty: z.coerce.number().min(0),
@@ -117,7 +133,7 @@ const poFormSchema = z.object({
   deliveryAddress: z.string().optional(),
   remarks: z.string().optional(),
   requisitioner: z.string().optional(),
-  requisitionerPreset: z.string().optional(),
+  department: z.string().optional(),
   shipVia: z.string().optional(),
   fob: z.string().optional(),
   shippingTerms: z.string().optional(),
@@ -150,7 +166,7 @@ function getProductPlant(product: Product, shopId: string) {
 function defaultPoLogisticsFields(userName?: string) {
   return {
     requisitioner: userName ?? '',
-    requisitionerPreset: userName ? 'auto' : '__custom__',
+    department: '',
     shipVia: '',
     fob: '',
     shippingTerms: '',
@@ -160,20 +176,28 @@ function defaultPoLogisticsFields(userName?: string) {
 function logisticsFieldsFromDocument(doc: PoDocumentMeta) {
   return {
     requisitioner: doc.requisitioner ?? '',
-    requisitionerPreset: '__custom__',
+    department: doc.department ?? '',
     shipVia: doc.shipVia ?? '',
     fob: doc.fob ?? '',
     shippingTerms: doc.shippingTerms ?? '',
   };
 }
 
+function logisticsFieldsFromDocumentWithPayment(doc: PoDocumentMeta, paymentTerms?: string) {
+  return {
+    ...logisticsFieldsFromDocument(doc),
+    paymentTerms: doc.paymentTerms ?? paymentTerms ?? '',
+  };
+}
+
 function defaultPoLineItem() {
   return {
     productId: '',
+    rfqItemId: undefined as string | undefined,
     currentStock: 0,
     minStock: 0,
     suggestedQty: 0,
-    orderQty: 0,
+    orderQty: 1,
     rate: 0,
     taxPercent: '' as string | number,
   };
@@ -193,9 +217,11 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
+  const canSendPoEmail = hasAnyPermission(user, 'purchase_order:create', 'purchase_order:approve');
   const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
   const shopId = user?.shopId ?? selectedShopId;
+  const deliveryPlantLocked = isShopScopedRole(user?.role) || shops.length <= 1;
   const [sourceType, setSourceType] = useState<'DIRECT' | 'RFQ' | 'CONTRACT'>('DIRECT');
   const [sourceRfqId, setSourceRfqId] = useState('');
   const [sourceContractId, setSourceContractId] = useState('');
@@ -277,6 +303,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
   const { data: rfqs = [] } = useRfqs();
+  const rfqMap = useMemo(() => new Map(rfqs.map((r) => [r.id, r])), [rfqs]);
   const { data: contracts = [] } = useContracts();
   const { data: suppliers = [] } = useSuppliers();
   const { data: companies = [] } = useCompanies();
@@ -301,6 +328,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
   const cancelMut = useCancelPurchaseOrder();
+  const sendMut = useSendPurchaseOrder();
 
   // ---- form ----
   const form = useForm<POFormValues>({
@@ -322,7 +350,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
   const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
-  const { data: storageLocations = [] } = useStorageLocations(selectedDeliveryPlantId || undefined);
+  const selectedStorageLocationId = form.watch('storageLocationId');
+  const resolvedDeliveryPlantId =
+    selectedDeliveryPlantId || shopId || (shops.length === 1 ? shops[0]?.id : '') || '';
+  const { data: storageLocations = [] } = useStorageLocations(resolvedDeliveryPlantId || undefined);
+  const resolvedStorageLocationId =
+    selectedStorageLocationId ||
+    (storageLocations.length === 1 ? storageLocations[0]?.id : '') ||
+    '';
+  const selectedRfq = sourceRfqId ? rfqMap.get(sourceRfqId) : undefined;
+  const rfqPosRemaining = selectedRfq?.fulfillment?.posRemaining ?? null;
+  const canAddLineItems = Boolean(resolvedDeliveryPlantId && resolvedStorageLocationId) && (rfqPosRemaining == null || rfqPosRemaining > 0);
 
   const applyDeliveryAddressFromPlant = useCallback(
     (plantId?: string) => {
@@ -333,6 +371,49 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     },
     [form, shops],
   );
+
+  useEffect(() => {
+    if (resolvedDeliveryPlantId) {
+      applyDeliveryAddressFromPlant(resolvedDeliveryPlantId);
+    }
+  }, [resolvedDeliveryPlantId, applyDeliveryAddressFromPlant]);
+
+  // Keep plant/location in sync when the user has one plant or when auth shop loads after mount.
+  useEffect(() => {
+    const formOpen = createOnly || sheetOpen;
+    if (!formOpen) return;
+
+    const plantId =
+      form.getValues('deliveryPlantId') ||
+      shopId ||
+      (shops.length === 1 ? shops[0]?.id : '');
+    if (plantId && form.getValues('deliveryPlantId') !== plantId) {
+      form.setValue('deliveryPlantId', plantId, { shouldValidate: true });
+      if (!user?.shopId) setSelectedShopId(plantId);
+      applyDeliveryAddressFromPlant(plantId);
+    }
+  }, [
+    createOnly,
+    sheetOpen,
+    shopId,
+    shops,
+    form,
+    user?.shopId,
+    applyDeliveryAddressFromPlant,
+  ]);
+
+  useEffect(() => {
+    const formOpen = createOnly || sheetOpen;
+    if (!formOpen || !resolvedDeliveryPlantId) return;
+
+    const current = form.getValues('storageLocationId');
+    if (current && storageLocations.some((loc) => loc.id === current)) return;
+
+    if (storageLocations.length === 1) {
+      form.setValue('storageLocationId', storageLocations[0]!.id, { shouldValidate: true });
+    }
+  }, [createOnly, sheetOpen, resolvedDeliveryPlantId, storageLocations, form]);
+
   const targetProductShopId = selectedDeliveryPlantId || shopId || '';
   // Multi-plant: a product is "selectable for this PO" if it's assigned to
   // the delivery plant. We still fall back to all products when no plant is
@@ -383,15 +464,20 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   };
 
   const prefillAppliedRef = useRef(false);
+  const newRouteInitializedRef = useRef(false);
 
   useEffect(() => {
     if (location.pathname !== '/purchase-orders/new') {
       prefillAppliedRef.current = false;
+      newRouteInitializedRef.current = false;
       return;
     }
     const prefill = (location.state as PoPrefillState | null)?.poPrefill;
     if (!prefill) {
-      openCreate();
+      if (!newRouteInitializedRef.current) {
+        newRouteInitializedRef.current = true;
+        openCreate();
+      }
       return;
     }
     if (prefillAppliedRef.current) return;
@@ -435,18 +521,27 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       setEditingPO(po);
       const { humanRemarks, document: docMeta } = parsePoRemarks(po.remarks);
       const shop = shops.find((s) => s.id === po.shopId);
+      if (po.rfqId) {
+        setSourceType('RFQ');
+        setSourceRfqId(po.rfqId);
+      } else if (po.contractId) {
+        setSourceType('CONTRACT');
+        setSourceContractId(po.contractId);
+      } else {
+        setSourceType('DIRECT');
+      }
       form.reset({
         poDate: po.poDate.slice(0, 10),
         priority: 'Medium',
-        paymentTerms: 'Net 30',
         supplier: po.supplier,
         deliveryPlantId: po.shopId,
         storageLocationId: '',
         deliveryAddress: resolvePoDeliveryAddress(shop),
         remarks: humanRemarks,
-        ...logisticsFieldsFromDocument(docMeta),
+        ...logisticsFieldsFromDocumentWithPayment(docMeta, 'Net 30'),
         items: po.items.map((it) => ({
           productId: it.productId,
+          rfqItemId: (it as { rfqItemId?: string | null }).rfqItemId ?? undefined,
           currentStock: it.currentStock,
           minStock: it.minStock,
           suggestedQty: it.suggestedQty,
@@ -484,17 +579,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   function handleProductChange(idx: number, productId: string) {
     const p = productMap.get(productId);
     if (!p) return;
-    const plantStock = shopId ? p.stockByShop?.[shopId] : undefined;
+    const plantId = targetProductShopId || shopId;
+    const plantStock = plantId ? p.stockByShop?.[plantId] : undefined;
     const currentStock = plantStock ?? p.currentStock ?? 0;
-    const plantAssignment = shopId ? getProductPlant(p, shopId) : undefined;
+    const plantAssignment = plantId ? getProductPlant(p, plantId) : undefined;
     const minStock = plantAssignment?.minStockLevel ?? 0;
     const suggestedQty = Math.max(0, minStock - currentStock);
+    const defaultQty = suggestedQty > 0 ? suggestedQty : 1;
 
-    form.setValue(`items.${idx}.currentStock`, currentStock);
-    form.setValue(`items.${idx}.minStock`, minStock);
-    form.setValue(`items.${idx}.suggestedQty`, suggestedQty);
-    form.setValue(`items.${idx}.orderQty`, 0);
-    form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0);
+    form.setValue(`items.${idx}.currentStock`, currentStock, { shouldDirty: true });
+    form.setValue(`items.${idx}.minStock`, minStock, { shouldDirty: true });
+    form.setValue(`items.${idx}.suggestedQty`, suggestedQty, { shouldDirty: true });
+    form.setValue(`items.${idx}.orderQty`, defaultQty, { shouldDirty: true });
+    form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0, { shouldDirty: true });
   }
 
   async function handleQuickSupplierCreate() {
@@ -523,7 +620,44 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     }
   }
 
-  async function handleSubmit(values: POFormValues) {
+  function apiErrorMessage(e: unknown): string | undefined {
+    const err = e as {
+      response?: {
+        status?: number;
+        data?: { error?: { message?: string }; message?: string | string[] };
+      };
+      message?: string;
+    };
+    if (err.response?.status === 502) {
+      return (
+        err.message ??
+        'Backend API is unavailable. Run npm run dev:api in retail-ims and ensure cloudflared routes to port 3000.'
+      );
+    }
+    if (err.response?.status === 504) {
+      return err.message ?? 'Request timed out while sending email. Try again—the PDF may still be generating.';
+    }
+    const nested = err.response?.data?.error?.message;
+    if (nested) return nested;
+    const bodyMsg = err.response?.data?.message;
+    if (Array.isArray(bodyMsg)) return bodyMsg.join(', ');
+    if (typeof bodyMsg === 'string') return bodyMsg;
+    return err.message;
+  }
+
+  function isApiNotFound(e: unknown): boolean {
+    const err = e as { response?: { status?: number }; message?: string };
+    if (err.response?.status === 404) return true;
+    const msg = apiErrorMessage(e) ?? '';
+    return /cannot\s+post/i.test(msg);
+  }
+
+  function rejectsSendToSupplierOnCreate(e: unknown): boolean {
+    const msg = apiErrorMessage(e) ?? '';
+    return msg.includes('sendToSupplier');
+  }
+
+  async function handleSubmit(values: POFormValues, sendNow = false) {
     try {
       const resolvedShopId = values.deliveryPlantId || shopId;
       if (!resolvedShopId) {
@@ -536,23 +670,100 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         resolvedShopId,
         shop: deliveryShop,
         sourceType,
+        sourceRfqId,
         sourceContractId,
       });
 
-      const result = await createMut.mutateAsync({
-        ...payload,
-        idempotencyKey:
-          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `po-${Date.now()}`,
-      });
-      toast.success(`Purchase order ${result.poNumber} saved as draft`);
+      if (sendNow) {
+        const supplier = suppliers.find((s) => s.supplierName === values.supplier);
+        if (!supplier?.email) {
+          toast.error('Add an email address to the supplier before sending.');
+          return;
+        }
+      }
+
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `po-${Date.now()}`;
+      const createBase = { ...payload, idempotencyKey };
+
+      let result: Awaited<ReturnType<typeof createMut.mutateAsync>> | undefined;
+
+      if (sendNow) {
+        try {
+          result = await createMut.mutateAsync({ ...createBase, sendToSupplier: true });
+          toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
+          setSheetOpen(false);
+          form.reset();
+          setDetailId(result.id);
+          return;
+        } catch (e: unknown) {
+          if (!rejectsSendToSupplierOnCreate(e)) {
+            throw e;
+          }
+        }
+      }
+
+      result = await createMut.mutateAsync(createBase);
+
+      if (sendNow) {
+        if (!result.id) {
+          toast.error('Purchase order was created but could not be sent.');
+          return;
+        }
+        try {
+          await sendMut.mutateAsync(result.id);
+          toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
+        } catch (sendErr: unknown) {
+          if (isApiNotFound(sendErr)) {
+            toast.warning(
+              `Purchase order ${result.poNumber} was saved as draft, but email could not be sent. Redeploy the API (POST /purchase-orders/:id/send) and try again from the PO detail view.`,
+            );
+          } else {
+            toast.error(apiErrorMessage(sendErr) ?? 'Purchase order saved, but email failed');
+          }
+        }
+      } else {
+        toast.success(`Purchase order ${result.poNumber} saved as draft`);
+      }
       setSheetOpen(false);
       form.reset();
       setDetailId(result.id);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
-      toast.error(msg ?? 'Failed to create purchase order');
+      toast.error(apiErrorMessage(e) ?? 'Failed to create purchase order');
+    }
+  }
+
+  const submitDraft = form.handleSubmit((values) => handleSubmit(values, false));
+  const submitSend = form.handleSubmit((values) => handleSubmit(values, true));
+
+  async function handleResendToSupplier(po: PurchaseOrder) {
+    try {
+      const result = await sendMut.mutateAsync(po.id) as {
+        to?: string;
+        pdfAttached?: boolean;
+      };
+      const to = result?.to?.trim();
+      const pdfNote = result?.pdfAttached === false ? ' (PDF attachment could not be generated)' : '';
+      toast.success(
+        to
+          ? `Purchase order ${po.poNumber} emailed to ${to}${pdfNote}`
+          : `Purchase order ${po.poNumber} emailed to supplier${pdfNote}`,
+      );
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number } };
+      if (err.response?.status === 403) {
+        toast.error('You do not have permission to email purchase orders.');
+        return;
+      }
+      if (isApiNotFound(e)) {
+        toast.error(
+          'Send endpoint not found. Restart the API so POST /purchase-orders/:id/send is available.',
+        );
+        return;
+      }
+      toast.error(apiErrorMessage(e) ?? 'Failed to email purchase order to supplier');
     }
   }
 
@@ -783,6 +994,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             <Download className="mr-2 h-4 w-4" /> Download PDF
                           </DropdownMenuItem>
 
+                          {(po.lifecycleStatus ?? po.status) !== 'CANCELLED' && (
+                            <DropdownMenuItem
+                              disabled={!canSendPoEmail || sendMut.isPending}
+                              onClick={() => handleResendToSupplier(po)}
+                            >
+                              <Send className="mr-2 h-4 w-4" /> Resend email
+                            </DropdownMenuItem>
+                          )}
+
                           {po.status === 'DRAFT' && (
                             <>
                               <DropdownMenuItem onClick={() => openEdit(po)} disabled={!canMutatePo}>
@@ -854,7 +1074,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           </SheetHeader>
 
           <form
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={submitDraft}
             className="mt-6 space-y-6"
           >
             {!editingPO && (
@@ -877,7 +1097,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       value={sourceRfqId || undefined}
                       onValueChange={(id) => {
                         setSourceRfqId(id);
-                        const rfq = rfqs.find((r) => r.id === id);
+                        const rfq = rfqMap.get(id);
                         if (!rfq) return;
                         const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
                         if (plantId) {
@@ -888,18 +1108,32 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           applyDeliveryAddressFromPlant(plantId);
                         }
                         form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
-                        form.setValue(
-                          'items',
-                          (rfq.items ?? []).map((it) => ({
-                            productId: it.productId ?? it.product?.id ?? '',
-                            currentStock: 0,
-                            minStock: 0,
-                            suggestedQty: Number(it.quantity ?? 0),
-                            orderQty: Number(it.quantity ?? 0),
-                            rate: Number(it.product?.purchasePrice ?? 0),
-                            taxPercent: '',
-                          })),
-                        );
+                        const remainingLines =
+                          rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
+                        if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
+                          form.setValue('items', [defaultPoLineItem()]);
+                          toast.error('All RFQ lines are already allocated to purchase orders');
+                          return;
+                        }
+                        const itemMap = new Map((rfq.items ?? []).map((it) => [it.id, it]));
+                        const nextItems: POFormValues['items'] = remainingLines.flatMap((line) => {
+                          const rfqItem = itemMap.get(line.rfqItemId);
+                          const productId = rfqItem?.productId ?? rfqItem?.product?.id ?? '';
+                          if (!productId) return [];
+                          return [
+                            {
+                              productId,
+                              rfqItemId: line.rfqItemId,
+                              currentStock: 0,
+                              minStock: 0,
+                              suggestedQty: Number(line.remainingQty ?? 0),
+                              orderQty: Number(line.remainingQty ?? 0),
+                              rate: Number(rfqItem?.product?.purchasePrice ?? 0),
+                              taxPercent: '',
+                            },
+                          ];
+                        });
+                        form.setValue('items', nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
                       }}
                     >
                       <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
@@ -909,6 +1143,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                         ))}
                       </SelectContent>
                     </Select>
+                    {sourceRfqId && selectedRfq?.fulfillment && (
+                      <p className="text-[11px] text-muted-foreground">
+                        RFQ progress: {selectedRfq.fulfillment.linesFullyOrdered}/{selectedRfq.fulfillment.totalLines} lines ordered ·
+                        POs {selectedRfq.fulfillment.posCreated}/{selectedRfq.fulfillment.maxPos} (remaining {selectedRfq.fulfillment.posRemaining})
+                      </p>
+                    )}
                   </div>
                 )}
                 {sourceType === 'CONTRACT' && (
@@ -966,11 +1206,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           form.setValue('storageLocationId', '');
                           applyDeliveryAddressFromPlant(value);
                         }}
-                        disabled={!!user?.shopId}
+                        disabled={deliveryPlantLocked}
                       >
                         <SelectTrigger
                           className={cn(
                             PO_SELECT_TRIGGER,
+                            deliveryPlantLocked && 'opacity-80',
                             form.formState.errors.deliveryPlantId && 'border-destructive',
                           )}
                         >
@@ -990,6 +1231,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <p className="text-[10px] text-destructive">
                       {form.formState.errors.deliveryPlantId.message}
                     </p>
+                  )}
+                  {deliveryPlantLocked && shops.length <= 1 && (
+                    <p className="text-[10px] text-muted-foreground">Only one plant is available for your organisation.</p>
+                  )}
+                  {deliveryPlantLocked && shops.length > 1 && isShopScopedRole(user?.role) && (
+                    <p className="text-[10px] text-muted-foreground">Locked to your assigned plant.</p>
                   )}
                 </div>
                 <div className="space-y-1">
@@ -1074,6 +1321,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1">
+                  <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
+                  <Input
+                    id="poDate"
+                    type="date"
+                    min={tomorrowDateString()}
+                    className="h-8 text-xs"
+                    {...form.register('poDate')}
+                  />
+                  {form.formState.errors.poDate && (
+                    <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs">Payment Terms</Label>
                   <Controller
                     control={form.control}
@@ -1089,6 +1349,35 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           <SelectItem value="Net 30">Net 30</SelectItem>
                           <SelectItem value="Net 45">Net 45</SelectItem>
                           <SelectItem value="Net 60">Net 60</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Requested By</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Name"
+                    {...form.register('requisitioner')}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Department</Label>
+                  <Controller
+                    control={form.control}
+                    name="department"
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger className={PO_SELECT_TRIGGER}>
+                          <SelectValue placeholder="Department" />
+                        </SelectTrigger>
+                        <SelectContent className={PO_SELECT_CONTENT}>
+                          {DEPARTMENT_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
@@ -1113,24 +1402,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     )}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
-                  <Input
-                    id="poDate"
-                    type="date"
-                    min={tomorrowDateString()}
-                    className="h-8 text-xs"
-                    {...form.register('poDate')}
-                  />
-                  {form.formState.errors.poDate && (
-                    <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
-                  )}
-                </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-                  <Label className="text-xs">Delivery Address</Label>
+                  <Label className="text-xs">Delivery address</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    From selected plant
+                    {shops.find((s) => s.id === resolvedDeliveryPlantId)?.shopName
+                      ? `: ${shops.find((s) => s.id === resolvedDeliveryPlantId)!.shopName}`
+                      : ''}
+                  </p>
                   <Input
-                    className="h-8 text-xs"
-                    placeholder="Delivery address"
+                    readOnly
+                    className="h-8 cursor-default bg-muted/80 text-xs"
                     {...form.register('deliveryAddress')}
                   />
                 </div>
@@ -1200,12 +1482,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </DialogContent>
             </Dialog>
 
-            <PoLogisticsTaxFields
-              form={form}
-              plantLabel={
-                shops.find((s) => s.id === selectedDeliveryPlantId)?.shopName
-              }
-            />
+            <PoLogisticsTaxFields form={form} />
 
             <div className="space-y-2">
               <Label htmlFor="remarks">Remarks</Label>
@@ -1228,15 +1505,20 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   variant="outline"
                   size="sm"
                   onClick={() => append(defaultPoLineItem())}
-                  disabled={!selectedDeliveryPlantId || !form.watch('storageLocationId')}
+                  disabled={!canAddLineItems}
                   className="w-full sm:w-auto"
                 >
                   <Plus className="h-3 w-3" /> Add Item
                 </Button>
               </div>
-              {(!selectedDeliveryPlantId || !form.watch('storageLocationId')) && (
+              {!canAddLineItems && (
                 <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                   Select a delivery plant and storage location first to add line items.
+                  {resolvedDeliveryPlantId && storageLocations.length === 0 && (
+                    <span className="mt-1 block">
+                      No storage locations found for this plant — add one under Settings → Storage.
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -1318,8 +1600,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           <TableCell className="text-right">
                             <Input
                               readOnly
+                              tabIndex={-1}
                               className="h-8 w-full bg-muted text-right text-xs"
-                              {...form.register(`items.${idx}.currentStock`, { valueAsNumber: true })}
+                              value={String(numPo(row.currentStock))}
                             />
                           </TableCell>
 
@@ -1341,7 +1624,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               min={1}
                               step={1}
                               className="h-8 w-full text-right text-xs"
-                              {...form.register(`items.${idx}.orderQty`, { valueAsNumber: true })}
+                              {...form.register(`items.${idx}.orderQty`, {
+                                onChange: () => form.trigger(`items.${idx}.orderQty`),
+                              })}
                             />
                             {form.formState.errors.items?.[idx]?.orderQty && (
                               <p className="mt-0.5 text-[10px] text-destructive">
@@ -1368,7 +1653,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               min={0}
                               step={0.01}
                               className="h-8 w-full text-right text-xs"
-                              {...form.register(`items.${idx}.rate`, { valueAsNumber: true })}
+                              {...form.register(`items.${idx}.rate`, {
+                                onChange: () => form.trigger(`items.${idx}.rate`),
+                              })}
                             />
                           </TableCell>
 
@@ -1381,13 +1668,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               step={0.01}
                               className="h-8 w-full text-right text-xs"
                               placeholder="0"
-                              {...form.register(`items.${idx}.taxPercent`, { valueAsNumber: true })}
+                              {...form.register(`items.${idx}.taxPercent`, {
+                                onChange: () => form.trigger(`items.${idx}.taxPercent`),
+                              })}
                             />
                           </TableCell>
 
                           {/* Line Value (qty × rate + tax) */}
                           <TableCell className="text-right text-sm font-medium tabular-nums">
-                            {formatCurrency(line.lineTotal)}
+                            {numPo(row.orderQty) > 0 && numPo(row.rate) > 0 ? (
+                              formatCurrency(line.lineTotal)
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
 
                           {/* Remove */}
@@ -1456,9 +1749,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMut.isPending || !canMutatePo}>
+              <Button type="submit" disabled={createMut.isPending || sendMut.isPending || !canMutatePo}>
                 <ShoppingCart className="h-4 w-4" />
                 {createMut.isPending ? 'Saving...' : 'Save as Draft'}
+              </Button>
+              <Button
+                type="button"
+                onClick={submitSend}
+                disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
+              >
+                <Send className="mr-2 h-4 w-4" />
+                {sendMut.isPending ? 'Sending...' : 'Save & Send'}
               </Button>
             </div>
           </form>
@@ -1479,15 +1780,28 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                 <DialogDescription>Purchase order details and line items</DialogDescription>
               </div>
               {detailPO && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 border-emerald-200 text-emerald-800"
-                  onClick={() => handleDownloadPoPdf(detailPO)}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </Button>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-emerald-200 text-emerald-800"
+                    onClick={() => handleDownloadPoPdf(detailPO)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </Button>
+                  {(detailPO.lifecycleStatus ?? detailPO.status) !== 'CANCELLED' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canSendPoEmail || sendMut.isPending}
+                      onClick={() => handleResendToSupplier(detailPO)}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {sendMut.isPending ? 'Sending…' : 'Resend email'}
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </DialogHeader>

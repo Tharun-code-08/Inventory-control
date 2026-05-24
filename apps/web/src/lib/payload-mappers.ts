@@ -12,6 +12,7 @@ function devAssert(condition: unknown, message: string): asserts condition {
 
 type PoFormItem = {
   productId: string;
+  rfqItemId?: string;
   orderQty: number;
   rate: number;
   taxPercent?: number | string;
@@ -29,8 +30,9 @@ export function mapPoFormToCreatePayload(args: {
   shop?: Shop | null;
   sourceType: 'DIRECT' | 'RFQ' | 'CONTRACT';
   sourceContractId?: string;
+  sourceRfqId?: string;
 }): CreatePurchaseOrderPayload {
-  const { values, resolvedShopId, shop, sourceType, sourceContractId } = args;
+  const { values, resolvedShopId, shop, sourceType, sourceContractId, sourceRfqId } = args;
   devAssert(Boolean(resolvedShopId), 'Purchase order requires a shop');
   devAssert(values.items.length > 0, 'Purchase order requires at least one item');
 
@@ -39,6 +41,7 @@ export function mapPoFormToCreatePayload(args: {
     poDate: values.poDate,
     supplier: values.supplier,
     contractId: sourceType === 'CONTRACT' ? sourceContractId : undefined,
+    rfqId: sourceType === 'RFQ' ? sourceRfqId : undefined,
     remarks: encodePoFormRemarks(values, shop),
     items: values.items.map((it) => {
       devAssert(Boolean(it.productId), 'Purchase order item requires a product');
@@ -46,6 +49,7 @@ export function mapPoFormToCreatePayload(args: {
       devAssert(it.rate > 0, 'Purchase order rate must be > 0');
       return {
         productId: it.productId,
+        rfqItemId: it.rfqItemId,
         orderQty: it.orderQty,
         rate: it.rate,
       };

@@ -6,16 +6,26 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RoleName } from '@prisma/client';
+import { BillingCycle, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
+import {
+  subscriptionEndDate,
+  trialEndDate,
+  type BillingInterval,
+  type PlanId,
+} from '../../common/plans/plan-config';
 import { MailService } from '../../common/mail/mail.service';
+import { RazorpayService } from '../billing/razorpay.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
+import { SignupCompletePaidDto } from './dto/signup-complete-paid.dto';
 import { SignupRequestDto } from './dto/signup-request.dto';
 import { SignupResendDto } from './dto/signup-resend.dto';
 import { SignupVerifyDto } from './dto/signup-verify.dto';
+
+const PAID_SIGNUP_COMPLETE_WINDOW_MS = 30 * 60 * 1000;
 
 export type SignupPendingPayload = {
   companyName: string;
@@ -26,8 +36,21 @@ export type SignupPendingPayload = {
   mobile: string;
   adminName: string;
   passwordHash: string;
-  paymentOrderId?: string;
+  plan: PlanId;
+  billing: BillingInterval;
+  otpVerifiedAt?: string;
 };
+
+export type SignupSessionResult = Awaited<ReturnType<AuthService['issueSessionForUser']>>;
+
+export type SignupVerifyResult =
+  | SignupSessionResult
+  | {
+      requiresPayment: true;
+      email: string;
+      plan: 'pro' | 'plus';
+      billing: BillingInterval;
+    };
 
 @Injectable()
 export class SignupService {
@@ -39,6 +62,7 @@ export class SignupService {
     private readonly mail: MailService,
     private readonly auth: AuthService,
     private readonly subscriptions: SubscriptionService,
+    private readonly razorpay: RazorpayService,
   ) {}
 
   private signupEnabled(): boolean {
@@ -117,14 +141,8 @@ export class SignupService {
       );
     }
 
-    if (dto.paymentOrderId?.trim()) {
-      const payment = await this.prisma.subscriptionPayment.findUnique({
-        where: { razorpayOrderId: dto.paymentOrderId.trim() },
-      });
-      if (!payment || payment.status !== 'paid' || payment.consumedAt) {
-        throw new BadRequestException('Payment is invalid or already used. Complete checkout again.');
-      }
-    }
+    const plan: PlanId = dto.plan === 'pro' || dto.plan === 'plus' ? dto.plan : 'trial';
+    const billing: BillingInterval = dto.billing === 'yearly' ? 'yearly' : 'monthly';
 
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptRounds());
     const payload: SignupPendingPayload = {
@@ -136,7 +154,8 @@ export class SignupService {
       mobile: dto.mobile,
       adminName: dto.adminName,
       passwordHash,
-      paymentOrderId: dto.paymentOrderId?.trim() || undefined,
+      plan,
+      billing,
     };
 
     const otp = this.generateOtp();
@@ -236,7 +255,113 @@ export class SignupService {
     };
   }
 
-  async verifySignup(dto: SignupVerifyDto, ctx: LoginContext) {
+  private isPaidSignupPlan(plan: PlanId): plan is 'pro' | 'plus' {
+    return plan === 'pro' || plan === 'plus';
+  }
+
+  private async assertEmailAvailable(email: string) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new ConflictException('An account with this email already exists. Sign in instead.');
+    }
+  }
+
+  private async loadVerifiedPendingSignup(email: string) {
+    const pending = await this.prisma.signupVerification.findFirst({
+      where: { email, consumedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!pending) {
+      throw new BadRequestException('No verified signup found. Complete email verification again.');
+    }
+    const payload = pending.payload as SignupPendingPayload;
+    if (!payload.otpVerifiedAt) {
+      throw new BadRequestException('Email not verified. Enter your verification code first.');
+    }
+    const verifiedAt = new Date(payload.otpVerifiedAt).getTime();
+    if (Number.isNaN(verifiedAt) || Date.now() - verifiedAt > PAID_SIGNUP_COMPLETE_WINDOW_MS) {
+      throw new BadRequestException(
+        'Verification expired. Start registration again and complete payment within 30 minutes.',
+      );
+    }
+    if (!this.isPaidSignupPlan(payload.plan)) {
+      throw new BadRequestException('This signup does not require payment.');
+    }
+    return { pending, payload };
+  }
+
+  private async createWorkspaceFromPending(
+    email: string,
+    pendingId: string,
+    payload: SignupPendingPayload,
+    attemptCount: number,
+    subscription: {
+      plan: SubscriptionPlan;
+      billingCycle: BillingCycle | null;
+      trialStartsAt: Date | null;
+      trialEndsAt: Date | null;
+      subscriptionEndsAt: Date | null;
+    },
+  ) {
+    const ownerRole = await this.prisma.role.findFirst({ where: { name: RoleName.OWNER } });
+    if (!ownerRole) {
+      throw new ServiceUnavailableException('System roles are not initialized. Run database seed.');
+    }
+
+    const companyCode = await this.uniqueCompanyCode(payload.companyName);
+    const shopNumber = await this.uniqueShopNumber(companyCode);
+
+    return this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          companyCode,
+          companyName: payload.companyName,
+          address: payload.companyAddress ?? payload.plantAddress,
+          isActive: true,
+          subscriptionPlan: subscription.plan,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+          billingCycle: subscription.billingCycle,
+          trialStartsAt: subscription.trialStartsAt,
+          trialEndsAt: subscription.trialEndsAt,
+          subscriptionEndsAt: subscription.subscriptionEndsAt,
+        },
+      });
+
+      const shop = await tx.shop.create({
+        data: {
+          shopNumber,
+          shopName: payload.plantName,
+          address: payload.plantAddress,
+          contactPerson: payload.contactPerson,
+          mobile: payload.mobile,
+          email,
+          companyId: company.id,
+          isActive: true,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          name: payload.adminName,
+          email,
+          passwordHash: payload.passwordHash,
+          roleId: ownerRole.id,
+          shopId: shop.id,
+          isActive: true,
+        },
+        include: { role: true, shop: true },
+      });
+
+      await tx.signupVerification.update({
+        where: { id: pendingId },
+        data: { consumedAt: new Date(), attemptCount },
+      });
+
+      return { user, companyId: company.id };
+    });
+  }
+
+  async verifySignup(dto: SignupVerifyDto, ctx: LoginContext): Promise<SignupVerifyResult> {
     this.assertSignupEnabled();
 
     const email = dto.email.toLowerCase().trim();
@@ -267,81 +392,115 @@ export class SignupService {
     }
 
     const payload = pending.payload as SignupPendingPayload;
-    const paymentOrderId = dto.paymentOrderId?.trim() || payload.paymentOrderId;
-    const existingUser = await this.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      throw new ConflictException('An account with this email already exists. Sign in instead.');
-    }
+    const plan: PlanId = payload.plan ?? 'trial';
+    await this.assertEmailAvailable(email);
 
-    const ownerRole = await this.prisma.role.findFirst({ where: { name: RoleName.OWNER } });
-    if (!ownerRole) {
-      throw new ServiceUnavailableException('System roles are not initialized. Run database seed.');
-    }
-
-    const companyCode = await this.uniqueCompanyCode(payload.companyName);
-    const shopNumber = await this.uniqueShopNumber(companyCode);
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const company = await tx.company.create({
-        data: {
-          companyCode,
-          companyName: payload.companyName,
-          address: payload.companyAddress ?? payload.plantAddress,
-          isActive: true,
-          subscriptionPlan: 'TRIAL',
-          subscriptionStatus: 'ACTIVE',
-          trialStartsAt: new Date(),
-          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-      });
-
-      const shop = await tx.shop.create({
-        data: {
-          shopNumber,
-          shopName: payload.plantName,
-          address: payload.plantAddress,
-          contactPerson: payload.contactPerson,
-          mobile: payload.mobile,
-          email,
-          companyId: company.id,
-          isActive: true,
-        },
-      });
-
-      const user = await tx.user.create({
-        data: {
-          name: payload.adminName,
-          email,
-          passwordHash: payload.passwordHash,
-          roleId: ownerRole.id,
-          shopId: shop.id,
-          isActive: true,
-        },
-        include: { role: true, shop: true },
-      });
-
-      await tx.signupVerification.update({
+    if (this.isPaidSignupPlan(plan)) {
+      await this.prisma.signupVerification.update({
         where: { id: pending.id },
-        data: { consumedAt: new Date(), attemptCount: pending.attemptCount },
+        data: {
+          payload: {
+            ...payload,
+            plan,
+            billing: payload.billing ?? 'monthly',
+            otpVerifiedAt: new Date().toISOString(),
+          },
+        },
       });
 
-      return { user, companyId: company.id };
+      this.logger.log(`Signup OTP verified for ${email}; awaiting payment (${plan})`);
+
+      return {
+        requiresPayment: true,
+        email,
+        plan,
+        billing: payload.billing ?? 'monthly',
+      };
+    }
+
+    const now = new Date();
+    const result = await this.createWorkspaceFromPending(email, pending.id, payload, pending.attemptCount, {
+      plan: SubscriptionPlan.TRIAL,
+      billingCycle: null,
+      trialStartsAt: now,
+      trialEndsAt: trialEndDate(now),
+      subscriptionEndsAt: null,
     });
 
-    if (paymentOrderId) {
-      try {
-        await this.subscriptions.consumeVerifiedPayment(paymentOrderId, result.companyId);
-      } catch (err) {
-        this.logger.warn(
-          `Paid signup payment not applied for ${email}: ${(err as Error).message}. Trial remains active.`,
-        );
-      }
+    const session = await this.auth.issueSessionForUser(result.user.id, ctx);
+    this.logger.log(`Trial signup completed for ${email} (${payload.companyName})`);
+    return session;
+  }
+
+  async completePaidSignup(dto: SignupCompletePaidDto, ctx: LoginContext): Promise<SignupSessionResult> {
+    this.assertSignupEnabled();
+
+    const email = dto.email.toLowerCase().trim();
+    await this.assertEmailAvailable(email);
+
+    const { pending, payload } = await this.loadVerifiedPendingSignup(email);
+
+    const orderId = dto.razorpay_order_id.trim();
+    const paymentId = dto.razorpay_payment_id.trim();
+    const signature = dto.razorpay_signature.trim();
+
+    if (!this.razorpay.verifyPaymentSignature({ orderId, paymentId, signature })) {
+      throw new BadRequestException('Payment signature verification failed');
     }
 
+    const payment = await this.prisma.subscriptionPayment.findUnique({
+      where: { razorpayOrderId: orderId },
+    });
+    if (!payment) {
+      throw new BadRequestException('Payment order not found');
+    }
+    if (payment.consumedAt) {
+      throw new BadRequestException('Payment already used');
+    }
+
+    const now = new Date();
+    if (payment.status !== 'paid') {
+      await this.prisma.subscriptionPayment.update({
+        where: { id: payment.id },
+        data: {
+          razorpayPaymentId: paymentId,
+          status: 'paid',
+          verifiedAt: now,
+        },
+      });
+    }
+
+    const expectedPlan =
+      payload.plan === 'pro' ? SubscriptionPlan.PRO : SubscriptionPlan.PLUS;
+    if (payment.plan !== expectedPlan) {
+      throw new BadRequestException('Payment plan does not match your selected plan');
+    }
+
+    const result = await this.createWorkspaceFromPending(
+      email,
+      pending.id,
+      payload,
+      pending.attemptCount,
+      {
+        plan: payment.plan,
+        billingCycle: payment.billingCycle,
+        trialStartsAt: null,
+        trialEndsAt: null,
+        subscriptionEndsAt: subscriptionEndDate(payment.plan, payment.billingCycle, now),
+      },
+    );
+
+    await this.prisma.subscriptionPayment.update({
+      where: { id: payment.id },
+      data: {
+        companyId: result.companyId,
+        razorpayPaymentId: paymentId,
+        consumedAt: now,
+      },
+    });
+
     const session = await this.auth.issueSessionForUser(result.user.id, ctx);
-
-    this.logger.log(`Signup completed for ${email} (${payload.companyName})`);
-
+    this.logger.log(`Paid signup completed for ${email} (${payload.companyName}, ${payment.plan})`);
     return session;
   }
 }

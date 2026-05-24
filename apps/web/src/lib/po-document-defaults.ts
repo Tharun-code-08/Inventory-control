@@ -63,12 +63,21 @@ export function resolvePoDocumentForPdf(args: {
   const { po, company, supplier, shop } = args;
   const { document: embedded } = parsePoRemarks(po.remarks);
   const plant = shop ?? (po.shop as Shop | undefined);
-  return mergePoDocument(
+  const shipTo = defaultShipToFromShop(plant);
+  const merged = mergePoDocument(
     defaultBuyerFromCompany(company),
     defaultVendorFromSupplier(po.supplier, supplier),
     embedded,
-    defaultShipToFromShop(plant),
+    shipTo,
   );
+  // Delivery address on the PDF always reflects the PO plant, not a stale manual override.
+  return {
+    ...merged,
+    shipToCompany: shipTo.shipToCompany ?? merged.shipToCompany,
+    shipToAddress: shipTo.shipToAddress ?? merged.shipToAddress,
+    shipToPhone: shipTo.shipToPhone ?? merged.shipToPhone,
+    shipToName: shipTo.shipToName ?? merged.shipToName,
+  };
 }
 
 export function buildInitialPoDocument(args: {

@@ -9,10 +9,12 @@ import {
   planPrice,
   yearlySavingsLabel,
   isDemoPlusPricing,
+  subscriptionPlanTier,
   type BillingInterval,
   type PlanId,
 } from '@/lib/plans';
 import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
+import { openRazorpayPaymentLink } from '@/lib/razorpay-payment-links';
 
 type PricingSectionProps = {
   variant?: 'landing' | 'upgrade';
@@ -39,6 +41,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   const [billing, setBilling] = useState<BillingInterval>('monthly');
   const { checkout, loading } = useRazorpayCheckout();
   const active = normalizePlan(currentPlan);
+  const activeTier = active ? subscriptionPlanTier(active) : null;
 
   async function handlePlanClick(plan: PlanId) {
     // Public (unauthenticated) flow: send users to signup with plan context.
@@ -49,8 +52,15 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
       return;
     }
 
-    // In-app upgrade: open Razorpay directly.
+    // In-app upgrade: payment link or Razorpay checkout modal.
     if (plan === 'trial') return;
+
+    if (plan === 'pro' || plan === 'plus') {
+      if (openRazorpayPaymentLink(plan)) {
+        toast.message('Complete payment on Razorpay. Your plan updates after payment is confirmed.');
+        return;
+      }
+    }
 
     try {
       await checkout({
@@ -128,6 +138,8 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                 ? 0
                 : planPrice(planId as Exclude<PlanId, 'trial'>, billing);
             const isCurrent = active === planId;
+            const isDowngrade =
+              activeTier != null && subscriptionPlanTier(planId) < activeTier;
             const borderClass =
               planId === 'pro'
                 ? 'border-emerald-400/50 shadow-[0_15px_40px_rgba(16,185,129,0.18)]'
@@ -199,7 +211,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
 
                 <button
                   type="button"
-                  disabled={loading || isCurrent}
+                  disabled={loading || isCurrent || isDowngrade}
                   onClick={() => void handlePlanClick(planId)}
                   className={cn(
                     'mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-60',
@@ -211,7 +223,11 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                       'border border-white/20 bg-white/10 text-white hover:bg-white/20',
                   )}
                 >
-                  {isCurrent ? 'Current plan' : plan.cta}
+                  {isCurrent
+                    ? 'Current plan'
+                    : isDowngrade
+                      ? 'Downgrade blocked'
+                      : plan.cta}
                 </button>
               </div>
             );

@@ -440,6 +440,7 @@ model RfqHeader {
   items     RfqItem[]
   contracts ContractHeader[]
   quotations SupplierQuotationHeader[]
+  purchaseOrders PurchaseOrderHeader[]
 
   @@index([shopId, rfqDate])
   @@map("rfq_header")
@@ -475,6 +476,7 @@ model RfqItem {
   header  RfqHeader @relation(fields: [rfqHeaderId], references: [id], onDelete: Cascade)
   product Product?  @relation(fields: [productId], references: [id])
   quotationItems SupplierQuotationItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([rfqHeaderId])
   @@map("rfq_items")
@@ -706,6 +708,7 @@ model PurchaseOrderHeader {
   poNumber        String                @unique @map("po_number")
   poDate          DateTime              @map("po_date") @db.Date
   shopId          String                @map("shop_id") @db.Uuid
+  rfqId           String?               @map("rfq_id") @db.Uuid
   contractId      String?               @map("contract_id") @db.Uuid
   supplier        String
   status          PurchaseOrderStatus   @default(DRAFT)
@@ -721,6 +724,7 @@ model PurchaseOrderHeader {
   updatedById     String?               @map("updated_by") @db.Uuid
 
   shop          Shop            @relation(fields: [shopId], references: [id])
+  rfq           RfqHeader?      @relation(fields: [rfqId], references: [id])
   contract      ContractHeader? @relation(fields: [contractId], references: [id])
   items         PurchaseOrderItem[]
   goodsReceipts GoodsReceiptHeader[]
@@ -728,6 +732,7 @@ model PurchaseOrderHeader {
 
   @@index([shopId, poDate])
   @@index([shopId, status])
+  @@index([rfqId])
   @@index([contractId])
   @@map("purchase_order_header")
 }
@@ -736,6 +741,7 @@ model PurchaseOrderItem {
   id              String   @id @default(uuid()) @db.Uuid
   poHeaderId      String   @map("po_header_id") @db.Uuid
   productId       String   @map("product_id") @db.Uuid
+  rfqItemId       String?  @map("rfq_item_id") @db.Uuid
   currentStock    Decimal  @map("current_stock") @db.Decimal(12, 3)
   minStock        Decimal  @map("min_stock") @db.Decimal(12, 3)
   suggestedQty    Decimal  @map("suggested_qty") @db.Decimal(12, 3)
@@ -752,8 +758,10 @@ model PurchaseOrderItem {
 
   header  PurchaseOrderHeader @relation(fields: [poHeaderId], references: [id], onDelete: Cascade)
   product Product             @relation(fields: [productId], references: [id])
+  rfqItem RfqItem?            @relation(fields: [rfqItemId], references: [id])
 
   @@index([poHeaderId])
+  @@index([rfqItemId])
   @@index([productId])
   @@map("purchase_order_items")
 }

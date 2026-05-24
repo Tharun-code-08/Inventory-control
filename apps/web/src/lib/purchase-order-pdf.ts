@@ -4,52 +4,47 @@ import type { PoDocumentMeta } from '@/lib/po-document';
 import { computeGstAmounts } from '@/lib/po-form-document';
 import { computePoLineAmounts, taxPercentForProduct } from '@/lib/po-line-calculations';
 
-const GREEN: [number, number, number] = [0, 140, 74];
-const GREEN_LIGHT: [number, number, number] = [240, 248, 243];
-const GREEN_BORDER: [number, number, number] = [210, 225, 215];
-const MUTED: [number, number, number] = [100, 116, 125];
-const YELLOW: [number, number, number] = [255, 236, 140];
+const BLUE: [number, number, number] = [54, 96, 146];
+const BLUE_LIGHT: [number, number, number] = [220, 230, 241];
+const BORDER: [number, number, number] = [158, 180, 206];
+const MUTED: [number, number, number] = [80, 90, 100];
 
-const MARGIN = 12;
-const INNER = 16;
+const MARGIN = 14;
 const PAGE_W = 210;
-const CONTENT_W = PAGE_W - INNER * 2;
-const PAD = 3;
+const CONTENT_W = PAGE_W - MARGIN * 2;
+const PAD = 2.5;
 
-/** Helvetica lacks ₹; use Rs. + Indian grouping for clean PDF output. */
 function money(value: number): string {
-  const n = new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
-  return `Rs. ${n}`;
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 function formatPoDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    const d = new Date(iso);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}/${d.getFullYear()}`;
   } catch {
     return iso;
   }
 }
 
-function drawSectionHeader(pdf: jsPDF, x: number, y: number, w: number, label: string) {
-  const h = 6;
-  pdf.setFillColor(...GREEN);
+function drawBar(pdf: jsPDF, x: number, y: number, w: number, label: string): number {
+  const h = 5.5;
+  pdf.setFillColor(...BLUE);
   pdf.rect(x, y, w, h, 'F');
   pdf.setTextColor(255, 255, 255);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
-  pdf.text(label.toUpperCase(), x + PAD, y + 4.2);
-  pdf.setTextColor(30, 30, 30);
+  pdf.text(label.toUpperCase(), x + PAD, y + 4);
+  pdf.setTextColor(0, 0, 0);
   return h;
 }
 
-function drawBoxContent(
+function drawAddressBox(
   pdf: jsPDF,
   lines: string[],
   x: number,
@@ -57,52 +52,25 @@ function drawBoxContent(
   w: number,
   minH: number,
 ): number {
-  const innerPad = 4;
+  const innerPad = 3;
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8.5);
-  const usable = lines.filter(Boolean);
-
-  const textLines: string[] = [];
-  if (usable.length === 0) {
-    textLines.push('Not specified');
-  } else {
-    for (const line of usable) {
-      textLines.push(...pdf.splitTextToSize(line, w - innerPad * 2));
-    }
+  pdf.setFontSize(9);
+  const parts: string[] = [];
+  for (const line of lines.filter(Boolean)) {
+    parts.push(...pdf.splitTextToSize(line, w - innerPad * 2));
   }
-
-  const boxH = Math.max(minH, innerPad * 2 + textLines.length * 4 + 2);
-  pdf.setDrawColor(...GREEN_BORDER);
-  pdf.setLineWidth(0.25);
+  if (parts.length === 0) parts.push('—');
+  const boxH = Math.max(minH, innerPad * 2 + parts.length * 3.8 + 2);
+  pdf.setDrawColor(...BORDER);
+  pdf.setLineWidth(0.2);
   pdf.setFillColor(255, 255, 255);
   pdf.rect(x, y, w, boxH, 'FD');
-
   let cy = y + innerPad + 3;
-  if (usable.length === 0) pdf.setTextColor(...MUTED);
-  else pdf.setTextColor(30, 30, 30);
-  for (const part of textLines) {
+  for (const part of parts) {
     pdf.text(part, x + innerPad, cy);
-    cy += 4;
+    cy += 3.8;
   }
   return boxH;
-}
-
-function drawCellRow(
-  pdf: jsPDF,
-  y: number,
-  rowH: number,
-  cols: Array<{ x: number; w: number }>,
-  fill?: boolean,
-) {
-  pdf.setDrawColor(...GREEN_BORDER);
-  pdf.setLineWidth(0.2);
-  if (fill) {
-    pdf.setFillColor(...GREEN_LIGHT);
-  }
-  cols.forEach((col) => {
-    if (fill) pdf.rect(col.x, y, col.w, rowH, 'FD');
-    else pdf.rect(col.x, y, col.w, rowH);
-  });
 }
 
 export type PoPdfContext = {
@@ -113,68 +81,41 @@ export type PoPdfContext = {
 export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   const doc = ctx.document;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  let y = MARGIN;
 
-  pdf.setDrawColor(...GREEN);
-  pdf.setLineWidth(0.45);
-  pdf.rect(MARGIN, MARGIN, PAGE_W - MARGIN * 2, 277);
-
-  const headerBottom = INNER + 34;
-  let y = INNER + 2;
-
-  // ---- Header: fixed two-column band (prevents PO# overlapping boxes) ----
-  const buyerName = doc.buyerCompanyName || ctx.buyerCompanyName || 'Retail IMS';
-  const rightX = INNER + CONTENT_W * 0.52;
-
-  pdf.setFillColor(...GREEN);
-  pdf.roundedRect(INNER, y + 1, 9, 9, 1.5, 1.5, 'F');
-  pdf.setFillColor(255, 255, 255);
-  pdf.rect(INNER + 2.5, y + 3, 4, 5, 'F');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(13);
-  pdf.setTextColor(...GREEN);
-  const nameLines = pdf.splitTextToSize(buyerName, rightX - INNER - 14);
-  pdf.text(nameLines[0], INNER + 12, y + 6);
-  if (nameLines[1]) pdf.text(nameLines[1], INNER + 12, y + 11);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.setTextColor(...MUTED);
-  const buyerMeta = [
+  const buyerName = doc.buyerCompanyName || ctx.buyerCompanyName || 'Softdigit Consulting';
+  const buyerLines = [
     doc.buyerAddress,
     doc.buyerPhone ? `Tel: ${doc.buyerPhone}` : '',
     doc.buyerWebsite,
   ].filter(Boolean) as string[];
-  let by = y + (nameLines.length > 1 ? 14 : 10);
-  for (const line of buyerMeta.slice(0, 3)) {
-    pdf.text(line, INNER + 12, by);
-    by += 4;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text(buyerName, MARGIN, y + 4);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8.5);
+  let by = y + 8;
+  for (const line of buyerLines.slice(0, 5)) {
+    pdf.text(line, MARGIN, by);
+    by += 3.8;
   }
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(18);
-  pdf.setTextColor(...GREEN);
-  pdf.text('PURCHASE ORDER', PAGE_W - INNER, y + 7, { align: 'right' });
-
+  pdf.setFontSize(22);
+  pdf.setTextColor(...BLUE);
+  pdf.text('PURCHASE ORDER', PAGE_W - MARGIN, y + 6, { align: 'right' });
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
-  pdf.setTextColor(50, 50, 50);
-  pdf.text(`Date: ${formatPoDate(po.poDate)}`, PAGE_W - INNER, y + 16, { align: 'right' });
-
+  pdf.text(`Date: ${formatPoDate(po.poDate)}`, PAGE_W - MARGIN, y + 14, { align: 'right' });
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9);
-  const poLabel = `PO #: ${po.poNumber}`;
-  const poLines = pdf.splitTextToSize(poLabel, CONTENT_W * 0.46);
-  pdf.text(poLines[0], PAGE_W - INNER, y + 22, { align: 'right' });
-  if (poLines[1]) {
-    pdf.setFontSize(8);
-    pdf.text(poLines[1], PAGE_W - INNER, y + 27, { align: 'right' });
-  }
+  pdf.text(`PO No.: ${po.poNumber}`, PAGE_W - MARGIN, y + 20, { align: 'right' });
+  pdf.setFont('helvetica', 'normal');
 
-  y = headerBottom;
+  y = Math.max(by, y + 24) + 4;
 
-  // ---- Vendor / Ship to ----
-  const gap = 5;
+  const gap = 4;
   const colW = (CONTENT_W - gap) / 2;
   const vendorLines = [
     doc.vendorCompanyName || po.supplier,
@@ -184,7 +125,7 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
     doc.vendorPhone ? `Tel: ${doc.vendorPhone}` : '',
   ].filter(Boolean) as string[];
 
-  const plantName = doc.shipToCompany || po.shop?.shopName;
+  const plantName = doc.shipToCompany || po.shop?.shopName || '';
   const shipLines = [
     plantName,
     doc.shipToAddress,
@@ -193,73 +134,70 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
     doc.shipToName && doc.shipToName !== plantName ? `Attn: ${doc.shipToName}` : '',
   ].filter(Boolean) as string[];
 
-  const hdrH = drawSectionHeader(pdf, INNER, y, colW, 'Vendor');
-  drawSectionHeader(pdf, INNER + colW + gap, y, colW, 'Ship To');
-  y += hdrH;
+  const barH = drawBar(pdf, MARGIN, y, colW, 'Supplier');
+  drawBar(pdf, MARGIN + colW + gap, y, colW, 'Delivery Address');
+  y += barH;
+  const leftH = drawAddressBox(pdf, vendorLines, MARGIN, y, colW, 24);
+  const rightH = drawAddressBox(pdf, shipLines, MARGIN + colW + gap, y, colW, 24);
+  y += Math.max(leftH, rightH) + 5;
 
-  const leftBoxH = drawBoxContent(pdf, vendorLines, INNER, y, colW, 26);
-  const rightBoxH = drawBoxContent(pdf, shipLines, INNER + colW + gap, y, colW, 26);
-  y += Math.max(leftBoxH, rightBoxH) + 6;
-
-  // ---- Logistics ----
-  const logLabels = ['Requisitioner', 'Ship Via', 'F.O.B.', 'Shipping Terms'];
-  const logValues = [
-    doc.requisitioner,
-    doc.shipVia,
-    doc.fob,
-    doc.shippingTerms,
+  const metaLabels = ['Delivery Date', 'Payment Terms', 'Requested By', 'Department'];
+  const metaValues = [
+    formatPoDate(po.poDate),
+    doc.paymentTerms ?? '—',
+    doc.requisitioner ?? '—',
+    doc.department ?? '—',
   ];
-  const logW = (CONTENT_W - 3 * 2) / 4;
-  logLabels.forEach((label, i) => {
-    const x = INNER + i * (logW + 2);
-    const h = drawSectionHeader(pdf, x, y, logW, label);
-    pdf.setDrawColor(...GREEN_BORDER);
-    pdf.rect(x, y + h, logW, 9);
-    pdf.setFont('helvetica', 'normal');
+  const metaW = (CONTENT_W - 3 * 1.5) / 4;
+  metaLabels.forEach((label, i) => {
+    const x = MARGIN + i * (metaW + 1.5);
+    const h = drawBar(pdf, x, y, metaW, label);
+    pdf.setDrawColor(...BORDER);
+    pdf.rect(x, y + h, metaW, 8);
     pdf.setFontSize(8);
-    pdf.setTextColor(logValues[i] ? 40 : 140, logValues[i] ? 40 : 140, logValues[i] ? 40 : 140);
-    const val = logValues[i]?.trim() || '—';
-    pdf.text(val, x + PAD, y + h + 6);
-    pdf.setTextColor(30, 30, 30);
+    pdf.text(metaValues[i] ?? '—', x + PAD, y + h + 5.5);
   });
-  y += 6 + 9 + 6;
+  y += 5.5 + 8 + 5;
 
-  // ---- Line items ----
   const cols = [
-    { label: 'Item #', w: 22, align: 'left' as const },
-    { label: 'Description', w: 48, align: 'left' as const },
-    { label: 'Qty', w: 14, align: 'right' as const },
-    { label: 'Unit Price', w: 26, align: 'right' as const },
-    { label: 'Tax %', w: 16, align: 'right' as const },
-    { label: 'Line Total', w: CONTENT_W - 22 - 48 - 14 - 26 - 16, align: 'right' as const },
+    { label: 'ITEM', w: 24 },
+    { label: 'DESCRIPTION', w: 68 },
+    { label: 'QTY', w: 18 },
+    { label: 'UNIT PRICE', w: 32 },
+    { label: 'TOTAL', w: CONTENT_W - 24 - 68 - 18 - 32 },
   ];
-  let cx = INNER;
-  const tableHdrH = 6;
+  let cx = MARGIN;
+  const hdrH = 5.5;
+  pdf.setFillColor(...BLUE_LIGHT);
+  pdf.setDrawColor(...BORDER);
   cols.forEach((col) => {
-    drawSectionHeader(pdf, cx, y, col.w, col.label);
+    pdf.rect(cx, y, col.w, hdrH, 'FD');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7);
+    pdf.text(col.label, cx + PAD, y + 4);
     cx += col.w;
   });
-  y += tableHdrH;
+  y += hdrH;
 
   const items = po.items ?? [];
-  const fillerRows = items.length > 0 ? Math.min(2, Math.max(0, 4 - items.length)) : 0;
-  const rowCount = items.length + fillerRows;
   let subtotal = 0;
   let taxTotal = 0;
-  const rowH = 9;
+  const rowH = 7;
+  const minRows = 12;
+  const rowCount = Math.max(minRows, items.length);
 
   for (let i = 0; i < rowCount; i++) {
     const item = items[i];
-    cx = INNER;
-    const colsPos = cols.map((col, idx) => {
-      const x = INNER + cols.slice(0, idx).reduce((s, c) => s + c.w, 0);
-      return { x, w: col.w };
-    });
-    drawCellRow(pdf, y, rowH, colsPos, i % 2 === 1 && !item);
-
-    const baseline = y + 6;
+    cx = MARGIN;
+    const colsPos = cols.map((col, idx) => ({
+      x: MARGIN + cols.slice(0, idx).reduce((s, c) => s + c.w, 0),
+      w: col.w,
+    }));
+    pdf.setDrawColor(...BORDER);
+    colsPos.forEach((col) => pdf.rect(col.x, y, col.w, rowH));
+    const baseline = y + 4.8;
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(8.5);
+    pdf.setFontSize(8);
 
     if (item) {
       const qty = Number(item.orderQty);
@@ -271,25 +209,16 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
       pdf.text(item.product?.productCode ?? '—', colsPos[0].x + PAD, baseline);
       const desc = item.product?.description ?? '';
-      const descParts = pdf.splitTextToSize(desc, cols[1].w - PAD * 2);
-      pdf.text(descParts[0] ?? '', colsPos[1].x + PAD, baseline);
-
+      pdf.text(pdf.splitTextToSize(desc, cols[1].w - PAD * 2)[0] ?? '', colsPos[1].x + PAD, baseline);
       pdf.text(String(qty), colsPos[2].x + colsPos[2].w - PAD, baseline, { align: 'right' });
       pdf.text(money(rate), colsPos[3].x + colsPos[3].w - PAD, baseline, { align: 'right' });
-      pdf.text(taxPct > 0 ? `${taxPct}%` : '—', colsPos[4].x + colsPos[4].w - PAD, baseline, {
-        align: 'right',
-      });
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(money(line.lineTotal), colsPos[5].x + colsPos[5].w - PAD, baseline, { align: 'right' });
-      pdf.setFont('helvetica', 'normal');
+      pdf.text(money(line.lineTotal), colsPos[4].x + colsPos[4].w - PAD, baseline, { align: 'right' });
     }
-
     y += rowH;
   }
 
   if (taxTotal === 0 && doc.lineItemTaxes?.length) {
     taxTotal = items.reduce((sum, item) => {
-      if (!item) return sum;
       const taxPct = taxPercentForProduct(doc.lineItemTaxes, item.productId);
       const line = computePoLineAmounts({
         orderQty: item.orderQty,
@@ -298,92 +227,57 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
       });
       return sum + line.taxAmount;
     }, 0);
-    subtotal = items.reduce((sum, item) => {
-      if (!item) return sum;
-      return sum + computePoLineAmounts({ orderQty: item.orderQty, rate: item.rate }).subtotal;
-    }, 0);
+    subtotal = items.reduce(
+      (sum, item) => sum + computePoLineAmounts({ orderQty: item.orderQty, rate: item.rate }).subtotal,
+      0,
+    );
   }
-
   const legacyGst = computeGstAmounts(subtotal, doc);
-  const legacyTax = Number(doc.taxAmount) || 0;
   if (taxTotal === 0) {
-    taxTotal = legacyGst.totalTax > 0 ? legacyGst.totalTax : legacyTax;
+    taxTotal = legacyGst.totalTax > 0 ? legacyGst.totalTax : Number(doc.taxAmount) || 0;
   }
   const shippingAmt = Number(doc.shippingAmount) || 0;
-  const other = Number(doc.otherAmount) || 0;
-  const grandTotal = subtotal + taxTotal + shippingAmt + other;
+  const grandTotal = subtotal + taxTotal + shippingAmt;
 
-  y += 5;
+  y += 4;
+  const footTop = y;
+  const instrW = CONTENT_W * 0.58;
+  const totalsW = CONTENT_W - instrW - gap;
 
-  // ---- Comments + totals (aligned tops) ----
-  const commentsW = CONTENT_W * 0.54;
-  const totalsW = CONTENT_W - commentsW - gap;
-  const blockTop = y;
+  drawBar(pdf, MARGIN, footTop, instrW, 'Special Instructions');
+  const humanNote = po.remarks?.split('<!--PO_DOCUMENT')[0]?.trim() || '—';
+  const noteH = 28;
+  pdf.setDrawColor(...BORDER);
+  pdf.rect(MARGIN, footTop + 5.5, instrW, noteH);
+  pdf.setFontSize(8.5);
+  const noteParts = pdf.splitTextToSize(humanNote, instrW - PAD * 2);
+  pdf.text(noteParts.slice(0, 8), MARGIN + PAD, footTop + 10);
 
-  const cHdr = drawSectionHeader(pdf, INNER, blockTop, commentsW, 'Comments or Special Instructions');
-  const humanNote = po.remarks?.split('<!--PO_DOCUMENT')[0]?.trim();
-
-  const totalsX = INNER + commentsW + gap;
-  const totalRows: Array<{ label: string; value: string; highlight?: boolean }> = [
-    { label: 'Subtotal', value: money(subtotal) },
-    { label: 'Tax', value: taxTotal > 0 ? money(taxTotal) : '—' },
+  const totalsX = MARGIN + instrW + gap;
+  const totalRows = [
+    { label: 'TOTAL NET', value: money(subtotal) },
+    { label: 'DELIVERY', value: money(shippingAmt) },
+    { label: 'VAT', value: taxTotal > 0 ? money(taxTotal) : '0.00' },
+    { label: 'TOTAL', value: money(grandTotal), grand: true },
   ];
-  totalRows.push(
-    { label: 'Shipping', value: shippingAmt ? money(shippingAmt) : '—' },
-    { label: 'Other', value: other ? money(other) : '—' },
-    { label: 'TOTAL', value: money(grandTotal), highlight: true },
-  );
-
-  const blockH = Math.max(38, 6 + totalRows.length * 7 + 4);
-  pdf.setDrawColor(...GREEN_BORDER);
-  pdf.rect(INNER, blockTop + cHdr, commentsW, blockH - cHdr);
-  if (humanNote) {
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(8.5);
-    const noteParts = pdf.splitTextToSize(humanNote, commentsW - PAD * 2);
-    pdf.text(noteParts.slice(0, 6), INNER + PAD, blockTop + cHdr + 5);
-  }
-
-  let ty = blockTop;
+  let ty = footTop;
   totalRows.forEach((row) => {
-    const rh = row.highlight ? 9 : 7;
-    if (row.highlight) {
-      pdf.setFillColor(...YELLOW);
-      pdf.setDrawColor(...GREEN);
-      pdf.setLineWidth(0.3);
-      pdf.rect(totalsX, ty, totalsW, rh, 'FD');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(10);
-    } else {
-      pdf.setDrawColor(...GREEN_BORDER);
-      pdf.setLineWidth(0.2);
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(totalsX, ty, totalsW, rh, 'FD');
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8.5);
-    }
-    pdf.setTextColor(30, 30, 30);
-    const textY = ty + (row.highlight ? 6 : 5);
-    pdf.text(row.label, totalsX + PAD, textY);
-    pdf.text(row.value, totalsX + totalsW - PAD, textY, { align: 'right' });
+    const rh = row.grand ? 8 : 7;
+    pdf.setDrawColor(...BORDER);
+    if (row.grand) pdf.setFillColor(...BLUE_LIGHT);
+    else pdf.setFillColor(255, 255, 255);
+    pdf.rect(totalsX, ty, totalsW, rh, 'FD');
+    pdf.setFont(row.grand ? 'helvetica' : 'helvetica', row.grand ? 'bold' : 'normal');
+    pdf.setFontSize(row.grand ? 10 : 8.5);
+    pdf.text(row.label, totalsX + PAD, ty + (row.grand ? 5.5 : 4.8));
+    pdf.text(row.value, totalsX + totalsW - PAD, ty + (row.grand ? 5.5 : 4.8), { align: 'right' });
     ty += rh;
   });
 
-  y = blockTop + blockH + 8;
-
-  const contact = doc.contactName
-    ? `Questions about this order? Contact ${doc.contactName}${
-        doc.contactPhone ? ` · ${doc.contactPhone}` : ''
-      }${doc.contactEmail ? ` · ${doc.contactEmail}` : ''}`
-    : doc.contactEmail
-      ? `Questions about this order? ${doc.contactEmail}`
-      : 'Questions about this order? Contact your procurement team.';
-
-  pdf.setFont('helvetica', 'italic');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(...MUTED);
-  const footer = pdf.splitTextToSize(contact, CONTENT_W - 10);
-  pdf.text(footer, PAGE_W / 2, y, { align: 'center' });
+  const authY = footTop + 5.5 + noteH + 4;
+  drawBar(pdf, MARGIN, authY, 42, 'Authorised');
+  pdf.setDrawColor(...BORDER);
+  pdf.rect(MARGIN, authY + 5.5, 50, 14);
 
   return pdf;
 }

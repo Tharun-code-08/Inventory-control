@@ -368,6 +368,20 @@ export function RfqDetailPage() {
               </Button>
             </div>
           </div>
+          {rfq.fulfillment && (
+            <Card className="mt-4 border-indigo-100 bg-indigo-50/60">
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-indigo-900">
+                <div>
+                  <p className="font-semibold">
+                    Lines ordered: {rfq.fulfillment.linesFullyOrdered}/{rfq.fulfillment.totalLines}
+                  </p>
+                  <p className="text-indigo-800">
+                    Remaining lines: {rfq.fulfillment.linesRemaining} · POs used: {rfq.fulfillment.posCreated}/{rfq.fulfillment.maxPos}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">

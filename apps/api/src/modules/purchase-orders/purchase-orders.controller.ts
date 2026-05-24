@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequireAnyPermission } from '../../common/decorators/require-any-permission.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -35,7 +36,13 @@ export class PurchaseOrdersController {
     @Body() dto: CreatePurchaseOrderDto,
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ) {
-    return this.service.create(user, { ...dto, idempotencyKey: dto.idempotencyKey ?? idempotencyKey });
+    const payload = { ...dto, idempotencyKey: dto.idempotencyKey ?? idempotencyKey };
+    return this.service.create(user, payload).then(async (po) => {
+      if (dto.sendToSupplier) {
+        await this.service.sendToSupplier(user, po.id);
+      }
+      return po;
+    });
   }
 
   @RequirePermission('purchase_order:read')
@@ -60,6 +67,12 @@ export class PurchaseOrdersController {
   @Post(':id/cancel')
   cancel(@CurrentUser() user: RequestUser, @Param('id') id: string, @Headers('x-idempotency-key') idempotencyKey?: string) {
     return this.service.cancel(user, id, idempotencyKey);
+  }
+
+  @RequireAnyPermission('purchase_order:create', 'purchase_order:approve')
+  @Post(':id/send')
+  send(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.sendToSupplier(user, id);
   }
 
   @RequirePermission('report:export')
