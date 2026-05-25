@@ -198,7 +198,7 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
         <th class="num" style="width:14%">UNIT PRICE</th>
         <th class="num" style="width:10%">TAX %</th>
         <th class="num" style="width:12%">TAX AMT</th>
-        <th class="num" style="width:14%">TOTAL</th>
+        <th class="num" style="width:14%">GROSS AMOUNT</th>
       </tr>
     </thead>
     <tbody>
@@ -235,10 +235,10 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
     </div>
     <div class="totals">
       <table>
-        <tr><td class="label">TOTAL NET</td><td class="amount">{{totalNet}}</td></tr>
+        <tr><td class="label">SUBTOTAL (EXCL. GST)</td><td class="amount">{{totalNet}}</td></tr>
         <tr><td class="label">DELIVERY</td><td class="amount">{{delivery}}</td></tr>
         <tr><td class="label">GST / TAX</td><td class="amount">{{taxTotal}}</td></tr>
-        <tr class="grand"><td class="label">TOTAL</td><td class="amount">{{grandTotal}}</td></tr>
+        <tr class="grand"><td class="label">GROSS AMOUNT</td><td class="amount">{{grandTotal}}</td></tr>
       </table>
     </div>
   </div>

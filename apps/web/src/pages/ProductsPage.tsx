@@ -1784,9 +1784,30 @@ export function ProductsPage() {
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Plants</dt>
-                <dd className="mt-1 text-slate-700">
-                  {viewingProduct.plants.length} assignment
-                  {viewingProduct.plants.length === 1 ? '' : 's'}
+                <dd className="mt-2 space-y-2 text-slate-700">
+                  {viewingProduct.plants.length === 0 ? (
+                    <span>No plant assignment</span>
+                  ) : (
+                    viewingProduct.plants.map((plant) => {
+                      const shop = shopList.find((row) => row.id === plant.shopId);
+                      return (
+                        <div
+                          key={plant.id ?? plant.shopId}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                        >
+                          <p className="font-medium text-slate-900">
+                            {shop ? `${shop.shopName} (${shop.shopNumber})` : plant.shopId}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Storage Location:{' '}
+                            {plant.storageLocation
+                              ? `${plant.storageLocation.name} (${plant.storageLocation.code})`
+                              : 'Not assigned'}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
                 </dd>
               </div>
               <div className="flex gap-2 pt-2">

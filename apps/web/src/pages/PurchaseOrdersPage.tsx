@@ -94,6 +94,7 @@ import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf';
 import { DEPARTMENT_OPTIONS } from '@/lib/po-form-options';
 import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
 import type { PoDocumentMeta } from '@/lib/po-document';
+import { computeGstAmounts } from '@/lib/po-form-document';
 import {
   computePoLineAmounts,
   numPo,
@@ -209,6 +210,83 @@ function defaultPoLineItem() {
 function taxPercentFromDocument(doc: PoDocumentMeta, productId: string): string | number {
   const pct = taxPercentForProduct(doc.lineItemTaxes, productId);
   return pct > 0 ? pct : '';
+}
+
+function effectivePoLineTaxPercent(
+  productId: string,
+  taxPercent: number | string | undefined,
+  productLookup?: ReadonlyMap<string, Product>,
+): number {
+  const product = productLookup?.get(productId);
+  if (product?.taxPreference === 'NON_TAXABLE') {
+    return 0;
+  }
+  return Math.max(0, numPo(taxPercent));
+}
+
+function sanitizePoDocumentTaxes(
+  document: PoDocumentMeta,
+  productLookup?: ReadonlyMap<string, Product>,
+): PoDocumentMeta {
+  if (!document.lineItemTaxes?.length) {
+    return document;
+  }
+  return {
+    ...document,
+    lineItemTaxes: document.lineItemTaxes.map((line) => ({
+      ...line,
+      taxPercent: effectivePoLineTaxPercent(line.productId, line.taxPercent, productLookup),
+    })),
+  };
+}
+
+function purchaseOrderTotals(
+  po: PurchaseOrder,
+  productLookup?: ReadonlyMap<string, Product>,
+): {
+  document: PoDocumentMeta;
+  subtotal: number;
+  taxTotal: number;
+  shippingAmount: number;
+  grossTotal: number;
+} {
+  const { document } = parsePoRemarks(po.remarks);
+  const sanitizedDocument = sanitizePoDocumentTaxes(document, productLookup);
+  const subtotal = po.items.reduce((sum, item) => {
+    const lineSubtotal = Number.isFinite(Number(item.lineValue))
+      ? Number(item.lineValue)
+      : computePoLineAmounts({ orderQty: item.orderQty, rate: item.rate }).subtotal;
+    return sum + lineSubtotal;
+  }, 0);
+
+  let taxTotal = 0;
+  if (sanitizedDocument.lineItemTaxes?.length) {
+    taxTotal = po.items.reduce((sum, item) => {
+      const taxPercent = taxPercentForProduct(sanitizedDocument.lineItemTaxes, item.productId);
+      return (
+        sum +
+        computePoLineAmounts({
+          orderQty: item.orderQty,
+          rate: item.rate,
+          taxPercent,
+        }).taxAmount
+      );
+    }, 0);
+  } else {
+    const legacyTax = computeGstAmounts(subtotal, sanitizedDocument).totalTax;
+    taxTotal = legacyTax > 0 ? legacyTax : Math.max(0, Number(sanitizedDocument.taxAmount) || 0);
+  }
+
+  const shippingAmount = Math.max(0, Number(sanitizedDocument.shippingAmount) || 0);
+  const computedGrossTotal = subtotal + taxTotal + shippingAmount;
+
+  return {
+    document: sanitizedDocument,
+    subtotal,
+    taxTotal,
+    shippingAmount,
+    grossTotal: Math.max(computedGrossTotal, Number(po.totalValue) || 0),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -348,12 +426,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         header: 'Ordered Qty',
         value: (po) => po.items.reduce((sum, item) => sum + Number(item.orderQty ?? 0), 0),
       },
-      { header: 'Total Value', value: (po) => csvMoney(po.totalValue) },
+      {
+        header: 'Gross Amount',
+        value: (po) => csvMoney(purchaseOrderTotals(po, productMap).grossTotal),
+      },
       { header: 'Remarks', value: (po) => po.remarks ?? '' },
     ]);
     if (ok) toast.success('Purchase orders exported');
     else toast.error('No purchase orders to export');
-  }, [filteredPoList, rfqMap]);
+  }, [filteredPoList, productMap]);
 
   const handleExportPoDetail = useCallback(
     (po: PurchaseOrder) => {
@@ -372,7 +453,32 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
         { header: 'Order Qty', value: ({ item }) => item.orderQty },
         { header: 'Rate', value: ({ item }) => csvMoney(item.rate) },
-        { header: 'Line Value', value: ({ item }) => csvMoney(item.lineValue) },
+        {
+          header: 'Tax %',
+          value: ({ po: current, item }) =>
+            effectivePoLineTaxPercent(
+              item.productId,
+              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              productMap,
+            ),
+        },
+        {
+          header: 'Gross Line Total',
+          value: ({ po: current, item }) => {
+            const taxPercent = effectivePoLineTaxPercent(
+              item.productId,
+              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              productMap,
+            );
+            return csvMoney(
+              computePoLineAmounts({
+                orderQty: item.orderQty,
+                rate: item.rate,
+                taxPercent,
+              }).lineTotal,
+            );
+          },
+        },
         { header: 'Current Stock', value: ({ item }) => item.currentStock },
         { header: 'Min Stock', value: ({ item }) => item.minStock },
         { header: 'Suggested Qty', value: ({ item }) => item.suggestedQty },
@@ -381,7 +487,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       if (ok) toast.success('Purchase order exported');
       else toast.error('No PO lines to export');
     },
-    [rfqMap],
+    [productMap, rfqMap],
   );
 
   // ---- mutations ----
@@ -490,7 +596,23 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [products, targetProductShopId],
   );
   const productMap = useMemo(() => new Map(selectableProducts.map((p) => [p.id, p])), [selectableProducts]);
-  const lineTotals = sumPoLineTotals(watchedItems);
+  const normalizedWatchedItems = useMemo(
+    () =>
+      watchedItems.map((item) => ({
+        ...item,
+        taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
+      })),
+    [watchedItems, productMap],
+  );
+  const lineTotals = sumPoLineTotals(normalizedWatchedItems);
+  const detailTotals = useMemo(
+    () => (detailPO ? purchaseOrderTotals(detailPO, productMap) : null),
+    [detailPO, productMap],
+  );
+  const detailRemarks = useMemo(
+    () => (detailPO ? parsePoRemarks(detailPO.remarks).humanRemarks : ''),
+    [detailPO],
+  );
 
   const openCreate = useCallback(() => {
     setEditingPO(null);
@@ -603,31 +725,47 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         deliveryAddress: resolvePoDeliveryAddress(shop),
         remarks: humanRemarks,
         ...logisticsFieldsFromDocumentWithPayment(docMeta, 'Net 30'),
-        items: po.items.map((it) => ({
-          productId: it.productId,
-          rfqItemId: (it as { rfqItemId?: string | null }).rfqItemId ?? undefined,
-          currentStock: it.currentStock,
-          minStock: it.minStock,
-          suggestedQty: it.suggestedQty,
-          orderQty: it.orderQty,
-          rate: it.rate,
-          taxPercent: taxPercentFromDocument(docMeta, it.productId),
-        })),
+        items: po.items.map((it) => {
+          const savedTaxPercent = taxPercentFromDocument(docMeta, it.productId);
+          const effectiveTaxPercent = effectivePoLineTaxPercent(
+            it.productId,
+            savedTaxPercent,
+            productMap,
+          );
+          return {
+            productId: it.productId,
+            rfqItemId: (it as { rfqItemId?: string | null }).rfqItemId ?? undefined,
+            currentStock: it.currentStock,
+            minStock: it.minStock,
+            suggestedQty: it.suggestedQty,
+            orderQty: it.orderQty,
+            rate: it.rate,
+            taxPercent:
+              effectiveTaxPercent > 0
+                ? effectiveTaxPercent
+                : productMap.get(it.productId)?.taxPreference === 'NON_TAXABLE'
+                  ? 0
+                  : '',
+          };
+        }),
       });
       setSheetOpen(true);
     },
-    [form, shops],
+    [form, productMap, shops],
   );
 
   function handleDownloadPoPdf(po: PurchaseOrder) {
     const supplier = suppliers.find((s) => s.supplierName === po.supplier);
     const shop = shops.find((s) => s.id === po.shopId);
-    const document = resolvePoDocumentForPdf({
-      po,
-      company: companies[0],
-      supplier,
-      shop,
-    });
+    const document = sanitizePoDocumentTaxes(
+      resolvePoDocumentForPdf({
+        po,
+        company: companies[0],
+        supplier,
+        shop,
+      }),
+      productMap,
+    );
     try {
       downloadPurchaseOrderPdf(po, {
         document,
@@ -656,6 +794,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     form.setValue(`items.${idx}.suggestedQty`, suggestedQty, { shouldDirty: true });
     form.setValue(`items.${idx}.orderQty`, defaultQty, { shouldDirty: true });
     form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0, { shouldDirty: true });
+    form.setValue(`items.${idx}.taxPercent`, p.taxPreference === 'NON_TAXABLE' ? 0 : '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   }
 
   async function handleQuickSupplierCreate() {
@@ -728,9 +870,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.error('Select a delivery plant');
         return;
       }
+      const normalizedValues: POFormValues = {
+        ...values,
+        items: values.items.map((item) => ({
+          ...item,
+          taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
+        })),
+      };
       const deliveryShop = shops.find((s) => s.id === resolvedShopId);
       const payload = mapPoFormToCreatePayload({
-        values,
+        values: normalizedValues,
         resolvedShopId,
         shop: deliveryShop,
         sourceType,
@@ -739,7 +888,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       });
 
       if (sendNow) {
-        const supplier = suppliers.find((s) => s.supplierName === values.supplier);
+        const supplier = suppliers.find((s) => s.supplierName === normalizedValues.supplier);
         if (!supplier?.email) {
           toast.error('Add an email address to the supplier before sending.');
           return;
@@ -880,6 +1029,20 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       }
     });
   }, [form, productMap, targetProductShopId]);
+
+  useEffect(() => {
+    watchedItems.forEach((item, idx) => {
+      if (!item?.productId) return;
+      const product = productMap.get(item.productId);
+      if (product?.taxPreference !== 'NON_TAXABLE') return;
+      const currentTax = item.taxPercent;
+      if (currentTax === 0 || currentTax === '0') return;
+      form.setValue(`items.${idx}.taxPercent`, 0, {
+        shouldDirty: currentTax !== '' && currentTax !== undefined,
+        shouldValidate: true,
+      });
+    });
+  }, [form, productMap, watchedItems]);
 
   function formatCurrency(val: number) {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
@@ -1027,7 +1190,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   <TableHead className="w-[88px]">Date</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead className="w-12 text-center">Items</TableHead>
-                  <TableHead className="w-28 text-right">Total</TableHead>
+                  <TableHead className="w-28 text-right">Gross Amount</TableHead>
                   <TableHead className="w-36">Status</TableHead>
                   <TableHead className="w-10 text-right">Actions</TableHead>
                 </TableRow>
@@ -1050,7 +1213,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <TableCell className="max-w-[160px] truncate">{po.supplier}</TableCell>
                     <TableCell className="text-center tabular-nums">{po.items?.length ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
-                      {po.totalValue != null ? formatCurrency(po.totalValue) : '—'}
+                      {formatCurrency(purchaseOrderTotals(po, productMap).grossTotal)}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={po.lifecycleStatus ?? po.status} compact />
@@ -1614,15 +1777,23 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       <TableHead className="w-[8%]">UOM</TableHead>
                       <TableHead className="w-[11%] text-right">Rate</TableHead>
                       <TableHead className="w-[8%] text-right">Tax %</TableHead>
-                      <TableHead className="w-[12%] text-right">Line Value</TableHead>
+                      <TableHead className="w-[12%] text-right">Gross Line Total</TableHead>
                       <TableHead className="w-[7%]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {fields.map((field, idx) => {
                       const row = watchedItems[idx] ?? {};
-                      const line = computePoLineAmounts(row);
                       const product = productMap.get(row.productId ?? '');
+                      const isNonTaxable = product?.taxPreference === 'NON_TAXABLE';
+                      const line = computePoLineAmounts({
+                        ...row,
+                        taxPercent: effectivePoLineTaxPercent(
+                          row.productId ?? '',
+                          row.taxPercent,
+                          productMap,
+                        ),
+                      });
 
                       return (
                         <TableRow key={field.id}>
@@ -1743,10 +1914,26 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               max={100}
                               step={0.01}
                               className="h-8 w-full text-right text-xs"
-                              placeholder="0"
-                              {...form.register(`items.${idx}.taxPercent`, {
-                                onChange: () => form.trigger(`items.${idx}.taxPercent`),
-                              })}
+                              placeholder={isNonTaxable ? 'Fixed at 0' : '0'}
+                              value={
+                                isNonTaxable
+                                  ? 0
+                                  : row.taxPercent === undefined || row.taxPercent === null
+                                    ? ''
+                                    : row.taxPercent
+                              }
+                              disabled={isNonTaxable}
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                form.setValue(
+                                  `items.${idx}.taxPercent`,
+                                  nextValue === '' ? '' : Number(nextValue),
+                                  {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  },
+                                );
+                              }}
                             />
                           </TableCell>
 
@@ -1779,7 +1966,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   <TableFooter>
                     <TableRow>
                       <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
-                        Subtotal
+                        Subtotal (Excl. GST)
                       </TableCell>
                       <TableCell className="text-right text-sm tabular-nums">
                         {formatCurrency(lineTotals.subtotal)}
@@ -1788,7 +1975,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     </TableRow>
                     <TableRow>
                       <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
-                        Tax
+                        GST / Tax
                       </TableCell>
                       <TableCell className="text-right text-sm tabular-nums">
                         {formatCurrency(lineTotals.taxTotal)}
@@ -1797,7 +1984,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     </TableRow>
                     <TableRow>
                       <TableCell colSpan={7} className="text-right font-semibold">
-                        Total
+                        Gross Amount
                       </TableCell>
                       <TableCell className="text-right font-bold tabular-nums">
                         {formatCurrency(lineTotals.grandTotal)}
@@ -1909,15 +2096,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   <StatusBadge status={detailPO.status} />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Value</p>
-                  <p className="font-bold">{formatCurrency(detailPO.totalValue)}</p>
+                  <p className="text-xs text-muted-foreground">Gross Amount</p>
+                  <p className="font-bold">{formatCurrency(detailTotals?.grossTotal ?? detailPO.totalValue)}</p>
                 </div>
               </div>
 
-              {parsePoRemarks(detailPO.remarks).humanRemarks && (
+              {detailRemarks && (
                 <div>
                   <p className="text-xs text-muted-foreground">Remarks</p>
-                  <p className="text-sm">{parsePoRemarks(detailPO.remarks).humanRemarks}</p>
+                  <p className="text-sm">{detailRemarks}</p>
                 </div>
               )}
 
@@ -1931,28 +2118,60 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <TableHead className="text-right">Stock</TableHead>
                     <TableHead className="text-right">Order Qty</TableHead>
                     <TableHead className="text-right">Rate</TableHead>
-                    <TableHead className="text-right">Line Value</TableHead>
+                    <TableHead className="text-right">Tax %</TableHead>
+                    <TableHead className="text-right">Gross Line Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailPO.items.map((item, i) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                      <TableCell>
-                        <span className="font-medium">{item.product?.productCode}</span>
-                        <span className="ml-2 text-sm text-muted-foreground">{item.product?.description}</span>
-                      </TableCell>
-                      <TableCell className="text-right">{item.currentStock}</TableCell>
-                      <TableCell className="text-right font-medium">{item.orderQty}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.rate)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(item.lineValue)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {detailPO.items.map((item, i) => {
+                    const taxPercent = effectivePoLineTaxPercent(
+                      item.productId,
+                      taxPercentForProduct(detailTotals?.document.lineItemTaxes, item.productId),
+                      productMap,
+                    );
+                    const line = computePoLineAmounts({
+                      orderQty: item.orderQty,
+                      rate: item.rate,
+                      taxPercent,
+                    });
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell>
+                          <span className="font-medium">{item.product?.productCode}</span>
+                          <span className="ml-2 text-sm text-muted-foreground">{item.product?.description}</span>
+                        </TableCell>
+                        <TableCell className="text-right">{item.currentStock}</TableCell>
+                        <TableCell className="text-right font-medium">{item.orderQty}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.rate)}</TableCell>
+                        <TableCell className="text-right">{taxPercent}%</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(line.lineTotal)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-right font-semibold">Total</TableCell>
-                    <TableCell className="text-right font-bold">{formatCurrency(detailPO.totalValue)}</TableCell>
+                    <TableCell colSpan={6} className="text-right text-xs text-muted-foreground">
+                      Subtotal (Excl. GST)
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(detailTotals?.subtotal ?? detailPO.totalValue)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-right text-xs text-muted-foreground">
+                      GST / Tax
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(detailTotals?.taxTotal ?? 0)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-right font-semibold">Gross Amount</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {formatCurrency(detailTotals?.grossTotal ?? detailPO.totalValue)}
+                    </TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>

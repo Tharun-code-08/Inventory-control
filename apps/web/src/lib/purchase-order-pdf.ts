@@ -21,6 +21,13 @@ function money(value: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+function percent(value: number): string {
+  return `${new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0)}%`;
+}
+
 function formatPoDate(iso: string): string {
   try {
     const d = new Date(iso);
@@ -160,11 +167,13 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   y += 5.5 + 8 + 5;
 
   const cols = [
-    { label: 'ITEM', w: 24 },
-    { label: 'DESCRIPTION', w: 68 },
-    { label: 'QTY', w: 18 },
-    { label: 'UNIT PRICE', w: 32 },
-    { label: 'TOTAL', w: CONTENT_W - 24 - 68 - 18 - 32 },
+    { label: 'ITEM', w: 22 },
+    { label: 'DESCRIPTION', w: 54 },
+    { label: 'QTY', w: 14 },
+    { label: 'UNIT PRICE', w: 24 },
+    { label: 'TAX %', w: 14 },
+    { label: 'TAX AMT', w: 18 },
+    { label: 'GROSS AMOUNT', w: CONTENT_W - 22 - 54 - 14 - 24 - 14 - 18 },
   ];
   let cx = MARGIN;
   const hdrH = 5.5;
@@ -209,15 +218,16 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
       pdf.text(item.product?.productCode ?? '—', colsPos[0].x + PAD, baseline);
       const desc = item.product?.description ?? '';
-      const descWithTax = taxPct > 0 ? `${desc} (Tax ${taxPct}%)` : desc;
       pdf.text(
-        pdf.splitTextToSize(descWithTax, cols[1].w - PAD * 2)[0] ?? '',
+        pdf.splitTextToSize(desc, cols[1].w - PAD * 2)[0] ?? '',
         colsPos[1].x + PAD,
         baseline,
       );
       pdf.text(String(qty), colsPos[2].x + colsPos[2].w - PAD, baseline, { align: 'right' });
       pdf.text(money(rate), colsPos[3].x + colsPos[3].w - PAD, baseline, { align: 'right' });
-      pdf.text(money(line.lineTotal), colsPos[4].x + colsPos[4].w - PAD, baseline, { align: 'right' });
+      pdf.text(percent(taxPct), colsPos[4].x + colsPos[4].w - PAD, baseline, { align: 'right' });
+      pdf.text(money(line.taxAmount), colsPos[5].x + colsPos[5].w - PAD, baseline, { align: 'right' });
+      pdf.text(money(line.lineTotal), colsPos[6].x + colsPos[6].w - PAD, baseline, { align: 'right' });
     }
     y += rowH;
   }
@@ -260,10 +270,10 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
   const totalsX = MARGIN + instrW + gap;
   const totalRows = [
-    { label: 'TOTAL NET', value: money(subtotal) },
+    { label: 'SUBTOTAL (EXCL. GST)', value: money(subtotal) },
     { label: 'DELIVERY', value: money(shippingAmt) },
     { label: 'GST / TAX', value: taxTotal > 0 ? money(taxTotal) : '0.00' },
-    { label: 'TOTAL', value: money(grandTotal), grand: true },
+    { label: 'GROSS AMOUNT', value: money(grandTotal), grand: true },
   ];
   let ty = footTop;
   totalRows.forEach((row) => {
