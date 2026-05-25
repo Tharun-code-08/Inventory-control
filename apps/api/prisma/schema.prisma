@@ -105,6 +105,15 @@ enum PasswordResetMethod {
   MAGIC_LINK
 }
 
+enum MfaMethod {
+  TOTP
+}
+
+enum AuthChallengePurpose {
+  SIGNUP_MFA_ENROLL
+  LOGIN_MFA_VERIFY
+}
+
 model Company {
   id                 String             @id @default(uuid()) @db.Uuid
   companyCode        String             @unique @map("company_code")
@@ -291,33 +300,91 @@ model PasswordResetRequest {
   @@map("password_reset_requests")
 }
 
+model AuthChallenge {
+  id                  String               @id @default(uuid()) @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  purpose             AuthChallengePurpose
+  tokenHash           String               @map("token_hash")
+  totpSecretEncrypted String?              @map("totp_secret_encrypted")
+  attemptCount        Int                  @default(0) @map("attempt_count")
+  expiresAt           DateTime             @map("expires_at") @db.Timestamptz(6)
+  consumedAt          DateTime?            @map("consumed_at") @db.Timestamptz(6)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  requestedIp         String?              @map("requested_ip")
+  requestedUserAgent  String?              @map("requested_user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("auth_challenges")
+}
+
+model UserBackupCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  codeHash   String    @map("code_hash")
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt])
+  @@map("user_backup_codes")
+}
+
+model TrustedMfaDevice {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt, revokedAt])
+  @@map("trusted_mfa_devices")
+}
+
 model User {
-  id               String    @id @default(uuid()) @db.Uuid
-  name             String
-  email            String    @unique
-  passwordHash     String    @map("password_hash")
-  avatarUrl        String?   @map("avatar_url")
-  roleId           String    @map("role_id") @db.Uuid
-  shopId           String?   @map("shop_id") @db.Uuid
-  isActive         Boolean   @default(true) @map("is_active")
-  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
-  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(6)
-  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(6)
-  refreshTokenHash String?   @map("refresh_token_hash")
-  failedLoginCount Int       @default(0) @map("failed_login_count")
-  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById      String?   @map("created_by") @db.Uuid
-  updatedById      String?   @map("updated_by") @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
+  name               String
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  avatarUrl          String?   @map("avatar_url")
+  roleId             String    @map("role_id") @db.Uuid
+  shopId             String?   @map("shop_id") @db.Uuid
+  isActive           Boolean   @default(true) @map("is_active")
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(6)
+  mfaEnabled         Boolean   @default(false) @map("mfa_enabled")
+  mfaMethod          MfaMethod? @map("mfa_method")
+  mfaEnrolledAt      DateTime? @map("mfa_enrolled_at") @db.Timestamptz(6)
+  mfaSecretEncrypted String?   @map("mfa_secret_encrypted")
+  passwordChangedAt  DateTime? @map("password_changed_at") @db.Timestamptz(6)
+  refreshTokenHash   String?   @map("refresh_token_hash")
+  failedLoginCount   Int       @default(0) @map("failed_login_count")
+  lockedUntil        DateTime? @map("locked_until") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?   @map("created_by") @db.Uuid
+  updatedById        String?   @map("updated_by") @db.Uuid
 
   role            Role             @relation(fields: [roleId], references: [id])
   shop            Shop?            @relation(fields: [shopId], references: [id])
   sentInvitations UserInvitation[] @relation("UserInvitationsSent")
 
-  auditLogs AuditLog[]
-  sessions  Session[]
+  auditLogs             AuditLog[]
+  sessions              Session[]
   passwordResetRequests PasswordResetRequest[]
+  authChallenges        AuthChallenge[]
+  backupCodes           UserBackupCode[]
+  trustedMfaDevices     TrustedMfaDevice[]
 
   @@index([deletedAt])
   @@map("users")

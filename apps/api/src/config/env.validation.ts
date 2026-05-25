@@ -57,6 +57,11 @@ export const envValidationSchema = Joi.object({
   SIGNUP_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(true),
   SIGNUP_OTP_TTL_MIN: Joi.number().integer().min(5).max(60).default(15),
   SIGNUP_OTP_MAX_ATTEMPTS: Joi.number().integer().min(3).max(10).default(5),
+  MFA_CHALLENGE_TTL_MIN: Joi.number().integer().min(5).max(60).default(15),
+  MFA_LOGIN_MAX_ATTEMPTS: Joi.number().integer().min(3).max(10).default(5),
+  MFA_BACKUP_CODE_COUNT: Joi.number().integer().min(4).max(20).default(8),
+  MFA_TRUSTED_DEVICE_DAYS: Joi.number().integer().min(1).max(30).default(7),
+  MFA_SECRET_ENCRYPTION_KEY: Joi.string().trim().empty('').optional(),
   /** Optional Cloudflare Turnstile; empty string in .env is treated as unset. */
   TURNSTILE_SITE_KEY: Joi.string().trim().empty('').optional(),
   TURNSTILE_SECRET_KEY: Joi.string().trim().empty('').optional(),

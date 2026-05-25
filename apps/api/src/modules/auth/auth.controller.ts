@@ -29,6 +29,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { avatarMulterOptions } from '../../common/upload/avatar-multer.options';
 import { AuthService } from './auth.service';
 import { InviteService } from './invite.service';
+import { MfaService } from './mfa.service';
 import { PasswordResetService } from './password-reset.service';
 import { SignupService } from './signup.service';
 import { LoginDto } from './dto/login.dto';
@@ -47,8 +48,12 @@ import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { PasswordResetLinkTokenDto } from './dto/password-reset-link-token.dto';
 import { CompletePasswordResetLinkDto } from './dto/complete-password-reset-link.dto';
 import { CompletePasswordResetOtpDto } from './dto/complete-password-reset-otp.dto';
+import { MfaChallengeTokenDto } from './dto/mfa-challenge-token.dto';
+import { MfaEnrollVerifyDto } from './dto/mfa-enroll-verify.dto';
+import { MfaLoginVerifyDto } from './dto/mfa-login-verify.dto';
 
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
+const TRUSTED_MFA_COOKIE_NAME = 'trustedMfaDevice';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -57,6 +62,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly signup: SignupService,
     private readonly invite: InviteService,
+    private readonly mfa: MfaService,
     private readonly passwordReset: PasswordResetService,
     private readonly config: ConfigService,
   ) {}
@@ -89,6 +95,24 @@ export class AuthController {
     };
   }
 
+  private trustedMfaTtlMs() {
+    const days = Number(this.config.get<string | number>('MFA_TRUSTED_DEVICE_DAYS') ?? 7);
+    return Math.max(1, days) * 24 * 60 * 60 * 1000;
+  }
+
+  private trustedMfaCookieOptions(maxAgeMs: number = this.trustedMfaTtlMs()) {
+    const sameSite = this.resolvedSameSite();
+    const secure = sameSite === 'none' ? true : this.isProd();
+    return {
+      httpOnly: true,
+      secure,
+      sameSite,
+      path: REFRESH_COOKIE_PATH,
+      maxAge: maxAgeMs,
+      signed: Boolean(this.config.get<string>('COOKIE_SECRET')?.trim()),
+    };
+  }
+
   /**
    * Companion cookie for double-submit CSRF. Must NOT be httpOnly so the SPA
    * can read it and echo it back in the X-CSRF-Token header.
@@ -111,6 +135,10 @@ export class AuthController {
     res.cookie(CSRF_COOKIE_NAME, csrfToken, this.csrfCookieOptions());
   }
 
+  private writeTrustedMfaCookie(res: Response, token: string) {
+    res.cookie(TRUSTED_MFA_COOKIE_NAME, token, this.trustedMfaCookieOptions());
+  }
+
   private clearAuthCookies(res: Response) {
     res.clearCookie(this.cookieName(), {
       ...this.refreshCookieOptions(0),
@@ -120,6 +148,19 @@ export class AuthController {
       ...this.csrfCookieOptions(0),
       maxAge: undefined as unknown as number,
     });
+  }
+
+  private clearTrustedMfaCookie(res: Response) {
+    res.clearCookie(TRUSTED_MFA_COOKIE_NAME, {
+      ...this.trustedMfaCookieOptions(0),
+      maxAge: undefined as unknown as number,
+    });
+  }
+
+  private readCookie(req: Request, name: string): string | undefined {
+    const signed = (req.signedCookies as Record<string, string | undefined> | undefined)?.[name];
+    const plain = (req.cookies as Record<string, string | undefined> | undefined)?.[name];
+    return signed ?? plain;
   }
 
   @Public()
@@ -147,14 +188,8 @@ export class AuthController {
   async signupVerify(
     @Req() req: Request,
     @Body() dto: SignupVerifyDto,
-    @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.signup.verifySignup(dto, this.loginCtx(req));
-    if ('requiresPayment' in result) {
-      return result;
-    }
-    this.writeAuthCookies(res, result.refreshCookieValue);
-    return { accessToken: result.accessToken, user: result.user };
+    return this.signup.verifySignup(dto, this.loginCtx(req));
   }
 
   @Public()
@@ -164,11 +199,8 @@ export class AuthController {
   async signupCompletePaid(
     @Req() req: Request,
     @Body() dto: SignupCompletePaidDto,
-    @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.signup.completePaidSignup(dto, this.loginCtx(req));
-    this.writeAuthCookies(res, result.refreshCookieValue);
-    return { accessToken: result.accessToken, user: result.user };
+    return this.signup.completePaidSignup(dto, this.loginCtx(req));
   }
 
   @Public()
@@ -190,6 +222,53 @@ export class AuthController {
   ) {
     const result = await this.invite.accept(dto, this.loginCtx(req));
     this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('mfa/enroll/start')
+  @ApiOperation({ summary: 'Start TOTP enrollment after signup verification' })
+  async mfaEnrollStart(@Body() dto: MfaChallengeTokenDto) {
+    return this.mfa.startEnrollment(dto.token);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('mfa/enroll/restart')
+  @ApiOperation({ summary: 'Restart signup TOTP enrollment with a new short-lived challenge' })
+  async mfaEnrollRestart(@Req() req: Request, @Body() dto: MfaChallengeTokenDto) {
+    return this.mfa.restartEnrollment(dto.token, this.loginCtx(req));
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('mfa/enroll/verify')
+  @ApiOperation({ summary: 'Verify TOTP enrollment, create backup codes, and sign in' })
+  async mfaEnrollVerify(
+    @Req() req: Request,
+    @Body() dto: MfaEnrollVerifyDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.mfa.verifyEnrollment(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user, backupCodes: result.backupCodes };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('mfa/login/verify')
+  @ApiOperation({ summary: 'Complete a login MFA challenge with TOTP or backup code' })
+  async mfaLoginVerify(
+    @Req() req: Request,
+    @Body() dto: MfaLoginVerifyDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.mfa.verifyLogin(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    if ('trustedDeviceToken' in result && typeof result.trustedDeviceToken === 'string') {
+      this.writeTrustedMfaCookie(res, result.trustedDeviceToken);
+    }
     return { accessToken: result.accessToken, user: result.user };
   }
 
@@ -249,7 +328,21 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
   @ApiResponse({ status: 429, description: 'Too many login attempts.' })
   async login(@Req() req: Request, @Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.login(dto, this.loginCtx(req));
+    const ctx = this.loginCtx(req);
+    const user = await this.auth.validateCredentials(dto);
+    if (user.mfaEnabled) {
+      const trustedDeviceToken = this.readCookie(req, TRUSTED_MFA_COOKIE_NAME);
+      if (await this.mfa.verifyTrustedDevice(user.id, trustedDeviceToken, ctx)) {
+        const result = await this.auth.issueSessionForUser(user.id, ctx);
+        this.writeAuthCookies(res, result.refreshCookieValue);
+        return { accessToken: result.accessToken, user: result.user };
+      }
+      if (trustedDeviceToken) {
+        this.clearTrustedMfaCookie(res);
+      }
+      return this.mfa.createLoginChallenge(user.id, user.email, ctx);
+    }
+    const result = await this.auth.issueSessionForUser(user.id, ctx);
     this.writeAuthCookies(res, result.refreshCookieValue);
     return { accessToken: result.accessToken, user: result.user };
   }
@@ -281,7 +374,12 @@ export class AuthController {
   })
   @ApiResponse({ status: 201, description: 'Login successful.' })
   async mobileLogin(@Req() req: Request, @Body() dto: LoginDto) {
-    const result = await this.auth.login(dto, this.loginCtx(req));
+    const ctx = this.loginCtx(req);
+    const user = await this.auth.validateCredentials(dto);
+    if (user.mfaEnabled) {
+      return this.mfa.createLoginChallenge(user.id, user.email, ctx);
+    }
+    const result = await this.auth.issueSessionForUser(user.id, ctx);
     return this.mobileAuthResponse(result);
   }
 

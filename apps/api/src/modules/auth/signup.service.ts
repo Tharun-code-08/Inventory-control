@@ -20,6 +20,7 @@ import { RazorpayService } from '../billing/razorpay.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
+import { MfaService } from './mfa.service';
 import { SignupCompletePaidDto } from './dto/signup-complete-paid.dto';
 import { SignupRequestDto } from './dto/signup-request.dto';
 import { SignupResendDto } from './dto/signup-resend.dto';
@@ -42,9 +43,10 @@ export type SignupPendingPayload = {
 };
 
 export type SignupSessionResult = Awaited<ReturnType<AuthService['issueSessionForUser']>>;
+export type SignupMfaChallengeResult = Awaited<ReturnType<MfaService['createSignupEnrollmentChallenge']>>;
 
 export type SignupVerifyResult =
-  | SignupSessionResult
+  | SignupMfaChallengeResult
   | {
       requiresPayment: true;
       email: string;
@@ -61,6 +63,7 @@ export class SignupService {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly auth: AuthService,
+    private readonly mfa: MfaService,
     private readonly subscriptions: SubscriptionService,
     private readonly razorpay: RazorpayService,
   ) {}
@@ -427,12 +430,12 @@ export class SignupService {
       subscriptionEndsAt: null,
     });
 
-    const session = await this.auth.issueSessionForUser(result.user.id, ctx);
+    const session = await this.mfa.createSignupEnrollmentChallenge(result.user.id, email, ctx);
     this.logger.log(`Trial signup completed for ${email} (${payload.companyName})`);
     return session;
   }
 
-  async completePaidSignup(dto: SignupCompletePaidDto, ctx: LoginContext): Promise<SignupSessionResult> {
+  async completePaidSignup(dto: SignupCompletePaidDto, ctx: LoginContext): Promise<SignupMfaChallengeResult> {
     this.assertSignupEnabled();
 
     const email = dto.email.toLowerCase().trim();
@@ -499,7 +502,7 @@ export class SignupService {
       },
     });
 
-    const session = await this.auth.issueSessionForUser(result.user.id, ctx);
+    const session = await this.mfa.createSignupEnrollmentChallenge(result.user.id, email, ctx);
     this.logger.log(`Paid signup completed for ${email} (${payload.companyName}, ${payment.plan})`);
     return session;
   }

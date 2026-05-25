@@ -369,6 +369,10 @@ export class UsersService {
           where: { userId: id, revokedAt: null },
           data: { revokedAt: passwordChangedAt ?? new Date() },
         });
+        await tx.trustedMfaDevice.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: passwordChangedAt ?? new Date() },
+        });
       }
 
       return nextUser;

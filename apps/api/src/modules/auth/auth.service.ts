@@ -41,6 +41,14 @@ type SessionUserRecord = {
   } | null;
 };
 
+type LoginUserRecord = SessionUserRecord & {
+  passwordHash: string;
+  isActive: boolean;
+  failedLoginCount: number;
+  lockedUntil: Date | null;
+  mfaEnabled: boolean;
+};
+
 export type LoginContext = {
   ip?: string | null;
   userAgent?: string | null;
@@ -173,7 +181,7 @@ export class AuthService {
     return { sessionId: session.id, refreshToken };
   }
 
-  async login(dto: LoginDto, ctx: LoginContext = {}) {
+  async validateCredentials(dto: LoginDto): Promise<LoginUserRecord> {
     const email = dto.email.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -228,25 +236,32 @@ export class AuthService {
       });
     }
 
-    const accessToken = await this.signAccessToken({
-      userId: user.id,
-      email: user.email,
-      roleName: String(user.role.name),
-      passwordChangedAt: user.passwordChangedAt,
+    return user as LoginUserRecord;
+  }
+
+  async lockAccountForMfa(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { failedLoginCount: true, isActive: true },
     });
-
-    const session = await this.issueSession(user.id, ctx);
-
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Account is not active');
+    }
+    const nextFailedCount = Math.max(user.failedLoginCount, this.lockoutThreshold());
+    const lockedUntil = this.lockoutUntilForFailures(nextFailedCount);
     await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      where: { id: userId },
+      data: {
+        failedLoginCount: nextFailedCount,
+        lockedUntil,
+      },
     });
-    return {
-      accessToken,
-      refreshCookieValue: session.refreshToken,
-      sessionId: session.sessionId,
-      user: this.toSessionUser(user as SessionUserRecord),
-    };
+    return lockedUntil;
+  }
+
+  async login(dto: LoginDto, ctx: LoginContext = {}) {
+    const user = await this.validateCredentials(dto);
+    return this.issueSessionForUser(user.id, ctx);
   }
 
   async refreshFromToken(refreshToken: string | undefined, ctx: LoginContext = {}) {
@@ -488,6 +503,10 @@ export class AuthService {
       }),
       // Revoke every active session so prior cookies cannot be replayed.
       this.prisma.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: passwordChangedAt },
+      }),
+      this.prisma.trustedMfaDevice.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: passwordChangedAt },
       }),
