@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppRoutes } from './routes/AppRoutes';
 import './index.css';
 import { api, applyAccessToken } from './api/client';
@@ -48,6 +49,7 @@ function mountApp() {
       <QueryClientProvider client={qc}>
         <BrowserRouter>
           <AppRoutes />
+          <SpeedInsights />
         </BrowserRouter>
       </QueryClientProvider>
     </React.StrictMode>,
