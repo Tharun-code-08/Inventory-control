@@ -55,7 +55,8 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
     // In-app upgrade: payment link or Razorpay checkout modal.
     if (plan === 'trial') return;
 
-    if (plan === 'pro' || plan === 'plus') {
+    const useHostedPaymentLink = (plan === 'pro' || plan === 'plus') && !(plan === 'plus' && isDemoPlusPricing());
+    if (useHostedPaymentLink) {
       if (openRazorpayPaymentLink(plan)) {
         toast.message('Complete payment on Razorpay. Your plan updates after payment is confirmed.');
         return;
