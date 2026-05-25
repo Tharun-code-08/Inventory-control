@@ -60,6 +60,13 @@ type MfaStartPayload = {
   expiresAt: string;
 };
 
+type SignupMfaChallengePayload = {
+  mfaSetupRequired: true;
+  challengeToken: string;
+  email: string;
+  expiresAt: string;
+};
+
 type MfaVerifyPayload = {
   accessToken: string;
   user: unknown;
@@ -120,7 +127,7 @@ export function SignupPage() {
     return () => window.clearTimeout(timer);
   }, [showAvatarSplash, nav]);
 
-  async function beginMfaSetup(challengeToken: string) {
+  async function loadMfaSetup(challengeToken: string) {
     const res = await api.post('/auth/mfa/enroll/start', { token: challengeToken });
     const payload = (res.data?.data ?? res.data) as MfaStartPayload;
     setSignupChallengeToken(challengeToken);
@@ -128,6 +135,47 @@ export function SignupPage() {
     setTotpCode('');
     setErr('');
     setStep('mfa');
+  }
+
+  async function refreshMfaChallenge(challengeToken: string) {
+    const res = await api.post('/auth/mfa/enroll/restart', { token: challengeToken });
+    const payload = (res.data?.data ?? res.data) as SignupMfaChallengePayload;
+    setSignupChallengeToken(payload.challengeToken);
+    return payload.challengeToken;
+  }
+
+  async function beginMfaSetup(challengeToken: string, allowAutoRefresh = true) {
+    if (!challengeToken.trim()) {
+      setErr('Your MFA setup session is missing. Go back and verify your email again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErr('');
+    setInfo('');
+
+    try {
+      await loadMfaSetup(challengeToken);
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not start authenticator setup.');
+      const challengeExpired = /expired|invalid/i.test(message);
+
+      if (allowAutoRefresh && challengeExpired) {
+        try {
+          const freshToken = await refreshMfaChallenge(challengeToken);
+          await loadMfaSetup(freshToken);
+          setInfo('Authenticator setup was refreshed. Please scan the new QR code.');
+          return;
+        } catch (refreshError) {
+          setErr(getApiErrorMessage(refreshError, 'Could not refresh authenticator setup.'));
+          return;
+        }
+      }
+
+      setErr(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function goToMethodSelection(challengeToken: string) {
@@ -141,20 +189,12 @@ export function SignupPage() {
 
   async function restartMfaSetup() {
     if (isSubmitting || !signupChallengeToken) return;
-    setIsSubmitting(true);
-    setErr('');
-    setInfo('');
-    try {
-      const res = await api.post('/auth/mfa/enroll/restart', {
-        token: signupChallengeToken,
-      });
-      const payload = (res.data?.data ?? res.data) as { challengeToken: string };
-      await beginMfaSetup(payload.challengeToken);
-    } catch (error) {
+    const freshToken = await refreshMfaChallenge(signupChallengeToken).catch((error: unknown) => {
       setErr(getApiErrorMessage(error, 'Could not restart authenticator setup.'));
-    } finally {
-      setIsSubmitting(false);
-    }
+      return null;
+    });
+    if (!freshToken) return;
+    await beginMfaSetup(freshToken, false);
   }
 
   async function finalizeSignIn(payload: unknown) {
@@ -640,7 +680,8 @@ export function SignupPage() {
                   <button
                     type="button"
                     onClick={() => void beginMfaSetup(signupChallengeToken)}
-                    className="rounded-2xl border border-indigo-300 bg-indigo-50 p-5 text-left shadow-sm transition hover:border-indigo-400 hover:bg-indigo-100"
+                    disabled={isSubmitting}
+                    className="rounded-2xl border border-indigo-300 bg-indigo-50 p-5 text-left shadow-sm transition hover:border-indigo-400 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white">
@@ -653,6 +694,9 @@ export function SignupPage() {
                     </div>
                     <p className="mt-4 text-sm text-slate-600">
                       Scan a QR code with Google Authenticator, Authy, 1Password, or another TOTP app.
+                    </p>
+                    <p className="mt-4 text-xs font-medium text-indigo-700">
+                      {isSubmitting ? 'Opening authenticator setup...' : 'Choose this method'}
                     </p>
                   </button>
 
