@@ -17,6 +17,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -145,7 +146,7 @@ export function RfqsPage() {
     deadline: '',
     notes: '',
     shopId: '',
-    supplierId: '',
+    supplierIds: [] as string[],
   });
   const [items, setItems] = useState([
     { productId: '', quantity: '1', uom: 'UNIT', specifications: '' },
@@ -161,6 +162,10 @@ export function RfqsPage() {
   const products = useMemo(
     () => extractProductRows(productsQuery.data),
     [productsQuery.data],
+  );
+  const selectedSuppliers = useMemo(
+    () => suppliers.filter((supplier) => form.supplierIds.includes(supplier.id)),
+    [suppliers, form.supplierIds],
   );
 
   const quotesByRfq = useMemo(() => {
@@ -287,9 +292,18 @@ export function RfqsPage() {
       deadline: '',
       notes: '',
       shopId: user?.shopId ? form.shopId : resolvedShopId,
-      supplierId: '',
+      supplierIds: [],
     });
     setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
+  };
+
+  const toggleSupplierSelection = (supplierId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      supplierIds: prev.supplierIds.includes(supplierId)
+        ? prev.supplierIds.filter((id) => id !== supplierId)
+        : [...prev.supplierIds, supplierId],
+    }));
   };
 
   const onCreate = async () => {
@@ -301,8 +315,8 @@ export function RfqsPage() {
       toast.error('Title is required');
       return;
     }
-    if (!form.supplierId) {
-      toast.error('Supplier is required');
+    if (form.supplierIds.length === 0) {
+      toast.error('Select at least one supplier');
       return;
     }
     const normalizedItems = items
@@ -324,10 +338,12 @@ export function RfqsPage() {
         title: form.title.trim(),
         deadline: form.deadline || undefined,
         notes: form.notes || undefined,
-        suppliers: [form.supplierId],
+        suppliers: form.supplierIds,
         items: normalizedItems,
       });
-      toast.success('RFQ created');
+      toast.success(
+        `RFQ created for ${form.supplierIds.length} supplier${form.supplierIds.length === 1 ? '' : 's'}`,
+      );
       setCreateOpen(false);
       resetCreateForm();
     } catch (err: unknown) {
@@ -626,8 +642,8 @@ export function RfqsPage() {
           <SheetHeader>
             <SheetTitle>Create RFQ</SheetTitle>
             <SheetDescription>
-              Draft a request for quotation and invite a supplier. Send it when ready so the portal
-              link works.
+              Draft a request for quotation and invite one or more suppliers. Each selected
+              supplier receives a separate email when you send the RFQ.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
@@ -672,23 +688,58 @@ export function RfqsPage() {
                   </Select>
                 </div>
               )}
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Supplier *</Label>
-                <Select
-                  value={form.supplierId}
-                  onValueChange={(value) => setForm((p) => ({ ...p, supplierId: value }))}
-                >
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.supplierName}
-                      </SelectItem>
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Suppliers *</Label>
+                  <span className="text-[11px] text-slate-500">
+                    {form.supplierIds.length} selected
+                  </span>
+                </div>
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                  {suppliers.length === 0 ? (
+                    <p className="px-2 py-3 text-xs text-slate-500">No suppliers available.</p>
+                  ) : (
+                    suppliers.map((supplier) => {
+                      const checked = form.supplierIds.includes(supplier.id);
+                      return (
+                        <label
+                          key={supplier.id}
+                          className={cn(
+                            'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 transition',
+                            checked
+                              ? 'border-indigo-300 bg-indigo-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSupplierSelection(supplier.id)}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-900">{supplier.supplierName}</p>
+                            <p className="text-xs text-slate-500">
+                              {supplier.email?.trim() || 'No email on file'}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                {selectedSuppliers.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSuppliers.map((supplier) => (
+                      <Badge key={supplier.id} variant="secondary" className="gap-1">
+                        {supplier.supplierName}
+                      </Badge>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                ) : null}
+                <p className="text-[11px] text-slate-500">
+                  Each selected supplier will receive a separate RFQ email when this request is sent.
+                </p>
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <Label className="text-xs">Notes</Label>
