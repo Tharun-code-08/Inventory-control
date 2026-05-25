@@ -302,6 +302,29 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
 
+  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
+  const { data: rfqs = [] } = useRfqs();
+  const rfqMap = useMemo(() => new Map(rfqs.map((r) => [r.id, r])), [rfqs]);
+  const { data: contracts = [] } = useContracts();
+  const { data: suppliers = [] } = useSuppliers();
+  const { data: companies = [] } = useCompanies();
+  const createSupplier = useCreateSupplier();
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [quickSupplier, setQuickSupplier] = useState({
+    supplierName: '',
+    contactPerson: '',
+    email: '',
+    phone: '',
+  });
+  const products = useMemo(() => {
+    const raw = productsQuery.data;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as Product[];
+    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: Product[] }).rows;
+    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: Product[] }).data;
+    return [];
+  }, [productsQuery.data]);
+
   const handleExportPoList = useCallback(() => {
     const ok = exportModuleCsv('purchase-orders.csv', filteredPoList, [
       { header: 'PO Number', value: (po) => po.poNumber },
@@ -353,29 +376,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     },
     [rfqMap],
   );
-
-  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
-  const { data: rfqs = [] } = useRfqs();
-  const rfqMap = useMemo(() => new Map(rfqs.map((r) => [r.id, r])), [rfqs]);
-  const { data: contracts = [] } = useContracts();
-  const { data: suppliers = [] } = useSuppliers();
-  const { data: companies = [] } = useCompanies();
-  const createSupplier = useCreateSupplier();
-  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
-  const [quickSupplier, setQuickSupplier] = useState({
-    supplierName: '',
-    contactPerson: '',
-    email: '',
-    phone: '',
-  });
-  const products = useMemo(() => {
-    const raw = productsQuery.data;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw as Product[];
-    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: Product[] }).rows;
-    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: Product[] }).data;
-    return [];
-  }, [productsQuery.data]);
 
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();

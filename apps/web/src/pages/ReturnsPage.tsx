@@ -40,6 +40,7 @@ import {
   useUploadSupplierReturnImage,
 } from '@/hooks/use-returns';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 type DraftLine = {
   goodsReceiptItemId: string;
@@ -69,7 +70,11 @@ const REASON_OPTIONS: Array<{ value: SupplierReturnReasonCode; label: string }> 
 ];
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function formatDate(value?: string | null) {
@@ -240,6 +245,7 @@ export function ReturnsPage() {
   };
 
   const selectedLines = form.items.filter((item) => item.enabled && Number(item.returnQty) > 0);
+  const maxReturnDate = todayIso();
 
   const saveDraft = async () => {
     if (!form.goodsReceiptId) {
@@ -248,6 +254,10 @@ export function ReturnsPage() {
     }
     if (selectedLines.length === 0) {
       toast.error('Select at least one goods receipt line');
+      return;
+    }
+    if (form.returnDate && form.returnDate > maxReturnDate) {
+      toast.error('Return date cannot be in the future');
       return;
     }
 
@@ -273,7 +283,7 @@ export function ReturnsPage() {
       setEditingReturn(null);
       setSelectedReturnId(ret.id);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save return draft');
+      toast.error(getApiErrorMessage(error, 'Failed to save return draft'));
     }
   };
 
@@ -286,7 +296,7 @@ export function ReturnsPage() {
       }
       toast.success('Images uploaded');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to upload image');
+      toast.error(getApiErrorMessage(error, 'Failed to upload image'));
     } finally {
       setUploadingItemId(null);
     }
@@ -297,7 +307,7 @@ export function ReturnsPage() {
       await deleteImage.mutateAsync({ id: returnId, imageId });
       toast.success('Image removed');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to remove image');
+      toast.error(getApiErrorMessage(error, 'Failed to remove image'));
     }
   };
 
@@ -306,7 +316,7 @@ export function ReturnsPage() {
       await submitReturn.mutateAsync(returnId);
       toast.success('Return notice sent to supplier');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to submit return');
+      toast.error(getApiErrorMessage(error, 'Failed to submit return'));
     }
   };
 
@@ -316,7 +326,7 @@ export function ReturnsPage() {
       toast.success('Return cancelled');
       setSelectedReturnId(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to cancel return');
+      toast.error(getApiErrorMessage(error, 'Failed to cancel return'));
     }
   };
 
@@ -448,6 +458,7 @@ export function ReturnsPage() {
                   <Input
                     type="date"
                     value={form.returnDate}
+                    max={maxReturnDate}
                     onChange={(event) =>
                       setForm((prev) => ({ ...prev, returnDate: event.target.value }))
                     }
