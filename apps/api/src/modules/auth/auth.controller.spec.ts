@@ -7,10 +7,7 @@ jest.mock('otplib', () => ({
   verifySync: jest.fn(),
 }));
 jest.mock('qrcode', () => ({
-  __esModule: true,
-  default: {
-    toDataURL: jest.fn(),
-  },
+  toDataURL: jest.fn(),
 }));
 
 function makeConfig(): ConfigService {

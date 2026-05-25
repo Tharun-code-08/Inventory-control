@@ -57,7 +57,7 @@ type SignupVerifyPayload =
 type MfaStartPayload = {
   email: string;
   manualCode: string;
-  qrCodeDataUrl: string;
+  qrCodeDataUrl: string | null;
   attemptsRemaining: number;
   expiresAt: string;
 };
@@ -774,13 +774,19 @@ export function SignupPage() {
               <form className="space-y-5" onSubmit={verifyTotp}>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                      <img src={mfaSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-36 w-36 rounded-lg" />
-                    </div>
+                    {mfaSetup.qrCodeDataUrl ? (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <img src={mfaSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-36 w-36 rounded-lg" />
+                      </div>
+                    ) : (
+                      <div className="flex h-42 w-42 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center text-xs text-slate-500 shadow-sm">
+                        QR preview is unavailable right now. Enter the manual code below in your authenticator app.
+                      </div>
+                    )}
                     <div className="space-y-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Scan this QR code
+                          {mfaSetup.qrCodeDataUrl ? 'Scan this QR code' : 'Set up with the manual code'}
                         </p>
                         <p className="mt-1 text-sm text-slate-600">
                           Use Google Authenticator, Authy, 1Password, or another TOTP app.

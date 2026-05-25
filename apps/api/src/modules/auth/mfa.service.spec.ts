@@ -1,16 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import { MfaService } from './mfa.service';
 
 jest.mock('bcrypt');
 jest.mock('qrcode', () => ({
-  __esModule: true,
-  default: {
-    toDataURL: jest.fn(),
-  },
+  toDataURL: jest.fn(),
 }));
 jest.mock('otplib', () => ({
   generateSecret: jest.fn(),
@@ -156,6 +153,34 @@ describe('MfaService', () => {
     const storedSecret = prisma.signupVerification.update.mock.calls[0][0].data
       .totpSecretEncrypted as string;
     expect(storedSecret).not.toBe('JBSWY3DPEHPK3PXP');
+  });
+
+  it('falls back to manual setup when QR rendering fails', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig(), auth as never);
+
+    prisma.signupVerification.findFirst.mockResolvedValue({
+      id: 'signup-qr-fallback',
+      email: 'owner@example.com',
+      payload: {
+        plan: 'trial',
+        billing: 'monthly',
+        otpVerifiedAt: '2026-05-25T10:00:00.000Z',
+      },
+      sessionTokenHash: 'hash',
+      totpSecretEncrypted: null,
+      attemptCount: 0,
+      consumedAt: null,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
+      createdAt: new Date('2026-05-25T10:00:00.000Z'),
+    });
+    (QRCode.toDataURL as Mock).mockRejectedValueOnce(new Error('qrcode unavailable'));
+
+    const start = await svc.startEnrollment('signup-token');
+
+    expect(start.manualCode).toBe('JBSWY3DPEHPK3PXP');
+    expect(start.qrCodeDataUrl).toBeNull();
   });
 
   it('verifies staged enrollment and stores backup codes in the pending signup payload', async () => {

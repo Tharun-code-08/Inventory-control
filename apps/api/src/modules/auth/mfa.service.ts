@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthChallengePurpose } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { generateSecret, generateURI, verifySync } from 'otplib';
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 import {
   createCipheriv,
   createDecipheriv,
@@ -21,6 +21,8 @@ type SignupSessionRecord = Awaited<ReturnType<MfaService['findValidSignupSession
 
 @Injectable()
 export class MfaService {
+  private readonly logger = new Logger(MfaService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -310,10 +312,17 @@ export class MfaService {
       secret: resolvedSecret,
       period: 30,
     });
-    const qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl, {
-      width: 240,
-      margin: 1,
-    });
+    let qrCodeDataUrl: string | null = null;
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl, {
+        width: 240,
+        margin: 1,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `QR code generation failed for staged signup MFA (${session.pending.email}): ${(error as Error).message}`,
+      );
+    }
 
     return {
       email: session.pending.email,
