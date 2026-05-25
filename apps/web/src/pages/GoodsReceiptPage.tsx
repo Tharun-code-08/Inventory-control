@@ -17,6 +17,7 @@ import {
   FileText,
   X,
   Loader2,
+  Download,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -82,6 +83,7 @@ import {
 import { AppLayout } from '@/components/AppLayout';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 const PAGE_SIZE = 10;
 
@@ -347,6 +349,48 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       ]
     : null;
 
+  const handleExportReceiptList = () => {
+    const ok = exportModuleCsv('goods-receipts.csv', items, [
+      { header: 'GR Number', value: (row) => row.grNumber },
+      { header: 'GR Date', value: (row) => csvDate(row.grDate) },
+      { header: 'Supplier', value: (row) => row.supplierName },
+      { header: 'PO Id', value: (row) => row.purchaseOrderId ?? '' },
+      { header: 'Supplier Ref', value: (row) => row.supplierRef ?? '' },
+      { header: 'Status', value: (row) => row.status },
+      { header: 'Items', value: (row) => row.items.length },
+      {
+        header: 'Received Qty',
+        value: (row) => row.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0),
+      },
+      { header: 'Total Value', value: (row) => csvMoney(row.totalValue) },
+      { header: 'Remarks', value: (row) => row.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Goods receipts exported');
+    else toast.error('No goods receipts to export');
+  };
+
+  const handleExportReceiptDetail = (gr: GoodsReceipt) => {
+    const ok = exportModuleCsv(`${gr.grNumber}.csv`, gr.items.map((item) => ({ gr, item })), [
+      { header: 'GR Number', value: ({ gr: current }) => current.grNumber },
+      { header: 'GR Date', value: ({ gr: current }) => csvDate(current.grDate) },
+      { header: 'Supplier', value: ({ gr: current }) => current.supplierName },
+      { header: 'PO Id', value: ({ gr: current }) => current.purchaseOrderId ?? '' },
+      { header: 'Supplier Ref', value: ({ gr: current }) => current.supplierRef ?? '' },
+      { header: 'Status', value: ({ gr: current }) => current.status },
+      { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+      { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+      { header: 'Quantity', value: ({ item }) => item.quantity },
+      { header: 'UOM', value: ({ item }) => item.uom },
+      { header: 'Purchase Rate', value: ({ item }) => csvMoney(item.purchaseRate) },
+      { header: 'Line Value', value: ({ item }) => csvMoney(item.lineValue) },
+      { header: 'Batch Number', value: ({ item }) => item.batchNumber ?? '' },
+      { header: 'Serial Number', value: ({ item }) => item.serialNumber ?? '' },
+      { header: 'Remarks', value: ({ gr: current }) => current.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Goods receipt exported');
+    else toast.error('No GR lines to export');
+  };
+
   const openEdit = (gr: GoodsReceipt) => {
     setEditingGR(gr);
     const existingItems = (gr.items ?? []).map((item) => ({
@@ -488,10 +532,16 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
               Back
             </Button>
           ) : (
-            <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
-              <Plus className="h-4 w-4" />
-              New Receipt
-            </Button>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <Button variant="outline" onClick={handleExportReceiptList} className="w-full sm:w-auto">
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
+                <Plus className="h-4 w-4" />
+                New Receipt
+              </Button>
+            </div>
           )}
         </div>
 
@@ -723,13 +773,23 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              {viewingGR?.grNumber}
-              {viewingGR && <StatusBadge status={viewingGR.status} />}
-            </DialogTitle>
-            <DialogDescription>
-              Goods receipt details and line items
-            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-3">
+                  {viewingGR?.grNumber}
+                  {viewingGR && <StatusBadge status={viewingGR.status} />}
+                </DialogTitle>
+                <DialogDescription>
+                  Goods receipt details and line items
+                </DialogDescription>
+              </div>
+              {viewingGR ? (
+                <Button variant="outline" size="sm" onClick={() => handleExportReceiptDetail(viewingGR)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </Button>
+              ) : null}
+            </div>
           </DialogHeader>
 
           {viewingGR && (
@@ -811,8 +871,20 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 </Table>
               </div>
 
-              {viewingGR.status === 'DRAFT' && (
-                <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2">
+                {viewingGR.status === 'POSTED' ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setViewingGR(null);
+                      navigate(`/returns?grId=${encodeURIComponent(viewingGR.id)}`);
+                    }}
+                  >
+                    Create Return
+                  </Button>
+                ) : null}
+                {viewingGR.status === 'DRAFT' ? (
+                  <>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -832,8 +904,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                     <Send className="h-4 w-4" />
                     Post Receipt
                   </Button>
-                </div>
-              )}
+                  </>
+                ) : null}
+              </div>
             </div>
           )}
         </DialogContent>

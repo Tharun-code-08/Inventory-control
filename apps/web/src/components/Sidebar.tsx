@@ -19,6 +19,7 @@ import {
   ShoppingCart,
   Sparkles,
   Truck,
+  Undo2,
   Users,
   Warehouse,
 } from 'lucide-react';
@@ -49,7 +50,7 @@ function isActive(currentPath: string, itemPath: string) {
 
 function sectionFor(path: string) {
   if (['/companies', '/plants', '/storage-locations', '/products', '/suppliers', '/customers'].includes(path)) return 'Master Data';
-  if (['/rfqs', '/contracts', '/purchase-orders', '/goods-receipts', '/supplier-portal'].includes(path)) return 'Procurement';
+  if (['/rfqs', '/contracts', '/purchase-orders', '/goods-receipts', '/returns', '/supplier-portal'].includes(path)) return 'Procurement';
   if (['/quotations', '/sales', '/goods-issues', '/invoices', '/payments'].includes(path)) return 'Sales & Finance';
   return 'Operations';
 }
@@ -92,6 +93,7 @@ export function Sidebar({
       ...(has('contract:read') ? [{ label: 'Contracts', icon: FileSignature, path: '/contracts' }] : []),
       ...(has('purchase_order:read') ? [{ label: 'Purchase Orders', icon: ClipboardList, path: '/purchase-orders' }] : []),
       { label: 'Goods Receipt', icon: ArrowDownToLine, path: '/goods-receipts' },
+      ...(has('shop:read') ? [{ label: 'Goods Returns', icon: Undo2, path: '/returns' }] : []),
       ...(has('supplier:read') ? [{ label: 'Supplier Portal', icon: Truck, path: '/supplier-portal' }] : []),
 
       // Sales

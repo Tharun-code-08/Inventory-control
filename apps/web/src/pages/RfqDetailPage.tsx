@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Copy,
   ExternalLink,
+  FileDown,
   Paperclip,
   ShoppingCart,
   Trash2,
@@ -38,6 +39,7 @@ import { useContracts } from '@/hooks/use-contracts';
 import { supplierPortalSubmitUrl } from '@/lib/portal-api';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -258,6 +260,45 @@ export function RfqDetailPage() {
     }
   }
 
+  function handleExportDetail() {
+    const rows = rfq.items.map((item) => ({ rfq, item }));
+    const ok = exportModuleCsv(`${rfq.rfqNumber}.csv`, rows, [
+      { header: 'RFQ Number', value: ({ rfq: current }) => current.rfqNumber },
+      { header: 'Title', value: ({ rfq: current }) => current.title },
+      { header: 'Status', value: ({ rfq: current }) => rfqStatusLabel(current.status) },
+      { header: 'RFQ Date', value: ({ rfq: current }) => csvDate(current.rfqDate) },
+      { header: 'Deadline', value: ({ rfq: current }) => csvDate(current.deadline) },
+      { header: 'Plant', value: ({ rfq: current }) => current.shop?.shopName ?? '' },
+      {
+        header: 'Suppliers',
+        value: ({ rfq: current }) =>
+          csvList(current.suppliers.map((entry) => entry.supplier?.supplierName ?? entry.supplierId)),
+      },
+      { header: 'Item Code', value: ({ item }) => item.product?.productCode ?? '' },
+      {
+        header: 'Item Description',
+        value: ({ item }) => item.product?.description ?? item.description ?? '',
+      },
+      { header: 'Requested Qty', value: ({ item }) => item.quantity },
+      { header: 'UOM', value: ({ item }) => item.uom },
+      { header: 'Specifications', value: ({ item }) => item.specifications ?? '' },
+      {
+        header: 'Quoted Suppliers',
+        value: () => quotations.length,
+      },
+      {
+        header: 'Selected Supplier',
+        value: () => selectedQuote?.supplier?.supplierName ?? '',
+      },
+      {
+        header: 'Selected Quote Total',
+        value: () => (selectedQuote ? csvMoney(quoteTotal(selectedQuote.items)) : ''),
+      },
+    ]);
+    if (ok) toast.success('RFQ detail exported');
+    else toast.error('No RFQ items to export');
+  }
+
   const primaryAwarded = quotations.find((q) => awardedQuoteIds.has(q.id));
   const selectedQuote =
     quotations.find((q) => q.id === selectedQuoteId) ?? primaryAwarded ?? null;
@@ -335,6 +376,10 @@ export function RfqDetailPage() {
               <p className="mt-1 text-sm text-slate-500">{rfq.title}</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportDetail}>
+                <FileDown className="mr-1.5 h-4 w-4" />
+                Export CSV
+              </Button>
               <Button variant="outline" size="sm" disabled>
                 <ClipboardList className="mr-1.5 h-4 w-4" />
                 Evaluation

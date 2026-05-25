@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
+  Download,
   Eye,
   IndianRupee,
   Pencil,
@@ -64,6 +65,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 type SoTab = 'all' | 'draft' | 'confirmed' | 'fulfilled';
 
@@ -328,6 +330,23 @@ export function SalesPage() {
     navigate(`/sales/${order.id}`);
   };
 
+  const handleExportSalesOrders = () => {
+    const ok = exportModuleCsv('sales-orders.csv', filteredOrders, [
+      { header: 'SO Number', value: (order) => order.soNumber },
+      { header: 'Order Date', value: (order) => csvDate(order.orderDate) },
+      { header: 'Expected Date', value: (order) => csvDate(order.expectedDate) },
+      { header: 'Customer', value: (order) => order.customer?.customerName ?? '' },
+      { header: 'Plant', value: (order) => order.shop?.shopName ?? '' },
+      { header: 'Status', value: (order) => statusLabel(order.status) },
+      { header: 'Quotation', value: (order) => order.salesQuotation?.quoteNumber ?? '' },
+      { header: 'Items', value: (order) => order.items?.length ?? 0 },
+      { header: 'Order Qty', value: (order) => order.items?.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0) ?? 0 },
+      { header: 'Total Value', value: (order) => csvMoney(order.totalValue) },
+    ]);
+    if (ok) toast.success('Sales orders exported');
+    else toast.error('No sales orders to export');
+  };
+
   const applyQuotation = (quoteId: string) => {
     const quote = quotations.find((q) => q.id === quoteId);
     if (!quote?.items?.length) return;
@@ -414,6 +433,10 @@ export function SalesPage() {
     <AppLayout active="Sales">
       <div className="space-y-6">
         <PageHeader title="Sales Orders" description="Manage customer orders">
+          <Button variant="outline" onClick={handleExportSalesOrders}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Create SO

@@ -56,6 +56,11 @@ const SalesOrderDetailPage = lazyPage(
 const WarehousePage = lazyPage(() => import('@/pages/WarehousePage'), 'WarehousePage');
 const InvoicesPage = lazyPage(() => import('@/pages/InvoicesPage'), 'InvoicesPage');
 const PaymentsPage = lazyPage(() => import('@/pages/PaymentsPage'), 'PaymentsPage');
+const ReturnsPage = lazyPage(() => import('@/pages/ReturnsPage'), 'ReturnsPage');
+const ReturnAcknowledgementPage = lazyPage(
+  () => import('@/pages/ReturnAcknowledgementPage'),
+  'ReturnAcknowledgementPage',
+);
 const NotificationsPage = lazyPage(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const HelpSupportPage = lazyPage(() => import('@/pages/HelpSupportPage'), 'HelpSupportPage');
 const UpgradePage = lazyPage(() => import('@/pages/UpgradePage'), 'UpgradePage');
@@ -111,6 +116,7 @@ export function AppRoutes() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/supplier-portal/submit" element={<SupplierPortalSubmitPage />} />
           <Route path="/quotation-portal/review" element={<QuotationPortalPage />} />
+          <Route path="/returns/acknowledge" element={<ReturnAcknowledgementPage />} />
           <Route path="/supplier-delete/confirm" element={<SupplierDeleteConfirmPage />} />
           <Route path="/invite/accept" element={<InviteAcceptPage />} />
           <Route
@@ -227,6 +233,14 @@ export function AppRoutes() {
                 <TrialFeatureGate subscription={subscription} feature="invoices">
                   <InvoicesPage />
                 </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/returns"
+            element={
+              <Protected>
+                <ReturnsPage />
               </Protected>
             }
           />

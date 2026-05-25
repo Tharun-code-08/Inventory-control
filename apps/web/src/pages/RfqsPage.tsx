@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Eye,
   Trash2,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
@@ -58,6 +59,7 @@ import { useContracts } from '@/hooks/use-contracts';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { csvDate, csvList, exportModuleCsv } from '@/lib/module-csv';
 
 type RfqTab = 'all' | 'draft' | 'sent' | 'responses' | 'completed';
 
@@ -219,6 +221,27 @@ export function RfqsPage() {
     });
   }, [rfqs, tab, search, quotesByRfq]);
 
+  const handleExportRfqs = () => {
+    const ok = exportModuleCsv('rfqs.csv', filteredRfqs, [
+      { header: 'RFQ Number', value: (rfq) => rfq.rfqNumber },
+      { header: 'Title', value: (rfq) => rfq.title },
+      { header: 'Status', value: (rfq) => rfqStatusLabel(rfq.status) },
+      { header: 'RFQ Date', value: (rfq) => csvDate(rfq.rfqDate) },
+      { header: 'Deadline', value: (rfq) => csvDate(rfq.deadline) },
+      { header: 'Plant', value: (rfq) => rfq.shop?.shopName ?? '' },
+      {
+        header: 'Suppliers',
+        value: (rfq) =>
+          csvList(rfq.suppliers.map((entry) => entry.supplier?.supplierName ?? entry.supplierId)),
+      },
+      { header: 'Items', value: (rfq) => rfq.items.length },
+      { header: 'Quotations', value: (rfq) => quotesByRfq.get(rfq.id) ?? 0 },
+      { header: 'Contracts', value: (rfq) => contractsByRfq.get(rfq.id) ?? 0 },
+    ]);
+    if (ok) toast.success('RFQ CSV exported');
+    else toast.error('No RFQs to export');
+  };
+
   useEffect(() => {
     if (user?.shopId || form.shopId || shops.length === 0) return;
     setForm((prev) => ({ ...prev, shopId: shops[0].id }));
@@ -367,6 +390,10 @@ export function RfqsPage() {
           title="RFQ"
           description="Create quotation requests, invite suppliers, and collect portal responses."
         >
+          <Button variant="outline" onClick={handleExportRfqs}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button
             className="bg-indigo-600 shadow-md hover:bg-indigo-700"
             onClick={() => setCreateOpen(true)}

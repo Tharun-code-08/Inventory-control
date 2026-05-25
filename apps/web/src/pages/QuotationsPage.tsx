@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Send,
+  Download,
   FileText,
   CheckCircle2,
   Repeat2,
@@ -61,6 +62,7 @@ import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/cn';
 import { uiSurfaces } from '@/lib/ui-surfaces';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 type QuoteTab =
   | 'all'
@@ -347,6 +349,48 @@ export function QuotationsPage() {
     }
   }
 
+  function handleExportQuoteList() {
+    const ok = exportModuleCsv('sales-quotations.csv', filteredQuotations, [
+      { header: 'Quote Number', value: (quote) => quote.quoteNumber },
+      { header: 'Quote Date', value: (quote) => csvDate(quote.quoteDate) },
+      { header: 'Valid Until', value: (quote) => csvDate(quote.validUntil) },
+      { header: 'Customer', value: (quote) => quote.customer?.customerName ?? '' },
+      { header: 'Customer Email', value: (quote) => quote.customer?.email ?? '' },
+      { header: 'Status', value: (quote) => statusLabel(quote.status) },
+      { header: 'Items', value: (quote) => quote.items?.length ?? 0 },
+      { header: 'Total Value', value: (quote) => csvMoney(quote.totalValue) },
+      { header: 'Requested Total', value: (quote) => csvMoney(quote.customerRequestedTotal) },
+      { header: 'Sales Order', value: (quote) => quote.salesOrder?.soNumber ?? '' },
+    ]);
+    if (ok) toast.success('Sales quotations exported');
+    else toast.error('No sales quotations to export');
+  }
+
+  function handleExportQuoteDetail(quote: SalesQuotation) {
+    const ok = exportModuleCsv(
+      `${quote.quoteNumber}.csv`,
+      (quote.items ?? []).map((item) => ({ quote, item })),
+      [
+        { header: 'Quote Number', value: ({ quote: current }) => current.quoteNumber },
+        { header: 'Quote Date', value: ({ quote: current }) => csvDate(current.quoteDate) },
+        { header: 'Valid Until', value: ({ quote: current }) => csvDate(current.validUntil) },
+        { header: 'Customer', value: ({ quote: current }) => current.customer?.customerName ?? '' },
+        { header: 'Status', value: ({ quote: current }) => statusLabel(current.status) },
+        { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+        { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+        { header: 'Quantity', value: ({ item }) => item.quantity },
+        { header: 'UOM', value: ({ item }) => item.uom },
+        { header: 'Unit Price', value: ({ item }) => csvMoney(item.unitPrice) },
+        { header: 'Line Value', value: ({ item }) => csvMoney(item.lineValue) },
+        { header: 'Requested Total', value: ({ quote: current }) => csvMoney(current.customerRequestedTotal) },
+        { header: 'Requested Note', value: ({ quote: current }) => current.customerRequestNote ?? '' },
+        { header: 'Sales Order', value: ({ quote: current }) => current.salesOrder?.soNumber ?? '' },
+      ],
+    );
+    if (ok) toast.success('Quotation exported');
+    else toast.error('No quotation lines to export');
+  }
+
   function openView(q: SalesQuotation) {
     setViewQuote(q);
   }
@@ -426,6 +470,10 @@ export function QuotationsPage() {
           title="Sales Quotations"
           description="Create and manage customer quotations"
         >
+          <Button variant="outline" onClick={handleExportQuoteList}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button
             className="bg-indigo-600 shadow-md hover:bg-indigo-700"
             onClick={() => setCreateOpen(true)}
@@ -837,11 +885,19 @@ export function QuotationsPage() {
           {viewQuote && (
             <>
               <SheetHeader>
-                <SheetTitle className="flex flex-wrap items-center gap-2">
-                  {viewQuote.quoteNumber}
-                  <StatusPill status={viewQuote.status} />
-                </SheetTitle>
-                <SheetDescription>Quotation details and line items</SheetDescription>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <SheetTitle className="flex flex-wrap items-center gap-2">
+                      {viewQuote.quoteNumber}
+                      <StatusPill status={viewQuote.status} />
+                    </SheetTitle>
+                    <SheetDescription>Quotation details and line items</SheetDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => handleExportQuoteDetail(viewQuote)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
               </SheetHeader>
 
               <div className="mt-6 space-y-5">

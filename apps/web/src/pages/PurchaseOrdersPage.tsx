@@ -100,6 +100,7 @@ import {
   sumPoLineTotals,
   taxPercentForProduct,
 } from '@/lib/po-line-calculations';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 /** Roles that must use their assigned plant and cannot switch delivery plant. */
 const SHOP_SCOPED_ROLES = new Set(['SHOP_USER', 'WAREHOUSE_STAFF', 'VIEWER', 'VENDOR']);
@@ -300,6 +301,58 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
+
+  const handleExportPoList = useCallback(() => {
+    const ok = exportModuleCsv('purchase-orders.csv', filteredPoList, [
+      { header: 'PO Number', value: (po) => po.poNumber },
+      { header: 'PO Date', value: (po) => csvDate(po.poDate) },
+      { header: 'Supplier', value: (po) => po.supplier },
+      { header: 'Plant', value: (po) => po.shop?.shopName ?? '' },
+      { header: 'Status', value: (po) => po.lifecycleStatus ?? po.status },
+      {
+        header: 'RFQ Number',
+        value: (po) => (po.rfqId ? rfqMap.get(po.rfqId)?.rfqNumber ?? '' : ''),
+      },
+      { header: 'Items', value: (po) => po.items.length },
+      {
+        header: 'Ordered Qty',
+        value: (po) => po.items.reduce((sum, item) => sum + Number(item.orderQty ?? 0), 0),
+      },
+      { header: 'Total Value', value: (po) => csvMoney(po.totalValue) },
+      { header: 'Remarks', value: (po) => po.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Purchase orders exported');
+    else toast.error('No purchase orders to export');
+  }, [filteredPoList, rfqMap]);
+
+  const handleExportPoDetail = useCallback(
+    (po: PurchaseOrder) => {
+      const ok = exportModuleCsv(`${po.poNumber}.csv`, po.items.map((item) => ({ po, item })), [
+        { header: 'PO Number', value: ({ po: current }) => current.poNumber },
+        { header: 'PO Date', value: ({ po: current }) => csvDate(current.poDate) },
+        { header: 'Supplier', value: ({ po: current }) => current.supplier },
+        { header: 'Plant', value: ({ po: current }) => current.shop?.shopName ?? '' },
+        { header: 'Status', value: ({ po: current }) => current.lifecycleStatus ?? current.status },
+        {
+          header: 'RFQ Number',
+          value: ({ po: current }) =>
+            current.rfqId ? rfqMap.get(current.rfqId)?.rfqNumber ?? '' : '',
+        },
+        { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+        { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+        { header: 'Order Qty', value: ({ item }) => item.orderQty },
+        { header: 'Rate', value: ({ item }) => csvMoney(item.rate) },
+        { header: 'Line Value', value: ({ item }) => csvMoney(item.lineValue) },
+        { header: 'Current Stock', value: ({ item }) => item.currentStock },
+        { header: 'Min Stock', value: ({ item }) => item.minStock },
+        { header: 'Suggested Qty', value: ({ item }) => item.suggestedQty },
+        { header: 'Remarks', value: ({ po: current }) => current.remarks ?? '' },
+      ]);
+      if (ok) toast.success('Purchase order exported');
+      else toast.error('No PO lines to export');
+    },
+    [rfqMap],
+  );
 
   const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
   const { data: rfqs = [] } = useRfqs();
@@ -848,10 +901,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               Back
             </Button>
           ) : (
-            <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
-              <Plus className="h-4 w-4" />
-              Create PO
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleExportPoList} className="w-full sm:w-auto">
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
+                <Plus className="h-4 w-4" />
+                Create PO
+              </Button>
+            </>
           )}
         </PageHeader>
 
@@ -1781,6 +1840,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </div>
               {detailPO && (
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExportPoDetail(detailPO)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

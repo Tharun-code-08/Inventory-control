@@ -32,6 +32,12 @@ import {
   signupOtpText,
   type SignupOtpEmailContent,
 } from './signup-otp.template';
+import {
+  returnNoticeHtml,
+  returnNoticeSubject,
+  returnNoticeText,
+  type ReturnNoticeEmailContent,
+} from './return-notice.template';
 
 export type RfqInviteRecipient = {
   supplierId: string;
@@ -183,11 +189,12 @@ export class MailService implements OnModuleInit {
 
   async sendMail(args: {
     to: string;
+    cc?: string | string[];
     subject: string;
     text: string;
     html: string;
     fromName?: string;
-    attachments?: Array<{ filename: string; content: Buffer | string }>;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
     const transport = await this.getTransporter();
     const from = this.getFromAddress();
@@ -201,6 +208,7 @@ export class MailService implements OnModuleInit {
       from: `"${displayName}" <${from}>`,
       replyTo,
       to: args.to,
+      cc: args.cc,
       bcc: bcc || undefined,
       subject: args.subject,
       text: args.text,
@@ -428,7 +436,7 @@ export class MailService implements OnModuleInit {
   async sendPurchaseOrderToSupplier(args: {
     to: string;
     content: PurchaseOrderEmailContent;
-    attachments?: Array<{ filename: string; content: Buffer | string }>;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
     if (!this.isConfigured()) {
       throw new Error(
@@ -440,6 +448,28 @@ export class MailService implements OnModuleInit {
       subject: purchaseOrderSubject(args.content),
       text: purchaseOrderText(args.content),
       html: purchaseOrderHtml(args.content),
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierReturnNotice(args: {
+    to: string;
+    cc?: string | string[];
+    content: ReturnNoticeEmailContent;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+    return this.sendMail({
+      to: args.to,
+      cc: args.cc,
+      subject: returnNoticeSubject(args.content),
+      text: returnNoticeText(args.content),
+      html: returnNoticeHtml(args.content),
       fromName: args.content.companyName,
       attachments: args.attachments,
     });

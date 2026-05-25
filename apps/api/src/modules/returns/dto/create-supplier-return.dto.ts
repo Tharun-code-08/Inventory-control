@@ -3,6 +3,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEmail,
+  IsEnum,
   IsDateString,
   IsOptional,
   IsString,
@@ -10,26 +12,21 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { SupplierReturnReasonCode } from '@prisma/client';
 
 export class CreateSupplierReturnItemDto {
   @ApiProperty()
   @IsUUID()
-  productId!: string;
+  goodsReceiptItemId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Quantity to return from the selected goods receipt line' })
   @Type(() => Number)
   @Min(0.0001)
-  quantity!: number;
+  returnQty!: number;
 
-  @ApiPropertyOptional({ default: 'UNIT' })
-  @IsOptional()
-  @IsString()
-  uom?: string;
-
-  @ApiProperty()
-  @Type(() => Number)
-  @Min(0)
-  unitCost!: number;
+  @ApiProperty({ enum: SupplierReturnReasonCode })
+  @IsEnum(SupplierReturnReasonCode)
+  reasonCode!: SupplierReturnReasonCode;
 }
 
 export class CreateSupplierReturnDto {
@@ -44,23 +41,23 @@ export class CreateSupplierReturnDto {
   returnDate?: string;
 
   @ApiProperty()
-  @IsString()
-  supplierName!: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsUUID()
-  purchaseOrderId?: string;
+  goodsReceiptId!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  reason?: string;
+  supplierRef?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  internalCcEmail?: string;
 
   @ApiProperty({ type: [CreateSupplierReturnItemDto] })
   @IsArray()

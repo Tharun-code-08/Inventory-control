@@ -24,6 +24,11 @@ export function buildSupplierDeleteConfirmUrl(config: ConfigService, token: stri
   return `${origin}/supplier-delete/confirm?token=${encodeURIComponent(token)}`;
 }
 
+export function buildSupplierReturnAckUrl(config: ConfigService, token: string): string {
+  const origin = resolvePublicWebOrigin(config);
+  return `${origin}/returns/acknowledge?token=${encodeURIComponent(token)}`;
+}
+
 /** Customer quotation review portal (no login — token in URL). */
 export function buildQuotationPortalReviewUrl(config: ConfigService, portalToken: string): string {
   const origin = resolvePublicWebOrigin(config);

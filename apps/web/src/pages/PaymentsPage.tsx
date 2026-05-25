@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,7 @@ import { useCreatePayment, usePayments } from '@/hooks/use-payments';
 import { P2PFlowTimeline } from '@/components/shared';
 import { useAuthStore } from '@/store/authStore';
 import { hasPermission } from '@/lib/permissions';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
@@ -57,6 +60,23 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
     { current: 0, overdue30: 0, overdueMore: 0 },
   );
 
+  const handleExportPayments = () => {
+    const ok = exportModuleCsv('payments.csv', payments, [
+      { header: 'Receipt Number', value: (payment) => payment.receiptNumber },
+      { header: 'Receipt Date', value: (payment) => csvDate(payment.receiptDate) },
+      { header: 'Invoice Number', value: (payment) => payment.invoice?.invoiceNumber ?? '' },
+      { header: 'Amount', value: (payment) => csvMoney(payment.amount) },
+      { header: 'Method', value: (payment) => payment.method ?? '' },
+      { header: 'Reference', value: (payment) => payment.reference ?? '' },
+      { header: 'Invoice Total', value: (payment) => csvMoney(payment.invoice?.totalValue) },
+      { header: 'Invoice Paid', value: (payment) => csvMoney(payment.invoice?.paidValue) },
+      { header: 'Invoice Due Date', value: (payment) => csvDate(payment.invoice?.dueDate) },
+      { header: 'Remarks', value: (payment) => payment.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Payments exported');
+    else toast.error('No payments to export');
+  };
+
   return (
     <AppLayout active="Payments">
       <div className={createOnly ? 'create-page-shell space-y-6 p-4 sm:p-6' : 'space-y-6'}>
@@ -64,7 +84,13 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
           {createOnly ? (
             <Button variant="outline" onClick={() => navigate('/payments')} className="w-full sm:w-auto">Back</Button>
           ) : (
-            <Button className="premium-button border-0 text-white" onClick={() => navigate('/payments/new')} disabled={!canCreatePayment}>Add Payment</Button>
+            <>
+              <Button variant="outline" onClick={handleExportPayments} className="w-full sm:w-auto">
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button className="premium-button border-0 text-white" onClick={() => navigate('/payments/new')} disabled={!canCreatePayment}>Add Payment</Button>
+            </>
           )}
         </PageHeader>
         {!createOnly && <P2PFlowTimeline

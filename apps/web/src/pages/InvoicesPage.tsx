@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
@@ -10,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCustomers } from '@/hooks/use-customers';
 import { useCreateInvoice, useInvoices } from '@/hooks/use-invoices';
 import { useSalesOrders } from '@/hooks/use-sales-orders';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 export function InvoicesPage() {
   const { data: invoices = [] } = useInvoices();
@@ -36,10 +39,31 @@ export function InvoicesPage() {
     setForm({ customerId: '', salesOrderId: '', totalValue: '0', dueDate: '', remarks: '' });
   };
 
+  const handleExportInvoices = () => {
+    const ok = exportModuleCsv('invoices.csv', invoices, [
+      { header: 'Invoice Number', value: (invoice) => invoice.invoiceNumber },
+      { header: 'Invoice Date', value: (invoice) => csvDate(invoice.invoiceDate) },
+      { header: 'Due Date', value: (invoice) => csvDate(invoice.dueDate) },
+      { header: 'Customer', value: (invoice) => invoice.customer?.customerName ?? '' },
+      { header: 'Sales Order', value: (invoice) => invoice.salesOrder?.soNumber ?? '' },
+      { header: 'Status', value: (invoice) => invoice.status },
+      { header: 'Total Value', value: (invoice) => csvMoney(invoice.totalValue) },
+      { header: 'Paid Value', value: (invoice) => csvMoney(invoice.paidValue) },
+      { header: 'Remarks', value: (invoice) => invoice.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Invoices exported');
+    else toast.error('No invoices to export');
+  };
+
   return (
     <AppLayout active="Invoices">
       <div className="space-y-6">
-        <PageHeader title="Invoices" description="Manual and sales-order-based customer invoicing." />
+        <PageHeader title="Invoices" description="Manual and sales-order-based customer invoicing.">
+          <Button variant="outline" onClick={handleExportInvoices}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </PageHeader>
         <Card>
           <CardHeader><CardTitle>Create Invoice</CardTitle></CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">

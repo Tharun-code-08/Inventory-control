@@ -34,6 +34,7 @@ import {
   parseOrderRemarks,
   statusLabel,
 } from '@/lib/sales-order-doc';
+import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 function StatusBadge({ status }: { status: string }) {
   const label = statusLabel(status);
@@ -129,6 +130,32 @@ export function SalesOrderDetailPage() {
     }
   };
 
+  const onExportCsv = () => {
+    if (!order) return;
+    const ok = exportModuleCsv(
+      `${order.soNumber}.csv`,
+      (order.items ?? []).map((item) => ({ order, item })),
+      [
+        { header: 'SO Number', value: ({ order: current }) => current.soNumber },
+        { header: 'Order Date', value: ({ order: current }) => csvDate(current.orderDate) },
+        { header: 'Expected Date', value: ({ order: current }) => csvDate(current.expectedDate) },
+        { header: 'Customer', value: ({ order: current }) => current.customer?.customerName ?? '' },
+        { header: 'Plant', value: ({ order: current }) => current.shop?.shopName ?? '' },
+        { header: 'Status', value: ({ order: current }) => statusLabel(current.status) },
+        { header: 'Quotation', value: ({ order: current }) => current.salesQuotation?.quoteNumber ?? '' },
+        { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+        { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+        { header: 'Quantity', value: ({ item }) => item.quantity },
+        { header: 'UOM', value: ({ item }) => item.uom },
+        { header: 'Unit Price', value: ({ item }) => csvMoney(item.unitPrice) },
+        { header: 'Line Value', value: ({ item }) => csvMoney(item.lineValue) },
+        { header: 'Remarks', value: ({ order: current }) => current.remarks ?? '' },
+      ],
+    );
+    if (ok) toast.success('Sales order exported');
+    else toast.error('No sales order lines to export');
+  };
+
   if (isLoading) {
     return (
       <AppLayout active="Sales">
@@ -181,6 +208,10 @@ export function SalesOrderDetailPage() {
             <StatusBadge status={order.status} />
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={onExportCsv}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
             <Button variant="outline" onClick={onDownloadPdf}>
               <FileDown className="mr-2 h-4 w-4" />
               Download PDF

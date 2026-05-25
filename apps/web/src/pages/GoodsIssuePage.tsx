@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowDownToLine,
   CheckCircle2,
+  Download,
   Eye,
   FileText,
   PackageOpen,
@@ -57,6 +58,7 @@ import {
   parseGiReference,
 } from '@/lib/goods-issue';
 import { cn } from '@/lib/cn';
+import { csvDate, exportModuleCsv } from '@/lib/module-csv';
 
 const PAGE_SIZE = 10;
 
@@ -156,6 +158,44 @@ export function GoodsIssuePage() {
   const postMut = usePostGoodsIssue();
   const deleteMut = useDeleteGoodsIssue();
 
+  const handleExportGiList = () => {
+    const ok = exportModuleCsv('goods-issues.csv', filtered, [
+      { header: 'GI Number', value: (gi) => gi.giNumber },
+      { header: 'Date', value: (gi) => csvDate(gi.giDate) },
+      { header: 'Issue Type', value: (gi) => issueTypeLabel(gi.issueReason) },
+      { header: 'Reference', value: (gi) => parseGiReference(gi.remarks) },
+      { header: 'Plant', value: (gi) => gi.shop?.shopName ?? '' },
+      { header: 'Status', value: (gi) => gi.status },
+      { header: 'Items', value: (gi) => gi.items?.length ?? 0 },
+      {
+        header: 'Issue Qty',
+        value: (gi) => gi.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0),
+      },
+      { header: 'Remarks', value: (gi) => gi.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Goods issues exported');
+    else toast.error('No goods issues to export');
+  };
+
+  const handleExportGiDetail = (gi: GoodsIssue) => {
+    const ok = exportModuleCsv(`${gi.giNumber}.csv`, gi.items.map((item) => ({ gi, item })), [
+      { header: 'GI Number', value: ({ gi: current }) => current.giNumber },
+      { header: 'Date', value: ({ gi: current }) => csvDate(current.giDate) },
+      { header: 'Issue Type', value: ({ gi: current }) => issueTypeLabel(current.issueReason) },
+      { header: 'Reference', value: ({ gi: current }) => parseGiReference(current.remarks) },
+      { header: 'Plant', value: ({ gi: current }) => current.shop?.shopName ?? '' },
+      { header: 'Status', value: ({ gi: current }) => current.status },
+      { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+      { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+      { header: 'Quantity', value: ({ item }) => item.quantity },
+      { header: 'UOM', value: ({ item }) => item.uom },
+      { header: 'Available Stock Snapshot', value: ({ item }) => item.availableStockSnapshot },
+      { header: 'Remarks', value: ({ gi: current }) => current.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Goods issue exported');
+    else toast.error('No GI lines to export');
+  };
+
   async function handlePost(id: string) {
     try {
       await postMut.mutateAsync(id);
@@ -184,10 +224,16 @@ export function GoodsIssuePage() {
         title="Goods Issues"
         description="Outgoing goods and dispatches"
         action={
-          <Button onClick={() => navigate('/goods-issues/new')} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Create GI
-          </Button>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" onClick={handleExportGiList} className="w-full sm:w-auto">
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button onClick={() => navigate('/goods-issues/new')} className="w-full sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Create GI
+            </Button>
+          </div>
         }
       />
 
@@ -378,8 +424,18 @@ export function GoodsIssuePage() {
       <Dialog open={!!detailId} onOpenChange={(open) => !open && setDetailId(null)}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detailGI?.giNumber ?? 'Goods Issue'}</DialogTitle>
-            <DialogDescription>Issue details and line items</DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle>{detailGI?.giNumber ?? 'Goods Issue'}</DialogTitle>
+                <DialogDescription>Issue details and line items</DialogDescription>
+              </div>
+              {detailGI ? (
+                <Button variant="outline" size="sm" onClick={() => handleExportGiDetail(detailGI)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </Button>
+              ) : null}
+            </div>
           </DialogHeader>
           {detailQuery.isLoading ? (
             <div className="space-y-2">
