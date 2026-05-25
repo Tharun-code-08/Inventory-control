@@ -1,12 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsEmail, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class SignupCompletePaidDto {
-  @ApiProperty({ example: 'priya@acmeretail.com' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
-  @IsEmail()
-  email!: string;
+  @ApiProperty()
+  @IsString()
+  token!: string;
 
   @ApiProperty()
   @IsString()

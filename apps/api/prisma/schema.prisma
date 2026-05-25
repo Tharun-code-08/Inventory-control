@@ -224,12 +224,15 @@ model SignupVerification {
   email        String
   payload      Json
   otpHash      String    @map("otp_hash")
+  sessionTokenHash  String?   @map("session_token_hash")
+  totpSecretEncrypted String? @map("totp_secret_encrypted")
   attemptCount Int       @default(0) @map("attempt_count")
   expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
   consumedAt   DateTime? @map("consumed_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([email])
+  @@index([sessionTokenHash])
   @@index([expiresAt])
   @@map("signup_verifications")
 }

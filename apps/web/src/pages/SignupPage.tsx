@@ -40,6 +40,8 @@ type SignupVerifyPayload =
       email: string;
       plan: 'pro' | 'plus';
       billing: BillingInterval;
+      signupToken: string;
+      expiresAt: string;
     }
   | {
       mfaSetupRequired: true;
@@ -68,8 +70,6 @@ type SignupMfaChallengePayload = {
 };
 
 type MfaVerifyPayload = {
-  accessToken: string;
-  user: unknown;
   backupCodes: string[];
 };
 
@@ -208,6 +208,10 @@ export function SignupPage() {
     setIsSubmitting(true);
     setErr('');
     setInfo('');
+    setPendingAuthPayload(null);
+    setSignupChallengeToken('');
+    setMfaSetup(null);
+    setBackupCodes([]);
     try {
       await api.post('/auth/signup/request', {
         companyName,
@@ -260,7 +264,7 @@ export function SignupPage() {
             },
             onSuccess: async (response) => {
               const completeRes = await api.post('/auth/signup/complete-paid', {
-                email,
+                token: verifyData.signupToken,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
@@ -270,8 +274,7 @@ export function SignupPage() {
                 goToMethodSelection(completeData.challengeToken);
                 return;
               }
-              setPendingAuthPayload(completeRes.data);
-              setStep('complete');
+              setErr('Payment was verified, but signup could not continue to MFA setup. Please try again.');
             },
             onDismiss: () => {
               toast.message('Payment cancelled. Your account was not created.');
@@ -294,8 +297,7 @@ export function SignupPage() {
         return;
       }
 
-      setPendingAuthPayload(verifyRes.data);
-      setStep('complete');
+      setErr('Email was verified, but signup could not continue to MFA setup. Please try again.');
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Verification failed.'));
     } finally {
@@ -329,10 +331,27 @@ export function SignupPage() {
       });
       const payload = (res.data?.data ?? res.data) as MfaVerifyPayload;
       setBackupCodes(payload.backupCodes);
-      setPendingAuthPayload(res.data);
       setStep('backup');
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Could not verify your authenticator code.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function completeSignup() {
+    if (isSubmitting || !signupChallengeToken) return;
+    setIsSubmitting(true);
+    setErr('');
+    setInfo('');
+    try {
+      const res = await api.post('/auth/signup/finalize', {
+        token: signupChallengeToken,
+      });
+      setPendingAuthPayload(res.data);
+      setStep('complete');
+    } catch (error) {
+      setErr(getApiErrorMessage(error, 'Could not finish account creation.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -798,8 +817,13 @@ export function SignupPage() {
             {step === 'backup' ? (
               <div className="space-y-5">
                 <BackupCodesCard codes={backupCodes} />
-                <Button className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700" type="button" onClick={() => setStep('complete')}>
-                  I have saved my backup codes
+                <Button
+                  className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                  type="button"
+                  onClick={() => void completeSignup()}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Creating your account...' : 'I have saved my backup codes'}
                 </Button>
               </div>
             ) : null}

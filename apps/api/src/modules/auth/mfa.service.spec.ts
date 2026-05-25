@@ -53,6 +53,10 @@ function makePrisma() {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    signupVerification: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     trustedMfaDevice: {
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -73,6 +77,10 @@ function makePrisma() {
     authChallenge: {
       updateMany: Mock;
       create: Mock;
+      findFirst: Mock;
+      update: Mock;
+    };
+    signupVerification: {
       findFirst: Mock;
       update: Mock;
     };
@@ -113,46 +121,44 @@ describe('MfaService', () => {
     (verifySync as Mock).mockReturnValue({ valid: true, delta: 0 });
   });
 
-  it('creates a signup enrollment challenge and starts enrollment with encrypted storage', async () => {
+  it('starts staged signup enrollment with encrypted secret storage', async () => {
     const prisma = makePrisma();
     const auth = makeAuth();
     const svc = new MfaService(prisma as never, makeConfig(), auth as never);
 
-    prisma.authChallenge.create.mockResolvedValue({
-      id: 'challenge-1',
-      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
-    });
-    const challenge = await svc.createSignupEnrollmentChallenge('user-1', 'owner@example.com');
-
-    prisma.authChallenge.findFirst.mockResolvedValue({
-      id: 'challenge-1',
-      userId: 'user-1',
-      purpose: 'SIGNUP_MFA_ENROLL',
-      tokenHash: 'hash',
+    prisma.signupVerification.findFirst.mockResolvedValue({
+      id: 'signup-1',
+      email: 'owner@example.com',
+      payload: {
+        plan: 'trial',
+        billing: 'monthly',
+        otpVerifiedAt: '2026-05-25T10:00:00.000Z',
+      },
+      sessionTokenHash: 'hash',
       totpSecretEncrypted: null,
       attemptCount: 0,
-      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
       consumedAt: null,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
       createdAt: new Date('2026-05-25T10:00:00.000Z'),
-      user: { id: 'user-1', email: 'owner@example.com', isActive: true },
     });
 
-    const start = await svc.startEnrollment(challenge.challengeToken);
+    const start = await svc.startEnrollment('signup-token');
 
     expect(start.manualCode).toBe('JBSWY3DPEHPK3PXP');
     expect(start.qrCodeDataUrl).toContain('data:image/png');
-    expect(prisma.authChallenge.update).toHaveBeenCalledWith(
+    expect(prisma.signupVerification.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           totpSecretEncrypted: expect.any(String),
         }),
       }),
     );
-    const storedSecret = prisma.authChallenge.update.mock.calls[0][0].data.totpSecretEncrypted as string;
+    const storedSecret = prisma.signupVerification.update.mock.calls[0][0].data
+      .totpSecretEncrypted as string;
     expect(storedSecret).not.toBe('JBSWY3DPEHPK3PXP');
   });
 
-  it('verifies enrollment, stores backup codes as hashes, and returns a real session', async () => {
+  it('verifies staged enrollment and stores backup codes in the pending signup payload', async () => {
     const prisma = makePrisma();
     const auth = makeAuth();
     const svc = new MfaService(prisma as never, makeConfig({ MFA_BACKUP_CODE_COUNT: 4 }), auth as never);
@@ -160,42 +166,36 @@ describe('MfaService', () => {
       'JBSWY3DPEHPK3PXP',
     );
 
-    prisma.authChallenge.findFirst.mockResolvedValue({
-      id: 'challenge-2',
-      userId: 'user-1',
-      purpose: 'SIGNUP_MFA_ENROLL',
-      tokenHash: 'hash',
+    prisma.signupVerification.findFirst.mockResolvedValue({
+      id: 'signup-2',
+      email: 'owner@example.com',
+      payload: {
+        plan: 'trial',
+        billing: 'monthly',
+        otpVerifiedAt: '2026-05-25T10:00:00.000Z',
+      },
+      sessionTokenHash: 'hash',
       totpSecretEncrypted: encrypted,
       attemptCount: 0,
       expiresAt: new Date('2026-05-25T10:15:00.000Z'),
       consumedAt: null,
       createdAt: new Date('2026-05-25T10:00:00.000Z'),
-      user: { id: 'user-1', email: 'owner@example.com', isActive: true },
     });
 
     const result = await svc.verifyEnrollment({ token: 'challenge-token', code: '123456' });
 
-    expect(result.accessToken).toBe('access-token');
     expect(result.backupCodes).toHaveLength(4);
-    expect(prisma.__tx.user.update).toHaveBeenCalledWith(
+    expect(prisma.signupVerification.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          mfaEnabled: true,
-          mfaSecretEncrypted: encrypted,
+          payload: expect.objectContaining({
+            mfaMethod: 'totp',
+            backupCodeHashes: expect.arrayContaining([expect.stringContaining('hash:')]),
+          }),
         }),
       }),
     );
-    expect(prisma.__tx.userBackupCode.createMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            userId: 'user-1',
-            codeHash: expect.stringContaining('hash:'),
-          }),
-        ]),
-      }),
-    );
-    expect(auth.issueSessionForUser).toHaveBeenCalledWith('user-1', {});
+    expect(auth.issueSessionForUser).not.toHaveBeenCalled();
   });
 
   it('accepts a backup code once and consumes it during login verification', async () => {
@@ -294,31 +294,42 @@ describe('MfaService', () => {
     const auth = makeAuth();
     const svc = new MfaService(prisma as never, makeConfig(), auth as never);
 
-    prisma.authChallenge.findFirst.mockResolvedValue({
-      id: 'challenge-restart',
-      userId: 'user-1',
-      purpose: 'SIGNUP_MFA_ENROLL',
-      tokenHash: 'hash',
+    prisma.signupVerification.findFirst.mockResolvedValue({
+      id: 'signup-restart',
+      email: 'owner@example.com',
+      payload: {
+        plan: 'trial',
+        billing: 'monthly',
+        otpVerifiedAt: '2026-05-25T10:00:00.000Z',
+        mfaMethod: 'totp',
+        mfaVerifiedAt: '2026-05-25T10:05:00.000Z',
+        backupCodeHashes: ['hash:AAAA'],
+      },
+      sessionTokenHash: 'hash',
       totpSecretEncrypted: null,
       attemptCount: 5,
       expiresAt: new Date('2026-05-25T10:15:00.000Z'),
-      consumedAt: new Date('2026-05-25T10:10:00.000Z'),
+      consumedAt: null,
       createdAt: new Date('2026-05-25T10:00:00.000Z'),
-      user: {
-        id: 'user-1',
-        email: 'owner@example.com',
-        isActive: true,
-        mfaEnabled: false,
-      },
-    });
-    prisma.authChallenge.create.mockResolvedValue({
-      id: 'challenge-new',
-      expiresAt: new Date('2026-05-25T10:30:00.000Z'),
     });
 
     const result = await svc.restartEnrollment('old-token');
 
-    expect(prisma.authChallenge.updateMany).toHaveBeenCalled();
+    expect(prisma.signupVerification.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'signup-restart' },
+        data: expect.objectContaining({
+          sessionTokenHash: expect.any(String),
+          totpSecretEncrypted: null,
+          attemptCount: 0,
+          payload: expect.objectContaining({
+            mfaMethod: undefined,
+            mfaVerifiedAt: undefined,
+            backupCodeHashes: undefined,
+          }),
+        }),
+      }),
+    );
     expect(result).toEqual(
       expect.objectContaining({
         mfaSetupRequired: true,

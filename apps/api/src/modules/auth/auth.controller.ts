@@ -37,6 +37,7 @@ import { SignupRequestDto } from './dto/signup-request.dto';
 import { SignupResendDto } from './dto/signup-resend.dto';
 import { SignupVerifyDto } from './dto/signup-verify.dto';
 import { SignupCompletePaidDto } from './dto/signup-complete-paid.dto';
+import { SignupFinalizeDto } from './dto/signup-finalize.dto';
 import { MobileLogoutDto } from './dto/mobile-logout.dto';
 import { MobileRefreshDto } from './dto/mobile-refresh.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -183,7 +184,7 @@ export class AuthController {
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('signup/verify')
   @ApiOperation({
-    summary: 'Verify signup OTP (trial creates workspace; paid plans require payment next)',
+    summary: 'Verify signup OTP and open a staged signup session',
   })
   async signupVerify(
     @Req() req: Request,
@@ -195,12 +196,26 @@ export class AuthController {
   @Public()
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('signup/complete-paid')
-  @ApiOperation({ summary: 'Create organisation after paid signup (post OTP + Razorpay payment)' })
+  @ApiOperation({ summary: 'Verify paid signup payment and continue to MFA without creating the account yet' })
   async signupCompletePaid(
     @Req() req: Request,
     @Body() dto: SignupCompletePaidDto,
   ) {
     return this.signup.completePaidSignup(dto, this.loginCtx(req));
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('signup/finalize')
+  @ApiOperation({ summary: 'Create the organisation and admin account only after signup MFA is complete' })
+  async signupFinalize(
+    @Req() req: Request,
+    @Body() dto: SignupFinalizeDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.signup.finalizeSignup(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
   }
 
   @Public()
@@ -244,15 +259,9 @@ export class AuthController {
   @Public()
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('mfa/enroll/verify')
-  @ApiOperation({ summary: 'Verify TOTP enrollment, create backup codes, and sign in' })
-  async mfaEnrollVerify(
-    @Req() req: Request,
-    @Body() dto: MfaEnrollVerifyDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const result = await this.mfa.verifyEnrollment(dto, this.loginCtx(req));
-    this.writeAuthCookies(res, result.refreshCookieValue);
-    return { accessToken: result.accessToken, user: result.user, backupCodes: result.backupCodes };
+  @ApiOperation({ summary: 'Verify TOTP enrollment and generate staged signup backup codes' })
+  async mfaEnrollVerify(@Req() req: Request, @Body() dto: MfaEnrollVerifyDto) {
+    return this.mfa.verifyEnrollment(dto, this.loginCtx(req));
   }
 
   @Public()

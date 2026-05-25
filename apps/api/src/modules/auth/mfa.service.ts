@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthChallengePurpose, MfaMethod } from '@prisma/client';
+import { AuthChallengePurpose } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
@@ -14,8 +14,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
 import { MfaEnrollVerifyDto } from './dto/mfa-enroll-verify.dto';
 import { MfaLoginVerifyDto } from './dto/mfa-login-verify.dto';
+import type { SignupPendingPayload } from './signup.service';
 
 type ChallengeRecord = Awaited<ReturnType<MfaService['findValidChallenge']>>;
+type SignupSessionRecord = Awaited<ReturnType<MfaService['findValidSignupSession']>>;
 
 @Injectable()
 export class MfaService {
@@ -46,6 +48,10 @@ export class MfaService {
   private trustedDeviceTtlMs() {
     const days = Number(this.config.get('MFA_TRUSTED_DEVICE_DAYS') ?? 7);
     return Math.max(1, days) * 24 * 60 * 60 * 1000;
+  }
+
+  private signupSessionTtlMs() {
+    return 60 * 60 * 1000;
   }
 
   private attemptsRemaining(attemptCount: number) {
@@ -141,19 +147,23 @@ export class MfaService {
     return challenge;
   }
 
-  private async findRestartableSignupChallenge(token: string) {
-    const challenge = await this.prisma.authChallenge.findFirst({
+  private async findValidSignupSession(token: string) {
+    const pending = await this.prisma.signupVerification.findFirst({
       where: {
-        purpose: AuthChallengePurpose.SIGNUP_MFA_ENROLL,
-        tokenHash: this.hashToken(token),
+        sessionTokenHash: this.hashToken(token),
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
       },
-      include: { user: true },
       orderBy: { createdAt: 'desc' },
     });
-    if (!challenge || !challenge.user?.isActive || challenge.user.mfaEnabled) {
-      throw new BadRequestException('MFA setup can no longer be restarted for this account.');
+    if (!pending) {
+      throw new BadRequestException('MFA setup session is invalid or expired.');
     }
-    return challenge;
+    const payload = pending.payload as SignupPendingPayload;
+    if (!payload.otpVerifiedAt) {
+      throw new BadRequestException('Email verification must be completed before MFA setup.');
+    }
+    return { pending, payload };
   }
 
   private async failChallenge(challenge: ChallengeRecord) {
@@ -171,6 +181,16 @@ export class MfaService {
       lockedUntil = await this.auth.lockAccountForMfa(challenge.userId);
     }
     return { remainingAttempts, lockedUntil };
+  }
+
+  private async failSignupSession(session: SignupSessionRecord) {
+    const nextCount = session.pending.attemptCount + 1;
+    const remainingAttempts = this.attemptsRemaining(nextCount);
+    await this.prisma.signupVerification.update({
+      where: { id: session.pending.id },
+      data: { attemptCount: { increment: 1 } },
+    });
+    return { remainingAttempts };
   }
 
   async verifyTrustedDevice(userId: string, rawToken: string | null | undefined, ctx: LoginContext = {}) {
@@ -207,23 +227,32 @@ export class MfaService {
   }
 
   async restartEnrollment(token: string, ctx: LoginContext = {}) {
-    const challenge = await this.findRestartableSignupChallenge(token);
-    await this.consumePreviousChallenges(challenge.userId, AuthChallengePurpose.SIGNUP_MFA_ENROLL);
-    return this.createSignupEnrollmentChallenge(challenge.userId, challenge.user.email, ctx);
-  }
+    void ctx;
+    const { pending, payload } = await this.findValidSignupSession(token);
+    const rawToken = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + this.signupSessionTtlMs());
 
-  async createSignupEnrollmentChallenge(userId: string, email: string, ctx: LoginContext = {}) {
-    await this.consumePreviousChallenges(userId, AuthChallengePurpose.SIGNUP_MFA_ENROLL);
-    const { rawToken, challenge } = await this.createChallenge(
-      userId,
-      AuthChallengePurpose.SIGNUP_MFA_ENROLL,
-      ctx,
-    );
+    await this.prisma.signupVerification.update({
+      where: { id: pending.id },
+      data: {
+        sessionTokenHash: this.hashToken(rawToken),
+        totpSecretEncrypted: null,
+        attemptCount: 0,
+        expiresAt,
+        payload: {
+          ...payload,
+          mfaMethod: undefined,
+          mfaVerifiedAt: undefined,
+          backupCodeHashes: undefined,
+        },
+      },
+    });
+
     return {
       mfaSetupRequired: true as const,
       challengeToken: rawToken,
-      email,
-      expiresAt: challenge.expiresAt.toISOString(),
+      email: pending.email,
+      expiresAt: expiresAt.toISOString(),
     };
   }
 
@@ -246,16 +275,27 @@ export class MfaService {
   }
 
   async startEnrollment(token: string) {
-    const challenge = await this.findValidChallenge(token, AuthChallengePurpose.SIGNUP_MFA_ENROLL);
+    const session = await this.findValidSignupSession(token);
 
-    let secret = challenge.totpSecretEncrypted
-      ? this.decryptSecret(challenge.totpSecretEncrypted)
+    if (
+      (session.payload.plan === 'pro' || session.payload.plan === 'plus') &&
+      !session.payload.paymentVerifiedAt
+    ) {
+      throw new BadRequestException('Complete payment before starting authenticator setup.');
+    }
+
+    if (session.pending.attemptCount >= this.loginMaxAttempts()) {
+      throw new BadRequestException('Too many authenticator verification attempts. Restart setup to continue.');
+    }
+
+    let secret = session.pending.totpSecretEncrypted
+      ? this.decryptSecret(session.pending.totpSecretEncrypted)
       : null;
 
     if (!secret) {
       secret = generateSecret();
-      await this.prisma.authChallenge.update({
-        where: { id: challenge.id },
+      await this.prisma.signupVerification.update({
+        where: { id: session.pending.id },
         data: {
           totpSecretEncrypted: this.encryptSecret(secret),
         },
@@ -266,7 +306,7 @@ export class MfaService {
 
     const otpAuthUrl = generateURI({
       issuer: 'Retail IMS',
-      label: challenge.user.email,
+      label: session.pending.email,
       secret: resolvedSecret,
       period: 30,
     });
@@ -276,21 +316,19 @@ export class MfaService {
     });
 
     return {
-      email: challenge.user.email,
+      email: session.pending.email,
       manualCode: resolvedSecret,
       qrCodeDataUrl,
       otpAuthUrl,
-      attemptsRemaining: this.attemptsRemaining(challenge.attemptCount),
-      expiresAt: challenge.expiresAt.toISOString(),
+      attemptsRemaining: this.attemptsRemaining(session.pending.attemptCount),
+      expiresAt: session.pending.expiresAt.toISOString(),
     };
   }
 
   async verifyEnrollment(dto: MfaEnrollVerifyDto, ctx: LoginContext = {}) {
-    const challenge = await this.findValidChallenge(
-      dto.token,
-      AuthChallengePurpose.SIGNUP_MFA_ENROLL,
-    );
-    const secretEncrypted = challenge.totpSecretEncrypted;
+    void ctx;
+    const session = await this.findValidSignupSession(dto.token);
+    const secretEncrypted = session.pending.totpSecretEncrypted;
     if (!secretEncrypted) {
       throw new BadRequestException('Start MFA enrollment before verifying the code.');
     }
@@ -303,7 +341,7 @@ export class MfaService {
       epochTolerance: 30,
     });
     if (!verification.valid) {
-      const failure = await this.failChallenge(challenge);
+      const failure = await this.failSignupSession(session);
       if (failure.remainingAttempts === 0) {
         throw new BadRequestException(
           'Too many authenticator verification attempts. Restart setup to continue.',
@@ -315,38 +353,26 @@ export class MfaService {
     }
 
     const backupCodes = this.generateBackupCodes();
-    const backupCodeRows = await Promise.all(
-      backupCodes.map(async (code) => ({
-        userId: challenge.userId,
-        codeHash: await bcrypt.hash(this.normalizeBackupCode(code), this.bcryptRounds()),
-      })),
+    const backupCodeHashes = await Promise.all(
+      backupCodes.map((code) =>
+        bcrypt.hash(this.normalizeBackupCode(code), this.bcryptRounds()),
+      ),
     );
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: challenge.userId },
-        data: {
-          mfaEnabled: true,
-          mfaMethod: MfaMethod.TOTP,
-          mfaEnrolledAt: new Date(),
-          mfaSecretEncrypted: secretEncrypted,
+    await this.prisma.signupVerification.update({
+      where: { id: session.pending.id },
+      data: {
+        attemptCount: 0,
+        payload: {
+          ...session.payload,
+          mfaMethod: 'totp',
+          mfaVerifiedAt: new Date().toISOString(),
+          backupCodeHashes,
         },
-      });
-      await tx.userBackupCode.deleteMany({
-        where: { userId: challenge.userId },
-      });
-      await tx.userBackupCode.createMany({
-        data: backupCodeRows,
-      });
-      await tx.authChallenge.update({
-        where: { id: challenge.id },
-        data: { consumedAt: new Date() },
-      });
+      },
     });
 
-    const authResult = await this.auth.issueSessionForUser(challenge.userId, ctx);
     return {
-      ...authResult,
       backupCodes,
     };
   }

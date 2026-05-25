@@ -47,6 +47,7 @@ describe('AuthController login MFA flow', () => {
       resendOtp: jest.fn(),
       verifySignup: jest.fn(),
       completePaidSignup: jest.fn(),
+      finalizeSignup: jest.fn(),
     };
     const invite = {
       preview: jest.fn(),
@@ -139,6 +140,7 @@ describe('AuthController login MFA flow', () => {
       resendOtp: jest.fn(),
       verifySignup: jest.fn(),
       completePaidSignup: jest.fn(),
+      finalizeSignup: jest.fn(),
     };
     const invite = {
       preview: jest.fn(),
