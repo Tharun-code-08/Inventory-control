@@ -640,7 +640,7 @@ export function ProductsPage() {
     existingShopId: string | null;
   } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [importDryRun, setImportDryRun] = useState(true);
+  const [importDryRun, setImportDryRun] = useState(false);
   const [lastImportFailures, setLastImportFailures] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1373,6 +1373,11 @@ export function ProductsPage() {
     }
   };
 
+  const openImportPicker = (dryRun: boolean) => {
+    setImportDryRun(dryRun);
+    importInputRef.current?.click();
+  };
+
   return (
     <AppLayout active="Products">
       <div className="space-y-6">
@@ -1400,10 +1405,19 @@ export function ProductsPage() {
             type="button"
             variant="outline"
             disabled={isImporting}
-            onClick={() => importInputRef.current?.click()}
+            onClick={() => openImportPicker(true)}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {isImporting ? 'Uploading…' : 'Upload'}
+            {isImporting && importDryRun ? 'Validating…' : 'Validate file'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isImporting}
+            onClick={() => openImportPicker(false)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isImporting && !importDryRun ? 'Uploading…' : 'Upload'}
           </Button>
           <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
