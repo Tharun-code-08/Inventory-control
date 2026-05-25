@@ -2,7 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { buildSupplierDeleteConfirmUrl, buildSupplierPortalSubmitUrl } from './portal-url';
+import {
+  buildPasswordResetUrl,
+  buildSupplierDeleteConfirmUrl,
+  buildSupplierPortalSubmitUrl,
+} from './portal-url';
 import {
   supplierDeletionHtml,
   supplierDeletionSubject,
@@ -38,6 +42,18 @@ import {
   returnNoticeText,
   type ReturnNoticeEmailContent,
 } from './return-notice.template';
+import {
+  passwordResetLinkHtml,
+  passwordResetLinkSubject,
+  passwordResetLinkText,
+  type PasswordResetLinkEmailContent,
+} from './password-reset-link.template';
+import {
+  passwordResetOtpHtml,
+  passwordResetOtpSubject,
+  passwordResetOtpText,
+  type PasswordResetOtpEmailContent,
+} from './password-reset-otp.template';
 
 export type RfqInviteRecipient = {
   supplierId: string;
@@ -501,6 +517,62 @@ export class MailService implements OnModuleInit {
       subject: signupOtpSubject(args.companyName),
       text: signupOtpText(content),
       html: signupOtpHtml(content),
+      fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendPasswordResetOtp(args: {
+    to: string;
+    userName: string;
+    otpCode: string;
+    expiresMinutes: number;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+
+    const content: PasswordResetOtpEmailContent = {
+      userName: args.userName,
+      email: args.to,
+      otpCode: args.otpCode,
+      expiresMinutes: args.expiresMinutes,
+    };
+
+    return this.sendMail({
+      to: args.to,
+      subject: passwordResetOtpSubject(),
+      text: passwordResetOtpText(content),
+      html: passwordResetOtpHtml(content),
+      fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendPasswordResetLink(args: {
+    to: string;
+    userName: string;
+    token: string;
+    expiresMinutes: number;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+
+    const content: PasswordResetLinkEmailContent = {
+      userName: args.userName,
+      email: args.to,
+      resetUrl: buildPasswordResetUrl(this.config, args.token),
+      expiresMinutes: args.expiresMinutes,
+    };
+
+    return this.sendMail({
+      to: args.to,
+      subject: passwordResetLinkSubject(),
+      text: passwordResetLinkText(content),
+      html: passwordResetLinkHtml(content),
       fromName: 'Softdigit Consulting',
     });
   }

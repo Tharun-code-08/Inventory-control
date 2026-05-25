@@ -10,6 +10,11 @@ import { TrialFeatureGate } from '@/components/TrialFeatureGate';
 const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
 const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
 const SignupPage = lazyPage(() => import('@/pages/SignupPage'), 'SignupPage');
+const ForgotPasswordPage = lazyPage(
+  () => import('@/pages/ForgotPasswordPage'),
+  'ForgotPasswordPage',
+);
+const ResetPasswordPage = lazyPage(() => import('@/pages/ResetPasswordPage'), 'ResetPasswordPage');
 const DashboardPage = lazyPage(() => import('@/pages/DashboardPage'), 'DashboardPage');
 const ProductsPage = lazyPage(() => import('@/pages/ProductsPage'), 'ProductsPage');
 const GoodsReceiptPage = lazyPage(() => import('@/pages/GoodsReceiptPage'), 'GoodsReceiptPage');
@@ -114,6 +119,8 @@ export function AppRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/supplier-portal/submit" element={<SupplierPortalSubmitPage />} />
           <Route path="/quotation-portal/review" element={<QuotationPortalPage />} />
           <Route path="/returns/acknowledge" element={<ReturnAcknowledgementPage />} />

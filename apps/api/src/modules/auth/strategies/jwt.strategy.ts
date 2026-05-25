@@ -5,7 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../../common/types/request-user';
 
-type JwtPayload = { sub: string };
+type JwtPayload = { sub: string; pwd?: string };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -26,6 +26,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       include: { role: true, shop: { select: { companyId: true } } },
     });
     if (!user || !user.isActive) {
+      throw new UnauthorizedException();
+    }
+
+    const currentPasswordVersion = user.passwordChangedAt?.toISOString() ?? null;
+    const tokenPasswordVersion = typeof payload.pwd === 'string' ? payload.pwd : null;
+    if (currentPasswordVersion !== tokenPasswordVersion) {
       throw new UnauthorizedException();
     }
 

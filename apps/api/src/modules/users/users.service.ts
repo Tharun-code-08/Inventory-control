@@ -344,21 +344,34 @@ export class UsersService {
       if (exists) throw new ConflictException('Email already in use');
     }
 
-    const passwordHash = dto.password
-      ? await bcrypt.hash(dto.password, this.bcryptRounds())
-      : undefined;
+    const passwordHash = dto.password ? await bcrypt.hash(dto.password, this.bcryptRounds()) : undefined;
+    const passwordChangedAt = dto.password ? new Date() : undefined;
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        name: dto.name?.trim(),
-        email: dto.email ? dto.email.toLowerCase().trim() : undefined,
-        passwordHash,
-        roleId: resolvedRoleId,
-        shopId: dto.shopId === null ? null : dto.shopId,
-        isActive: dto.isActive,
-      },
-      include: { role: true, shop: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const nextUser = await tx.user.update({
+        where: { id },
+        data: {
+          name: dto.name?.trim(),
+          email: dto.email ? dto.email.toLowerCase().trim() : undefined,
+          passwordHash,
+          passwordChangedAt,
+          roleId: resolvedRoleId,
+          shopId: dto.shopId === null ? null : dto.shopId,
+          isActive: dto.isActive,
+          failedLoginCount: dto.password ? 0 : undefined,
+          lockedUntil: dto.password ? null : undefined,
+        },
+        include: { role: true, shop: true },
+      });
+
+      if (dto.password) {
+        await tx.session.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: passwordChangedAt ?? new Date() },
+        });
+      }
+
+      return nextUser;
     });
 
     await this.audit.log({

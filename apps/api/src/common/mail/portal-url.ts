@@ -39,3 +39,8 @@ export function buildUserInviteAcceptUrl(config: ConfigService, token: string): 
   const origin = resolvePublicWebOrigin(config);
   return `${origin}/invite/accept?token=${encodeURIComponent(token)}`;
 }
+
+export function buildPasswordResetUrl(config: ConfigService, token: string): string {
+  const origin = resolvePublicWebOrigin(config);
+  return `${origin}/reset-password?token=${encodeURIComponent(token)}`;
+}

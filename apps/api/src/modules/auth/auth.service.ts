@@ -16,12 +16,14 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 
 type RefreshPayload = { sub: string; sid: string; refreshId: string };
+type AccessPayload = { sub: string; email: string; role: string; pwd?: string };
 type SessionUserRecord = {
   id: string;
   name: string;
   email: string;
   avatarUrl: string | null;
   shopId: string | null;
+  passwordChangedAt?: Date | null;
   role: {
     name: string;
     permissions: unknown;
@@ -123,6 +125,26 @@ export class AuthService {
     return Number(n) * ms;
   }
 
+  private passwordVersion(passwordChangedAt?: Date | null): string | undefined {
+    return passwordChangedAt ? passwordChangedAt.toISOString() : undefined;
+  }
+
+  private async signAccessToken(args: {
+    userId: string;
+    email: string;
+    roleName: string;
+    passwordChangedAt?: Date | null;
+  }) {
+    const payload: AccessPayload = {
+      sub: args.userId,
+      email: args.email,
+      role: args.roleName,
+    };
+    const pwd = this.passwordVersion(args.passwordChangedAt);
+    if (pwd) payload.pwd = pwd;
+    return this.jwt.signAsync(payload);
+  }
+
   /**
    * Mint a new session row + signed refresh token. The refreshId is the
    * unguessable secret stored as a bcrypt hash on the row; the row id is
@@ -206,10 +228,11 @@ export class AuthService {
       });
     }
 
-    const accessToken = await this.jwt.signAsync({
-      sub: user.id,
+    const accessToken = await this.signAccessToken({
+      userId: user.id,
       email: user.email,
-      role: String(user.role.name),
+      roleName: String(user.role.name),
+      passwordChangedAt: user.passwordChangedAt,
     });
 
     const session = await this.issueSession(user.id, ctx);
@@ -290,10 +313,11 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token already used');
     }
 
-    const accessToken = await this.jwt.signAsync({
-      sub: user.id,
+    const accessToken = await this.signAccessToken({
+      userId: user.id,
       email: user.email,
-      role: String(user.role.name),
+      roleName: String(user.role.name),
+      passwordChangedAt: user.passwordChangedAt,
     });
     const newRefreshToken = await this.jwt.signAsync(
       { sub: user.id, sid: session.id, refreshId: newRefreshId } satisfies RefreshPayload,
@@ -441,16 +465,34 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('Current password is incorrect');
     }
-    const newHash = await bcrypt.hash(dto.newPassword, this.bcryptRounds());
+    await this.forceResetPassword(userId, dto.newPassword);
+    return { ok: true };
+  }
+
+  async forceResetPassword(userId: string, nextPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Account is not active');
+    }
+    const newHash = await bcrypt.hash(nextPassword, this.bcryptRounds());
+    const passwordChangedAt = new Date();
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: userId }, data: { passwordHash: newHash } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: newHash,
+          passwordChangedAt,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      }),
       // Revoke every active session so prior cookies cannot be replayed.
       this.prisma.session.updateMany({
         where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: passwordChangedAt },
       }),
     ]);
-    return { ok: true };
+    return { ok: true, passwordChangedAt };
   }
 
   /** Issue tokens after signup verification (same shape as login). */
@@ -463,10 +505,11 @@ export class AuthService {
       throw new UnauthorizedException('Account is not active');
     }
 
-    const accessToken = await this.jwt.signAsync({
-      sub: user.id,
+    const accessToken = await this.signAccessToken({
+      userId: user.id,
       email: user.email,
-      role: String(user.role.name),
+      roleName: String(user.role.name),
+      passwordChangedAt: user.passwordChangedAt,
     });
 
     const session = await this.issueSession(user.id, ctx);

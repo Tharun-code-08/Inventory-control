@@ -192,6 +192,11 @@ export function LoginPage() {
                 </button>
               </div>
             </div>
+            <div className="flex justify-end">
+              <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             {err && (
               <div className="space-y-1 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 <div className="font-medium">{err}</div>

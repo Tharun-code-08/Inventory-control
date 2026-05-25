@@ -29,6 +29,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { avatarMulterOptions } from '../../common/upload/avatar-multer.options';
 import { AuthService } from './auth.service';
 import { InviteService } from './invite.service';
+import { PasswordResetService } from './password-reset.service';
 import { SignupService } from './signup.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupRequestDto } from './dto/signup-request.dto';
@@ -42,6 +43,10 @@ import { UpdatePasswordDto } from './dto/update-password.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { InviteTokenDto } from './dto/invite-token.dto';
 import { InviteAcceptDto } from './dto/invite-accept.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { PasswordResetLinkTokenDto } from './dto/password-reset-link-token.dto';
+import { CompletePasswordResetLinkDto } from './dto/complete-password-reset-link.dto';
+import { CompletePasswordResetOtpDto } from './dto/complete-password-reset-otp.dto';
 
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
@@ -52,6 +57,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly signup: SignupService,
     private readonly invite: InviteService,
+    private readonly passwordReset: PasswordResetService,
     private readonly config: ConfigService,
   ) {}
 
@@ -183,6 +189,50 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.invite.accept(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
+  @Post('password-reset/request')
+  @ApiOperation({ summary: 'Start forgot-password flow with email OTP or magic link' })
+  async passwordResetRequest(@Req() req: Request, @Body() dto: RequestPasswordResetDto) {
+    return this.passwordReset.requestReset(dto, this.loginCtx(req));
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Get('password-reset/link')
+  @ApiOperation({ summary: 'Preview magic-link password reset' })
+  async passwordResetLinkPreview(@Query() query: PasswordResetLinkTokenDto) {
+    return this.passwordReset.previewMagicLink(query.token);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('password-reset/link/complete')
+  @ApiOperation({ summary: 'Complete password reset using a magic link and sign in' })
+  async passwordResetLinkComplete(
+    @Req() req: Request,
+    @Body() dto: CompletePasswordResetLinkDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.passwordReset.completeMagicLink(dto, this.loginCtx(req));
+    this.writeAuthCookies(res, result.refreshCookieValue);
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60_000, limit: 10 } })
+  @Post('password-reset/otp/complete')
+  @ApiOperation({ summary: 'Complete password reset using an OTP and sign in' })
+  async passwordResetOtpComplete(
+    @Req() req: Request,
+    @Body() dto: CompletePasswordResetOtpDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.passwordReset.completeOtp(dto, this.loginCtx(req));
     this.writeAuthCookies(res, result.refreshCookieValue);
     return { accessToken: result.accessToken, user: result.user };
   }

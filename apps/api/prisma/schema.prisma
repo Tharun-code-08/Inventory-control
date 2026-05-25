@@ -100,6 +100,11 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum PasswordResetMethod {
+  OTP
+  MAGIC_LINK
+}
+
 model Company {
   id                 String             @id @default(uuid()) @db.Uuid
   companyCode        String             @unique @map("company_code")
@@ -262,6 +267,30 @@ model UserInvitation {
   @@map("user_invitations")
 }
 
+model PasswordResetRequest {
+  id               String              @id @default(uuid()) @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  email            String
+  method           PasswordResetMethod
+  otpHash          String?             @map("otp_hash")
+  linkTokenHash    String?             @map("link_token_hash")
+  attemptCount     Int                 @default(0) @map("attempt_count")
+  expiresAt        DateTime            @map("expires_at") @db.Timestamptz(6)
+  consumedAt       DateTime?           @map("consumed_at") @db.Timestamptz(6)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSentAt       DateTime?           @map("last_sent_at") @db.Timestamptz(6)
+  requestedIp      String?             @map("requested_ip")
+  requestedUserAgent String?           @map("requested_user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([linkTokenHash])
+  @@index([expiresAt])
+  @@map("password_reset_requests")
+}
+
 model User {
   id               String    @id @default(uuid()) @db.Uuid
   name             String
@@ -273,6 +302,7 @@ model User {
   isActive         Boolean   @default(true) @map("is_active")
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
   lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(6)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(6)
   refreshTokenHash String?   @map("refresh_token_hash")
   failedLoginCount Int       @default(0) @map("failed_login_count")
   lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(6)
@@ -287,6 +317,7 @@ model User {
 
   auditLogs AuditLog[]
   sessions  Session[]
+  passwordResetRequests PasswordResetRequest[]
 
   @@index([deletedAt])
   @@map("users")
