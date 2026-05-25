@@ -359,4 +359,76 @@ describe('SignupService staged signup flow', () => {
       }),
     );
   });
+
+  it('allows final signup completion with MFA skipped for now', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new SignupService(
+      prisma as never,
+      makeConfig(),
+      makeMail() as never,
+      auth as never,
+      makeRazorpay() as never,
+    );
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.role.findFirst.mockResolvedValue({ id: 'role-owner', name: 'OWNER' });
+    prisma.company.findUnique.mockResolvedValue(null);
+    prisma.shop.findUnique.mockResolvedValue(null);
+    prisma.signupVerification.findFirst.mockResolvedValue({
+      id: 'pending-skip',
+      email: 'owner@example.com',
+      payload: {
+        companyName: 'Acme Retail',
+        plantName: 'Head Office',
+        plantAddress: 'Mumbai',
+        contactPerson: 'Priya',
+        mobile: '+919876543210',
+        adminName: 'Priya',
+        passwordHash: 'hash:SecurePass123!',
+        plan: 'trial',
+        billing: 'monthly',
+        otpVerifiedAt: '2099-05-25T10:00:00.000Z',
+      },
+      otpHash: 'hash:654321',
+      sessionTokenHash: 'hash:token',
+      totpSecretEncrypted: null,
+      attemptCount: 0,
+      expiresAt: new Date('2099-05-25T11:00:00.000Z'),
+      consumedAt: null,
+      createdAt: new Date('2099-05-25T10:00:00.000Z'),
+    });
+
+    prisma.__tx.user.findUnique.mockResolvedValue(null);
+    prisma.__tx.company.create.mockResolvedValue({ id: 'company-1' });
+    prisma.__tx.shop.create.mockResolvedValue({ id: 'shop-1' });
+    prisma.__tx.user.create.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@example.com',
+      role: { id: 'role-owner', name: 'OWNER' },
+      shop: { id: 'shop-1' },
+    });
+
+    const result = await svc.finalizeSignup({ token: 'signup-token', skipMfa: true }, {});
+
+    expect(prisma.__tx.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'owner@example.com',
+          mfaEnabled: false,
+          mfaMethod: null,
+          mfaEnrolledAt: null,
+          mfaSecretEncrypted: null,
+        }),
+      }),
+    );
+    expect(prisma.__tx.userBackupCode.createMany).not.toHaveBeenCalled();
+    expect(auth.issueSessionForUser).toHaveBeenCalledWith('user-1', {});
+    expect(result).toEqual(
+      expect.objectContaining({
+        accessToken: 'access-token',
+        user: expect.objectContaining({ id: 'user-1' }),
+      }),
+    );
+  });
 });

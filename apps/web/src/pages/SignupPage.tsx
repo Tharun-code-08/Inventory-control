@@ -108,6 +108,7 @@ export function SignupPage() {
   const [mfaSetup, setMfaSetup] = useState<MfaStartPayload | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [pendingAuthPayload, setPendingAuthPayload] = useState<unknown>(null);
+  const [mfaSkipped, setMfaSkipped] = useState(false);
 
   const steps = [
     { id: 'details', label: 'Account' },
@@ -157,7 +158,11 @@ export function SignupPage() {
     try {
       await loadMfaSetup(challengeToken);
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Could not start authenticator setup.');
+      const rawMessage = getApiErrorMessage(error, 'Could not start authenticator setup.');
+      const message =
+        /request failed with status code 500|unexpected/i.test(rawMessage)
+          ? 'Could not start authenticator setup. Make sure the API server and database are running, then try again.'
+          : rawMessage;
       const challengeExpired = /expired|invalid/i.test(message);
 
       if (allowAutoRefresh && challengeExpired) {
@@ -212,6 +217,7 @@ export function SignupPage() {
     setSignupChallengeToken('');
     setMfaSetup(null);
     setBackupCodes([]);
+    setMfaSkipped(false);
     try {
       await api.post('/auth/signup/request', {
         companyName,
@@ -330,6 +336,7 @@ export function SignupPage() {
         code: totpCode.trim(),
       });
       const payload = (res.data?.data ?? res.data) as MfaVerifyPayload;
+      setMfaSkipped(false);
       setBackupCodes(payload.backupCodes);
       setStep('backup');
     } catch (error) {
@@ -339,7 +346,7 @@ export function SignupPage() {
     }
   }
 
-  async function completeSignup() {
+  async function completeSignup(skipMfa = false) {
     if (isSubmitting || !signupChallengeToken) return;
     setIsSubmitting(true);
     setErr('');
@@ -347,7 +354,9 @@ export function SignupPage() {
     try {
       const res = await api.post('/auth/signup/finalize', {
         token: signupChallengeToken,
+        skipMfa,
       });
+      setMfaSkipped(skipMfa);
       setPendingAuthPayload(res.data);
       setStep('complete');
     } catch (error) {
@@ -374,13 +383,15 @@ export function SignupPage() {
     step === 'verify'
       ? 'Email verification confirms the admin account before we continue to MFA setup.'
       : step === 'method'
-        ? 'Choose how you want to protect this account. SMS is visible here, but TOTP is the only active option in this release.'
+        ? 'Choose how you want to protect this account. You can use an authenticator app now or skip MFA and set it up later.'
       : step === 'mfa'
         ? 'Scan the QR code in your authenticator app and confirm with a real TOTP code.'
         : step === 'backup'
           ? 'Backup codes keep you in control if you lose your authenticator device.'
           : step === 'complete'
-            ? 'Email verification, authenticator setup, and backup protection are all complete.'
+            ? mfaSkipped
+              ? 'Email verification is complete and your workspace is ready. You can enable MFA later.'
+              : 'Email verification, authenticator setup, and backup protection are all complete.'
             : 'Set up your company, admin account, and secure sign-in flow in one guided experience.';
 
   return (
@@ -419,10 +430,10 @@ export function SignupPage() {
                 Verified admin email before access
               </div>
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                Authenticator app required for sign-in
+                {mfaSkipped ? 'MFA can be enabled later in settings' : 'Authenticator app required for sign-in'}
               </div>
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                Backup codes generated and stored securely
+                {mfaSkipped ? 'Workspace can be entered without MFA for now' : 'Backup codes generated and stored securely'}
               </div>
             </div>
           </section>
@@ -739,6 +750,16 @@ export function SignupPage() {
                   </button>
                 </div>
 
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-full rounded-xl border-slate-300"
+                  onClick={() => void completeSignup(true)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Creating account without MFA...' : 'Skip MFA for now'}
+                </Button>
+
                 <button
                   type="button"
                   onClick={() => setStep('verify')}
@@ -811,6 +832,15 @@ export function SignupPage() {
                     Restart setup
                   </button>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-full rounded-xl border-slate-300"
+                  onClick={() => void completeSignup(true)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Creating account without MFA...' : 'Skip MFA for now'}
+                </Button>
               </form>
             ) : null}
 
@@ -836,7 +866,9 @@ export function SignupPage() {
                 <div>
                   <h3 className="text-3xl font-semibold text-slate-900">You are all set</h3>
                   <p className="mt-2 text-sm text-slate-500">
-                    Your account has email verification, authenticator MFA, and backup recovery codes.
+                    {mfaSkipped
+                      ? 'Your account is created with email verification, and you can enable authenticator MFA later.'
+                      : 'Your account has email verification, authenticator MFA, and backup recovery codes.'}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -844,10 +876,10 @@ export function SignupPage() {
                     Email verified
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                    Authenticator enabled
+                    {mfaSkipped ? 'MFA skipped for now' : 'Authenticator enabled'}
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                    Backup codes created
+                    {mfaSkipped ? 'Enable MFA later in settings' : 'Backup codes created'}
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
                     Workspace secured

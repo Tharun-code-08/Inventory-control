@@ -221,8 +221,16 @@ export class SignupService {
     email: string,
     pendingId: string,
     payload: SignupPendingPayload,
-    totpSecretEncrypted: string,
-    backupCodeHashes: string[],
+    mfa:
+      | {
+          enabled: true;
+          totpSecretEncrypted: string;
+          backupCodeHashes: string[];
+          enrolledAt: Date;
+        }
+      | {
+          enabled: false;
+        },
     subscription: {
       plan: SubscriptionPlan;
       billingCycle: BillingCycle | null;
@@ -281,7 +289,6 @@ export class SignupService {
         },
       });
 
-      const enrolledAt = payload.mfaVerifiedAt ? new Date(payload.mfaVerifiedAt) : new Date();
       const user = await tx.user.create({
         data: {
           name: payload.adminName,
@@ -290,20 +297,22 @@ export class SignupService {
           roleId: ownerRole.id,
           shopId: shop.id,
           isActive: true,
-          mfaEnabled: true,
-          mfaMethod: MfaMethod.TOTP,
-          mfaEnrolledAt: enrolledAt,
-          mfaSecretEncrypted: totpSecretEncrypted,
+          mfaEnabled: mfa.enabled,
+          mfaMethod: mfa.enabled ? MfaMethod.TOTP : null,
+          mfaEnrolledAt: mfa.enabled ? mfa.enrolledAt : null,
+          mfaSecretEncrypted: mfa.enabled ? mfa.totpSecretEncrypted : null,
         },
         include: { role: true, shop: true },
       });
 
-      await tx.userBackupCode.createMany({
-        data: backupCodeHashes.map((codeHash) => ({
-          userId: user.id,
-          codeHash,
-        })),
-      });
+      if (mfa.enabled && mfa.backupCodeHashes.length > 0) {
+        await tx.userBackupCode.createMany({
+          data: mfa.backupCodeHashes.map((codeHash) => ({
+            userId: user.id,
+            codeHash,
+          })),
+        });
+      }
 
       await tx.signupVerification.update({
         where: { id: pendingId },
@@ -619,18 +628,33 @@ export class SignupService {
     const { pending, payload, email } = await this.loadPendingByToken(dto.token);
     await this.assertEmailAvailable(email);
 
-    if (!payload.mfaVerifiedAt || payload.mfaMethod !== 'totp') {
-      throw new BadRequestException('Authenticator setup is incomplete. Finish MFA setup first.');
-    }
+    const skipMfa = dto.skipMfa === true;
+    const mfa =
+      skipMfa
+        ? ({ enabled: false } as const)
+        : (() => {
+            if (!payload.mfaVerifiedAt || payload.mfaMethod !== 'totp') {
+              throw new BadRequestException('Authenticator setup is incomplete. Finish MFA setup first.');
+            }
 
-    if (!pending.totpSecretEncrypted) {
-      throw new BadRequestException('Authenticator setup is incomplete. Restart MFA setup and try again.');
-    }
+            if (!pending.totpSecretEncrypted) {
+              throw new BadRequestException(
+                'Authenticator setup is incomplete. Restart MFA setup and try again.',
+              );
+            }
 
-    const backupCodeHashes = payload.backupCodeHashes ?? [];
-    if (backupCodeHashes.length === 0) {
-      throw new BadRequestException('Backup codes are missing. Verify authenticator setup again.');
-    }
+            const backupCodeHashes = payload.backupCodeHashes ?? [];
+            if (backupCodeHashes.length === 0) {
+              throw new BadRequestException('Backup codes are missing. Verify authenticator setup again.');
+            }
+
+            return {
+              enabled: true as const,
+              totpSecretEncrypted: pending.totpSecretEncrypted,
+              backupCodeHashes,
+              enrolledAt: new Date(payload.mfaVerifiedAt),
+            };
+          })();
 
     let subscription:
       | {
@@ -674,8 +698,7 @@ export class SignupService {
       email,
       pending.id,
       payload,
-      pending.totpSecretEncrypted,
-      backupCodeHashes,
+      mfa,
       subscription,
     );
 
