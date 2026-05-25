@@ -904,7 +904,7 @@ export class ReturnsService {
     const ret = await this.findSupplierReturnByToken(token);
     if (ret.status === ReturnStatus.DONE || ret.status === ReturnStatus.POSTED) {
       return {
-        message: 'This return notice has already been acknowledged.',
+        message: 'This return notice has already been acknowledged and stock has already been adjusted.',
         returnOrder: this.toSupplierReturnPortalView(ret),
       };
     }
@@ -935,7 +935,7 @@ export class ReturnsService {
           throw new NotFoundException('Supplier return not found');
         }
         return {
-          message: 'This return notice has already been acknowledged.',
+          message: 'This return notice has already been acknowledged and stock has already been adjusted.',
           returnOrder: this.toSupplierReturnPortalView(latest),
         };
       }
@@ -967,7 +967,7 @@ export class ReturnsService {
       );
 
       return {
-        message: 'Thank you. Your acknowledgement has been recorded.',
+        message: 'Thank you. Your acknowledgement has been recorded and stock has been adjusted.',
         returnOrder: this.toSupplierReturnPortalView(updated),
       };
     });

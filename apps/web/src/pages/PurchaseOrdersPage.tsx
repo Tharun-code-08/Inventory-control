@@ -1036,7 +1036,13 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                 {filteredPoList.map((po) => (
                   <TableRow key={po.id} className="hover:bg-slate-50/80">
                     <TableCell className="max-w-[200px] truncate font-medium font-mono text-[11px]">
-                      {po.poNumber}
+                      <button
+                        type="button"
+                        onClick={() => setDetailId(po.id)}
+                        className="truncate text-left text-indigo-600 hover:underline"
+                      >
+                        {po.poNumber}
+                      </button>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {new Date(po.poDate).toLocaleDateString()}

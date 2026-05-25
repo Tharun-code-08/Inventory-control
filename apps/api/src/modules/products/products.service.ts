@@ -7,6 +7,7 @@ import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
+import { BulkProductUpsertDto, BulkProductUpsertRowDto } from './dto/bulk-product-upsert.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
 import { ProductSpecificationDto } from './dto/product-specification.dto';
@@ -19,6 +20,20 @@ const PRODUCT_INCLUDE = {
   },
   specifications: { orderBy: [{ sortOrder: 'asc' }] },
 } satisfies Prisma.ProductInclude;
+
+type ProductRow = Prisma.ProductGetPayload<{ include: typeof PRODUCT_INCLUDE }>;
+
+type BulkUpsertRowStatus = 'created' | 'updated' | 'validated' | 'failed';
+
+type BulkUpsertRowResult = {
+  row: number;
+  status: BulkUpsertRowStatus;
+  action: 'create' | 'update';
+  productCode: string;
+  shopNumber: string;
+  message: string;
+  warnings: string[];
+};
 
 @Injectable()
 export class ProductsService {
@@ -76,6 +91,146 @@ export class ProductsService {
     };
   }
 
+  private serializeProduct(product: ProductRow) {
+    return {
+      ...product,
+      purchasePrice: Number(product.purchasePrice),
+      sellingPrice: Number(product.sellingPrice),
+      plants: product.plants.map((plant) => this.decoratePlant(plant)),
+    };
+  }
+
+  private skuPrefixForCategory(category: string) {
+    const letters = category.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return (letters.slice(0, 3) || 'PRD').padEnd(3, 'X');
+  }
+
+  private async nextGeneratedProductCode(
+    tx: Prisma.TransactionClient | PrismaService,
+    category: string,
+    reservedCodes: Set<string>,
+  ) {
+    const prefix = this.skuPrefixForCategory(category);
+    const existing = await tx.product.findMany({
+      where: { productCode: { startsWith: prefix } },
+      select: { productCode: true },
+      orderBy: { productCode: 'desc' },
+      take: 500,
+    });
+    const known = new Set(
+      [...reservedCodes, ...existing.map((row) => row.productCode)]
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean),
+    );
+    let sequence = 1;
+    for (const code of known) {
+      if (!code.startsWith(prefix)) continue;
+      const suffix = code.slice(prefix.length);
+      if (/^\d+$/.test(suffix)) {
+        sequence = Math.max(sequence, Number(suffix) + 1);
+      }
+    }
+    while (sequence < Number.MAX_SAFE_INTEGER) {
+      const nextCode = `${prefix}${String(sequence).padStart(3, '0')}`;
+      if (!known.has(nextCode)) {
+        reservedCodes.add(nextCode);
+        return nextCode;
+      }
+      sequence += 1;
+    }
+    const fallback = `${prefix}${Date.now().toString().slice(-6)}`;
+    reservedCodes.add(fallback);
+    return fallback;
+  }
+
+  private async buildStockBalanceMap(
+    tx: Prisma.TransactionClient | PrismaService,
+    productIds: string[],
+    shopIds?: string[],
+  ) {
+    if (productIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const [summaryRows, ledgerRows] = await Promise.all([
+      tx.stockSummary.findMany({
+        where: {
+          productId: { in: productIds },
+          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
+        },
+        select: { productId: true, shopId: true, currentStock: true },
+      }),
+      tx.stockLedger.groupBy({
+        by: ['productId', 'shopId'],
+        where: {
+          productId: { in: productIds },
+          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
+        },
+        _sum: { inQty: true, outQty: true },
+      }),
+    ]);
+
+    const balances = new Map<string, number>();
+    for (const row of summaryRows) {
+      balances.set(`${row.productId}:${row.shopId}`, Number(row.currentStock));
+    }
+    for (const row of ledgerRows) {
+      const inQty = Number(row._sum.inQty ?? 0);
+      const outQty = Number(row._sum.outQty ?? 0);
+      balances.set(`${row.productId}:${row.shopId}`, inQty - outQty);
+    }
+    return balances;
+  }
+
+  private async getAccessibleShops(
+    user: RequestUser,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const tenantShopIds = shopIdsForUser(user);
+    const companyId = requireCompanyId(user);
+    return tx.shop.findMany({
+      where:
+        tenantShopIds && tenantShopIds.length > 0
+          ? { id: { in: tenantShopIds } }
+          : { companyId },
+      select: { id: true, shopNumber: true, shopName: true },
+      orderBy: [{ shopNumber: 'asc' }],
+    });
+  }
+
+  private resolveShopForImportRow(
+    user: RequestUser,
+    row: BulkProductUpsertRowDto,
+    shops: Array<{ id: string; shopNumber: string; shopName: string }>,
+  ) {
+    if (!row.shopNumber?.trim()) {
+      if (!user.shopId) {
+        throw new Error('Shop / plant is required');
+      }
+      const fallback = shops.find((shop) => shop.id === user.shopId);
+      if (!fallback) {
+        throw new Error('Selected plant is outside your access scope');
+      }
+      return fallback;
+    }
+
+    const lookup = row.shopNumber.trim().toLowerCase();
+    const match = shops.find((shop) => {
+      const combined = `${shop.shopNumber} - ${shop.shopName}`.toLowerCase();
+      return (
+        shop.shopNumber.toLowerCase() === lookup ||
+        shop.shopName.toLowerCase() === lookup ||
+        combined === lookup ||
+        combined.replace(/\s+/g, ' ') === lookup.replace(/\s+/g, ' ')
+      );
+    });
+    if (!match) {
+      throw new Error(`Plant not found or not accessible: ${row.shopNumber}`);
+    }
+    assertShopScope(user, match.id);
+    return match;
+  }
+
   async list(
     user: RequestUser,
     query: {
@@ -126,28 +281,19 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    // Stock summaries are keyed by (shopId, productId); fetch them in one
-    // round-trip so the list view can render per-plant currentStock without
-    // an N+1.
     const productIds = products.map((p) => p.id);
-    const summaries = productIds.length
-      ? await this.prisma.stockSummary.findMany({
-          where: {
-            productId: { in: productIds },
-            ...(shopId
-              ? { shopId }
-              : tenantShopIds && tenantShopIds.length > 0
-                ? { shopId: { in: tenantShopIds } }
-                : { shop: { companyId } }),
-          },
-          select: { productId: true, shopId: true, currentStock: true },
-        })
-      : [];
+    const scopedShopIds = shopId
+      ? [shopId]
+      : tenantShopIds && tenantShopIds.length > 0
+        ? tenantShopIds
+        : undefined;
+    const balances = await this.buildStockBalanceMap(this.prisma, productIds, scopedShopIds);
     const stockByProduct = new Map<string, Record<string, number>>();
-    for (const summary of summaries) {
-      const map = stockByProduct.get(summary.productId) ?? {};
-      map[summary.shopId] = Number(summary.currentStock);
-      stockByProduct.set(summary.productId, map);
+    for (const [key, balance] of balances.entries()) {
+      const [productId, balanceShopId] = key.split(':');
+      const map = stockByProduct.get(productId) ?? {};
+      map[balanceShopId] = balance;
+      stockByProduct.set(productId, map);
     }
 
     return {
@@ -155,10 +301,7 @@ export class ProductsService {
         const stockByShop = stockByProduct.get(product.id) ?? {};
         const totalStock = Object.values(stockByShop).reduce((acc, n) => acc + n, 0);
         return {
-          ...product,
-          purchasePrice: Number(product.purchasePrice),
-          sellingPrice: Number(product.sellingPrice),
-          plants: product.plants.map((plant) => this.decoratePlant(plant)),
+          ...this.serializeProduct(product),
           stockByShop,
           totalStock,
           // currentStock collapses to "the filtered shop's stock" when a
@@ -245,12 +388,7 @@ export class ProductsService {
         }
       }
 
-      return {
-        ...product,
-        purchasePrice: Number(product.purchasePrice),
-        sellingPrice: Number(product.sellingPrice),
-        plants: product.plants.map((plant) => this.decoratePlant(plant)),
-      };
+      return this.serializeProduct(product);
     });
   }
 
@@ -325,12 +463,7 @@ export class ProductsService {
       const accessible = product.plants.some((plant) => tenantShopIds.includes(plant.shopId));
       if (!accessible) throw new NotFoundException('Product not found');
     }
-    return {
-      ...product,
-      purchasePrice: Number(product.purchasePrice),
-      sellingPrice: Number(product.sellingPrice),
-      plants: product.plants.map((plant) => this.decoratePlant(plant)),
-    };
+    return this.serializeProduct(product);
   }
 
   async update(user: RequestUser, id: string, dto: UpdateProductDto) {
@@ -508,29 +641,86 @@ export class ProductsService {
         where: { id },
         include: PRODUCT_INCLUDE,
       });
-      return {
-        ...refreshed,
-        purchasePrice: Number(refreshed.purchasePrice),
-        sellingPrice: Number(refreshed.sellingPrice),
-        plants: refreshed.plants.map((plant) => this.decoratePlant(plant)),
-      };
+      return this.serializeProduct(refreshed);
     });
+  }
+
+  async deletionImpact(user: RequestUser, id: string) {
+    const existing = await this.get(user, id);
+    const shopIds = existing.plants.map((plant) => plant.shopId);
+    const [relatedUsage, stockBalances, shops] = await Promise.all([
+      this.prisma.$transaction([
+        this.prisma.goodsReceiptItem.count({ where: { productId: id } }),
+        this.prisma.goodsIssueItem.count({ where: { productId: id } }),
+        this.prisma.purchaseOrderItem.count({ where: { productId: id } }),
+        this.prisma.damagedStock.count({ where: { productId: id } }),
+        this.prisma.stockLedger.count({ where: { productId: id } }),
+      ]),
+      this.buildStockBalanceMap(this.prisma, [id], shopIds),
+      this.prisma.shop.findMany({
+        where: { id: { in: shopIds } },
+        select: { id: true, shopNumber: true, shopName: true },
+      }),
+    ]);
+
+    const [goodsReceiptCount, goodsIssueCount, purchaseOrderCount, damagedCount, ledgerCount] =
+      relatedUsage;
+    const currentStock = Array.from(stockBalances.entries())
+      .filter(([key]) => key.startsWith(`${id}:`))
+      .reduce((sum, [, balance]) => sum + balance, 0);
+    const historyCount =
+      goodsReceiptCount + goodsIssueCount + purchaseOrderCount + damagedCount + ledgerCount;
+
+    let reason = 'This product can be deleted.';
+    if (currentStock > 0 && historyCount > 0) {
+      reason =
+        'Cannot delete this product because stock is still available and transaction history already exists. Deactivate it instead.';
+    } else if (currentStock > 0) {
+      reason =
+        'Cannot delete this product because stock is still available in one or more plants. Move the stock to zero first or deactivate it instead.';
+    } else if (historyCount > 0) {
+      reason =
+        'Cannot delete this product because transaction history already exists, even though visible stock is zero. Deactivate it instead.';
+    }
+
+    return {
+      canDelete: currentStock === 0 && historyCount === 0,
+      reason,
+      suggestedAction: currentStock === 0 && historyCount === 0 ? null : 'deactivate',
+      currentStock,
+      historyCount,
+      history: {
+        goodsReceipts: goodsReceiptCount,
+        goodsIssues: goodsIssueCount,
+        purchaseOrders: purchaseOrderCount,
+        damaged: damagedCount,
+        stockLedger: ledgerCount,
+      },
+      plants: existing.plants.map((plant) => {
+        const shop = shops.find((row) => row.id === plant.shopId);
+        return {
+          shopId: plant.shopId,
+          shopNumber: shop?.shopNumber ?? plant.shopId,
+          shopName: shop?.shopName ?? null,
+          isActive: plant.isActive,
+          currentStock: stockBalances.get(`${id}:${plant.shopId}`) ?? 0,
+        };
+      }),
+    };
   }
 
   async remove(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
-    const relatedUsage = await this.prisma.$transaction([
-      this.prisma.goodsReceiptItem.count({ where: { productId: id } }),
-      this.prisma.goodsIssueItem.count({ where: { productId: id } }),
-      this.prisma.purchaseOrderItem.count({ where: { productId: id } }),
-      this.prisma.damagedStock.count({ where: { productId: id } }),
-      this.prisma.stockLedger.count({ where: { productId: id } }),
-      this.prisma.stockSummary.count({ where: { productId: id } }),
-    ]);
-
-    const hasRelatedRecords = relatedUsage.some((count) => count > 0);
-    if (hasRelatedRecords) {
-      throw new BadRequestException('Cannot delete a product with existing stock or transaction history');
+    const impact = await this.deletionImpact(user, id);
+    if (!impact.canDelete) {
+      throw new BadRequestException({
+        message: impact.reason,
+        error: {
+          message: impact.reason,
+          code: 'PRODUCT_DELETE_BLOCKED',
+          details: impact,
+        },
+      });
     }
 
     await this.prisma.$transaction([
@@ -653,6 +843,455 @@ export class ProductsService {
         ...(storageLocationId ? { storageLocationId } : {}),
         updatedById: user.id,
       },
+    });
+  }
+
+  async bulkUpsert(user: RequestUser, dto: BulkProductUpsertDto) {
+    const validateOnly = dto.validateOnly ?? false;
+    const accessibleShops = await this.getAccessibleShops(user);
+    const explicitCodes = [
+      ...new Set(dto.rows.map((row) => row.productCode?.trim().toUpperCase()).filter(Boolean) as string[]),
+    ];
+
+    return this.prisma.$transaction(async (tx) => {
+      const [existingProducts, locations] = await Promise.all([
+        explicitCodes.length
+          ? tx.product.findMany({
+              where: { productCode: { in: explicitCodes } },
+              include: PRODUCT_INCLUDE,
+            })
+          : Promise.resolve([] as ProductRow[]),
+        accessibleShops.length
+          ? tx.storageLocation.findMany({
+              where: { shopId: { in: accessibleShops.map((shop) => shop.id) } },
+              select: { id: true, shopId: true, code: true, name: true, isActive: true },
+            })
+          : Promise.resolve([] as Array<{ id: string; shopId: string; code: string; name: string; isActive: boolean }>),
+      ]);
+
+      const productByCode = new Map(existingProducts.map((product) => [product.productCode, product]));
+      const reservedCodes = new Set(
+        [...explicitCodes, ...existingProducts.map((product) => product.productCode)].map((value) =>
+          value.trim().toUpperCase(),
+        ),
+      );
+      const locationByKey = new Map(
+        locations.map((location) => [
+          `${location.shopId}:${location.code.trim().toUpperCase()}`,
+          location,
+        ]),
+      );
+      const locationsByShop = new Map<
+        string,
+        Array<{ id: string; shopId: string; code: string; name: string; isActive: boolean }>
+      >();
+      for (const location of locations) {
+        const bucket = locationsByShop.get(location.shopId) ?? [];
+        bucket.push(location);
+        locationsByShop.set(location.shopId, bucket);
+      }
+
+      const stockBalances = await this.buildStockBalanceMap(
+        tx,
+        existingProducts.map((product) => product.id),
+        accessibleShops.map((shop) => shop.id),
+      );
+
+      let created = 0;
+      let updated = 0;
+      let validated = 0;
+      let failed = 0;
+      const results: BulkUpsertRowResult[] = [];
+
+      for (let index = 0; index < dto.rows.length; index += 1) {
+        const row = dto.rows[index];
+        const rowNumber = index + 2;
+        try {
+          const result = await this.applyBulkUpsertRow(
+            tx,
+            user,
+            row,
+            rowNumber,
+            validateOnly,
+            productByCode,
+            reservedCodes,
+            accessibleShops,
+            locationByKey,
+            locationsByShop,
+            stockBalances,
+          );
+          results.push(result);
+          if (result.status === 'created') created += 1;
+          else if (result.status === 'updated') updated += 1;
+          else if (result.status === 'validated') validated += 1;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          failed += 1;
+          results.push({
+            row: rowNumber,
+            status: 'failed',
+            action: row.productCode ? 'update' : 'create',
+            productCode: row.productCode?.trim().toUpperCase() || '(new product)',
+            shopNumber: row.shopNumber?.trim() || user.shopId || '(unknown plant)',
+            message,
+            warnings: [],
+          });
+        }
+      }
+
+      return {
+        validateOnly,
+        total: dto.rows.length,
+        created,
+        updated,
+        validated,
+        failed,
+        results,
+        errors: results
+          .filter((result) => result.status === 'failed')
+          .map((result) => ({ row: result.row, message: result.message })),
+      };
+    });
+  }
+
+  private async applyBulkUpsertRow(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    row: BulkProductUpsertRowDto,
+    rowNumber: number,
+    validateOnly: boolean,
+    productByCode: Map<string, ProductRow>,
+    reservedCodes: Set<string>,
+    shops: Array<{ id: string; shopNumber: string; shopName: string }>,
+    locationByKey: Map<string, { id: string; shopId: string; code: string; name: string; isActive: boolean }>,
+    locationsByShop: Map<
+      string,
+      Array<{ id: string; shopId: string; code: string; name: string; isActive: boolean }>
+    >,
+    stockBalances: Map<string, number>,
+  ): Promise<BulkUpsertRowResult> {
+    const shop = this.resolveShopForImportRow(user, row, shops);
+    const warnings: string[] = [];
+    if (Number(row.sellingPrice) < Number(row.purchasePrice)) {
+      warnings.push('Selling price is lower than purchase price.');
+    }
+
+    const incomingCode = row.productCode?.trim().toUpperCase();
+    const productCode = incomingCode ?? (await this.nextGeneratedProductCode(tx, row.category, reservedCodes));
+    const existing = incomingCode ? productByCode.get(incomingCode) : undefined;
+    const action: 'create' | 'update' = existing ? 'update' : 'create';
+    const rowLocations = (locationsByShop.get(shop.id) ?? []).filter((location) => location.isActive);
+
+    let storageLocationId: string | null = null;
+    if (row.storageLocationCode) {
+      const location = locationByKey.get(`${shop.id}:${row.storageLocationCode.trim().toUpperCase()}`);
+      if (!location || !location.isActive) {
+        throw new Error(
+          `Storage location not found for plant ${shop.shopNumber}: ${row.storageLocationCode}`,
+        );
+      }
+      storageLocationId = location.id;
+    } else if (!existing) {
+      if (rowLocations.length === 1) {
+        storageLocationId = rowLocations[0].id;
+      } else if (rowLocations.length > 1) {
+        throw new Error(
+          `Storage location code is required for plant ${shop.shopNumber} because it has multiple active locations`,
+        );
+      }
+    }
+
+    const plantPayload: ProductPlantDto = {
+      shopId: shop.id,
+      storageLocationId: storageLocationId ?? undefined,
+      openingStock: Number(row.openingStock ?? 0),
+      minStockLevel: Number(row.minStockLevel ?? 0),
+      maxStockLevel: row.maxStockLevel,
+      reorderQty: row.reorderQty,
+      isActive: row.isActive ?? true,
+    };
+    await this.validateAssignments(user, [plantPayload], tx);
+
+    if (action === 'create') {
+      const companyId = requireCompanyId(user);
+      await this.subscriptions.assertSkuLimit(companyId);
+      warnings.push(
+        incomingCode ? 'SKU was not found and will be created as a new product.' : 'SKU will be auto-generated from the category.',
+      );
+
+      if (!validateOnly) {
+        const created = await tx.product.create({
+          data: {
+            productCode,
+            description: row.description,
+            uom: row.uom,
+            category: row.category,
+            hsnCode: row.hsnCode ?? null,
+            materialGroup: row.materialGroup ?? null,
+            drawingReference: row.drawingReference ?? null,
+            brand: row.brand ?? null,
+            taxPreference: row.taxPreference ?? TaxPreference.TAXABLE,
+            purchasePrice: new Prisma.Decimal(row.purchasePrice),
+            sellingPrice: new Prisma.Decimal(row.sellingPrice),
+            isActive: row.isActive ?? true,
+            createdById: user.id,
+            plants: {
+              create: {
+                shopId: shop.id,
+                storageLocationId,
+                openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+                minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
+                maxStockLevel:
+                  row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
+                reorderQty:
+                  row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty),
+                isActive: row.isActive ?? true,
+                createdById: user.id,
+              },
+            },
+          },
+          include: PRODUCT_INCLUDE,
+        });
+
+        if (Number(row.openingStock ?? 0) > 0) {
+          await this.stock.postMovement(tx, {
+            type: TransactionType.OPENING,
+            ref: `BULK-IMPORT-${productCode}-${shop.id.slice(0, 8)}`,
+            date: new Date(),
+            shopId: shop.id,
+            productId: created.id,
+            inQty: Number(row.openingStock ?? 0),
+            outQty: 0,
+            remarks: 'Bulk import opening stock',
+            userId: user.id,
+          });
+        }
+
+        productByCode.set(productCode, created);
+        stockBalances.set(`${created.id}:${shop.id}`, Number(row.openingStock ?? 0));
+      } else {
+        const planned = {
+          id: `planned:${productCode}`,
+          productCode,
+          description: row.description,
+          uom: row.uom,
+          category: row.category,
+          hsnCode: row.hsnCode ?? null,
+          materialGroup: row.materialGroup ?? null,
+          drawingReference: row.drawingReference ?? null,
+          brand: row.brand ?? null,
+          taxPreference: row.taxPreference ?? TaxPreference.TAXABLE,
+          purchasePrice: new Prisma.Decimal(row.purchasePrice),
+          sellingPrice: new Prisma.Decimal(row.sellingPrice),
+          isActive: row.isActive ?? true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdById: user.id,
+          updatedById: null,
+          plants: [
+            {
+              id: `planned-plant:${productCode}:${shop.id}`,
+              productId: `planned:${productCode}`,
+              shopId: shop.id,
+              storageLocationId,
+              openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+              minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
+              maxStockLevel:
+                row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
+              reorderQty:
+                row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty),
+              isActive: row.isActive ?? true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              createdById: user.id,
+              updatedById: null,
+              storageLocation: storageLocationId
+                ? {
+                    id: storageLocationId,
+                    code:
+                      rowLocations.find((location) => location.id === storageLocationId)?.code ?? '',
+                    name:
+                      rowLocations.find((location) => location.id === storageLocationId)?.name ?? '',
+                  }
+                : null,
+            },
+          ],
+          specifications: [],
+        } as unknown as ProductRow;
+        productByCode.set(productCode, planned);
+        stockBalances.set(`${planned.id}:${shop.id}`, Number(row.openingStock ?? 0));
+      }
+
+      return {
+        row: rowNumber,
+        status: validateOnly ? 'validated' : 'created',
+        action,
+        productCode,
+        shopNumber: shop.shopNumber,
+        message: validateOnly
+          ? `Ready to create ${productCode} in plant ${shop.shopNumber}`
+          : `Created ${productCode} in plant ${shop.shopNumber}`,
+        warnings,
+      };
+    }
+
+    if (!existing) {
+      throw new Error('Product not found for update');
+    }
+    const existingProduct = existing;
+    const existingPlant = existingProduct.plants.find((plant) => plant.shopId === shop.id);
+    const resolvedStorageLocationId =
+      storageLocationId ?? existingPlant?.storageLocationId ?? (rowLocations.length === 1 ? rowLocations[0].id : null);
+    if (!resolvedStorageLocationId && !existingPlant && rowLocations.length > 1) {
+      throw new Error(
+        `Storage location code is required for plant ${shop.shopNumber} because it has multiple active locations`,
+      );
+    }
+
+    const currentStock = stockBalances.get(`${existingProduct.id}:${shop.id}`) ?? 0;
+    if (Number(row.openingStock ?? 0) !== currentStock) {
+      warnings.push(
+        `Current stock will be synchronized from ${currentStock} to ${Number(row.openingStock ?? 0)}.`,
+      );
+    }
+
+    if (!validateOnly) {
+      await tx.product.update({
+        where: { id: existingProduct.id },
+        data: {
+          description: row.description,
+          uom: row.uom,
+          category: row.category,
+          hsnCode: row.hsnCode ?? null,
+          materialGroup: row.materialGroup ?? null,
+          drawingReference: row.drawingReference ?? null,
+          brand: row.brand ?? null,
+          taxPreference: row.taxPreference ?? TaxPreference.TAXABLE,
+          purchasePrice: new Prisma.Decimal(row.purchasePrice),
+          sellingPrice: new Prisma.Decimal(row.sellingPrice),
+          isActive: row.isActive ?? true,
+          updatedById: user.id,
+        },
+      });
+
+      if (existingPlant) {
+        await tx.productPlant.update({
+          where: { id: existingPlant.id },
+          data: {
+            storageLocationId: resolvedStorageLocationId,
+            openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+            minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
+            maxStockLevel:
+              row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
+            reorderQty: row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty),
+            isActive: row.isActive ?? existingPlant.isActive,
+            updatedById: user.id,
+          },
+        });
+      } else {
+        await tx.productPlant.create({
+          data: {
+            productId: existingProduct.id,
+            shopId: shop.id,
+            storageLocationId: resolvedStorageLocationId,
+            openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+            minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
+            maxStockLevel:
+              row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
+            reorderQty: row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty),
+            isActive: row.isActive ?? true,
+            createdById: user.id,
+          },
+        });
+      }
+
+      await this.syncImportedStockLevel(tx, user, {
+        productId: existingProduct.id,
+        productCode,
+        shopId: shop.id,
+        currentStock,
+        targetStock: Number(row.openingStock ?? 0),
+      });
+    }
+
+    const balanceKey = `${existingProduct.id}:${shop.id}`;
+    stockBalances.set(balanceKey, Number(row.openingStock ?? 0));
+    if (existingPlant) {
+      existingPlant.storageLocationId = resolvedStorageLocationId;
+      existingPlant.openingStock = new Prisma.Decimal(row.openingStock ?? 0);
+      existingPlant.minStockLevel = new Prisma.Decimal(row.minStockLevel ?? 0);
+      existingPlant.maxStockLevel =
+        row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel);
+      existingPlant.reorderQty =
+        row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty);
+      existingPlant.isActive = row.isActive ?? existingPlant.isActive;
+    } else {
+      existingProduct.plants.push({
+        id: `planned-plant:${productCode}:${shop.id}`,
+        productId: existingProduct.id,
+        shopId: shop.id,
+        storageLocationId: resolvedStorageLocationId,
+        openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+        minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
+        maxStockLevel:
+          row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
+        reorderQty: row.reorderQty === undefined ? null : new Prisma.Decimal(row.reorderQty),
+        isActive: row.isActive ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdById: user.id,
+        updatedById: null,
+        storageLocation: resolvedStorageLocationId
+          ? {
+              id: resolvedStorageLocationId,
+              code:
+                rowLocations.find((location) => location.id === resolvedStorageLocationId)?.code ?? '',
+              name:
+                rowLocations.find((location) => location.id === resolvedStorageLocationId)?.name ?? '',
+            }
+          : null,
+      } as ProductRow['plants'][number]);
+    }
+
+    return {
+      row: rowNumber,
+      status: validateOnly ? 'validated' : 'updated',
+      action,
+      productCode,
+      shopNumber: shop.shopNumber,
+      message: validateOnly
+        ? `Ready to update ${productCode} in plant ${shop.shopNumber}`
+        : `Updated ${productCode} in plant ${shop.shopNumber}`,
+      warnings,
+    };
+  }
+
+  private async syncImportedStockLevel(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    args: {
+      productId: string;
+      productCode: string;
+      shopId: string;
+      currentStock: number;
+      targetStock: number;
+    },
+  ) {
+    const delta = Number(args.targetStock) - Number(args.currentStock);
+    if (delta === 0) {
+      return;
+    }
+
+    await this.stock.postMovement(tx, {
+      type: delta > 0 ? TransactionType.OPENING : TransactionType.GOODS_ISSUE,
+      ref: `BULK-SYNC-${args.productCode}-${args.shopId.slice(0, 8)}-${Date.now()}`,
+      date: new Date(),
+      shopId: args.shopId,
+      productId: args.productId,
+      inQty: delta > 0 ? delta : 0,
+      outQty: delta < 0 ? Math.abs(delta) : 0,
+      remarks: 'Bulk import stock sync',
+      userId: user.id,
     });
   }
 

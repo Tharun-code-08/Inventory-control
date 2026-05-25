@@ -356,6 +356,40 @@ export function useDeleteProduct() {
   });
 }
 
+export type ProductDeletionImpact = {
+  canDelete: boolean;
+  reason: string;
+  suggestedAction?: 'deactivate' | null;
+  currentStock: number;
+  historyCount: number;
+  history: {
+    goodsReceipts: number;
+    goodsIssues: number;
+    purchaseOrders: number;
+    damaged: number;
+    stockLedger: number;
+  };
+  plants: Array<{
+    shopId: string;
+    shopNumber: string;
+    shopName?: string | null;
+    isActive: boolean;
+    currentStock: number;
+  }>;
+};
+
+export function useProductDeletionImpact(id?: string) {
+  return useQuery({
+    queryKey: [...productKeys.detail(id ?? 'unknown'), 'deletion-impact'] as const,
+    queryFn: async (): Promise<ProductDeletionImpact> => {
+      const res = await api.get(`/products/${id}/deletion-impact`);
+      return (res.data?.data ?? res.data) as ProductDeletionImpact;
+    },
+    enabled: !!id,
+    staleTime: 30_000,
+  });
+}
+
 export type BulkInventoryRow = {
   productCode: string;
   shopNumber: string;
@@ -370,6 +404,68 @@ export type BulkInventoryResult = {
   total: number;
   errors: Array<{ row: number; message: string }>;
 };
+
+export type BulkProductImportRow = {
+  productCode?: string;
+  shopNumber?: string;
+  storageLocationCode?: string;
+  description: string;
+  category: string;
+  hsnCode?: string;
+  materialGroup?: string;
+  drawingReference?: string;
+  brand?: string;
+  taxPreference?: TaxPreference;
+  purchasePrice: number;
+  sellingPrice: number;
+  openingStock: number;
+  minStockLevel: number;
+  maxStockLevel?: number;
+  reorderQty?: number;
+  uom: string;
+  isActive?: boolean;
+};
+
+export type BulkProductImportResult = {
+  validateOnly: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  validated: number;
+  failed: number;
+  results: Array<{
+    row: number;
+    status: 'created' | 'updated' | 'validated' | 'failed';
+    action: 'create' | 'update';
+    productCode: string;
+    shopNumber: string;
+    message: string;
+    warnings: string[];
+  }>;
+  errors: Array<{ row: number; message: string }>;
+};
+
+export function useBulkProductImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      rows,
+      validateOnly,
+    }: {
+      rows: BulkProductImportRow[];
+      validateOnly: boolean;
+    }): Promise<BulkProductImportResult> => {
+      const res = await api.post('/products/bulk-upsert', { rows, validateOnly });
+      return (res.data?.data ?? res.data) as BulkProductImportResult;
+    },
+    onSuccess: async (result) => {
+      if (!result.validateOnly) {
+        await qc.invalidateQueries({ queryKey: productKeys.lists() });
+        await qc.invalidateQueries({ queryKey: ['dashboard'] });
+      }
+    },
+  });
+}
 
 export function useBulkInventoryUpload() {
   const qc = useQueryClient();

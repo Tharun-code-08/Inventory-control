@@ -1,3 +1,100 @@
+import { CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { GoodsReceiptsService } from './goods-receipts.service';
+
+function makeService() {
+  const tx = {
+    goodsReceiptHeader: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
+    shop: {
+      findUnique: jest.fn(),
+    },
+  } as any;
+
+  const prisma = {
+    goodsReceiptHeader: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn(async (work: (client: typeof tx) => Promise<unknown>) => work(tx)),
+  } as any;
+
+  const stock = { postMovementOnce: jest.fn() } as any;
+  const numbers = { nextNumber: jest.fn() } as any;
+  const audit = { log: jest.fn() } as any;
+  const costing = { recordInflow: jest.fn() } as any;
+
+  const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing);
+  return { service, prisma, tx, stock, audit, costing };
+}
+
+describe('GoodsReceiptsService', () => {
+  it('posts stock movements when a draft goods receipt is posted', async () => {
+    const { service, tx, stock, costing, audit } = makeService();
+    const header = {
+      id: 'gr-1',
+      grNumber: 'GR-001',
+      grDate: new Date('2026-05-25T00:00:00.000Z'),
+      shopId: 'shop-1',
+      status: DocumentStatus.DRAFT,
+      purchaseOrderId: null,
+    };
+
+    jest.spyOn(service, 'get').mockResolvedValue(header as never);
+    tx.goodsReceiptHeader.findUnique.mockResolvedValue({
+      ...header,
+      items: [
+        {
+          id: 'line-1',
+          productId: 'prod-1',
+          quantity: new Prisma.Decimal(3),
+          purchaseRate: new Prisma.Decimal(100),
+          lineValue: new Prisma.Decimal(300),
+          batchNumber: null,
+          serialNumber: null,
+        },
+      ],
+    });
+    tx.shop.findUnique.mockResolvedValue({ costingMethod: CostingMethod.AVERAGE });
+    tx.goodsReceiptHeader.updateMany.mockResolvedValue({ count: 1 });
+    tx.goodsReceiptHeader.findUniqueOrThrow.mockResolvedValue({
+      ...header,
+      status: DocumentStatus.POSTED,
+      totalValue: new Prisma.Decimal(300),
+      items: [
+        {
+          id: 'line-1',
+          productId: 'prod-1',
+          quantity: new Prisma.Decimal(3),
+          purchaseRate: new Prisma.Decimal(100),
+          lineValue: new Prisma.Decimal(300),
+          product: { productCode: 'SKU-1', description: 'Widget' },
+        },
+      ],
+      shop: { id: 'shop-1', shopName: 'Main Plant' },
+    });
+
+    await service.post(
+      { id: 'user-1', shopId: 'shop-1', role: 'ADMIN', permissions: [] } as never,
+      'gr-1',
+    );
+
+    expect(stock.postMovementOnce).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: TransactionType.GOODS_RECEIPT,
+        ref: 'GR-001',
+        shopId: 'shop-1',
+        productId: 'prod-1',
+        inQty: 3,
+        outQty: 0,
+      }),
+    );
+    expect(costing.recordInflow).toHaveBeenCalledTimes(1);
+    expect(audit.log).toHaveBeenCalledTimes(1);
+  });
+});
 import { BadRequestException } from '@nestjs/common';
 import { DocumentStatus, Prisma, RoleName } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';

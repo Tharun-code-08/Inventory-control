@@ -47,6 +47,12 @@ function statusTone(status: string) {
   return 'border-slate-200 bg-slate-100 text-slate-700';
 }
 
+function formatStatus(status: string) {
+  if (status === 'DONE') return 'Completed';
+  if (status === 'SUBMITTED') return 'Awaiting Your Acknowledgement';
+  return status;
+}
+
 export function ReturnAcknowledgementPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
@@ -138,7 +144,7 @@ export function ReturnAcknowledgementPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl font-semibold text-slate-900">{order.returnNumber}</h1>
                     <span className={cn('inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium', statusTone(order.status))}>
-                      {order.status}
+                      {formatStatus(order.status)}
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">
@@ -158,11 +164,11 @@ export function ReturnAcknowledgementPage() {
 
               {order.canAcknowledge ? (
                 <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                  Please review the returned items and acknowledge the notice to confirm receipt.
+                  Please review the returned items and acknowledge the notice. Stock will be reduced only after you confirm this return.
                 </div>
               ) : (
                 <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                  This return notice has already been acknowledged on {formatDate(order.acknowledgedAt)}.
+                  This return notice was acknowledged on {formatDate(order.acknowledgedAt)} and stock has already been adjusted.
                 </div>
               )}
             </div>
@@ -225,7 +231,7 @@ export function ReturnAcknowledgementPage() {
                   onClick={acknowledge}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {acting ? 'Acknowledging...' : 'Acknowledge Return Notice'}
+                  {acting ? 'Acknowledging...' : 'Acknowledge And Process Return'}
                 </Button>
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { useAuthStore } from '@/store/authStore';
 import {
   useGoodsReceipts,
@@ -496,9 +497,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     if (!postTarget) return;
     try {
       await postGR.mutateAsync(postTarget.id);
-      toast.success(`${postTarget.grNumber} posted successfully`);
-    } catch {
-      toast.error('Failed to post goods receipt');
+      toast.success(`${postTarget.grNumber} posted successfully and warehouse stock was updated`);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to post goods receipt'));
     }
     setPostTarget(null);
   };
@@ -1188,7 +1189,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
               <span className="font-medium text-foreground">
                 {postTarget?.grNumber}
               </span>
-              ? This will update inventory levels and cannot be undone.
+              ? This will increase warehouse stock for the received items and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

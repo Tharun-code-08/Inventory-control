@@ -166,10 +166,15 @@ export function usePostGoodsReceipt() {
       const res = await api.post(`/goods-receipts/${id}/post`);
       return res.data.data as GoodsReceipt;
     },
-    onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: grKeys.lists() });
-      qc.invalidateQueries({ queryKey: grKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: async (_data, id) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: grKeys.lists() }),
+        qc.invalidateQueries({ queryKey: grKeys.detail(id) }),
+        qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: ['alerts'] }),
+      ]);
     },
   });
 }

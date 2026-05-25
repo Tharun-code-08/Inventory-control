@@ -105,6 +105,44 @@ function statusTone(status: SupplierReturn['status']) {
   }
 }
 
+function formatReturnStatus(status: SupplierReturn['status']) {
+  switch (status) {
+    case 'SUBMITTED':
+      return 'Awaiting Supplier Acknowledgement';
+    case 'DONE':
+      return 'Completed';
+    case 'DRAFT':
+      return 'Draft';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'ACKNOWLEDGED':
+      return 'Acknowledged';
+    case 'POSTED':
+      return 'Posted';
+    default:
+      return status;
+  }
+}
+
+function returnStatusMessage(status: SupplierReturn['status']) {
+  switch (status) {
+    case 'DRAFT':
+      return 'This draft has not been sent to the supplier yet, and stock has not changed.';
+    case 'SUBMITTED':
+      return 'The supplier email has been sent. Stock will reduce only after the supplier acknowledges this return.';
+    case 'DONE':
+      return 'The supplier has acknowledged this return and stock has already been reduced.';
+    case 'CANCELLED':
+      return 'This return was cancelled. No stock adjustment was applied.';
+    case 'ACKNOWLEDGED':
+      return 'The supplier has acknowledged this return.';
+    case 'POSTED':
+      return 'This return has already been posted.';
+    default:
+      return null;
+  }
+}
+
 function emptyForm(): DraftForm {
   return {
     goodsReceiptId: '',
@@ -314,7 +352,7 @@ export function ReturnsPage() {
   const onSubmitReturn = async (returnId: string) => {
     try {
       await submitReturn.mutateAsync(returnId);
-      toast.success('Return notice sent to supplier');
+      toast.success('Return notice sent to supplier. Stock will reduce only after supplier acknowledgement.');
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to submit return'));
     }
@@ -397,7 +435,7 @@ export function ReturnsPage() {
                       <TableCell>{ret.supplier?.supplierName ?? ret.supplierName}</TableCell>
                       <TableCell>
                         <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone(ret.status)}`}>
-                          {ret.status}
+                          {formatReturnStatus(ret.status)}
                         </span>
                       </TableCell>
                       <TableCell>{formatDate(ret.returnDate)}</TableCell>
@@ -622,7 +660,7 @@ export function ReturnsPage() {
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-5xl">
             <DialogHeader>
               <DialogTitle>{detailReturn?.returnNumber ?? 'Return Order'}</DialogTitle>
-              <DialogDescription>Review return lines, upload item photos, and submit the supplier acknowledgement email.</DialogDescription>
+              <DialogDescription>Review return lines, upload item photos, and track when stock will actually move.</DialogDescription>
             </DialogHeader>
 
             {detailReturnQuery.isLoading ? (
@@ -641,7 +679,7 @@ export function ReturnsPage() {
                   <div>
                     <p className="text-xs text-slate-500">Status</p>
                     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone(detailReturn.status)}`}>
-                      {detailReturn.status}
+                      {formatReturnStatus(detailReturn.status)}
                     </span>
                   </div>
                   <div>
@@ -653,6 +691,12 @@ export function ReturnsPage() {
                 {detailReturn.remarks ? (
                   <div className="rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-700">
                     {detailReturn.remarks}
+                  </div>
+                ) : null}
+
+                {returnStatusMessage(detailReturn.status) ? (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                    {returnStatusMessage(detailReturn.status)}
                   </div>
                 ) : null}
 

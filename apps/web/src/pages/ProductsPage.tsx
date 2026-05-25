@@ -34,9 +34,13 @@ import { resolveStorageLocationIdForImport } from '@/lib/resolve-storage-locatio
 import { useAuthStore } from '@/store/authStore';
 import {
   useProducts,
+  useProductDeletionImpact,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
+  useBulkProductImport,
+  type BulkProductImportResult,
+  type BulkProductImportRow,
   type CreateProductPayload,
   type Product,
   type ProductFilters,
@@ -45,6 +49,7 @@ import {
 } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { mapProductFormToPayload, type ProductFormValues } from '@/lib/payload-mappers';
 import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
 
@@ -641,7 +646,7 @@ export function ProductsPage() {
   } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importDryRun, setImportDryRun] = useState(false);
-  const [lastImportFailures, setLastImportFailures] = useState<string[]>([]);
+  const [lastImportReport, setLastImportReport] = useState<BulkProductImportResult | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const filters: ProductFilters = {
@@ -667,6 +672,8 @@ export function ProductsPage() {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const bulkProductImport = useBulkProductImport();
+  const deleteImpactQuery = useProductDeletionImpact(deleteTarget?.id);
 
   const items: Product[] = data?.items ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 };
@@ -1086,10 +1093,18 @@ export function ProductsPage() {
       toast.success(`${deleteTarget.description} deleted successfully`);
       setDeleteTarget(null);
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          .response?.data?.error?.message ?? 'Failed to delete product';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Failed to delete product'));
+    }
+  };
+
+  const handleDeactivateInstead = async () => {
+    if (!deleteTarget) return;
+    try {
+      await updateProduct.mutateAsync({ id: deleteTarget.id, isActive: false });
+      toast.success(`${deleteTarget.description} deactivated`);
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to deactivate product'));
     }
   };
 
@@ -1168,33 +1183,9 @@ export function ProductsPage() {
     return Number(normalized);
   };
 
-  const resolveImportShopId = (rawValue: unknown) => {
-    const shopCell = String(rawValue ?? '').trim();
-    if (!shopCell) return undefined;
-    const normalizedCell = normalizeImportKey(shopCell);
-    return shopList.find((shop) => {
-      const normalizedId = normalizeImportKey(shop.id);
-      const normalizedNumber = normalizeImportKey(shop.shopNumber);
-      const normalizedName = normalizeImportKey(shop.shopName);
-      const normalizedCombined = normalizeImportKey(`${shop.shopNumber} ${shop.shopName}`);
-      return (
-        normalizedId === normalizedCell ||
-        normalizedNumber === normalizedCell ||
-        normalizedName === normalizedCell ||
-        normalizedCombined === normalizedCell
-      );
-    })?.id;
-  };
-
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const fallbackShopId = user?.shopId ?? defaultShopId;
-    if (!fallbackShopId) {
-      toast.error('Select a shop before importing products');
-      event.target.value = '';
-      return;
-    }
 
     setIsImporting(true);
     try {
@@ -1215,158 +1206,142 @@ export function ProductsPage() {
         return;
       }
 
-      let successCount = 0;
-      const failures: string[] = [];
-      const reservedCodes = new Set<string>(knownProductCodes);
-
-      for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index];
+      const payloadRows: BulkProductImportRow[] = rows.map((row, index) => {
         const rowNumber = index + 2;
-        try {
-          const code = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.productCode) ?? '').trim();
-          const description = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.description) ?? '').trim();
-          const category = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.category) ?? '').trim();
-          const uom = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.uom) ?? 'pcs').trim() || 'pcs';
-          const purchasePrice = parseImportNumber(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.purchasePrice),
-            0,
-          );
-          const sellingPrice = parseImportNumber(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.sellingPrice),
-            0,
-          );
-          const openingStock = parseImportNumber(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.openingStock),
-            0,
-          );
-          const minStockLevel = parseImportNumber(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.minStockLevel),
-            0,
-          );
-          const reorderQty = parseImportNumber(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.reorderQty),
-            0,
-          );
-          const maxStockRaw = getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.maxStockLevel);
-          const maxStockLevel =
-            maxStockRaw === '' || maxStockRaw === undefined || maxStockRaw === null
-              ? undefined
-              : parseImportNumber(maxStockRaw, Number.NaN);
-          const hsnCode = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.hsnCode) ?? '').trim();
-          const materialGroup = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.materialGroup) ?? '').trim();
-          const drawingReference = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.drawingReference) ?? '').trim();
-          const brand = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.brand) ?? '').trim();
-          const taxPreferenceRaw = String(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.taxPreference) ?? '',
-          )
-            .trim()
-            .toLowerCase();
-          const taxPreference =
-            taxPreferenceRaw === 'non-taxable' ||
-            taxPreferenceRaw === 'non taxable' ||
-            taxPreferenceRaw === 'nontaxable' ||
-            taxPreferenceRaw === 'non_taxable'
-              ? ('NON_TAXABLE' as const)
-              : ('TAXABLE' as const);
-          const isActive = parseBoolean(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.isActive), true);
+        const code = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.productCode) ?? '').trim();
+        const description = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.description) ?? '',
+        ).trim();
+        const category = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.category) ?? '').trim();
+        const uom =
+          String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.uom) ?? 'pcs').trim() || 'pcs';
+        const purchasePrice = parseImportNumber(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.purchasePrice),
+          Number.NaN,
+        );
+        const sellingPrice = parseImportNumber(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.sellingPrice),
+          Number.NaN,
+        );
+        const openingStock = parseImportNumber(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.openingStock),
+          Number.NaN,
+        );
+        const minStockLevel = parseImportNumber(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.minStockLevel),
+          Number.NaN,
+        );
+        const reorderQtyRaw = getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.reorderQty);
+        const reorderQty =
+          reorderQtyRaw === '' || reorderQtyRaw === undefined || reorderQtyRaw === null
+            ? undefined
+            : parseImportNumber(reorderQtyRaw, Number.NaN);
+        const maxStockRaw = getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.maxStockLevel);
+        const maxStockLevel =
+          maxStockRaw === '' || maxStockRaw === undefined || maxStockRaw === null
+            ? undefined
+            : parseImportNumber(maxStockRaw, Number.NaN);
+        const hsnCode = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.hsnCode) ?? '').trim();
+        const materialGroup = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.materialGroup) ?? '',
+        ).trim();
+        const drawingReference = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.drawingReference) ?? '',
+        ).trim();
+        const brand = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.brand) ?? '').trim();
+        const taxPreferenceRaw = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.taxPreference) ?? '',
+        )
+          .trim()
+          .toLowerCase();
+        const taxPreference =
+          taxPreferenceRaw === 'non-taxable' ||
+          taxPreferenceRaw === 'non taxable' ||
+          taxPreferenceRaw === 'nontaxable' ||
+          taxPreferenceRaw === 'non_taxable'
+            ? ('NON_TAXABLE' as const)
+            : ('TAXABLE' as const);
+        const isActive = parseBoolean(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.isActive),
+          true,
+        );
+        const shopValue = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.shop) ?? '').trim();
+        const storageLocationCode = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.storageLocation) ?? '',
+        ).trim();
 
-          const resolvedShopId =
-            user?.shopId ||
-            resolveImportShopId(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.shop)) ||
-            fallbackShopId;
-
-          if (!resolvedShopId) throw new Error('Shop is missing');
-
-          const storageLocationCode = String(
-            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.storageLocation) ?? '',
-          ).trim();
-          const storageLocationId = resolveStorageLocationIdForImport(
-            resolvedShopId,
-            storageLocationCode,
-            importStorageLocations,
-          );
-
-          if (!description) throw new Error('Description is required');
-          if (!category) throw new Error('Category is required');
-          if (hsnCode && !/^\d{4}(\d{2}){0,2}$/.test(hsnCode)) {
-            throw new Error('HSN code must be 4, 6, or 8 digits');
-          }
-          if (!uom) throw new Error('Unit of Measure is required');
-          if (!Number.isFinite(purchasePrice) || purchasePrice < 0) throw new Error('Invalid Purchase Price');
-          if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error('Invalid Selling Price');
-          if (!Number.isFinite(openingStock) || openingStock < 0) throw new Error('Invalid Opening Stock');
-          if (!Number.isFinite(minStockLevel) || minStockLevel < 0) throw new Error('Invalid Min Stock Level');
-          if (!Number.isFinite(reorderQty) || reorderQty < 0) throw new Error('Invalid Reorder Qty');
-          if (
-            maxStockLevel !== undefined &&
-            (!Number.isFinite(maxStockLevel) || maxStockLevel < 0)
-          ) {
-            throw new Error('Invalid Max Stock Level');
-          }
-
-          const prefix =
-            categoryConfig.find((config) => config.name === category)?.skuPrefix ?? 'PRD';
-          const explicitCode = code ? normalizeProductCode(code) : '';
-          const generatedCode = explicitCode || nextAvailableProductCode(prefix, reservedCodes);
-
-          if (explicitCode && reservedCodes.has(explicitCode)) {
-            throw new Error('Product Code already exists in the catalog or upload file');
-          }
-          reservedCodes.add(generatedCode);
-
-          if (importDryRun) {
-            successCount += 1;
-            continue;
-          }
-
-          await createProductWithResolvedCode(
-            {
-              productCode: explicitCode || undefined,
-              description,
-              category,
-              hsnCode: hsnCode || undefined,
-              materialGroup: materialGroup || undefined,
-              drawingReference: drawingReference || undefined,
-              brand: brand || undefined,
-              taxPreference,
-              purchasePrice,
-              sellingPrice,
-              uom,
-              isActive,
-              plants: [
-                {
-                  shopId: resolvedShopId,
-                  storageLocationId,
-                  openingStock,
-                  minStockLevel,
-                  maxStockLevel,
-                  reorderQty: reorderQty || undefined,
-                },
-              ],
-            },
-            category,
-            reservedCodes,
-          );
-          successCount += 1;
-        } catch (err: unknown) {
-          const message =
-            (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-            (err as Error).message;
-          failures.push(`Row ${rowNumber}: ${message || 'Failed to import'}`);
+        if (!description) throw new Error(`Row ${rowNumber}: Description is required`);
+        if (!category) throw new Error(`Row ${rowNumber}: Category is required`);
+        if (hsnCode && !/^\d{4}(\d{2}){0,2}$/.test(hsnCode)) {
+          throw new Error(`Row ${rowNumber}: HSN code must be 4, 6, or 8 digits`);
         }
-      }
+        if (!uom) throw new Error(`Row ${rowNumber}: Unit of Measure is required`);
+        if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+          throw new Error(`Row ${rowNumber}: Invalid Purchase Price`);
+        }
+        if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
+          throw new Error(`Row ${rowNumber}: Invalid Selling Price`);
+        }
+        if (!Number.isFinite(openingStock) || openingStock < 0) {
+          throw new Error(`Row ${rowNumber}: Invalid Opening Stock`);
+        }
+        if (!Number.isFinite(minStockLevel) || minStockLevel < 0) {
+          throw new Error(`Row ${rowNumber}: Invalid Min Stock Level`);
+        }
+        if (
+          reorderQty !== undefined &&
+          (!Number.isFinite(reorderQty) || reorderQty < 0)
+        ) {
+          throw new Error(`Row ${rowNumber}: Invalid Reorder Qty`);
+        }
+        if (
+          maxStockLevel !== undefined &&
+          (!Number.isFinite(maxStockLevel) || maxStockLevel < 0)
+        ) {
+          throw new Error(`Row ${rowNumber}: Invalid Max Stock Level`);
+        }
 
-      if (successCount > 0) {
-        toast.success(importDryRun ? `${successCount} row(s) validated successfully (dry run)` : `${successCount} product(s) imported successfully`);
-      }
-      if (failures.length > 0) {
-        setLastImportFailures(failures);
-        toast.error(`Failed rows: ${failures.length}. ${failures.slice(0, 3).join(' | ')}`);
+        return {
+          productCode: code ? normalizeProductCode(code) : undefined,
+          shopNumber: shopValue || undefined,
+          storageLocationCode: storageLocationCode || undefined,
+          description,
+          category,
+          hsnCode: hsnCode || undefined,
+          materialGroup: materialGroup || undefined,
+          drawingReference: drawingReference || undefined,
+          brand: brand || undefined,
+          taxPreference,
+          purchasePrice,
+          sellingPrice,
+          openingStock,
+          minStockLevel,
+          maxStockLevel,
+          reorderQty,
+          uom,
+          isActive,
+        };
+      });
+
+      const result = await bulkProductImport.mutateAsync({
+        rows: payloadRows,
+        validateOnly: importDryRun,
+      });
+      setLastImportReport(result);
+
+      if (result.failed > 0) {
+        toast.error(
+          `${result.failed} row(s) failed. ${result.validateOnly ? result.validated : result.created + result.updated} row(s) processed successfully.`,
+        );
       } else {
-        setLastImportFailures([]);
+        toast.success(
+          result.validateOnly
+            ? `${result.validated} row(s) validated successfully`
+            : `${result.created} created and ${result.updated} updated successfully`,
+        );
       }
-    } catch {
-      toast.error('Failed to process Excel file');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to process Excel file'));
     } finally {
       setIsImporting(false);
       event.target.value = '';
@@ -1376,6 +1351,21 @@ export function ProductsPage() {
   const openImportPicker = (dryRun: boolean) => {
     setImportDryRun(dryRun);
     importInputRef.current?.click();
+  };
+
+  const downloadImportResults = () => {
+    if (!lastImportReport) return;
+    const columns: CsvColumn<BulkProductImportResult['results'][number]>[] = [
+      { header: 'Row', value: (row) => row.row },
+      { header: 'Status', value: (row) => row.status },
+      { header: 'Action', value: (row) => row.action },
+      { header: 'Product Code', value: (row) => row.productCode },
+      { header: 'Plant', value: (row) => row.shopNumber },
+      { header: 'Message', value: (row) => row.message },
+      { header: 'Warnings', value: (row) => row.warnings.join(' | ') },
+    ];
+    downloadCsv('product-import-results.csv', toCsv(lastImportReport.results, columns));
+    toast.success('Import results exported');
   };
 
   return (
@@ -1425,15 +1415,41 @@ export function ProductsPage() {
           </Button>
         </PageHeader>
 
-        {lastImportFailures.length > 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            Last import had {lastImportFailures.length} failed row(s). First error: {lastImportFailures[0]}
-            {' · '}
-            <button type="button" className="font-medium underline" onClick={downloadProductTemplate}>
-              Download template
-            </button>
-            {importDryRun ? ' · Dry run is ON (no rows saved)' : ''}
-          </p>
+        {lastImportReport ? (
+          <Card className="border-slate-200/90 shadow-sm">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-900">
+                    Last import {lastImportReport.validateOnly ? 'validation' : 'upload'} processed{' '}
+                    {lastImportReport.total} row(s)
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {lastImportReport.validateOnly
+                      ? `${lastImportReport.validated} validated`
+                      : `${lastImportReport.created} created, ${lastImportReport.updated} updated`}
+                    {` · ${lastImportReport.failed} failed`}
+                  </p>
+                  {lastImportReport.failed > 0 ? (
+                    <p className="text-xs text-amber-700">
+                      First failure:{' '}
+                      {
+                        lastImportReport.results.find((result) => result.status === 'failed')?.message
+                      }
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={downloadImportResults}>
+                    Download results
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={downloadProductTemplate}>
+                    Download template
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -2336,20 +2352,56 @@ export function ProductsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove{' '}
-              <span className="font-medium text-foreground">
-                {deleteTarget?.description}
-              </span>
-              {' '}from the database. Products with transaction history cannot be deleted.
+              {deleteImpactQuery.isLoading ? (
+                <>Checking whether this product can be deleted…</>
+              ) : deleteImpactQuery.data?.canDelete ? (
+                <>
+                  This will permanently remove{' '}
+                  <span className="font-medium text-foreground">
+                    {deleteTarget?.description}
+                  </span>{' '}
+                  from the database.
+                </>
+              ) : (
+                <>
+                  {deleteImpactQuery.data?.reason ?? 'This product cannot be deleted right now.'}
+                  {deleteImpactQuery.data?.plants?.length ? (
+                    <>
+                      {' '}Affected plants:{' '}
+                      {deleteImpactQuery.data.plants
+                        .map((plant) => `${plant.shopNumber} (${plant.currentStock})`)
+                        .join(', ')}
+                      .
+                    </>
+                  ) : null}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteProduct.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={deleteProduct.isPending || updateProduct.isPending}
+            >
+              Cancel
+            </AlertDialogCancel>
+            {!deleteImpactQuery.isLoading && deleteImpactQuery.data && !deleteImpactQuery.data.canDelete ? (
+              <AlertDialogAction
+                className="bg-slate-900 text-white hover:bg-slate-800"
+                disabled={updateProduct.isPending}
+                onClick={handleDeactivateInstead}
+              >
+                {updateProduct.isPending ? 'Deactivating...' : 'Deactivate Instead'}
+              </AlertDialogAction>
+            ) : null}
             <AlertDialogAction
               className={cn(
                 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
               )}
-              disabled={deleteProduct.isPending}
+              disabled={
+                deleteProduct.isPending ||
+                deleteImpactQuery.isLoading ||
+                (!!deleteImpactQuery.data && !deleteImpactQuery.data.canDelete)
+              }
               onClick={handleDeleteProduct}
             >
               {deleteProduct.isPending ? 'Deleting...' : 'Delete'}

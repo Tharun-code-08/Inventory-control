@@ -5,6 +5,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import type { RequestUser } from '../../common/types/request-user';
 import { CursorPageDto } from '../../common/dto/cursor-page.dto';
 import { BulkInventoryDto } from './dto/bulk-inventory.dto';
+import { BulkProductUpsertDto } from './dto/bulk-product-upsert.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsDto } from './dto/list-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -50,6 +51,16 @@ export class ProductsController {
   })
   bulkInventory(@CurrentUser() user: RequestUser, @Body() dto: BulkInventoryDto) {
     return this.products.bulkUpdateInventory(user, dto);
+  }
+
+  @RequirePermission('product:write')
+  @Post('bulk-upsert')
+  @ApiOperation({
+    summary:
+      'Validate or commit SKU-based bulk product upserts, including plant assignment and stock synchronization',
+  })
+  bulkUpsert(@CurrentUser() user: RequestUser, @Body() dto: BulkProductUpsertDto) {
+    return this.products.bulkUpsert(user, dto);
   }
 
   @RequirePermission('product:read')
@@ -99,6 +110,13 @@ export class ProductsController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.products.update(user, id, dto);
+  }
+
+  @RequirePermission('product:write')
+  @Get(':id/deletion-impact')
+  @ApiOperation({ summary: 'Explain whether a product can be permanently deleted' })
+  deletionImpact(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.products.deletionImpact(user, id);
   }
 
   @RequirePermission('product:write')
