@@ -416,7 +416,6 @@ export function RfqComparePage() {
                                 size="sm"
                                 variant={isPicked ? 'default' : 'outline'}
                                 className={isPicked ? 'bg-indigo-600' : ''}
-                                disabled={acceptQuote.isPending}
                                 onClick={() => handleSelectQuote(row.quoteId)}
                               >
                                 Select
