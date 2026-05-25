@@ -212,6 +212,7 @@ export function RfqDetailPage() {
 
   const [expandedQuotes, setExpandedQuotes] = useState<Set<string>>(new Set());
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
 
   const awardedQuoteIds = useMemo(() => {
     const set = new Set<string>();
@@ -258,6 +259,13 @@ export function RfqDetailPage() {
   }
 
   const primaryAwarded = quotations.find((q) => awardedQuoteIds.has(q.id));
+  const selectedQuote =
+    quotations.find((q) => q.id === selectedQuoteId) ?? primaryAwarded ?? null;
+
+  function handleSelectQuote(quoteId: string) {
+    setSelectedQuoteId(quoteId);
+    toast.success('Supplier selected. Click Create PO when you are ready to generate the order.');
+  }
 
   const linkedContractCount = useMemo(
     () => contracts.filter((c) => c.rfqId === id).length,
@@ -340,12 +348,12 @@ export function RfqDetailPage() {
                 <ArrowLeftRight className="mr-1.5 h-4 w-4" />
                 Compare bids
               </Button>
-              {primaryAwarded && (
+              {selectedQuote && (
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
                   disabled={acceptQuote.isPending}
-                  onClick={() => handleCreatePo(primaryAwarded)}
+                  onClick={() => handleCreatePo(selectedQuote)}
                 >
                   <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Create PO
@@ -543,9 +551,9 @@ export function RfqDetailPage() {
                       quote={q}
                       expanded={expandedQuotes.has(q.id)}
                       onToggle={() => toggleQuote(q.id)}
-                      isAwarded={awardedQuoteIds.has(q.id)}
+                      isAwarded={awardedQuoteIds.has(q.id) || selectedQuote?.id === q.id}
                       selecting={acceptQuote.isPending}
-                      onSelect={() => handleCreatePo(q)}
+                      onSelect={() => handleSelectQuote(q.id)}
                     />
                   ))}
                 </TableBody>
