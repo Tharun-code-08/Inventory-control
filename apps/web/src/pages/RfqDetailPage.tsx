@@ -245,7 +245,7 @@ export function RfqDetailPage() {
 
   async function handleCreatePo(quote: Quotation) {
     try {
-      const result = await acceptQuote.mutateAsync(quote.id);
+      const result = await acceptQuote.mutateAsync({ id: quote.id });
       const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
       toast.success(po?.poNumber ? `PO ${po.poNumber} created` : 'Purchase order created');
       navigate('/purchase-orders');
