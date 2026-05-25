@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type AuthShop = {
   id: string;
@@ -34,44 +33,17 @@ type AuthState = {
   clear: () => void;
 };
 
-type PersistedAuth = Pick<AuthState, 'accessToken' | 'user'>;
-
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      accessToken: null,
-      user: null,
-      initialized: false,
-      setSession: (accessToken, user) =>
-        set({
-          accessToken,
-          user,
-          initialized: true,
-        }),
-      setInitialized: (initialized) => set({ initialized }),
-      setUser: (user) => set((state) => ({ ...state, user })),
-      clear: () => set({ accessToken: null, user: null, initialized: true }),
+export const useAuthStore = create<AuthState>()((set) => ({
+  accessToken: null,
+  user: null,
+  initialized: false,
+  setSession: (accessToken, user) =>
+    set({
+      accessToken,
+      user,
+      initialized: true,
     }),
-    {
-      name: 'retail-ims-auth',
-      version: 2,
-      partialize: (state): PersistedAuth => ({
-        accessToken: state.accessToken,
-        user: state.user,
-      }),
-      migrate: (persisted) => {
-        const state = persisted as PersistedAuth & { products?: unknown };
-        if (state && 'products' in state) {
-          const { products: _removed, ...rest } = state;
-          return rest;
-        }
-        return persisted as PersistedAuth;
-      },
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.setInitialized(true);
-        }
-      },
-    },
-  ),
-);
+  setInitialized: (initialized) => set({ initialized }),
+  setUser: (user) => set((state) => ({ ...state, user })),
+  clear: () => set({ accessToken: null, user: null, initialized: true }),
+}));

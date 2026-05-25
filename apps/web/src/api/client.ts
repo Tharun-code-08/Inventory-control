@@ -1,8 +1,9 @@
 import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
 import axios from 'axios';
+import { readBrowserCookie } from '@/lib/browser-cookies';
+import { CSRF_COOKIE_NAME } from '@/lib/cookie-consent';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
 
-const CSRF_COOKIE_NAME = 'csrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
 function apiBaseUrl(): string {
@@ -43,17 +44,6 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-function readCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const encoded = `${encodeURIComponent(name)}=`;
-  const hit = document.cookie
-    .split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(encoded));
-  if (!hit) return null;
-  return decodeURIComponent(hit.slice(encoded.length));
-}
-
 api.interceptors.request.use((config) => {
   const requestId =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -61,7 +51,7 @@ api.interceptors.request.use((config) => {
       : `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   config.headers = AxiosHeaders.from(config.headers ?? {});
   config.headers.set('x-request-id', requestId);
-  const csrfToken = readCookie(CSRF_COOKIE_NAME);
+  const csrfToken = readBrowserCookie(CSRF_COOKIE_NAME);
   if (csrfToken) {
     config.headers.set(CSRF_HEADER_NAME, csrfToken);
   }

@@ -209,7 +209,12 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
 
       pdf.text(item.product?.productCode ?? '—', colsPos[0].x + PAD, baseline);
       const desc = item.product?.description ?? '';
-      pdf.text(pdf.splitTextToSize(desc, cols[1].w - PAD * 2)[0] ?? '', colsPos[1].x + PAD, baseline);
+      const descWithTax = taxPct > 0 ? `${desc} (Tax ${taxPct}%)` : desc;
+      pdf.text(
+        pdf.splitTextToSize(descWithTax, cols[1].w - PAD * 2)[0] ?? '',
+        colsPos[1].x + PAD,
+        baseline,
+      );
       pdf.text(String(qty), colsPos[2].x + colsPos[2].w - PAD, baseline, { align: 'right' });
       pdf.text(money(rate), colsPos[3].x + colsPos[3].w - PAD, baseline, { align: 'right' });
       pdf.text(money(line.lineTotal), colsPos[4].x + colsPos[4].w - PAD, baseline, { align: 'right' });
@@ -257,7 +262,7 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   const totalRows = [
     { label: 'TOTAL NET', value: money(subtotal) },
     { label: 'DELIVERY', value: money(shippingAmt) },
-    { label: 'VAT', value: taxTotal > 0 ? money(taxTotal) : '0.00' },
+    { label: 'GST / TAX', value: taxTotal > 0 ? money(taxTotal) : '0.00' },
     { label: 'TOTAL', value: money(grandTotal), grand: true },
   ];
   let ty = footTop;

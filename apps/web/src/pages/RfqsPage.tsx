@@ -8,8 +8,10 @@ import {
   Monitor,
   CheckCircle2,
   Eye,
+  Star,
   Trash2,
   Download,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
@@ -17,7 +19,6 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,8 +59,10 @@ import {
 import { useQuotations } from '@/hooks/use-quotations';
 import { useContracts } from '@/hooks/use-contracts';
 import { useAuthStore } from '@/store/authStore';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { csvDate, csvList, exportModuleCsv } from '@/lib/module-csv';
 
 type RfqTab = 'all' | 'draft' | 'sent' | 'responses' | 'completed';
@@ -127,6 +130,7 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 export function RfqsPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const { data: shops = [] } = useShops();
   const { data: suppliers = [] } = useSuppliers();
   const { data: rfqs = [] } = useRfqs();
@@ -141,6 +145,7 @@ export function RfqsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Rfq | null>(null);
   const [tab, setTab] = useState<RfqTab>('all');
   const [search, setSearch] = useState('');
+  const [pendingSupplierId, setPendingSupplierId] = useState('');
   const [form, setForm] = useState({
     title: '',
     deadline: '',
@@ -152,7 +157,11 @@ export function RfqsPage() {
     { productId: '', quantity: '1', uom: 'UNIT', specifications: '' },
   ]);
 
-  const resolvedShopId = user?.shopId ?? form.shopId ?? shops[0]?.id ?? '';
+  const resolvedShopId = resolvePreferredOrgId(
+    shops.map((shop) => shop.id),
+    user?.shopId,
+    form.shopId,
+  );
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
     isActive: true,
@@ -165,6 +174,10 @@ export function RfqsPage() {
   );
   const selectedSuppliers = useMemo(
     () => suppliers.filter((supplier) => form.supplierIds.includes(supplier.id)),
+    [suppliers, form.supplierIds],
+  );
+  const availableSuppliers = useMemo(
+    () => suppliers.filter((supplier) => !form.supplierIds.includes(supplier.id)),
     [suppliers, form.supplierIds],
   );
 
@@ -249,8 +262,19 @@ export function RfqsPage() {
 
   useEffect(() => {
     if (user?.shopId || form.shopId || shops.length === 0) return;
-    setForm((prev) => ({ ...prev, shopId: shops[0].id }));
+    setForm((prev) => ({
+      ...prev,
+      shopId: resolvePreferredOrgId(
+        shops.map((shop) => shop.id),
+        user?.shopId,
+        prev.shopId,
+      ),
+    }));
   }, [user?.shopId, form.shopId, shops]);
+
+  useEffect(() => {
+    syncPreferredOrgId(user?.shopId ? null : resolvedShopId, functionalCookiesEnabled);
+  }, [functionalCookiesEnabled, resolvedShopId, user?.shopId]);
 
   useEffect(() => {
     const validIds = new Set(products.map((p) => p.id));
@@ -294,6 +318,7 @@ export function RfqsPage() {
       shopId: user?.shopId ? form.shopId : resolvedShopId,
       supplierIds: [],
     });
+    setPendingSupplierId('');
     setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
   };
 
@@ -304,6 +329,15 @@ export function RfqsPage() {
         ? prev.supplierIds.filter((id) => id !== supplierId)
         : [...prev.supplierIds, supplierId],
     }));
+  };
+
+  const addPendingSupplier = () => {
+    if (!pendingSupplierId) {
+      toast.error('Select a supplier first');
+      return;
+    }
+    toggleSupplierSelection(pendingSupplierId);
+    setPendingSupplierId('');
   };
 
   const onCreate = async () => {
@@ -672,6 +706,7 @@ export function RfqsPage() {
                     value={form.shopId || resolvedShopId}
                     onValueChange={(value) => {
                       setForm((p) => ({ ...p, shopId: value }));
+                      syncPreferredOrgId(value, functionalCookiesEnabled);
                       setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
                     }}
                   >
@@ -695,51 +730,73 @@ export function RfqsPage() {
                     {form.supplierIds.length} selected
                   </span>
                 </div>
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
-                  {suppliers.length === 0 ? (
-                    <p className="px-2 py-3 text-xs text-slate-500">No suppliers available.</p>
-                  ) : (
-                    suppliers.map((supplier) => {
-                      const checked = form.supplierIds.includes(supplier.id);
-                      return (
-                        <label
-                          key={supplier.id}
-                          className={cn(
-                            'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 transition',
-                            checked
-                              ? 'border-indigo-300 bg-indigo-50'
-                              : 'border-slate-200 bg-white hover:border-slate-300',
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleSupplierSelection(supplier.id)}
-                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900">{supplier.supplierName}</p>
-                            <p className="text-xs text-slate-500">
-                              {supplier.email?.trim() || 'No email on file'}
-                            </p>
-                          </div>
-                        </label>
-                      );
-                    })
-                  )}
+                <div className="flex items-start gap-2">
+                  <Select value={pendingSupplierId} onValueChange={setPendingSupplierId}>
+                    <SelectTrigger className="h-9 flex-1 text-sm">
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSuppliers.length === 0 ? (
+                        <SelectItem value="__all_selected__" disabled>
+                          All suppliers already selected
+                        </SelectItem>
+                      ) : (
+                        availableSuppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.supplierName} ({supplier.supplierCode || supplier.id.slice(0, 8)})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 px-4"
+                    disabled={!pendingSupplierId}
+                    onClick={addPendingSupplier}
+                  >
+                    Add
+                  </Button>
                 </div>
+                <p className="text-[11px] text-slate-500">
+                  Select a supplier, then click Add. Each supplier will receive a separate RFQ email.
+                </p>
                 {selectedSuppliers.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {selectedSuppliers.map((supplier) => (
-                      <Badge key={supplier.id} variant="secondary" className="gap-1">
-                        {supplier.supplierName}
-                      </Badge>
+                      <div
+                        key={supplier.id}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700"
+                      >
+                        <span className="font-medium">
+                          {supplier.supplierName} ({supplier.supplierCode})
+                        </span>
+                        <span className="inline-flex items-center gap-0.5 text-amber-500">
+                          {Array.from({ length: 5 }, (_, index) => (
+                            <Star
+                              key={`${supplier.id}-${index}`}
+                              className={cn(
+                                'h-3 w-3',
+                                index < Math.round(supplier.rating)
+                                  ? 'fill-current text-amber-500'
+                                  : 'text-slate-300',
+                              )}
+                            />
+                          ))}
+                        </span>
+                        <button
+                          type="button"
+                          className="rounded-full text-slate-500 transition hover:text-slate-800"
+                          onClick={() => toggleSupplierSelection(supplier.id)}
+                          aria-label={`Remove ${supplier.supplierName}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ) : null}
-                <p className="text-[11px] text-slate-500">
-                  Each selected supplier will receive a separate RFQ email when this request is sent.
-                </p>
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <Label className="text-xs">Notes</Label>

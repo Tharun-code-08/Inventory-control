@@ -46,9 +46,11 @@ import {
 import { normalizePostalCodeInput, usePostalCodeLookup } from '@/hooks/use-postal-code-lookup';
 import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { isShopOnlyUser } from '@/lib/shop-scope';
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { cn } from '@/lib/cn';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
@@ -141,6 +143,7 @@ function mergeCustomerPostalLookup(form: CustomerForm, lookup: { postalCode: str
 
 export function CustomersPage() {
   const user = useAuthStore((s) => s.user);
+  const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const shopLocked = isShopOnlyUser(user);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -156,7 +159,11 @@ export function CustomersPage() {
   const updateCustomer = useUpdateCustomer();
   const postalLookup = usePostalCodeLookup(form.postalCode);
 
-  const resolvedShopId = user?.shopId ?? form.shopId ?? shops[0]?.id ?? '';
+  const resolvedShopId = resolvePreferredOrgId(
+    shops.map((shop) => shop.id),
+    user?.shopId,
+    form.shopId,
+  );
 
   const filtered = useMemo(() => {
     return customers.filter((c) => {
@@ -175,6 +182,10 @@ export function CustomersPage() {
     if (!postalLookup.data) return;
     setForm((prev) => mergeCustomerPostalLookup(prev, postalLookup.data));
   }, [postalLookup.data, setForm]);
+
+  useEffect(() => {
+    syncPreferredOrgId(user?.shopId ? null : resolvedShopId, functionalCookiesEnabled);
+  }, [functionalCookiesEnabled, resolvedShopId, user?.shopId]);
 
   function openCreate() {
     setEditing(null);
@@ -447,7 +458,10 @@ export function CustomersPage() {
                 <Label>Plant *</Label>
                 <Select
                   value={form.shopId || resolvedShopId}
-                  onValueChange={(v) => setForm((p) => ({ ...p, shopId: v }))}
+                  onValueChange={(v) => {
+                    setForm((p) => ({ ...p, shopId: v }));
+                    syncPreferredOrgId(v, functionalCookiesEnabled);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select plant" />

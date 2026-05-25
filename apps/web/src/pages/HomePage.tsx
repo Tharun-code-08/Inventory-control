@@ -2,8 +2,11 @@ import { Link } from 'react-router-dom';
 import { BrandLogo } from '@/components/BrandLogo';
 import { PricingSection } from '@/components/PricingSection';
 import { BRAND } from '@/lib/brand';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 
 export function HomePage() {
+  const openPreferences = useCookieConsentStore((state) => state.setPreferencesOpen);
+
   return (
     <div className="flex min-h-screen flex-col bg-[#030b2a] text-slate-100">
       <a
@@ -181,11 +184,18 @@ export function HomePage() {
       <footer className="border-t border-white/10 bg-[#030b2a]/90">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>{BRAND.copyright(new Date().getFullYear())}</p>
-          <p>
+          <div className="flex flex-wrap items-center gap-4">
             <Link to="/login" className="font-medium text-violet-300 underline-offset-2 hover:underline">
               {BRAND.productName} sign-in
             </Link>
-          </p>
+            <button
+              type="button"
+              className="font-medium text-violet-300 underline-offset-2 hover:underline"
+              onClick={() => openPreferences(true)}
+            >
+              Cookie Preferences
+            </button>
+          </div>
         </div>
       </footer>
     </div>

@@ -101,6 +101,8 @@ import {
   taxPercentForProduct,
 } from '@/lib/po-line-calculations';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 
 /** Roles that must use their assigned plant and cannot switch delivery plant. */
 const SHOP_SCOPED_ROLES = new Set(['SHOP_USER', 'WAREHOUSE_STAFF', 'VIEWER', 'VENDOR']);
@@ -217,11 +219,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
   const canSendPoEmail = hasAnyPermission(user, 'purchase_order:create', 'purchase_order:approve');
   const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
-  const shopId = user?.shopId ?? selectedShopId;
+  const shopId = resolvePreferredOrgId(
+    shops.map((shop) => shop.id),
+    user?.shopId,
+    selectedShopId,
+  );
   const deliveryPlantLocked = isShopScopedRole(user?.role) || shops.length <= 1;
   const [sourceType, setSourceType] = useState<'DIRECT' | 'RFQ' | 'CONTRACT'>('DIRECT');
   const [sourceRfqId, setSourceRfqId] = useState('');
@@ -454,6 +461,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     user?.shopId,
     applyDeliveryAddressFromPlant,
   ]);
+
+  useEffect(() => {
+    syncPreferredOrgId(user?.shopId ? null : shopId, functionalCookiesEnabled);
+  }, [functionalCookiesEnabled, shopId, user?.shopId]);
 
   useEffect(() => {
     const formOpen = createOnly || sheetOpen;

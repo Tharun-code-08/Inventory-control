@@ -80,12 +80,17 @@ export async function buildPoPdfDataFromRecord(
   const lines = po.items.map((i) => {
     const qty = Number(i.orderQty);
     const rate = Number(i.rate);
-    const lineTotal = Number(i.lineValue);
+    const taxPercent = document.lineItemTaxes?.find((t) => t.productId === i.productId)?.taxPercent ?? 0;
+    const lineSubtotal = qty * rate;
+    const lineTaxAmount = lineSubtotal * (taxPercent / 100);
+    const lineTotal = lineSubtotal + lineTaxAmount;
     return {
       code: i.product?.productCode ?? i.productId,
       description: i.product?.description ?? '',
       qty: Number.isInteger(qty) ? String(qty) : formatPoPdfMoney(qty),
       unitPrice: formatPoPdfMoney(rate),
+      taxPercent: taxPercent > 0 ? `${formatPoPdfMoney(taxPercent)}%` : '0%',
+      taxAmount: formatPoPdfMoney(lineTaxAmount),
       total: formatPoPdfMoney(lineTotal),
     };
   });
@@ -104,10 +109,8 @@ export async function buildPoPdfDataFromRecord(
 
   const totalNet = po.items.reduce((sum, i) => sum + Number(i.lineValue), 0);
   const deliveryAmt = Number(document.shippingAmount) || 0;
-  const grandTotal =
-    po.totalValue != null && Number(po.totalValue) > 0
-      ? Number(po.totalValue)
-      : totalNet + vatAmt + deliveryAmt;
+  const storedGrandTotal = Number(po.totalValue) || 0;
+  const grandTotal = Math.max(totalNet + vatAmt + deliveryAmt, storedGrandTotal);
 
   const minRows = 12;
   const padRowCount = Math.max(0, minRows - lines.length);
@@ -129,7 +132,7 @@ export async function buildPoPdfDataFromRecord(
     specialInstructions: humanRemarks || '—',
     totalNet: formatPoPdfMoney(totalNet),
     delivery: formatPoPdfMoney(deliveryAmt),
-    vat: formatPoPdfMoney(vatAmt),
+    taxTotal: formatPoPdfMoney(vatAmt),
     grandTotal: formatPoPdfMoney(grandTotal),
   };
 }

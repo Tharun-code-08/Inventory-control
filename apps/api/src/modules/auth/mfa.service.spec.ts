@@ -41,9 +41,15 @@ function makePrisma() {
       createMany: jest.fn(),
       update: jest.fn(),
     },
+    trustedMfaDevice: {
+      updateMany: jest.fn(),
+    },
   };
 
   return {
+    user: {
+      findUnique: jest.fn(),
+    },
     authChallenge: {
       updateMany: jest.fn(),
       create: jest.fn(),
@@ -71,6 +77,9 @@ function makePrisma() {
     }),
     __tx: tx,
   } as unknown as {
+    user: {
+      findUnique: Mock;
+    };
     authChallenge: {
       updateMany: Mock;
       create: Mock;
@@ -221,6 +230,184 @@ describe('MfaService', () => {
       }),
     );
     expect(auth.issueSessionForUser).not.toHaveBeenCalled();
+  });
+
+  it('starts account MFA enrollment for a logged-in user who skipped setup at signup', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig(), auth as never);
+
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@example.com',
+      isActive: true,
+      mfaEnabled: false,
+      mfaMethod: null,
+      mfaEnrolledAt: null,
+      mfaSecretEncrypted: null,
+    });
+    prisma.authChallenge.create.mockResolvedValue({
+      id: 'challenge-account-1',
+      userId: 'user-1',
+      purpose: 'SIGNUP_MFA_ENROLL',
+      tokenHash: 'hash',
+      totpSecretEncrypted: null,
+      attemptCount: 0,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
+      consumedAt: null,
+      createdAt: new Date('2026-05-25T10:00:00.000Z'),
+    });
+
+    const result = await svc.startAccountEnrollment('user-1');
+
+    expect(result.challengeToken).toEqual(expect.any(String));
+    expect(result.manualCode).toBe('JBSWY3DPEHPK3PXP');
+    expect(result.qrCodeDataUrl).toContain('data:image/png');
+    expect(prisma.authChallenge.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          purpose: 'SIGNUP_MFA_ENROLL',
+        }),
+      }),
+    );
+    expect(prisma.authChallenge.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'challenge-account-1' },
+        data: expect.objectContaining({
+          totpSecretEncrypted: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it('verifies account MFA enrollment and persists the real user MFA settings', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig({ MFA_BACKUP_CODE_COUNT: 4 }), auth as never);
+    const encrypted = (svc as unknown as { encryptSecret: (value: string) => string }).encryptSecret(
+      'JBSWY3DPEHPK3PXP',
+    );
+
+    prisma.authChallenge.findFirst.mockResolvedValue({
+      id: 'challenge-account-2',
+      userId: 'user-1',
+      purpose: 'SIGNUP_MFA_ENROLL',
+      tokenHash: 'hash',
+      totpSecretEncrypted: encrypted,
+      attemptCount: 0,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
+      consumedAt: null,
+      createdAt: new Date('2026-05-25T10:00:00.000Z'),
+      user: {
+        id: 'user-1',
+        email: 'owner@example.com',
+        isActive: true,
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+      },
+    });
+
+    const result = await svc.verifyAccountEnrollment('user-1', {
+      token: 'challenge-token',
+      code: '123456',
+    });
+
+    expect(result.backupCodes).toHaveLength(4);
+    expect(prisma.__tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({
+          mfaEnabled: true,
+          mfaMethod: 'TOTP',
+          mfaSecretEncrypted: encrypted,
+        }),
+      }),
+    );
+    expect(prisma.__tx.userBackupCode.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(prisma.__tx.userBackupCode.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ userId: 'user-1', codeHash: expect.stringContaining('hash:') }),
+        ]),
+      }),
+    );
+  });
+
+  it('regenerates backup codes for an already-enabled MFA user after TOTP confirmation', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig({ MFA_BACKUP_CODE_COUNT: 4 }), auth as never);
+    const encrypted = (svc as unknown as { encryptSecret: (value: string) => string }).encryptSecret(
+      'JBSWY3DPEHPK3PXP',
+    );
+
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@example.com',
+      isActive: true,
+      mfaEnabled: true,
+      mfaMethod: 'TOTP',
+      mfaEnrolledAt: new Date('2026-05-25T10:00:00.000Z'),
+      mfaSecretEncrypted: encrypted,
+    });
+
+    const result = await svc.regenerateBackupCodes('user-1', { code: '123456' });
+
+    expect(result.backupCodes).toHaveLength(4);
+    expect(prisma.__tx.userBackupCode.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(prisma.__tx.userBackupCode.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ userId: 'user-1', codeHash: expect.stringContaining('hash:') }),
+        ]),
+      }),
+    );
+  });
+
+  it('disables MFA, deletes backup codes, and revokes trusted devices after TOTP confirmation', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig(), auth as never);
+    const encrypted = (svc as unknown as { encryptSecret: (value: string) => string }).encryptSecret(
+      'JBSWY3DPEHPK3PXP',
+    );
+
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@example.com',
+      isActive: true,
+      mfaEnabled: true,
+      mfaMethod: 'TOTP',
+      mfaEnrolledAt: new Date('2026-05-25T10:00:00.000Z'),
+      mfaSecretEncrypted: encrypted,
+    });
+
+    const result = await svc.disableAccountMfa('user-1', { code: '123456' });
+
+    expect(result).toEqual({
+      enabled: false,
+      method: null,
+      enrolledAt: null,
+    });
+    expect(prisma.__tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({
+          mfaEnabled: false,
+          mfaMethod: null,
+          mfaEnrolledAt: null,
+          mfaSecretEncrypted: null,
+        }),
+      }),
+    );
+    expect(prisma.__tx.userBackupCode.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(prisma.__tx.trustedMfaDevice.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      }),
+    );
   });
 
   it('accepts a backup code once and consumes it during login verification', async () => {

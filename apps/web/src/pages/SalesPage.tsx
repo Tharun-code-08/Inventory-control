@@ -63,6 +63,7 @@ import {
   type SalesOrder,
 } from '@/hooks/use-sales-orders';
 import { useAuthStore } from '@/store/authStore';
+import { resolvePreferredOrgId } from '@/lib/cookie-consent';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
@@ -252,7 +253,11 @@ export function SalesPage() {
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
   const [form, setForm] = useState(emptyForm());
 
-  const resolvedShopId = user?.shopId ?? shops[0]?.id ?? '';
+  const resolvedShopId = resolvePreferredOrgId(
+    shops.map((shop) => shop.id),
+    user?.shopId,
+    null,
+  );
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
     isActive: true,

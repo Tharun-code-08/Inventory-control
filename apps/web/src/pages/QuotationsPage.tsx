@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -59,7 +59,9 @@ import {
   type SalesQuotation,
 } from '@/hooks/use-sales-quotations';
 import { useAuthStore } from '@/store/authStore';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { cn } from '@/lib/cn';
+import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { uiSurfaces } from '@/lib/ui-surfaces';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
@@ -190,6 +192,7 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 export function QuotationsPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const { data: shops = [] } = useShops();
   const { data: customers = [] } = useCustomers();
   const { data: quotations = [] } = useSalesQuotations();
@@ -218,7 +221,11 @@ export function QuotationsPage() {
     unitPrice: '0',
   });
 
-  const resolvedShopId = user?.shopId ?? form.shopId ?? shops[0]?.id ?? '';
+  const resolvedShopId = resolvePreferredOrgId(
+    shops.map((shop) => shop.id),
+    user?.shopId,
+    form.shopId,
+  );
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
     isActive: true,
@@ -277,6 +284,10 @@ export function QuotationsPage() {
       unitPrice: '0',
     });
   };
+
+  useEffect(() => {
+    syncPreferredOrgId(user?.shopId ? null : resolvedShopId, functionalCookiesEnabled);
+  }, [functionalCookiesEnabled, resolvedShopId, user?.shopId]);
 
   const onCreate = async (andSend: boolean) => {
     if (!form.customerId || !form.productId) {
@@ -758,7 +769,10 @@ export function QuotationsPage() {
                 <Label>Plant</Label>
                 <Select
                   value={form.shopId || resolvedShopId}
-                  onValueChange={(v) => setForm((p) => ({ ...p, shopId: v }))}
+                  onValueChange={(v) => {
+                    setForm((p) => ({ ...p, shopId: v }));
+                    syncPreferredOrgId(v, functionalCookiesEnabled);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select plant" />

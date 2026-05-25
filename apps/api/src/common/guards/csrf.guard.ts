@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 
-const CSRF_COOKIE_NAME = 'csrfToken';
+const CSRF_COOKIE_NAME = 'csrf_token';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
 /**

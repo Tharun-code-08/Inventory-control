@@ -16,6 +16,31 @@ export type BidScoreRow = {
 
 export type RfqAllocationMap = Record<string, Record<string, number>>;
 
+export type SupplierAllocationPlanItem = {
+  rfqItemId: string;
+  quotationItemId?: string;
+  productId?: string | null;
+  productCode: string;
+  description: string;
+  uom: string;
+  requiredQty: number;
+  quotedQty: number;
+  allocatedQty: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type SupplierAllocationPlan = {
+  quoteId: string;
+  supplierId?: string;
+  supplierName: string;
+  supplierEmail: string | null;
+  leadTimeDays: number | null;
+  totalValue: number;
+  itemCount: number;
+  items: SupplierAllocationPlanItem[];
+};
+
 const ALLOCATION_STORAGE_PREFIX = 'retail-ims:rfq-allocations:';
 
 export function parseLeadTimeDays(notes?: string | null): number | null {
@@ -145,6 +170,7 @@ export function saveAllocations(rfqId: string, map: RfqAllocationMap): void {
 
 export function validateAllocations(
   rfq: Rfq,
+  quotations: Quotation[],
   allocations: RfqAllocationMap,
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -155,6 +181,25 @@ export function validateAllocations(
     if (allocated > required) {
       const label = item.product?.productCode ?? item.description ?? item.id;
       errors.push(`${label}: allocated ${allocated} exceeds required ${required}`);
+    }
+  }
+  for (const quote of activeQuotations(quotations)) {
+    for (const [index, rfqItem] of (rfq.items ?? []).entries()) {
+      const allocatedQty = Number(allocations[rfqItem.id]?.[quote.id] ?? 0);
+      if (allocatedQty <= 0) continue;
+
+      const line = getQuoteLineForRfqItem(quote, rfqItem.id, index);
+      const quotedQty = Number(line?.quantity ?? 0);
+      const supplierName = quote.supplier?.supplierName ?? 'Supplier';
+      const label = rfqItem.product?.productCode ?? rfqItem.description ?? rfqItem.id;
+
+      if (!line) {
+        errors.push(`${supplierName}: no quotation line found for ${label}`);
+        continue;
+      }
+      if (allocatedQty > quotedQty) {
+        errors.push(`${supplierName}: ${label} allocated ${allocatedQty} exceeds quoted ${quotedQty}`);
+      }
     }
   }
   return { valid: errors.length === 0, errors };
@@ -186,4 +231,66 @@ export function allocatedCostByQuote(
     }
   });
   return costs;
+}
+
+export function buildAllocationPlan(
+  rfq: Rfq,
+  quotations: Quotation[],
+  allocations: RfqAllocationMap,
+): SupplierAllocationPlan[] {
+  return activeQuotations(quotations)
+    .map((quote) => {
+      const items = (rfq.items ?? []).flatMap((rfqItem, index) => {
+        const allocatedQty = Number(allocations[rfqItem.id]?.[quote.id] ?? 0);
+        if (allocatedQty <= 0) return [];
+
+        const line = getQuoteLineForRfqItem(quote, rfqItem.id, index);
+        const unitPrice = unitPriceForLine(line);
+        const quotedQty = Number(line?.quantity ?? 0);
+        const productCode = rfqItem.product?.productCode ?? rfqItem.description ?? 'Item';
+        const description =
+          rfqItem.product?.description ?? rfqItem.description ?? line?.description ?? productCode;
+
+        return [
+          {
+            rfqItemId: rfqItem.id,
+            quotationItemId: line?.id,
+            productId: rfqItem.productId ?? null,
+            productCode,
+            description,
+            uom: rfqItem.uom,
+            requiredQty: Number(rfqItem.quantity),
+            quotedQty,
+            allocatedQty,
+            unitPrice,
+            lineTotal: allocatedQty * unitPrice,
+          } satisfies SupplierAllocationPlanItem,
+        ];
+      });
+
+      return {
+        quoteId: quote.id,
+        supplierId: quote.supplier?.id,
+        supplierName: quote.supplier?.supplierName ?? 'Supplier',
+        supplierEmail: quote.supplier?.email ?? null,
+        leadTimeDays: parseLeadTimeDays(quote.notes),
+        totalValue: items.reduce((sum, item) => sum + item.lineTotal, 0),
+        itemCount: items.length,
+        items,
+      } satisfies SupplierAllocationPlan;
+    })
+    .filter((plan) => plan.items.length > 0);
+}
+
+export function clearQuoteAllocations(
+  allocations: RfqAllocationMap,
+  quoteId: string,
+): RfqAllocationMap {
+  return Object.fromEntries(
+    Object.entries(allocations).map(([rfqItemId, perQuote]) => {
+      const nextPerQuote = { ...perQuote };
+      delete nextPerQuote[quoteId];
+      return [rfqItemId, nextPerQuote];
+    }),
+  );
 }

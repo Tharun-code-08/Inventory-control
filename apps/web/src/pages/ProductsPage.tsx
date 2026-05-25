@@ -37,6 +37,7 @@ import {
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
+  type CreateProductPayload,
   type Product,
   type ProductFilters,
   TAX_PREFERENCE_OPTIONS,
@@ -194,6 +195,42 @@ const PAGE_SIZE = 25;
 const CREATE_CATEGORY_OPTION = '__create_category__';
 /** API rejects limit > 100 (ListProductsDto @Max(100)). */
 const STATS_FETCH_LIMIT = 100;
+
+function normalizeProductCode(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function parseProductCodeSequence(productCode: string, prefix: string): number | null {
+  const normalizedCode = normalizeProductCode(productCode);
+  const normalizedPrefix = normalizeProductCode(prefix);
+  if (!normalizedCode.startsWith(normalizedPrefix)) return null;
+  const suffix = normalizedCode.slice(normalizedPrefix.length);
+  if (!/^\d+$/.test(suffix)) return null;
+  return Number(suffix);
+}
+
+function nextProductCodeForPrefix(prefix: string, existingCodes: Iterable<string>): string {
+  const normalizedPrefix = normalizeProductCode(prefix || 'PRD');
+  const known = new Set(Array.from(existingCodes, (code) => normalizeProductCode(code)).filter(Boolean));
+  let maxSequence = 0;
+  for (const code of known) {
+    const sequence = parseProductCodeSequence(code, normalizedPrefix);
+    if (sequence != null) {
+      maxSequence = Math.max(maxSequence, sequence);
+    }
+  }
+
+  let candidate = maxSequence + 1;
+  while (candidate < Number.MAX_SAFE_INTEGER) {
+    const nextCode = `${normalizedPrefix}${String(candidate).padStart(Math.max(3, String(candidate).length), '0')}`;
+    if (!known.has(nextCode)) {
+      return nextCode;
+    }
+    candidate += 1;
+  }
+
+  return `${normalizedPrefix}${Date.now().toString().slice(-6)}`;
+}
 
 function formatAmount(value: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -655,6 +692,72 @@ export function ProductsPage() {
     return { total, active, lowStock, outOfStock };
   }, [statsQuery.data, items, meta.total, listShopId]);
 
+  const knownProductCodes = useMemo(
+    () =>
+      new Set(
+        (statsQuery.data?.items ?? items)
+          .map((product) => normalizeProductCode(product.productCode))
+          .filter(Boolean),
+      ),
+    [items, statsQuery.data],
+  );
+
+  const nextAvailableProductCode = useCallback(
+    (prefix: string, reservedCodes: Iterable<string> = []) =>
+      nextProductCodeForPrefix(prefix, [...knownProductCodes, ...reservedCodes]),
+    [knownProductCodes],
+  );
+
+  const isDuplicateProductCodeError = useCallback((error: unknown) => {
+    const message =
+      (
+        error as {
+          response?: { data?: { error?: { message?: string } } };
+          message?: string;
+        }
+      ).response?.data?.error?.message ??
+      (error as Error).message ??
+      '';
+    return /product code/i.test(message) && /(exist|unique|duplicate)/i.test(message)
+      || (/unique constraint failed/i.test(message) && /product[_\s]?code/i.test(message));
+  }, []);
+
+  const createProductWithResolvedCode = useCallback(
+    async (
+      payload: Omit<CreateProductPayload, 'productCode'> & { productCode?: string },
+      categoryName: string,
+      reservedCodes: Set<string>,
+    ) => {
+      const prefix =
+        categoryConfig.find((category) => category.name === categoryName)?.skuPrefix ?? 'PRD';
+      let candidateCode =
+        payload.productCode?.trim()
+          ? normalizeProductCode(payload.productCode)
+          : nextAvailableProductCode(prefix, reservedCodes);
+      const usingAutoCode = !payload.productCode?.trim();
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        try {
+          const created = await createProduct.mutateAsync({
+            ...payload,
+            productCode: candidateCode,
+          });
+          reservedCodes.add(candidateCode);
+          return created;
+        } catch (error) {
+          if (!usingAutoCode || !isDuplicateProductCodeError(error) || attempt === 9) {
+            throw error;
+          }
+          reservedCodes.add(candidateCode);
+          candidateCode = nextAvailableProductCode(prefix, reservedCodes);
+        }
+      }
+
+      throw new Error('Could not generate a unique SKU');
+    },
+    [categoryConfig, createProduct, isDuplicateProductCodeError, nextAvailableProductCode],
+  );
+
   function onExportCsv() {
     const columns: CsvColumn<Product>[] = [
       { header: 'SKU', value: (r) => r.productCode },
@@ -876,11 +979,12 @@ export function ProductsPage() {
 
   const onSubmit = async (rawValues: FormShape) => {
     try {
-      const finalProductCode = editingProduct ? rawValues.productCode : composedProductCode;
-      if (!editingProduct && !/^\d+$/.test(skuNumber)) {
-        toast.error('Enter numeric product code digits');
-        return;
-      }
+      const enteredSkuNumber = skuNumber.trim();
+      const finalProductCode = editingProduct
+        ? rawValues.productCode
+        : enteredSkuNumber
+          ? composedProductCode
+          : nextAvailableProductCode(currentPrefix);
       if (!rawValues.plants.some((p) => p.shopId?.trim())) {
         toast.error('Select a plant — products only appear for shops they are assigned to');
         return;
@@ -929,7 +1033,14 @@ export function ProductsPage() {
           finalProductCode,
           mode: 'create',
         });
-        const created = await createProduct.mutateAsync(payload);
+        const created = await createProductWithResolvedCode(
+          {
+            ...payload,
+            productCode: enteredSkuNumber ? finalProductCode : undefined,
+          },
+          rawValues.category,
+          new Set<string>(),
+        );
         const plantName =
           shopList.find((s) => s.id === created.plants[0]?.shopId)?.shopName ?? 'selected plant';
         toast.success(
@@ -1106,13 +1217,7 @@ export function ProductsPage() {
 
       let successCount = 0;
       const failures: string[] = [];
-      const seenCodes = new Set<string>();
-      // Pre-build a set of productCodes from rows currently visible so we
-      // can warn on obvious duplicates before sending. The API is the
-      // source of truth on uniqueness — productCode is now globally unique.
-      const existingCodes = new Set(
-        items.map((p) => (p.productCode || '').toLowerCase()),
-      );
+      const reservedCodes = new Set<string>(knownProductCodes);
 
       for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index];
@@ -1181,7 +1286,6 @@ export function ProductsPage() {
             importStorageLocations,
           );
 
-          if (!code) throw new Error('Product Code is required');
           if (!description) throw new Error('Description is required');
           if (!category) throw new Error('Category is required');
           if (hsnCode && !/^\d{4}(\d{2}){0,2}$/.test(hsnCode)) {
@@ -1200,40 +1304,49 @@ export function ProductsPage() {
             throw new Error('Invalid Max Stock Level');
           }
 
-          const dedupeKey = code.toLowerCase();
-          if (seenCodes.has(dedupeKey)) throw new Error('Duplicate Product Code in upload file');
-          if (existingCodes.has(dedupeKey)) throw new Error('Product Code already exists');
-          seenCodes.add(dedupeKey);
+          const prefix =
+            categoryConfig.find((config) => config.name === category)?.skuPrefix ?? 'PRD';
+          const explicitCode = code ? normalizeProductCode(code) : '';
+          const generatedCode = explicitCode || nextAvailableProductCode(prefix, reservedCodes);
+
+          if (explicitCode && reservedCodes.has(explicitCode)) {
+            throw new Error('Product Code already exists in the catalog or upload file');
+          }
+          reservedCodes.add(generatedCode);
 
           if (importDryRun) {
             successCount += 1;
             continue;
           }
 
-          await createProduct.mutateAsync({
-            productCode: code,
-            description,
+          await createProductWithResolvedCode(
+            {
+              productCode: explicitCode || undefined,
+              description,
+              category,
+              hsnCode: hsnCode || undefined,
+              materialGroup: materialGroup || undefined,
+              drawingReference: drawingReference || undefined,
+              brand: brand || undefined,
+              taxPreference,
+              purchasePrice,
+              sellingPrice,
+              uom,
+              isActive,
+              plants: [
+                {
+                  shopId: resolvedShopId,
+                  storageLocationId,
+                  openingStock,
+                  minStockLevel,
+                  maxStockLevel,
+                  reorderQty: reorderQty || undefined,
+                },
+              ],
+            },
             category,
-            hsnCode: hsnCode || undefined,
-            materialGroup: materialGroup || undefined,
-            drawingReference: drawingReference || undefined,
-            brand: brand || undefined,
-            taxPreference,
-            purchasePrice,
-            sellingPrice,
-            uom,
-            isActive,
-            plants: [
-              {
-                shopId: resolvedShopId,
-                storageLocationId,
-                openingStock,
-                minStockLevel,
-                maxStockLevel,
-                reorderQty: reorderQty || undefined,
-              },
-            ],
-          });
+            reservedCodes,
+          );
           successCount += 1;
         } catch (err: unknown) {
           const message =
@@ -1762,7 +1875,7 @@ export function ProductsPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="productCode">SKU *</Label>
+                  <Label htmlFor="productCode">SKU</Label>
                   {editingProduct ? (
                     <Input id="productCode" {...form.register('productCode')} disabled />
                   ) : (
@@ -1771,7 +1884,7 @@ export function ProductsPage() {
                       <Input
                         id="productCode"
                         inputMode="numeric"
-                        placeholder="numbers only"
+                        placeholder="Leave blank to auto-generate"
                         value={skuNumber}
                         onChange={(e) => setSkuNumber(e.target.value.replace(/\D/g, ''))}
                       />
@@ -1779,7 +1892,7 @@ export function ProductsPage() {
                   )}
                   {!editingProduct && (
                     <p className="text-xs text-muted-foreground">
-                      Auto prefix + numeric suffix (example: {currentPrefix}001)
+                      Prefix comes from category. Enter digits or leave the number blank to auto-generate the next SKU.
                     </p>
                   )}
                   {form.formState.errors.productCode && (

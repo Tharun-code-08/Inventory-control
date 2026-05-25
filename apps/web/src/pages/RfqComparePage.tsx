@@ -5,7 +5,6 @@ import {
   Award,
   CheckCircle2,
   Save,
-  ShoppingCart,
   Star,
   Trophy,
 } from 'lucide-react';
@@ -25,11 +24,12 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRfq } from '@/hooks/use-rfqs';
-import { useQuotations, useAcceptAutoLinkQuotation } from '@/hooks/use-quotations';
+import { useQuotations } from '@/hooks/use-quotations';
 import { useContracts } from '@/hooks/use-contracts';
 import {
   activeQuotations,
   allocatedCostByQuote,
+  buildAllocationPlan,
   computeBidScores,
   getQuoteLineForRfqItem,
   loadAllocations,
@@ -82,7 +82,6 @@ export function RfqComparePage() {
   const { data: rfq, isLoading, isError } = useRfq(id);
   const { data: quotations = [] } = useQuotations(id);
   const { data: contracts = [] } = useContracts();
-  const acceptQuote = useAcceptAutoLinkQuotation();
 
   const [priceWeight, setPriceWeight] = useState(60);
   const [allocations, setAllocations] = useState<RfqAllocationMap>({});
@@ -140,23 +139,10 @@ export function RfqComparePage() {
     () => bids.find((quote) => quote.id === pickedQuoteId) ?? null,
     [bids, pickedQuoteId],
   );
-
-  const selectedQuotePoItems = useMemo(() => {
-    if (!rfq || !selectedQuote) return [];
-    return (rfq.items ?? []).flatMap((rfqItem, index) => {
-      const orderQty = allocations[rfqItem.id]?.[selectedQuote.id] ?? 0;
-      if (orderQty <= 0) return [];
-      const line = getQuoteLineForRfqItem(selectedQuote, rfqItem.id, index);
-      if (!line?.id) return [];
-      return [
-        {
-          quotationItemId: line.id,
-          rfqItemId: line.rfqItemId ?? rfqItem.id,
-          orderQty,
-        },
-      ];
-    });
-  }, [allocations, rfq, selectedQuote]);
+  const allocationPlans = useMemo(
+    () => (rfq ? buildAllocationPlan(rfq, bids, allocations) : []),
+    [allocations, bids, rfq],
+  );
 
   const grandAllocatedQty = useMemo(() => {
     if (!rfq) return { allocated: 0, required: 0 };
@@ -182,58 +168,18 @@ export function RfqComparePage() {
 
   function handleSaveAllocations() {
     if (!rfq || !id) return;
-    const { valid, errors } = validateAllocations(rfq, allocations);
+    const { valid, errors } = validateAllocations(rfq, bids, allocations);
     if (!valid) {
       toast.error(errors[0] ?? 'Invalid allocation');
       return;
     }
     saveAllocations(id, allocations);
-    toast.success('Allocations saved');
+    toast.success('Allocations saved. Return to the RFQ page to create the purchase order.');
   }
 
   function handleSelectQuote(quoteId: string) {
     setPickedQuoteId(quoteId);
-    toast.success('Supplier selected. Allocate only the materials you want, then create the PO.');
-  }
-
-  async function handleCreatePo() {
-    const quoteId = pickedQuoteId ?? scores[0]?.quoteId;
-    if (!quoteId) {
-      toast.error('Select a supplier first');
-      return;
-    }
-    if (!rfq) {
-      toast.error('RFQ not loaded');
-      return;
-    }
-    const { valid, errors } = validateAllocations(rfq, allocations);
-    if (!valid) {
-      toast.error(errors[0] ?? 'Invalid allocation');
-      return;
-    }
-    if (selectedQuotePoItems.length === 0) {
-      toast.error('Allocate quantity to the selected supplier for the materials you want on this PO');
-      return;
-    }
-    try {
-      await acceptQuote.mutateAsync({
-        id: quoteId,
-        items: selectedQuotePoItems.map(({ quotationItemId, rfqItemId, orderQty }) => ({
-          quotationItemId,
-          rfqItemId,
-          orderQty,
-        })),
-      });
-      toast.success(
-        `Purchase order created for ${selectedQuotePoItems.length} material${selectedQuotePoItems.length === 1 ? '' : 's'}`,
-      );
-      navigate('/purchase-orders');
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Could not create PO from this bid';
-      toast.error(msg);
-    }
+    toast.success('Supplier selected. Set the quantities below, save allocations, then create the PO from the RFQ page.');
   }
 
   if (isLoading) {
@@ -285,17 +231,6 @@ export function RfqComparePage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status="Evaluation" />
-              {pickedQuoteId && (
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={acceptQuote.isPending || selectedQuotePoItems.length === 0}
-                  onClick={handleCreatePo}
-                >
-                  <ShoppingCart className="mr-1.5 h-4 w-4" />
-                  Create PO ({selectedQuotePoItems.length})
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -404,6 +339,7 @@ export function RfqComparePage() {
                       const isTop = row.rank === 1;
                       const isPicked = pickedQuoteId === row.quoteId;
                       const isAwarded = awardedQuoteIds.has(row.quoteId);
+                      const hasAllocation = allocationPlans.some((plan) => plan.quoteId === row.quoteId);
                       const quote = bids.find((b) => b.id === row.quoteId);
                       const leadDisplay =
                         quote && parseLeadTimeDays(quote.notes) != null
@@ -461,10 +397,14 @@ export function RfqComparePage() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            {isAwarded || isPicked ? (
+                            {isAwarded || hasAllocation ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-white">
                                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
                                 Selected
+                              </span>
+                            ) : isPicked ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-medium text-white">
+                                Focused
                               </span>
                             ) : (
                               <StatusBadge status="Submitted" />
@@ -501,16 +441,16 @@ export function RfqComparePage() {
                       {grandAllocatedQty.allocated} / {grandAllocatedQty.required}
                     </span>
                   </p>
-                  {selectedQuote && (
+                  {allocationPlans.length > 0 ? (
                     <p className="mt-1 text-xs text-slate-500">
-                      PO will include only the <span className="font-semibold text-slate-800">{selectedQuotePoItems.length}</span>{' '}
-                      allocated material{selectedQuotePoItems.length === 1 ? '' : 's'} for{' '}
-                      <span className="font-semibold text-slate-800">
-                        {selectedQuote.supplier?.supplierName}
-                      </span>
-                      .
+                      {allocationPlans.length} supplier{allocationPlans.length === 1 ? '' : 's'} currently have saved allocation-ready quantities.
+                      Create the PO from the RFQ page after saving.
                     </p>
-                  )}
+                  ) : selectedQuote ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Focused supplier: <span className="font-semibold text-slate-800">{selectedQuote.supplier?.supplierName}</span>.
+                    </p>
+                  ) : null}
                 </div>
                 <Button
                   className="bg-indigo-600 hover:bg-indigo-700"
@@ -580,7 +520,10 @@ export function RfqComparePage() {
                           {bids.map((quote) => {
                             const line = getQuoteLineForRfqItem(quote, rfqItem.id, index);
                             const unit = unitPriceForLine(line);
+                            const quotedQty = Number(line?.quantity ?? 0);
                             const val = allocations[rfqItem.id]?.[quote.id] ?? '';
+                            const numericVal = Number(val || 0);
+                            const overQuoted = numericVal > quotedQty && quotedQty > 0;
                             return (
                               <TableCell key={quote.id} className="align-top">
                                 <p className="mb-1.5 text-center text-xs font-medium text-slate-600">
@@ -589,29 +532,44 @@ export function RfqComparePage() {
                                 <Input
                                   type="number"
                                   min={0}
-                                  max={required}
-                                  className="h-9 text-center"
+                                  max={Math.max(quotedQty, required)}
+                                  className={cn('h-9 text-center', overQuoted && 'border-red-300 focus-visible:ring-red-500')}
                                   value={val === 0 ? '' : val}
                                   onChange={(e) =>
                                     setAllocation(rfqItem.id, quote.id, e.target.value)
                                   }
                                 />
+                                <p className="mt-1 text-center text-[10px] text-slate-500">
+                                  Quoted: {quotedQty || 0}
+                                </p>
+                                {overQuoted ? (
+                                  <p className="mt-1 text-center text-[10px] font-medium text-red-600">
+                                    Exceeds quoted qty
+                                  </p>
+                                ) : null}
                               </TableCell>
                             );
                           })}
                           <TableCell className="text-center">
-                            <span
-                              className={cn(
-                                'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums',
-                                over
-                                  ? 'bg-red-100 text-red-800'
-                                  : rowTotal === required
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-slate-100 text-slate-700',
-                              )}
-                            >
-                              {rowTotal} / {required}
-                            </span>
+                            <div className="space-y-1">
+                              <span
+                                className={cn(
+                                  'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums',
+                                  over
+                                    ? 'bg-red-100 text-red-800'
+                                    : rowTotal === required
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-slate-100 text-slate-700',
+                                )}
+                              >
+                                {rowTotal} / {required}
+                              </span>
+                              {over ? (
+                                <p className="text-[10px] font-medium text-red-600">
+                                  Over-allocated: {rowTotal - required}
+                                </p>
+                              ) : null}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

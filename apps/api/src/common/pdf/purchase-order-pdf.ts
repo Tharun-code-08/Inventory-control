@@ -9,6 +9,8 @@ export type PurchaseOrderPdfLine = {
   description: string;
   qty: string;
   unitPrice: string;
+  taxPercent: string;
+  taxAmount: string;
   total: string;
 };
 
@@ -30,7 +32,7 @@ export type PurchaseOrderPdfData = {
   specialInstructions: string;
   totalNet: string;
   delivery: string;
-  vat: string;
+  taxTotal: string;
   grandTotal: string;
 };
 
@@ -40,7 +42,9 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
   <meta charset="utf-8" />
   <title>Purchase Order {{poNumber}}</title>
   <style>
+    @page { margin: 0; }
     * { box-sizing: border-box; }
+    html, body { background: #fff; }
     body {
       font-family: Calibri, 'Segoe UI', Arial, sans-serif;
       font-size: 10pt;
@@ -108,6 +112,12 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
       height: 20px;
       vertical-align: top;
       font-size: 10pt;
+    }
+    .items .desc-main { font-weight: 500; }
+    .items .tax-note {
+      margin-top: 2px;
+      font-size: 8pt;
+      color: #4b5563;
     }
     .items td.num { text-align: right; }
     .footer { display: flex; gap: 12px; margin-top: 12px; align-items: flex-start; }
@@ -185,23 +195,30 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
         <th style="width:14%">ITEM</th>
         <th style="width:40%">DESCRIPTION</th>
         <th class="num" style="width:10%">QTY</th>
-        <th class="num" style="width:18%">UNIT PRICE</th>
-        <th class="num" style="width:18%">TOTAL</th>
+        <th class="num" style="width:14%">UNIT PRICE</th>
+        <th class="num" style="width:10%">TAX %</th>
+        <th class="num" style="width:12%">TAX AMT</th>
+        <th class="num" style="width:14%">TOTAL</th>
       </tr>
     </thead>
     <tbody>
       {{#each lines}}
       <tr>
         <td>{{code}}</td>
-        <td>{{description}}</td>
+        <td>
+          <div class="desc-main">{{description}}</div>
+          <div class="tax-note">Tax: {{taxPercent}}</div>
+        </td>
         <td class="num">{{qty}}</td>
         <td class="num">{{unitPrice}}</td>
+        <td class="num">{{taxPercent}}</td>
+        <td class="num">{{taxAmount}}</td>
         <td class="num">{{total}}</td>
       </tr>
       {{/each}}
       {{#each padRows}}
       <tr>
-        <td>&nbsp;</td><td></td><td></td><td></td><td></td>
+        <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
       </tr>
       {{/each}}
     </tbody>
@@ -220,7 +237,7 @@ const PO_INVOICE_TEMPLATE = Handlebars.compile(`<!doctype html>
       <table>
         <tr><td class="label">TOTAL NET</td><td class="amount">{{totalNet}}</td></tr>
         <tr><td class="label">DELIVERY</td><td class="amount">{{delivery}}</td></tr>
-        <tr><td class="label">VAT</td><td class="amount">{{vat}}</td></tr>
+        <tr><td class="label">GST / TAX</td><td class="amount">{{taxTotal}}</td></tr>
         <tr class="grand"><td class="label">TOTAL</td><td class="amount">{{grandTotal}}</td></tr>
       </table>
     </div>
@@ -264,7 +281,7 @@ export async function renderPurchaseOrderPdfBuffer(data: PurchaseOrderPdfData): 
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
       timeout: 30_000,
     });
     return Buffer.from(pdf);

@@ -6,11 +6,16 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppRoutes } from './routes/AppRoutes';
 import './index.css';
 import { api, applyAccessToken } from './api/client';
+import { CookieConsentManager } from './components/cookies/CookieConsentManager';
 import { initializeSessionFromAuthResponse } from './lib/session';
 import { useAuthStore } from './store/authStore';
 import { initThemeFromStorage } from './store/themeStore';
 
 initThemeFromStorage();
+
+if (typeof window !== 'undefined') {
+  window.localStorage.removeItem('retail-ims-auth');
+}
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -26,9 +31,6 @@ const qc = new QueryClient({
 async function bootstrapSession() {
   const state = useAuthStore.getState();
   const tokenAtBootstrapStart = state.accessToken;
-  if (state.accessToken) {
-    applyAccessToken(state.accessToken);
-  }
 
   try {
     const res = await api.post('/auth/refresh');
@@ -40,6 +42,8 @@ async function bootstrapSession() {
       applyAccessToken(null);
       useAuthStore.getState().clear();
     }
+  } finally {
+    useAuthStore.getState().setInitialized(true);
   }
 }
 
@@ -49,19 +53,13 @@ function mountApp() {
       <QueryClientProvider client={qc}>
         <BrowserRouter>
           <AppRoutes />
+          <CookieConsentManager />
           <SpeedInsights />
         </BrowserRouter>
       </QueryClientProvider>
     </React.StrictMode>,
   );
 }
-
-useAuthStore.persist.onFinishHydration(() => {
-  const { accessToken } = useAuthStore.getState();
-  if (accessToken) {
-    applyAccessToken(accessToken);
-  }
-});
 
 mountApp();
 void bootstrapSession();

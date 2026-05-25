@@ -52,9 +52,11 @@ import { CompletePasswordResetOtpDto } from './dto/complete-password-reset-otp.d
 import { MfaChallengeTokenDto } from './dto/mfa-challenge-token.dto';
 import { MfaEnrollVerifyDto } from './dto/mfa-enroll-verify.dto';
 import { MfaLoginVerifyDto } from './dto/mfa-login-verify.dto';
+import { MfaSettingsVerifyDto } from './dto/mfa-settings-verify.dto';
 
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
-const TRUSTED_MFA_COOKIE_NAME = 'trustedMfaDevice';
+const TRUSTED_MFA_COOKIE_NAME = 'remember_me';
+const COOKIE_CONSENT_NAME = 'cookie_consent';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -69,7 +71,7 @@ export class AuthController {
   ) {}
 
   private cookieName() {
-    return this.config.get<string>('REFRESH_COOKIE_NAME', 'refreshToken');
+    return this.config.get<string>('REFRESH_COOKIE_NAME', 'session_id');
   }
 
   private isProd() {
@@ -162,6 +164,17 @@ export class AuthController {
     const signed = (req.signedCookies as Record<string, string | undefined> | undefined)?.[name];
     const plain = (req.cookies as Record<string, string | undefined> | undefined)?.[name];
     return signed ?? plain;
+  }
+
+  private hasFunctionalCookieConsent(req: Request) {
+    const raw = this.readCookie(req, COOKIE_CONSENT_NAME);
+    if (!raw) return false;
+    try {
+      const parsed = JSON.parse(raw) as { functional?: boolean };
+      return Boolean(parsed.functional);
+    } catch {
+      return raw === 'functional' || raw === 'all' || raw === 'true';
+    }
   }
 
   @Public()
@@ -275,8 +288,14 @@ export class AuthController {
   ) {
     const result = await this.mfa.verifyLogin(dto, this.loginCtx(req));
     this.writeAuthCookies(res, result.refreshCookieValue);
-    if ('trustedDeviceToken' in result && typeof result.trustedDeviceToken === 'string') {
+    if (
+      this.hasFunctionalCookieConsent(req) &&
+      'trustedDeviceToken' in result &&
+      typeof result.trustedDeviceToken === 'string'
+    ) {
       this.writeTrustedMfaCookie(res, result.trustedDeviceToken);
+    } else {
+      this.clearTrustedMfaCookie(res);
     }
     return { accessToken: result.accessToken, user: result.user };
   }
@@ -340,13 +359,16 @@ export class AuthController {
     const ctx = this.loginCtx(req);
     const user = await this.auth.validateCredentials(dto);
     if (user.mfaEnabled) {
-      const trustedDeviceToken = this.readCookie(req, TRUSTED_MFA_COOKIE_NAME);
+      const hasFunctionalConsent = this.hasFunctionalCookieConsent(req);
+      const trustedDeviceToken = hasFunctionalConsent
+        ? this.readCookie(req, TRUSTED_MFA_COOKIE_NAME)
+        : undefined;
       if (await this.mfa.verifyTrustedDevice(user.id, trustedDeviceToken, ctx)) {
         const result = await this.auth.issueSessionForUser(user.id, ctx);
         this.writeAuthCookies(res, result.refreshCookieValue);
         return { accessToken: result.accessToken, user: result.user };
       }
-      if (trustedDeviceToken) {
+      if (this.readCookie(req, TRUSTED_MFA_COOKIE_NAME)) {
         this.clearTrustedMfaCookie(res);
       }
       return this.mfa.createLoginChallenge(user.id, user.email, ctx);
@@ -417,13 +439,21 @@ export class AuthController {
   }
 
   @Public()
+  @Post('cookies/functional/clear')
+  @ApiOperation({ summary: 'Clear functional cookies that require user consent' })
+  async clearFunctionalCookies(@Res({ passthrough: true }) res: Response) {
+    this.clearTrustedMfaCookie(res);
+    return { ok: true };
+  }
+
+  @Public()
   @Throttle({ auth: { ttl: 60_000, limit: 30 } })
   @UseGuards(CsrfGuard)
   @Post('refresh')
   @ApiOperation({
-    summary: 'Rotate refresh-token cookie and return a new access token',
+    summary: 'Rotate the session cookie and return a new access token',
     description:
-      'Requires both the refresh-token cookie (set on login) and an `X-CSRF-Token` header matching the `csrfToken` cookie (double-submit anti-CSRF).',
+      'Requires both the session cookie (set on login) and an `X-CSRF-Token` header matching the `csrf_token` cookie (double-submit anti-CSRF).',
   })
   @ApiResponse({ status: 401, description: 'Missing/invalid/replayed refresh token.' })
   @ApiResponse({ status: 403, description: 'CSRF token missing or invalid.' })
@@ -459,6 +489,54 @@ export class AuthController {
   @ApiOperation({ summary: 'Return the current session user' })
   async me(@CurrentUser() user: RequestUser) {
     return this.auth.me(user.id);
+  }
+
+  @ApiBearerAuth()
+  @Get('mfa/status')
+  @ApiOperation({ summary: 'Return the current user MFA status' })
+  async mfaStatus(@CurrentUser() user: RequestUser) {
+    return this.mfa.getStatus(user.id);
+  }
+
+  @ApiBearerAuth()
+  @Post('mfa/settings/enroll/start')
+  @ApiOperation({ summary: 'Start authenticator setup for the current user from settings' })
+  async mfaSettingsEnrollStart(@CurrentUser() user: RequestUser, @Req() req: Request) {
+    return this.mfa.startAccountEnrollment(user.id, this.loginCtx(req));
+  }
+
+  @ApiBearerAuth()
+  @Post('mfa/settings/enroll/verify')
+  @ApiOperation({ summary: 'Verify authenticator setup for the current user and issue backup codes' })
+  async mfaSettingsEnrollVerify(
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request,
+    @Body() dto: MfaEnrollVerifyDto,
+  ) {
+    return this.mfa.verifyAccountEnrollment(user.id, dto, this.loginCtx(req));
+  }
+
+  @ApiBearerAuth()
+  @Post('mfa/settings/backup-codes/regenerate')
+  @ApiOperation({ summary: 'Regenerate current user backup codes after TOTP confirmation' })
+  async mfaSettingsRegenerateBackupCodes(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: MfaSettingsVerifyDto,
+  ) {
+    return this.mfa.regenerateBackupCodes(user.id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Post('mfa/settings/disable')
+  @ApiOperation({ summary: 'Disable MFA for the current user after TOTP confirmation' })
+  async mfaSettingsDisable(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: MfaSettingsVerifyDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.mfa.disableAccountMfa(user.id, dto);
+    this.clearTrustedMfaCookie(res);
+    return result;
   }
 
   @ApiBearerAuth()

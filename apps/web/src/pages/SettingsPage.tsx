@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   Send,
+  Cookie,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,6 +72,8 @@ import {
 } from '@/hooks/use-users';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
+import { CookiePreferencesTab } from '@/components/settings/CookiePreferencesTab';
+import { SettingsMfaCard } from '@/components/settings/SettingsMfaCard';
 import { SettingsRolesTab } from '@/components/settings/SettingsRolesTab';
 import {
   ANIMAL_AVATARS,
@@ -462,6 +465,8 @@ function ProfileTab() {
           </form>
         </CardContent>
       </Card>
+
+      <SettingsMfaCard />
     </div>
   );
 }
@@ -1194,6 +1199,10 @@ export function SettingsPage() {
               <Store className="h-3.5 w-3.5" />
               Shop Details
             </TabsTrigger>
+            <TabsTrigger value="cookies" className="gap-1.5">
+              <Cookie className="h-3.5 w-3.5" />
+              Cookie Preferences
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="users" className="gap-1.5">
                 <UsersIcon className="h-3.5 w-3.5" />
@@ -1220,6 +1229,10 @@ export function SettingsPage() {
 
           <TabsContent value="shop">
             <ShopDetailsTab />
+          </TabsContent>
+
+          <TabsContent value="cookies">
+            <CookiePreferencesTab />
           </TabsContent>
 
           {isAdmin && (

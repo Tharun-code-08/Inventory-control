@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { useAuthStore } from '@/store/authStore';
+import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BRAND } from '@/lib/brand';
 import { dashboardHomePath } from '@/lib/roles';
@@ -43,6 +44,7 @@ type LoginPayload =
 export function LoginPage() {
   const nav = useNavigate();
   const queryClient = useQueryClient();
+  const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,6 +60,12 @@ export function LoginPage() {
   const [showAvatarSplash, setShowAvatarSplash] = useState(false);
   const [splashAvatar, setSplashAvatar] = useState(animalAvatarForUser(null));
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!functionalCookiesEnabled) {
+      setRememberDevice(false);
+    }
+  }, [functionalCookiesEnabled]);
 
   const steps = [
     { id: 'credentials', label: 'Credentials' },
@@ -91,7 +99,7 @@ export function LoginPage() {
         setOtpCode('');
         setBackupCode('');
         setUseBackupCode(false);
-        setRememberDevice(Boolean(payload.allowRememberDevice ?? true));
+        setRememberDevice(Boolean(payload.allowRememberDevice ?? true) && functionalCookiesEnabled);
         return;
       }
       await finalizeSignIn(res.data);
@@ -113,7 +121,7 @@ export function LoginPage() {
         challengeToken,
         code: useBackupCode ? undefined : otpCode.trim(),
         backupCode: useBackupCode ? backupCode.trim() : undefined,
-        rememberDevice: useBackupCode ? false : rememberDevice,
+        rememberDevice: useBackupCode ? false : functionalCookiesEnabled && rememberDevice,
       });
       await finalizeSignIn(res.data);
     } catch (error) {
@@ -314,13 +322,16 @@ export function LoginPage() {
                     <input
                       type="checkbox"
                       checked={rememberDevice}
+                      disabled={!functionalCookiesEnabled}
                       onChange={(event) => setRememberDevice(event.target.checked)}
                       className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span>
                       <span className="block font-medium text-slate-900">Remember this device for 7 days</span>
                       <span className="block text-xs text-slate-500">
-                        Skip the authenticator step on this browser for the next 7 days.
+                        {functionalCookiesEnabled
+                          ? 'Skip the authenticator step on this browser for the next 7 days.'
+                          : 'Enable functional cookies in Cookie Preferences to use this convenience feature.'}
                       </span>
                     </span>
                   </label>

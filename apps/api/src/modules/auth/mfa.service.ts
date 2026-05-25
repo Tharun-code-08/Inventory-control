@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthChallengePurpose } from '@prisma/client';
+import { AuthChallengePurpose, MfaMethod } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
 import { MfaEnrollVerifyDto } from './dto/mfa-enroll-verify.dto';
 import { MfaLoginVerifyDto } from './dto/mfa-login-verify.dto';
+import { MfaSettingsVerifyDto } from './dto/mfa-settings-verify.dto';
 import type { SignupPendingPayload } from './signup.service';
 
 type ChallengeRecord = Awaited<ReturnType<MfaService['findValidChallenge']>>;
@@ -168,6 +169,80 @@ export class MfaService {
     return { pending, payload };
   }
 
+  private async findActiveUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        isActive: true,
+        mfaEnabled: true,
+        mfaMethod: true,
+        mfaEnrolledAt: true,
+        mfaSecretEncrypted: true,
+      },
+    });
+    if (!user?.isActive) {
+      throw new UnauthorizedException('Account is not active');
+    }
+    return user;
+  }
+
+  private async buildTotpSetup(args: {
+    email: string;
+    secret: string;
+    expiresAt: Date;
+    attemptCount: number;
+    logContext: string;
+  }) {
+    const otpAuthUrl = generateURI({
+      issuer: 'Retail IMS',
+      label: args.email,
+      secret: args.secret,
+      period: 30,
+    });
+    let qrCodeDataUrl: string | null = null;
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl, {
+        width: 240,
+        margin: 1,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `QR code generation failed for ${args.logContext} (${args.email}): ${(error as Error).message}`,
+      );
+    }
+
+    return {
+      email: args.email,
+      manualCode: args.secret,
+      qrCodeDataUrl,
+      otpAuthUrl,
+      attemptsRemaining: this.attemptsRemaining(args.attemptCount),
+      expiresAt: args.expiresAt.toISOString(),
+    };
+  }
+
+  private isValidTotp(secret: string, code: string) {
+    const verification = verifySync({
+      secret,
+      token: code,
+      period: 30,
+      epochTolerance: 30,
+    });
+    return verification.valid;
+  }
+
+  private async generateHashedBackupCodes() {
+    const backupCodes = this.generateBackupCodes();
+    const backupCodeHashes = await Promise.all(
+      backupCodes.map((code) =>
+        bcrypt.hash(this.normalizeBackupCode(code), this.bcryptRounds()),
+      ),
+    );
+    return { backupCodes, backupCodeHashes };
+  }
+
   private async failChallenge(challenge: ChallengeRecord) {
     const nextCount = challenge.attemptCount + 1;
     const remainingAttempts = this.attemptsRemaining(nextCount);
@@ -226,6 +301,51 @@ export class MfaService {
       where: { userId, revokedAt: null },
       data: { revokedAt },
     });
+  }
+
+  async getStatus(userId: string) {
+    const user = await this.findActiveUser(userId);
+    return {
+      enabled: user.mfaEnabled,
+      method: user.mfaEnabled ? 'totp' : null,
+      enrolledAt: user.mfaEnrolledAt?.toISOString() ?? null,
+    };
+  }
+
+  async startAccountEnrollment(userId: string, ctx: LoginContext = {}) {
+    const user = await this.findActiveUser(userId);
+    if (user.mfaEnabled) {
+      throw new BadRequestException('Authenticator app is already enabled for this account.');
+    }
+
+    await this.consumePreviousChallenges(userId, AuthChallengePurpose.SIGNUP_MFA_ENROLL);
+    const { rawToken, challenge } = await this.createChallenge(
+      userId,
+      AuthChallengePurpose.SIGNUP_MFA_ENROLL,
+      ctx,
+    );
+
+    const secret = generateSecret();
+    await this.prisma.authChallenge.update({
+      where: { id: challenge.id },
+      data: {
+        totpSecretEncrypted: this.encryptSecret(secret),
+        attemptCount: 0,
+      },
+    });
+
+    const setup = await this.buildTotpSetup({
+      email: user.email,
+      secret,
+      expiresAt: challenge.expiresAt,
+      attemptCount: 0,
+      logContext: 'account settings MFA',
+    });
+
+    return {
+      challengeToken: rawToken,
+      ...setup,
+    };
   }
 
   async restartEnrollment(token: string, ctx: LoginContext = {}) {
@@ -304,34 +424,13 @@ export class MfaService {
       });
     }
 
-    const resolvedSecret = secret as string;
-
-    const otpAuthUrl = generateURI({
-      issuer: 'Retail IMS',
-      label: session.pending.email,
-      secret: resolvedSecret,
-      period: 30,
-    });
-    let qrCodeDataUrl: string | null = null;
-    try {
-      qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl, {
-        width: 240,
-        margin: 1,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `QR code generation failed for staged signup MFA (${session.pending.email}): ${(error as Error).message}`,
-      );
-    }
-
-    return {
+    return this.buildTotpSetup({
       email: session.pending.email,
-      manualCode: resolvedSecret,
-      qrCodeDataUrl,
-      otpAuthUrl,
-      attemptsRemaining: this.attemptsRemaining(session.pending.attemptCount),
-      expiresAt: session.pending.expiresAt.toISOString(),
-    };
+      secret: secret as string,
+      expiresAt: session.pending.expiresAt,
+      attemptCount: session.pending.attemptCount,
+      logContext: 'staged signup MFA',
+    });
   }
 
   async verifyEnrollment(dto: MfaEnrollVerifyDto, ctx: LoginContext = {}) {
@@ -383,6 +482,144 @@ export class MfaService {
 
     return {
       backupCodes,
+    };
+  }
+
+  async verifyAccountEnrollment(userId: string, dto: MfaEnrollVerifyDto, ctx: LoginContext = {}) {
+    void ctx;
+    const challenge = await this.findValidChallenge(dto.token, AuthChallengePurpose.SIGNUP_MFA_ENROLL);
+    if (challenge.userId !== userId) {
+      throw new UnauthorizedException('MFA setup does not belong to this account.');
+    }
+    if (challenge.user.mfaEnabled) {
+      throw new BadRequestException('Authenticator app is already enabled for this account.');
+    }
+    const secretEncrypted = challenge.totpSecretEncrypted;
+    if (!secretEncrypted) {
+      throw new BadRequestException('Start MFA setup before verifying the code.');
+    }
+
+    const secret = this.decryptSecret(secretEncrypted);
+    const verification = verifySync({
+      secret,
+      token: dto.code,
+      period: 30,
+      epochTolerance: 30,
+    });
+    if (!verification.valid) {
+      const failure = await this.failChallenge(challenge);
+      if (failure.remainingAttempts === 0) {
+        throw new BadRequestException(
+          'Too many authenticator verification attempts. Restart setup to continue.',
+        );
+      }
+      throw new BadRequestException(
+        `Invalid authenticator code. ${failure.remainingAttempts} attempt(s) remaining.`,
+      );
+    }
+
+    const backupCodes = this.generateBackupCodes();
+    const backupCodeHashes = await Promise.all(
+      backupCodes.map((code) =>
+        bcrypt.hash(this.normalizeBackupCode(code), this.bcryptRounds()),
+      ),
+    );
+    const enrolledAt = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.authChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: enrolledAt },
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          mfaEnabled: true,
+          mfaMethod: MfaMethod.TOTP,
+          mfaEnrolledAt: enrolledAt,
+          mfaSecretEncrypted: secretEncrypted,
+        },
+      });
+      await tx.userBackupCode.deleteMany({ where: { userId } });
+      await tx.userBackupCode.createMany({
+        data: backupCodeHashes.map((codeHash) => ({
+          userId,
+          codeHash,
+        })),
+      });
+    });
+
+    return {
+      backupCodes,
+      enabled: true as const,
+      method: 'totp' as const,
+      enrolledAt: enrolledAt.toISOString(),
+    };
+  }
+
+  async regenerateBackupCodes(userId: string, dto: MfaSettingsVerifyDto) {
+    const user = await this.findActiveUser(userId);
+    const secretEncrypted = user.mfaSecretEncrypted;
+    if (!user.mfaEnabled || !secretEncrypted) {
+      throw new BadRequestException('Authenticator app is not configured for this account.');
+    }
+
+    const secret = this.decryptSecret(secretEncrypted);
+    if (!this.isValidTotp(secret, dto.code)) {
+      throw new BadRequestException('Invalid authenticator code.');
+    }
+
+    const { backupCodes, backupCodeHashes } = await this.generateHashedBackupCodes();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userBackupCode.deleteMany({ where: { userId } });
+      await tx.userBackupCode.createMany({
+        data: backupCodeHashes.map((codeHash) => ({
+          userId,
+          codeHash,
+        })),
+      });
+    });
+
+    return {
+      backupCodes,
+      regeneratedAt: new Date().toISOString(),
+    };
+  }
+
+  async disableAccountMfa(userId: string, dto: MfaSettingsVerifyDto) {
+    const user = await this.findActiveUser(userId);
+    const secretEncrypted = user.mfaSecretEncrypted;
+    if (!user.mfaEnabled || !secretEncrypted) {
+      throw new BadRequestException('Authenticator app is not configured for this account.');
+    }
+
+    const secret = this.decryptSecret(secretEncrypted);
+    if (!this.isValidTotp(secret, dto.code)) {
+      throw new BadRequestException('Invalid authenticator code.');
+    }
+
+    const disabledAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          mfaEnabled: false,
+          mfaMethod: null,
+          mfaEnrolledAt: null,
+          mfaSecretEncrypted: null,
+        },
+      });
+      await tx.userBackupCode.deleteMany({ where: { userId } });
+      await tx.trustedMfaDevice.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: disabledAt },
+      });
+    });
+
+    return {
+      enabled: false as const,
+      method: null,
+      enrolledAt: null,
     };
   }
 

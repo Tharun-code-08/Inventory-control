@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -20,6 +20,13 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +44,14 @@ import {
 } from '@/hooks/use-quotations';
 import { useContracts } from '@/hooks/use-contracts';
 import { supplierPortalSubmitUrl } from '@/lib/portal-api';
+import {
+  buildAllocationPlan,
+  clearQuoteAllocations,
+  loadAllocations,
+  saveAllocations,
+  validateAllocations,
+  type RfqAllocationMap,
+} from '@/lib/bid-comparison';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
@@ -215,6 +230,10 @@ export function RfqDetailPage() {
   const [expandedQuotes, setExpandedQuotes] = useState<Set<string>>(new Set());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [savedAllocations, setSavedAllocations] = useState<RfqAllocationMap>({});
+  const [poDialogOpen, setPoDialogOpen] = useState(false);
+  const [creatingQuoteId, setCreatingQuoteId] = useState<string | null>(null);
+  const [isCreatingAll, setIsCreatingAll] = useState(false);
 
   const awardedQuoteIds = useMemo(() => {
     const set = new Set<string>();
@@ -226,6 +245,11 @@ export function RfqDetailPage() {
 
   const portalUrl = id ? supplierPortalSubmitUrl(id) : '';
   const accessCode = id ? rfqPortalAccessCode(id) : '';
+
+  useEffect(() => {
+    if (!id) return;
+    setSavedAllocations(loadAllocations(id));
+  }, [id]);
 
   function toggleQuote(quoteId: string) {
     setExpandedQuotes((prev) => {
@@ -244,20 +268,6 @@ export function RfqDetailPage() {
   function copyPortalLink() {
     void navigator.clipboard.writeText(portalUrl);
     toast.success('Portal link copied');
-  }
-
-  async function handleCreatePo(quote: Quotation) {
-    try {
-      const result = await acceptQuote.mutateAsync({ id: quote.id });
-      const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
-      toast.success(po?.poNumber ? `PO ${po.poNumber} created` : 'Purchase order created');
-      navigate('/purchase-orders');
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Could not create PO from quote';
-      toast.error(msg);
-    }
   }
 
   function handleExportDetail() {
@@ -302,10 +312,108 @@ export function RfqDetailPage() {
   const primaryAwarded = quotations.find((q) => awardedQuoteIds.has(q.id));
   const selectedQuote =
     quotations.find((q) => q.id === selectedQuoteId) ?? primaryAwarded ?? null;
+  const allocationPlans = useMemo(
+    () => (rfq ? buildAllocationPlan(rfq, quotations, savedAllocations) : []),
+    [quotations, rfq, savedAllocations],
+  );
+  const allocationValidation = useMemo(
+    () =>
+      rfq
+        ? validateAllocations(rfq, quotations, savedAllocations)
+        : { valid: true, errors: [] as string[] },
+    [quotations, rfq, savedAllocations],
+  );
 
   function handleSelectQuote(quoteId: string) {
     setSelectedQuoteId(quoteId);
-    toast.success('Supplier selected. Click Create PO when you are ready to generate the order.');
+    toast.success('Supplier selected. Save quantities in Compare bids, then create the PO from the top action.');
+  }
+
+  function persistAllocations(next: RfqAllocationMap) {
+    setSavedAllocations(next);
+    if (id) {
+      saveAllocations(id, next);
+    }
+  }
+
+  async function createPoForAllocationPlan(quoteId: string) {
+    const plan = allocationPlans.find((entry) => entry.quoteId === quoteId);
+    if (!plan) {
+      toast.error('No saved allocation found for that supplier');
+      return;
+    }
+    if (!allocationValidation.valid) {
+      toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
+      return;
+    }
+
+    setCreatingQuoteId(quoteId);
+    try {
+      const result = await acceptQuote.mutateAsync({
+        id: quoteId,
+        items: plan.items.map((item) => ({
+          quotationItemId: item.quotationItemId,
+          rfqItemId: item.rfqItemId,
+          orderQty: item.allocatedQty,
+        })),
+      });
+      const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
+      persistAllocations(clearQuoteAllocations(savedAllocations, quoteId));
+      toast.success(
+        po?.poNumber
+          ? `PO ${po.poNumber} created for ${plan.supplierName}`
+          : `Purchase order created for ${plan.supplierName}`,
+      );
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Could not create PO from saved allocation';
+      toast.error(msg);
+    } finally {
+      setCreatingQuoteId(null);
+    }
+  }
+
+  async function createAllPurchaseOrders() {
+    if (allocationPlans.length === 0) {
+      toast.error('Save allocations in Compare bids before creating a PO');
+      return;
+    }
+    if (!allocationValidation.valid) {
+      toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
+      return;
+    }
+
+    setIsCreatingAll(true);
+    try {
+      let nextAllocations = savedAllocations;
+      for (const plan of allocationPlans) {
+        const result = await acceptQuote.mutateAsync({
+          id: plan.quoteId,
+          items: plan.items.map((item) => ({
+            quotationItemId: item.quotationItemId,
+            rfqItemId: item.rfqItemId,
+            orderQty: item.allocatedQty,
+          })),
+        });
+        const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
+        nextAllocations = clearQuoteAllocations(nextAllocations, plan.quoteId);
+        persistAllocations(nextAllocations);
+        toast.success(
+          po?.poNumber
+            ? `PO ${po.poNumber} created for ${plan.supplierName}`
+            : `Purchase order created for ${plan.supplierName}`,
+        );
+      }
+      setPoDialogOpen(false);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Could not create purchase orders from saved allocations';
+      toast.error(msg);
+    } finally {
+      setIsCreatingAll(false);
+    }
   }
 
   const linkedContractCount = useMemo(
@@ -393,12 +501,22 @@ export function RfqDetailPage() {
                 <ArrowLeftRight className="mr-1.5 h-4 w-4" />
                 Compare bids
               </Button>
-              {selectedQuote && (
+              {quotations.length > 0 && (
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={acceptQuote.isPending}
-                  onClick={() => handleCreatePo(selectedQuote)}
+                  disabled={acceptQuote.isPending || isCreatingAll}
+                  onClick={() => {
+                    if (allocationPlans.length === 0) {
+                      toast.error('Save allocations in Compare bids before creating a PO');
+                      return;
+                    }
+                    if (!allocationValidation.valid) {
+                      toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
+                      return;
+                    }
+                    setPoDialogOpen(true);
+                  }}
                 >
                   <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Create PO
@@ -641,6 +759,70 @@ export function RfqDetailPage() {
         loading={deleteRfq.isPending}
         onConfirm={confirmDeleteRfq}
       />
+
+      <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create Purchase Order(s)</DialogTitle>
+            <DialogDescription>
+              {allocationPlans.length === 1
+                ? 'One supplier is allocated. Review the summary below before creating the purchase order.'
+                : `${allocationPlans.length} suppliers are allocated. Review each summary below before creating the purchase orders.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {!allocationValidation.valid ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {allocationValidation.errors[0]}
+              </div>
+            ) : null}
+
+            {allocationPlans.map((plan) => (
+              <div
+                key={plan.quoteId}
+                className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="space-y-1">
+                  <p className="font-semibold text-slate-900">{plan.supplierName}</p>
+                  <p className="text-sm text-slate-600">
+                    {formatMoney(plan.totalValue)} · Lead:{' '}
+                    {plan.leadTimeDays != null ? `${plan.leadTimeDays} days` : '—'} ·{' '}
+                    {plan.itemCount} item{plan.itemCount === 1 ? '' : 's'} allocated
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-indigo-200 text-indigo-700"
+                  disabled={
+                    acceptQuote.isPending ||
+                    isCreatingAll ||
+                    !allocationValidation.valid ||
+                    creatingQuoteId === plan.quoteId
+                  }
+                  onClick={() => void createPoForAllocationPlan(plan.quoteId)}
+                >
+                  {creatingQuoteId === plan.quoteId ? 'Creating...' : 'Create PO'}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {allocationPlans.length > 1 ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={acceptQuote.isPending || isCreatingAll || !allocationValidation.valid}
+                onClick={() => void createAllPurchaseOrders()}
+              >
+                {isCreatingAll ? 'Creating purchase orders...' : 'Create all purchase orders'}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
