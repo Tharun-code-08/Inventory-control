@@ -7,8 +7,10 @@ export type Customer = {
   customerName: string;
   email?: string | null;
   phone?: string | null;
+  street?: string | null;
   city?: string | null;
   state?: string | null;
+  postalCode?: string | null;
   country?: string | null;
   isActive: boolean;
 };

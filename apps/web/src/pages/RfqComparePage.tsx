@@ -136,6 +136,28 @@ export function RfqComparePage() {
     return allocatedCostByQuote(rfq, bids, allocations);
   }, [rfq, bids, allocations]);
 
+  const selectedQuote = useMemo(
+    () => bids.find((quote) => quote.id === pickedQuoteId) ?? null,
+    [bids, pickedQuoteId],
+  );
+
+  const selectedQuotePoItems = useMemo(() => {
+    if (!rfq || !selectedQuote) return [];
+    return (rfq.items ?? []).flatMap((rfqItem, index) => {
+      const orderQty = allocations[rfqItem.id]?.[selectedQuote.id] ?? 0;
+      if (orderQty <= 0) return [];
+      const line = getQuoteLineForRfqItem(selectedQuote, rfqItem.id, index);
+      if (!line?.id) return [];
+      return [
+        {
+          quotationItemId: line.id,
+          rfqItemId: line.rfqItemId ?? rfqItem.id,
+          orderQty,
+        },
+      ];
+    });
+  }, [allocations, rfq, selectedQuote]);
+
   const grandAllocatedQty = useMemo(() => {
     if (!rfq) return { allocated: 0, required: 0 };
     let allocated = 0;
@@ -171,7 +193,7 @@ export function RfqComparePage() {
 
   function handleSelectQuote(quoteId: string) {
     setPickedQuoteId(quoteId);
-    toast.success('Supplier marked as selected');
+    toast.success('Supplier selected. Allocate only the materials you want, then create the PO.');
   }
 
   async function handleCreatePo() {
@@ -180,13 +202,31 @@ export function RfqComparePage() {
       toast.error('Select a supplier first');
       return;
     }
-    if (awardedQuoteIds.has(quoteId)) {
-      navigate('/purchase-orders');
+    if (!rfq) {
+      toast.error('RFQ not loaded');
+      return;
+    }
+    const { valid, errors } = validateAllocations(rfq, allocations);
+    if (!valid) {
+      toast.error(errors[0] ?? 'Invalid allocation');
+      return;
+    }
+    if (selectedQuotePoItems.length === 0) {
+      toast.error('Allocate quantity to the selected supplier for the materials you want on this PO');
       return;
     }
     try {
-      await acceptQuote.mutateAsync(quoteId);
-      toast.success('Contract and purchase order created');
+      await acceptQuote.mutateAsync({
+        id: quoteId,
+        items: selectedQuotePoItems.map(({ quotationItemId, rfqItemId, orderQty }) => ({
+          quotationItemId,
+          rfqItemId,
+          orderQty,
+        })),
+      });
+      toast.success(
+        `Purchase order created for ${selectedQuotePoItems.length} material${selectedQuotePoItems.length === 1 ? '' : 's'}`,
+      );
       navigate('/purchase-orders');
     } catch (err: unknown) {
       const msg =
@@ -249,11 +289,11 @@ export function RfqComparePage() {
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={acceptQuote.isPending}
+                  disabled={acceptQuote.isPending || selectedQuotePoItems.length === 0}
                   onClick={handleCreatePo}
                 >
                   <ShoppingCart className="mr-1.5 h-4 w-4" />
-                  Create PO
+                  Create PO ({selectedQuotePoItems.length})
                 </Button>
               )}
             </div>
@@ -461,6 +501,16 @@ export function RfqComparePage() {
                       {grandAllocatedQty.allocated} / {grandAllocatedQty.required}
                     </span>
                   </p>
+                  {selectedQuote && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      PO will include only the <span className="font-semibold text-slate-800">{selectedQuotePoItems.length}</span>{' '}
+                      allocated material{selectedQuotePoItems.length === 1 ? '' : 's'} for{' '}
+                      <span className="font-semibold text-slate-800">
+                        {selectedQuote.supplier?.supplierName}
+                      </span>
+                      .
+                    </p>
+                  )}
                 </div>
                 <Button
                   className="bg-indigo-600 hover:bg-indigo-700"

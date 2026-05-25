@@ -46,6 +46,7 @@ import { ObservabilityModule } from './common/observability/observability.module
 import { FxModule } from './modules/fx/fx.module';
 import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -116,6 +117,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     PrismaModule,
     MailModule,
     BillingModule,
+    PostalCodesModule,
     QueuesModule,
     UploadModule,
     ObservabilityModule,

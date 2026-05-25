@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
+import { AcceptAutoLinkQuotationDto } from './dto/accept-auto-link-quotation.dto';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationsService } from './quotations.service';
@@ -45,8 +46,12 @@ export class QuotationsController {
 
   @RequirePermission('quote:write')
   @Post(':id/accept-auto-link')
-  acceptAndAutoLink(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.quotations.acceptAndAutoLink(user, id);
+  acceptAndAutoLink(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: AcceptAutoLinkQuotationDto,
+  ) {
+    return this.quotations.acceptAndAutoLink(user, id, dto);
   }
 }
 

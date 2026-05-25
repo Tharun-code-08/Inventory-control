@@ -84,11 +84,26 @@ export function useSubmitQuotation() {
 export function useAcceptAutoLinkQuotation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await api.post(`/quotations/${id}/accept-auto-link`);
+    mutationFn: async (payload: {
+      id: string;
+      items?: Array<{
+        quotationItemId?: string;
+        rfqItemId?: string;
+        orderQty: number;
+      }>;
+    }) => {
+      const { id, ...body } = payload;
+      const res = await api.post(`/quotations/${id}/accept-auto-link`, body);
       return res.data.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: keys.all }),
+        qc.invalidateQueries({ queryKey: ['rfqs'] }),
+        qc.invalidateQueries({ queryKey: ['contracts'] }),
+        qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+      ]);
+    },
   });
 }
 

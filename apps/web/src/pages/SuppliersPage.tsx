@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -50,6 +50,11 @@ import {
   type Supplier,
   type CreateSupplierPayload,
 } from '@/hooks/use-suppliers';
+import {
+  normalizePostalCodeInput,
+  usePostalCodeLookup,
+  type PostalCodeLookup,
+} from '@/hooks/use-postal-code-lookup';
 import { useCompanies } from '@/hooks/use-companies';
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
 import { cn } from '@/lib/cn';
@@ -180,6 +185,36 @@ function StarRating({ value }: { value: number }) {
   );
 }
 
+function mergeSupplierPostalLookup(
+  form: SupplierFormState,
+  lookup: PostalCodeLookup,
+): SupplierFormState {
+  const postalCode = normalizePostalCodeInput(form.postalCode);
+  if (postalCode !== lookup.postalCode) return form;
+
+  const nextCountry =
+    !form.country.trim() || form.country.trim().toLowerCase() === 'india'
+      ? lookup.country
+      : form.country;
+
+  if (
+    form.postalCode === lookup.postalCode &&
+    form.city === lookup.city &&
+    form.state === lookup.state &&
+    form.country === nextCountry
+  ) {
+    return form;
+  }
+
+  return {
+    ...form,
+    postalCode: lookup.postalCode,
+    city: lookup.city,
+    state: lookup.state,
+    country: nextCountry,
+  };
+}
+
 function KpiCard({
   label,
   value,
@@ -218,6 +253,13 @@ function SupplierFormFields({
   companies: Array<{ id: string; companyName: string }>;
   codeHint?: string;
 }) {
+  const postalLookup = usePostalCodeLookup(form.postalCode);
+
+  useEffect(() => {
+    if (!postalLookup.data) return;
+    setForm((prev) => mergeSupplierPostalLookup(prev, postalLookup.data));
+  }, [postalLookup.data, setForm]);
+
   return (
     <>
       <div className="space-y-3">
@@ -340,8 +382,21 @@ function SupplierFormFields({
             <Label>ZIP / postal code</Label>
             <Input
               value={form.postalCode}
-              onChange={(e) => setForm((p) => ({ ...p, postalCode: e.target.value }))}
+              inputMode="numeric"
+              maxLength={6}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, postalCode: normalizePostalCodeInput(e.target.value) }))
+              }
             />
+            <p className="text-xs text-slate-500">
+              {postalLookup.isFetching
+                ? 'Fetching city from postal code...'
+                : postalLookup.data
+                  ? `Auto-filled ${postalLookup.data.city}, ${postalLookup.data.state}.`
+                  : postalLookup.errorMessage
+                    ? postalLookup.errorMessage
+                    : 'Enter a 6-digit postal code to auto-fill city and state.'}
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Country</Label>

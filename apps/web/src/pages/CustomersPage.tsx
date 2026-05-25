@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Download,
@@ -43,6 +43,7 @@ import {
   useUpdateCustomer,
   type Customer,
 } from '@/hooks/use-customers';
+import { normalizePostalCodeInput, usePostalCodeLookup } from '@/hooks/use-postal-code-lookup';
 import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
 import { isShopOnlyUser } from '@/lib/shop-scope';
@@ -120,6 +121,24 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   );
 }
 
+function mergeCustomerPostalLookup(form: CustomerForm, lookup: { postalCode: string; city: string; state: string }) {
+  const postalCode = normalizePostalCodeInput(form.postalCode);
+  if (postalCode !== lookup.postalCode) return form;
+  if (
+    form.postalCode === lookup.postalCode &&
+    form.city === lookup.city &&
+    form.state === lookup.state
+  ) {
+    return form;
+  }
+  return {
+    ...form,
+    postalCode: lookup.postalCode,
+    city: lookup.city,
+    state: lookup.state,
+  };
+}
+
 export function CustomersPage() {
   const user = useAuthStore((s) => s.user);
   const shopLocked = isShopOnlyUser(user);
@@ -135,6 +154,7 @@ export function CustomersPage() {
   const { data: shops = [] } = useShops();
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
+  const postalLookup = usePostalCodeLookup(form.postalCode);
 
   const resolvedShopId = user?.shopId ?? form.shopId ?? shops[0]?.id ?? '';
 
@@ -151,6 +171,11 @@ export function CustomersPage() {
     return { total: customers.length, active };
   }, [customers]);
 
+  useEffect(() => {
+    if (!postalLookup.data) return;
+    setForm((prev) => mergeCustomerPostalLookup(prev, postalLookup.data));
+  }, [postalLookup.data, setForm]);
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm());
@@ -166,7 +191,7 @@ export function CustomersPage() {
       phone: c.phone ?? '',
       city: c.city ?? '',
       state: c.state ?? '',
-      postalCode: '',
+      postalCode: c.postalCode ?? '',
     });
     setSheetOpen(true);
   }
@@ -459,7 +484,27 @@ export function CustomersPage() {
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>ZIP / postal code</Label>
+                <Input
+                  value={form.postalCode}
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, postalCode: normalizePostalCodeInput(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-slate-500">
+                  {postalLookup.isFetching
+                    ? 'Fetching city from postal code...'
+                    : postalLookup.data
+                      ? `Auto-filled ${postalLookup.data.city}, ${postalLookup.data.state}.`
+                      : postalLookup.errorMessage
+                        ? postalLookup.errorMessage
+                        : 'Enter a 6-digit postal code to auto-fill city and state.'}
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label>City</Label>
                 <Input
@@ -511,6 +556,10 @@ export function CustomersPage() {
                 <dd>
                   {[viewing.city, viewing.state].filter(Boolean).join(', ') || '—'}
                 </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Postal code</dt>
+                <dd>{viewing.postalCode || '—'}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Status</dt>

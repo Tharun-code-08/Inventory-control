@@ -4,6 +4,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope } from '../../common/utils/shop-scope';
 import { DocumentNumberService } from '../stock/document-number.service';
+import {
+  AcceptAutoLinkQuotationDto,
+  AcceptAutoLinkQuotationItemDto,
+} from './dto/accept-auto-link-quotation.dto';
 import { CreateQuotationDto, CreateQuotationItemDto } from './dto/create-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { RfqsService } from '../rfqs/rfqs.service';
@@ -133,67 +137,72 @@ export class QuotationsService {
     });
   }
 
-  async acceptAndAutoLink(user: RequestUser, id: string) {
+  async acceptAndAutoLink(
+    user: RequestUser,
+    id: string,
+    dto: AcceptAutoLinkQuotationDto = {},
+  ) {
     const quote = await this.get(user, id);
-    if (quote.items.some((item) => !item.productId)) {
+    const selectedItems = this.resolveAutoLinkItems(quote.items, dto.items);
+    if (selectedItems.some(({ item }) => !item.productId)) {
       throw new BadRequestException('All quotation items must reference products for auto-linking');
     }
     if (quote.rfqId) {
-      const missingRfqItem = quote.items.find((item) => !item.rfqItemId);
+      const missingRfqItem = selectedItems.find(({ item }) => !item.rfqItemId);
       if (missingRfqItem) {
         throw new BadRequestException('Quotation items must reference RFQ lines to create linked purchase orders');
       }
       await this.rfqs.assertCanCreatePoFromRfq({
         rfqId: quote.rfqId,
         shopId: quote.shopId,
-        items: quote.items.map((item) => ({
+        items: selectedItems.map(({ item, orderQty }) => ({
           rfqItemId: item.rfqItemId!,
-          orderQty: Number(item.quantity),
+          orderQty,
         })),
       });
     }
     return this.prisma.$transaction(async (tx) => {
-      const existingContract = await tx.contractHeader.findFirst({ where: { quotationId: quote.id } });
-      if (existingContract) {
-        const existingPo = await tx.purchaseOrderHeader.findFirst({ where: { contractId: existingContract.id } });
-        const existingGr = existingPo
-          ? await tx.goodsReceiptHeader.findFirst({ where: { purchaseOrderId: existingPo.id } })
-          : null;
-        return { quote, contract: existingContract, purchaseOrder: existingPo, goodsReceiptDraft: existingGr, idempotent: true };
+      let contract = await tx.contractHeader.findFirst({ where: { quotationId: quote.id } });
+      if (!contract) {
+        const contractNumber = await this.numbers.nextShopScopedNumber(tx, {
+          shopId: quote.shopId,
+          docType: 'CT',
+          basePrefix: 'CT',
+          date: new Date(),
+        });
+        contract = await tx.contractHeader.create({
+          data: {
+            contractNumber,
+            shopId: quote.shopId,
+            supplierId: quote.supplierId,
+            rfqId: quote.rfqId,
+            quotationId: quote.id,
+            title: `Auto Contract ${quote.quoteNumber}`,
+            startDate: new Date(),
+            notes: quote.notes ?? null,
+            status: DocumentStatus.POSTED,
+            postedAt: new Date(),
+            createdById: user.id,
+            items: {
+              create: quote.items.map((item) => ({
+                productId: item.productId,
+                description: item.description,
+                quantity: item.quantity,
+                uom: item.uom,
+                unitPrice: item.unitPrice,
+                lineValue: item.lineValue,
+                createdById: user.id,
+              })),
+            },
+          },
+        });
       }
 
-      const contractNumber = await this.numbers.nextShopScopedNumber(tx, {
-        shopId: quote.shopId,
-        docType: 'CT',
-        basePrefix: 'CT',
-        date: new Date(),
-      });
-      const contract = await tx.contractHeader.create({
-        data: {
-          contractNumber,
-          shopId: quote.shopId,
-          supplierId: quote.supplierId,
-          rfqId: quote.rfqId,
-          quotationId: quote.id,
-          title: `Auto Contract ${quote.quoteNumber}`,
-          startDate: new Date(),
-          notes: quote.notes ?? null,
-          status: DocumentStatus.POSTED,
-          postedAt: new Date(),
-          createdById: user.id,
-          items: {
-            create: quote.items.map((item) => ({
-              productId: item.productId,
-              description: item.description,
-              quantity: item.quantity,
-              uom: item.uom,
-              unitPrice: item.unitPrice,
-              lineValue: item.lineValue,
-              createdById: user.id,
-            })),
-          },
-        },
-      });
+      const selectedTotalValue = selectedItems.reduce(
+        (sum, { item, orderQty }) =>
+          sum.add(new Prisma.Decimal(orderQty).mul(item.unitPrice)),
+        new Prisma.Decimal(0),
+      );
 
       const poNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: quote.shopId,
@@ -211,18 +220,18 @@ export class QuotationsService {
           supplier: quote.supplier.supplierName,
           status: PurchaseOrderStatus.CONFIRMED,
           remarks: `Auto-generated from quotation ${quote.quoteNumber}`,
-          totalValue: quote.items.reduce((sum, it) => sum.add(it.lineValue), new Prisma.Decimal(0)),
+          totalValue: selectedTotalValue,
           createdById: user.id,
           items: {
-            create: quote.items.map((item) => ({
+            create: selectedItems.map(({ item, orderQty }) => ({
               productId: item.productId!,
               rfqItemId: item.rfqItemId ?? null,
               currentStock: new Prisma.Decimal(0),
               minStock: new Prisma.Decimal(0),
-              suggestedQty: item.quantity,
-              orderQty: item.quantity,
+              suggestedQty: new Prisma.Decimal(orderQty),
+              orderQty: new Prisma.Decimal(orderQty),
               rate: item.unitPrice,
-              lineValue: item.lineValue,
+              lineValue: new Prisma.Decimal(orderQty).mul(item.unitPrice),
               createdById: user.id,
             })),
           },
@@ -247,12 +256,12 @@ export class QuotationsService {
           status: DocumentStatus.DRAFT,
           createdById: user.id,
           items: {
-            create: quote.items.map((item) => ({
+            create: selectedItems.map(({ item, orderQty }) => ({
               productId: item.productId!,
-              quantity: item.quantity,
+              quantity: new Prisma.Decimal(orderQty),
               uom: item.uom,
               purchaseRate: item.unitPrice,
-              lineValue: item.lineValue,
+              lineValue: new Prisma.Decimal(orderQty).mul(item.unitPrice),
               createdById: user.id,
             })),
           },
@@ -264,6 +273,56 @@ export class QuotationsService {
         data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
       });
       return { quote: updatedQuote, contract, purchaseOrder, goodsReceiptDraft, idempotent: false };
+    });
+  }
+
+  private resolveAutoLinkItems(
+    items: Array<{
+      id: string;
+      rfqItemId: string | null;
+      productId: string | null;
+      quantity: Prisma.Decimal;
+      unitPrice: Prisma.Decimal;
+      uom: string;
+      lineValue: Prisma.Decimal;
+      description: string | null;
+    }>,
+    selection?: AcceptAutoLinkQuotationItemDto[],
+  ) {
+    if (!selection?.length) {
+      return items.map((item) => ({ item, orderQty: Number(item.quantity) }));
+    }
+
+    const byItemId = new Map(items.map((item) => [item.id, item]));
+    const byRfqItemId = new Map(
+      items
+        .filter((item) => item.rfqItemId)
+        .map((item) => [item.rfqItemId as string, item]),
+    );
+    const seenItemIds = new Set<string>();
+
+    return selection.map((entry) => {
+      const item =
+        (entry.quotationItemId ? byItemId.get(entry.quotationItemId) : undefined) ??
+        (entry.rfqItemId ? byRfqItemId.get(entry.rfqItemId) : undefined);
+
+      if (!item) {
+        throw new BadRequestException('Selected quotation line was not found');
+      }
+      if (seenItemIds.has(item.id)) {
+        throw new BadRequestException('Duplicate quotation line in selection');
+      }
+      seenItemIds.add(item.id);
+
+      const quotedQty = Number(item.quantity);
+      if (entry.orderQty <= 0) {
+        throw new BadRequestException('Selected PO quantity must be greater than zero');
+      }
+      if (entry.orderQty > quotedQty) {
+        throw new BadRequestException('Selected PO quantity exceeds the supplier quotation quantity');
+      }
+
+      return { item, orderQty: entry.orderQty };
     });
   }
 }

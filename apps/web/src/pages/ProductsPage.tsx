@@ -141,6 +141,27 @@ function PlantNumericInput({
   );
 }
 
+const PRODUCT_IMPORT_FIELD_ALIASES = {
+  shop: ['Shop', 'Plant', 'Plant Number', 'Plant Name'],
+  storageLocation: ['Storage Location Code', 'Storage Location', 'Location Code', 'Location Name'],
+  productCode: ['Product Code', 'SKU', 'Product SKU', 'Item Code', 'Code'],
+  description: ['Description', 'Product Name', 'Name', 'Item Name'],
+  category: ['Category'],
+  hsnCode: ['HSN Code', 'HSN'],
+  materialGroup: ['Material Group'],
+  drawingReference: ['Drawing Reference', 'Drawing Ref', 'Drawing'],
+  brand: ['Brand'],
+  taxPreference: ['Tax Preference', 'Tax Status'],
+  purchasePrice: ['Purchase Price', 'Cost Price'],
+  sellingPrice: ['Selling Price', 'Sale Price'],
+  openingStock: ['Opening Stock', 'Stock', 'Opening Qty', 'Opening Quantity'],
+  minStockLevel: ['Min Stock Level', 'Min Stock', 'Minimum Stock'],
+  maxStockLevel: ['Max Stock Level', 'Max Stock', 'Maximum Stock'],
+  reorderQty: ['Reorder Qty', 'Reorder Quantity', 'Reorder Level'],
+  uom: ['Unit of Measure', 'Unit', 'UOM'],
+  isActive: ['Active Status', 'Status', 'Is Active', 'Active'],
+} as const;
+
 const UOM_OPTIONS = [
   { value: 'dz', label: 'Dozen (dz)' },
   { value: 'drm', label: 'Drum (drm)' },
@@ -1001,12 +1022,57 @@ export function ProductsPage() {
     return ['true', 'yes', '1', 'active'].includes(normalized);
   };
 
+  const normalizeImportKey = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+
   const getByNormalizedKey = (row: Record<string, unknown>, key: string) => {
-    const target = key.toLowerCase().replace(/\s+/g, '');
+    const target = normalizeImportKey(key);
     const entry = Object.entries(row).find(
-      ([k]) => k.toLowerCase().replace(/\s+/g, '') === target,
+      ([k]) => normalizeImportKey(k) === target,
     );
     return entry?.[1];
+  };
+
+  const getImportValue = (
+    row: Record<string, unknown>,
+    aliases: readonly string[],
+  ) => {
+    for (const alias of aliases) {
+      const value = getByNormalizedKey(row, alias);
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+
+  const parseImportNumber = (value: unknown, fallback = 0) => {
+    if (value === '' || value === undefined || value === null) return fallback;
+    if (typeof value === 'number') return value;
+    const normalized = String(value)
+      .trim()
+      .replace(/,/g, '')
+      .replace(/[^\d.-]/g, '');
+    if (!normalized) return fallback;
+    return Number(normalized);
+  };
+
+  const resolveImportShopId = (rawValue: unknown) => {
+    const shopCell = String(rawValue ?? '').trim();
+    if (!shopCell) return undefined;
+    const normalizedCell = normalizeImportKey(shopCell);
+    return shopList.find((shop) => {
+      const normalizedId = normalizeImportKey(shop.id);
+      const normalizedNumber = normalizeImportKey(shop.shopNumber);
+      const normalizedName = normalizeImportKey(shop.shopName);
+      const normalizedCombined = normalizeImportKey(`${shop.shopNumber} ${shop.shopName}`);
+      return (
+        normalizedId === normalizedCell ||
+        normalizedNumber === normalizedCell ||
+        normalizedName === normalizedCell ||
+        normalizedCombined === normalizedCell
+      );
+    })?.id;
   };
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1052,26 +1118,41 @@ export function ProductsPage() {
         const row = rows[index];
         const rowNumber = index + 2;
         try {
-          const code = String(getByNormalizedKey(row, 'Product Code') ?? '').trim();
-          const description = String(getByNormalizedKey(row, 'Description') ?? '').trim();
-          const category = String(getByNormalizedKey(row, 'Category') ?? '').trim();
-          const uom = String(getByNormalizedKey(row, 'Unit of Measure') ?? '').trim();
-          const purchasePrice = Number(getByNormalizedKey(row, 'Purchase Price') ?? 0);
-          const sellingPrice = Number(getByNormalizedKey(row, 'Selling Price') ?? 0);
-          const openingStock = Number(getByNormalizedKey(row, 'Opening Stock') ?? 0);
-          const minStockLevel = Number(getByNormalizedKey(row, 'Min Stock Level') ?? 0);
-          const reorderQty = Number(getByNormalizedKey(row, 'Reorder Qty') ?? 0);
-          const maxStockRaw = getByNormalizedKey(row, 'Max Stock Level');
+          const code = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.productCode) ?? '').trim();
+          const description = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.description) ?? '').trim();
+          const category = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.category) ?? '').trim();
+          const uom = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.uom) ?? 'pcs').trim() || 'pcs';
+          const purchasePrice = parseImportNumber(
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.purchasePrice),
+            0,
+          );
+          const sellingPrice = parseImportNumber(
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.sellingPrice),
+            0,
+          );
+          const openingStock = parseImportNumber(
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.openingStock),
+            0,
+          );
+          const minStockLevel = parseImportNumber(
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.minStockLevel),
+            0,
+          );
+          const reorderQty = parseImportNumber(
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.reorderQty),
+            0,
+          );
+          const maxStockRaw = getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.maxStockLevel);
           const maxStockLevel =
             maxStockRaw === '' || maxStockRaw === undefined || maxStockRaw === null
               ? undefined
-              : Number(maxStockRaw);
-          const hsnCode = String(getByNormalizedKey(row, 'HSN Code') ?? getByNormalizedKey(row, 'HSN') ?? '').trim();
-          const materialGroup = String(getByNormalizedKey(row, 'Material Group') ?? '').trim();
-          const drawingReference = String(getByNormalizedKey(row, 'Drawing Reference') ?? '').trim();
-          const brand = String(getByNormalizedKey(row, 'Brand') ?? '').trim();
+              : parseImportNumber(maxStockRaw, Number.NaN);
+          const hsnCode = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.hsnCode) ?? '').trim();
+          const materialGroup = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.materialGroup) ?? '').trim();
+          const drawingReference = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.drawingReference) ?? '').trim();
+          const brand = String(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.brand) ?? '').trim();
           const taxPreferenceRaw = String(
-            getByNormalizedKey(row, 'Tax Preference') ?? getByNormalizedKey(row, 'Tax preference') ?? '',
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.taxPreference) ?? '',
           )
             .trim()
             .toLowerCase();
@@ -1082,27 +1163,17 @@ export function ProductsPage() {
             taxPreferenceRaw === 'non_taxable'
               ? ('NON_TAXABLE' as const)
               : ('TAXABLE' as const);
-          const isActive = parseBoolean(getByNormalizedKey(row, 'Active Status'), true);
+          const isActive = parseBoolean(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.isActive), true);
 
-          const shopCell = String(getByNormalizedKey(row, 'Shop') ?? '').trim();
           const resolvedShopId =
             user?.shopId ||
-            (shopCell
-              ? shopList.find(
-                  (shop) =>
-                    shop.id === shopCell ||
-                    shop.shopNumber.toLowerCase() === shopCell.toLowerCase() ||
-                    shop.shopName.toLowerCase() === shopCell.toLowerCase(),
-                )?.id
-              : undefined) ||
+            resolveImportShopId(getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.shop)) ||
             fallbackShopId;
 
           if (!resolvedShopId) throw new Error('Shop is missing');
 
           const storageLocationCode = String(
-            getByNormalizedKey(row, 'Storage Location Code') ??
-              getByNormalizedKey(row, 'Storage Location') ??
-              '',
+            getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.storageLocation) ?? '',
           ).trim();
           const storageLocationId = resolveStorageLocationIdForImport(
             resolvedShopId,
