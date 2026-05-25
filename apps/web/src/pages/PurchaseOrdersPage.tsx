@@ -410,86 +410,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     return [];
   }, [productsQuery.data]);
 
-  const handleExportPoList = useCallback(() => {
-    const ok = exportModuleCsv('purchase-orders.csv', filteredPoList, [
-      { header: 'PO Number', value: (po) => po.poNumber },
-      { header: 'PO Date', value: (po) => csvDate(po.poDate) },
-      { header: 'Supplier', value: (po) => po.supplier },
-      { header: 'Plant', value: (po) => po.shop?.shopName ?? '' },
-      { header: 'Status', value: (po) => po.lifecycleStatus ?? po.status },
-      {
-        header: 'RFQ Number',
-        value: (po) => (po.rfqId ? rfqMap.get(po.rfqId)?.rfqNumber ?? '' : ''),
-      },
-      { header: 'Items', value: (po) => po.items.length },
-      {
-        header: 'Ordered Qty',
-        value: (po) => po.items.reduce((sum, item) => sum + Number(item.orderQty ?? 0), 0),
-      },
-      {
-        header: 'Gross Amount',
-        value: (po) => csvMoney(purchaseOrderTotals(po, productMap).grossTotal),
-      },
-      { header: 'Remarks', value: (po) => po.remarks ?? '' },
-    ]);
-    if (ok) toast.success('Purchase orders exported');
-    else toast.error('No purchase orders to export');
-  }, [filteredPoList, productMap]);
-
-  const handleExportPoDetail = useCallback(
-    (po: PurchaseOrder) => {
-      const ok = exportModuleCsv(`${po.poNumber}.csv`, po.items.map((item) => ({ po, item })), [
-        { header: 'PO Number', value: ({ po: current }) => current.poNumber },
-        { header: 'PO Date', value: ({ po: current }) => csvDate(current.poDate) },
-        { header: 'Supplier', value: ({ po: current }) => current.supplier },
-        { header: 'Plant', value: ({ po: current }) => current.shop?.shopName ?? '' },
-        { header: 'Status', value: ({ po: current }) => current.lifecycleStatus ?? current.status },
-        {
-          header: 'RFQ Number',
-          value: ({ po: current }) =>
-            current.rfqId ? rfqMap.get(current.rfqId)?.rfqNumber ?? '' : '',
-        },
-        { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
-        { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
-        { header: 'Order Qty', value: ({ item }) => item.orderQty },
-        { header: 'Rate', value: ({ item }) => csvMoney(item.rate) },
-        {
-          header: 'Tax %',
-          value: ({ po: current, item }) =>
-            effectivePoLineTaxPercent(
-              item.productId,
-              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
-              productMap,
-            ),
-        },
-        {
-          header: 'Gross Line Total',
-          value: ({ po: current, item }) => {
-            const taxPercent = effectivePoLineTaxPercent(
-              item.productId,
-              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
-              productMap,
-            );
-            return csvMoney(
-              computePoLineAmounts({
-                orderQty: item.orderQty,
-                rate: item.rate,
-                taxPercent,
-              }).lineTotal,
-            );
-          },
-        },
-        { header: 'Current Stock', value: ({ item }) => item.currentStock },
-        { header: 'Min Stock', value: ({ item }) => item.minStock },
-        { header: 'Suggested Qty', value: ({ item }) => item.suggestedQty },
-        { header: 'Remarks', value: ({ po: current }) => current.remarks ?? '' },
-      ]);
-      if (ok) toast.success('Purchase order exported');
-      else toast.error('No PO lines to export');
-    },
-    [productMap, rfqMap],
-  );
-
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
@@ -612,6 +532,86 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const detailRemarks = useMemo(
     () => (detailPO ? parsePoRemarks(detailPO.remarks).humanRemarks : ''),
     [detailPO],
+  );
+
+  const handleExportPoList = useCallback(() => {
+    const ok = exportModuleCsv('purchase-orders.csv', filteredPoList, [
+      { header: 'PO Number', value: (po) => po.poNumber },
+      { header: 'PO Date', value: (po) => csvDate(po.poDate) },
+      { header: 'Supplier', value: (po) => po.supplier },
+      { header: 'Plant', value: (po) => po.shop?.shopName ?? '' },
+      { header: 'Status', value: (po) => po.lifecycleStatus ?? po.status },
+      {
+        header: 'RFQ Number',
+        value: (po) => (po.rfqId ? rfqMap.get(po.rfqId)?.rfqNumber ?? '' : ''),
+      },
+      { header: 'Items', value: (po) => po.items.length },
+      {
+        header: 'Ordered Qty',
+        value: (po) => po.items.reduce((sum, item) => sum + Number(item.orderQty ?? 0), 0),
+      },
+      {
+        header: 'Gross Amount',
+        value: (po) => csvMoney(purchaseOrderTotals(po, productMap).grossTotal),
+      },
+      { header: 'Remarks', value: (po) => po.remarks ?? '' },
+    ]);
+    if (ok) toast.success('Purchase orders exported');
+    else toast.error('No purchase orders to export');
+  }, [filteredPoList, productMap, rfqMap]);
+
+  const handleExportPoDetail = useCallback(
+    (po: PurchaseOrder) => {
+      const ok = exportModuleCsv(`${po.poNumber}.csv`, po.items.map((item) => ({ po, item })), [
+        { header: 'PO Number', value: ({ po: current }) => current.poNumber },
+        { header: 'PO Date', value: ({ po: current }) => csvDate(current.poDate) },
+        { header: 'Supplier', value: ({ po: current }) => current.supplier },
+        { header: 'Plant', value: ({ po: current }) => current.shop?.shopName ?? '' },
+        { header: 'Status', value: ({ po: current }) => current.lifecycleStatus ?? current.status },
+        {
+          header: 'RFQ Number',
+          value: ({ po: current }) =>
+            current.rfqId ? rfqMap.get(current.rfqId)?.rfqNumber ?? '' : '',
+        },
+        { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
+        { header: 'Description', value: ({ item }) => item.product?.description ?? '' },
+        { header: 'Order Qty', value: ({ item }) => item.orderQty },
+        { header: 'Rate', value: ({ item }) => csvMoney(item.rate) },
+        {
+          header: 'Tax %',
+          value: ({ po: current, item }) =>
+            effectivePoLineTaxPercent(
+              item.productId,
+              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              productMap,
+            ),
+        },
+        {
+          header: 'Gross Line Total',
+          value: ({ po: current, item }) => {
+            const taxPercent = effectivePoLineTaxPercent(
+              item.productId,
+              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              productMap,
+            );
+            return csvMoney(
+              computePoLineAmounts({
+                orderQty: item.orderQty,
+                rate: item.rate,
+                taxPercent,
+              }).lineTotal,
+            );
+          },
+        },
+        { header: 'Current Stock', value: ({ item }) => item.currentStock },
+        { header: 'Min Stock', value: ({ item }) => item.minStock },
+        { header: 'Suggested Qty', value: ({ item }) => item.suggestedQty },
+        { header: 'Remarks', value: ({ po: current }) => current.remarks ?? '' },
+      ]);
+      if (ok) toast.success('Purchase order exported');
+      else toast.error('No PO lines to export');
+    },
+    [productMap, rfqMap],
   );
 
   const openCreate = useCallback(() => {
