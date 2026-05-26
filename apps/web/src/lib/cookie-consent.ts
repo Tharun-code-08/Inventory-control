@@ -74,6 +74,26 @@ export function clearPreferredOrgId() {
   deleteBrowserCookie(ORG_COOKIE_NAME, '/');
 }
 
+export function clearAnalyticsCookies() {
+  if (typeof document === 'undefined') return;
+  const analyticsCookieNames = document.cookie
+    .split(';')
+    .map((part) => part.trim().split('=')[0])
+    .filter(Boolean)
+    .map((name) => decodeURIComponent(name))
+    .filter(
+      (name) =>
+        name === '_ga' ||
+        name === '_gid' ||
+        name.startsWith('_ga_') ||
+        name.startsWith('_gat'),
+    );
+
+  for (const cookieName of analyticsCookieNames) {
+    deleteBrowserCookie(cookieName, '/');
+  }
+}
+
 export function syncPreferredOrgId(orgId: string | null | undefined, functionalEnabled: boolean) {
   if (!functionalEnabled || !orgId) {
     clearPreferredOrgId();

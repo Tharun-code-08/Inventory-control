@@ -35,8 +35,8 @@ function CookiePreferencesDialog() {
         category: 'Functional',
         enabled: functionalEnabled,
         description:
-          'Used for convenience features like remembering a trusted browser and keeping your active workspace selection.',
-        cookies: ['remember_me', 'org_id'],
+          'Used for convenience features like remembering a trusted browser, keeping your active workspace selection, and measuring site usage with Google Analytics.',
+        cookies: ['remember_me', 'org_id', '_ga', '_gid', '_ga_*'],
       },
     ],
     [functionalEnabled],
@@ -49,7 +49,7 @@ function CookiePreferencesDialog() {
           <DialogTitle>Cookie Preferences</DialogTitle>
           <DialogDescription>
             Essential cookies keep the app secure. Functional cookies are optional and can be
-            turned on if you want convenience features.
+            turned on if you want convenience features and Google Analytics measurement.
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +147,8 @@ export function CookieConsentManager() {
                   </h2>
                   <p className="max-w-2xl text-sm leading-7 text-slate-300">
                     We use essential cookies to keep your session secure and optional functional
-                    cookies to remember your browser and active workspace.
+                    cookies to remember your browser, active workspace, and Google Analytics
+                    measurement preferences.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">

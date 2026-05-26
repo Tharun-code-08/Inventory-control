@@ -6,6 +6,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppRoutes } from './routes/AppRoutes';
 import './index.css';
 import { api, applyAccessToken } from './api/client';
+import { GoogleAnalyticsManager } from './components/analytics/GoogleAnalyticsManager';
 import { CookieConsentManager } from './components/cookies/CookieConsentManager';
 import { initializeSessionFromAuthResponse } from './lib/session';
 import { useAuthStore } from './store/authStore';
@@ -53,6 +54,7 @@ function mountApp() {
       <QueryClientProvider client={qc}>
         <BrowserRouter>
           <AppRoutes />
+          <GoogleAnalyticsManager />
           <CookieConsentManager />
           <SpeedInsights />
         </BrowserRouter>

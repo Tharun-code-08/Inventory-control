@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '@/api/client';
 import {
+  clearAnalyticsCookies,
   clearPreferredOrgId,
   DEFAULT_COOKIE_CONSENT,
   nextCookieConsent,
@@ -30,6 +31,7 @@ async function clearFunctionalCookiesOnServer() {
 async function applyFunctionalConsentSideEffects(functionalEnabled: boolean) {
   if (functionalEnabled) return;
   clearPreferredOrgId();
+  clearAnalyticsCookies();
   await clearFunctionalCookiesOnServer();
 }
 
