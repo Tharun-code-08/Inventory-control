@@ -248,22 +248,18 @@ export function GoodsIssuePage() {
 
   return (
     <AppLayout>
-      <PageHeader
-        title="Goods Issues"
-        description="Outgoing goods and dispatches"
-        action={
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button variant="outline" onClick={handleExportGiList} className="w-full sm:w-auto">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-            <Button onClick={() => navigate('/goods-issues/new')} className="w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Create GI
-            </Button>
-          </div>
-        }
-      />
+      <PageHeader title="Goods Issues" description="Outgoing goods and dispatches">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Button variant="outline" onClick={handleExportGiList} className="w-full sm:w-auto">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => navigate('/goods-issues/new')} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Create GI
+          </Button>
+        </div>
+      </PageHeader>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <KpiCard
