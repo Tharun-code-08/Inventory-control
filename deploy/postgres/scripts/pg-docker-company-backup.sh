@@ -19,9 +19,34 @@ run_dump() { # $1 table, $2 where clause, $3 tmp file path in container
   local table="$1"
   local where_clause="$2"
   local tmp_file="$3"
-  docker_exec_env env DUMP_TABLE="$table" WHERE_CLAUSE="$where_clause" TMP_FILE="$tmp_file" PGDATABASE="$PGDATABASE" PGHOST="$PGHOST" PGPORT="$PGPORT" PGUSER="$PGUSER" \
-    bash -c 'pg_dump --data-only --inserts --column-inserts --no-owner --no-privileges --format=p \
-      --table="$DUMP_TABLE" --file=- --where "$WHERE_CLAUSE" "$PGDATABASE" >> "$TMP_FILE"'
+  local staging="_bkp_${table}_${RANDOM}"
+
+  # pg_dump has no --where filter; stage matching rows, dump, then rewrite table name.
+  docker_exec_env env \
+    SOURCE_TABLE="$table" \
+    STAGING_TABLE="$staging" \
+    WHERE_CLAUSE="$where_clause" \
+    TMP_FILE="$tmp_file" \
+    PGDATABASE="$PGDATABASE" \
+    PGHOST="$PGHOST" \
+    PGPORT="$PGPORT" \
+    PGUSER="$PGUSER" \
+    bash -c '
+      set -euo pipefail
+      cleanup() {
+        psql -v ON_ERROR_STOP=1 -d "$PGDATABASE" -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" \
+          -c "DROP TABLE IF EXISTS ${STAGING_TABLE};" >/dev/null 2>&1 || true
+      }
+      trap cleanup EXIT
+      psql -v ON_ERROR_STOP=1 -d "$PGDATABASE" -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" \
+        -c "CREATE TABLE ${STAGING_TABLE} AS SELECT * FROM ${SOURCE_TABLE} WHERE ${WHERE_CLAUSE};"
+      pg_dump -U "$PGUSER" -h "$PGHOST" -p "$PGPORT" \
+        --data-only --inserts --column-inserts --no-owner --no-privileges --format=p \
+        --table="${STAGING_TABLE}" "$PGDATABASE" \
+        | sed "s/${STAGING_TABLE}/${SOURCE_TABLE}/g" >> "$TMP_FILE"
+      cleanup
+      trap - EXIT
+    '
 }
 
 companies_raw="$(docker_psql -At -c "select id || '|' || coalesce(nullif(company_code, ''), substring(id::text, 1, 8)) from companies order by 1")"
