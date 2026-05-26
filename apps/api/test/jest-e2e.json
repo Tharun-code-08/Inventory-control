@@ -4,6 +4,9 @@
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "isolatedModules": true } }]
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(@scure|@noble|otplib|@otplib)/)"
+  ]
 }
