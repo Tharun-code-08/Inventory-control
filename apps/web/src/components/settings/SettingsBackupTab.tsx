@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Cloud, DatabaseBackup, Download, Loader2, Upload } from 'lucide-react';
+import {
+  CheckCircle2,
+  Cloud,
+  DatabaseBackup,
+  Download,
+  HardDriveDownload,
+  Loader2,
+  Mail,
+  ShieldAlert,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +33,20 @@ import { backupsAllowed } from '@/lib/plans';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { api } from '@/api/client';
 
+function formatDate(value: string | null | undefined) {
+  if (!value) return 'Never';
+  return new Date(value).toLocaleString();
+}
+
+function formatBytes(value: string | number | null | undefined) {
+  const num = typeof value === 'string' ? Number(value) : value ?? 0;
+  if (!num || Number.isNaN(num)) return '0 KB';
+  if (num >= 1024 * 1024 * 1024) return `${(num / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (num >= 1024 * 1024) return `${(num / 1024 / 1024).toFixed(1)} MB`;
+  if (num >= 1024) return `${(num / 1024).toFixed(1)} KB`;
+  return `${num} B`;
+}
+
 export function SettingsBackupTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const subQuery = useSubscription();
@@ -36,6 +60,7 @@ export function SettingsBackupTab() {
   const dryRun = useDryRunRestore();
   const applyRestore = useApplyRestore();
 
+  const [deliveryMethod, setDeliveryMethod] = useState<'MANUAL' | 'EMAIL' | 'GOOGLE_DRIVE'>('MANUAL');
   const [selectedArtifactId, setSelectedArtifactId] = useState('');
   const [restoreReport, setRestoreReport] = useState<DryRunReport | null>(null);
   const [restoreJobId, setRestoreJobId] = useState('');
@@ -49,12 +74,29 @@ export function SettingsBackupTab() {
     () => artifacts.find((a) => a.id === selectedArtifactId) ?? null,
     [artifacts, selectedArtifactId],
   );
+  const lastBackupAt = status?.latestBackupAt ?? artifacts[0]?.createdAt ?? null;
+  const totalBackups = status?.totalBackups ?? artifacts.length;
+  const storageUsed =
+    status?.totalStorageBytes != null ? Number(status.totalStorageBytes) : undefined;
+  const driveAvailable = Boolean(status?.googleDriveConfigured && status?.googleDriveConnected);
+  const driveSetupNeeded = !status?.googleDriveConfigured || !status?.googleDriveConnected;
+  const emailAvailable = Boolean(status?.emailDeliveryConfigured);
 
   useEffect(() => {
     if (searchParams.get('drive') !== 'connected') return;
     toast.success('Google Drive connected');
     const next = new URLSearchParams(searchParams);
     next.delete('drive');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (searchParams.get('drive') !== 'error') return;
+    const reason = searchParams.get('reason');
+    toast.error(reason ? decodeURIComponent(reason) : 'Google Drive connection failed');
+    const next = new URLSearchParams(searchParams);
+    next.delete('drive');
+    next.delete('reason');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -77,7 +119,7 @@ export function SettingsBackupTab() {
     );
   }
 
-  async function handleCreateBackup(provider: 'MANUAL' | 'GOOGLE_DRIVE') {
+  async function handleCreateBackup(provider: 'MANUAL' | 'GOOGLE_DRIVE' | 'EMAIL') {
     try {
       await createBackup.mutateAsync(provider);
       toast.success('Backup started. Refresh the list in a few moments.');
@@ -153,119 +195,235 @@ export function SettingsBackupTab() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+    <div className="max-w-4xl space-y-4 rounded-2xl bg-slate-950 p-6 text-slate-100 shadow-lg">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
             <DatabaseBackup className="h-4 w-4" />
-            Backup & Restore
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <p className="text-muted-foreground">
-            Create company backups, store them on Google Drive or download manually, and restore all
-            ERP data if your database is lost.
+            Backup & restore
+          </div>
+          <p className="text-sm text-slate-300">
+            Protect your ERP data — export, download, and recover anytime.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => handleCreateBackup('MANUAL')} disabled={createBackup.isPending}>
+        </div>
+        <div className="flex gap-2 text-xs">
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">Pro</span>
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-400">
+            backup & restore
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-slate-400">Last backup</p>
+            <p className="text-lg font-semibold">{formatDate(lastBackupAt)}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-slate-400">Total backups</p>
+            <p className="text-lg font-semibold">{totalBackups}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-slate-400">Storage used</p>
+            <p className="text-lg font-semibold">
+              {storageUsed != null ? formatBytes(storageUsed) : '—'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Create a new backup</CardTitle>
+            <Button
+              className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+              onClick={() => handleCreateBackup(deliveryMethod)}
+              disabled={
+                createBackup.isPending ||
+                (deliveryMethod === 'GOOGLE_DRIVE' && !driveAvailable) ||
+                (deliveryMethod === 'EMAIL' && !emailAvailable)
+              }
+            >
               {createBackup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Create backup now
+              Create backup
             </Button>
-            {status?.googleDriveConnected ? (
-              <Button variant="outline" onClick={() => handleCreateBackup('GOOGLE_DRIVE')}>
-                Backup to Google Drive
-              </Button>
-            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
+                deliveryMethod === 'MANUAL'
+                  ? 'border-emerald-400 bg-emerald-500/10'
+                  : 'border-slate-800 bg-slate-900'
+              }`}
+              onClick={() => setDeliveryMethod('MANUAL')}
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <HardDriveDownload className="h-4 w-4" />
+                Direct download
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-200">
+                  Free
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-300">Save to your machine instantly.</p>
+            </button>
+            <button
+              type="button"
+              className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
+                deliveryMethod === 'EMAIL'
+                  ? 'border-emerald-400 bg-emerald-500/10'
+                  : 'border-slate-800 bg-slate-900'
+              } ${emailAvailable ? '' : 'opacity-70'}`}
+              onClick={() => emailAvailable && setDeliveryMethod('EMAIL')}
+              disabled={!emailAvailable}
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="h-4 w-4" />
+                Email delivery
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-200">
+                  Free
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-300">
+                Sends the backup to your admin email via SMTP.
+              </p>
+              {!emailAvailable ? (
+                <p className="mt-1 text-[11px] text-amber-300">SMTP not configured</p>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
+                deliveryMethod === 'GOOGLE_DRIVE'
+                  ? 'border-emerald-400 bg-emerald-500/10'
+                  : 'border-slate-800 bg-slate-900'
+              } ${driveAvailable ? '' : 'opacity-70'}`}
+              onClick={() => driveAvailable && setDeliveryMethod('GOOGLE_DRIVE')}
+              disabled={!driveAvailable}
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Cloud className="h-4 w-4" />
+                Google Drive
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    driveAvailable ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'
+                  }`}
+                >
+                  {driveAvailable ? 'Free' : 'Setup needed'}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-300">Requires Google OAuth connect.</p>
+              {driveSetupNeeded ? (
+                <div className="mt-1 space-y-1 text-[11px] text-amber-300">
+                  <p>Connect Google Drive to enable.</p>
+                  {status?.googleDriveConfigMissing?.length ? (
+                    <p>Missing: {status.googleDriveConfigMissing.join(', ')}</p>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700"
+                    onClick={() => connectDrive.mutate()}
+                    disabled={connectDrive.isPending || !status?.googleDriveConfigured}
+                  >
+                    {connectDrive.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Connect Google Drive
+                  </Button>
+                </div>
+              ) : null}
+              {driveAvailable ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2 h-7 px-0 text-xs text-emerald-200 hover:text-emerald-100"
+                  onClick={() => disconnectDrive.mutate()}
+                  disabled={disconnectDrive.isPending}
+                >
+                  Disconnect
+                </Button>
+              ) : null}
+            </button>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Cloud className="h-4 w-4" />
-            Google Drive
-          </CardTitle>
+      <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Manual upload</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {!status?.googleDriveConfigured ? (
-            <div className="space-y-2 text-muted-foreground">
-              <p>
-                Google Drive is not enabled on the server yet. Manual upload and download still work.
-              </p>
-              <p className="text-xs">
-                Server admin: set <code>GOOGLE_OAUTH_CLIENT_ID</code>,{' '}
-                <code>GOOGLE_OAUTH_CLIENT_SECRET</code>, and{' '}
-                <code>GOOGLE_OAUTH_REDIRECT_URI</code> (must end with{' '}
-                <code>/api/v1/backups/google/callback</code>) in the API environment, then restart
-                the API.
-              </p>
-            </div>
-          ) : status.googleDriveConnected ? (
-            <>
-              <p>
-                Connected as <strong>{status.googleDriveEmail ?? 'Google account'}</strong>
-              </p>
-              <Button variant="outline" onClick={() => disconnectDrive.mutate()} disabled={disconnectDrive.isPending}>
-                Disconnect Google Drive
-              </Button>
-            </>
-          ) : (
-            <Button onClick={() => connectDrive.mutate()} disabled={connectDrive.isPending}>
-              Connect Google Drive
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Manual backup file</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="backup-upload">Upload backup (.json or .json.gz)</Label>
+        <CardContent className="space-y-2">
+          <Label className="text-xs text-slate-300" htmlFor="backup-upload">
+            Upload a backup file (.json or .json.gz)
+          </Label>
+          <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/60 p-4">
             <Input
               id="backup-upload"
               type="file"
               accept=".json,.gz,application/json,application/gzip"
+              className="bg-slate-900 text-slate-100"
               onChange={(e) => handleUpload(e.target.files?.[0])}
             />
+            <p className="mt-2 text-[11px] text-slate-400">
+              Files are validated with SHA-256 checksum before restore.
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Backup history</CardTitle>
+      <Card className="bg-slate-900/80 border-slate-800 text-slate-100">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Backup history</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-slate-700 text-slate-100"
+              onClick={() => artifactsQuery.refetch()}
+            >
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           {artifacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No backups yet.</p>
+            <p className="text-sm text-slate-400">No backups yet.</p>
           ) : (
             artifacts.map((artifact) => (
               <div
                 key={artifact.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
               >
-                <div>
-                  <p className="font-medium">{artifact.fileName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(artifact.createdAt).toLocaleString()} · {artifact.provider} ·{' '}
-                    {Math.round(Number(artifact.fileSize) / 1024)} KB
-                  </p>
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                  <div>
+                    <p className="text-sm font-semibold">{artifact.fileName}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {formatDate(artifact.createdAt)} · {artifact.provider} ·{' '}
+                      {formatBytes(Number(artifact.fileSize))}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     variant={selectedArtifactId === artifact.id ? 'default' : 'outline'}
+                    className="border-slate-700"
                     onClick={() => setSelectedArtifactId(artifact.id)}
                   >
-                    Select for restore
+                    Restore
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
+                    className="border-slate-700"
                     onClick={() => handleDownload(artifact.id, artifact.fileName)}
                   >
                     <Download className="h-4 w-4" />
@@ -277,29 +435,39 @@ export function SettingsBackupTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Restore company data</CardTitle>
+      <Card className="border border-rose-900 bg-rose-950/40 text-slate-100">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-300" />
+            <CardTitle className="text-base">Restore company data</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            Restore replaces current company ERP data with the selected backup. Run dry-run first.
+          <p className="text-slate-200">
+            Restore replaces current company ERP data with the selected backup. Always run a dry-run first.
           </p>
           {selectedArtifact ? (
-            <p>
+            <p className="text-xs text-slate-300">
               Selected backup: <strong>{selectedArtifact.fileName}</strong>
             </p>
-          ) : null}
+          ) : (
+            <p className="text-xs text-amber-300">Select a backup from history to restore.</p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleDryRun} disabled={dryRun.isPending || !selectedArtifactId}>
+            <Button
+              variant="outline"
+              className="border-amber-500 text-amber-100 hover:bg-amber-500/10"
+              onClick={handleDryRun}
+              disabled={dryRun.isPending || !selectedArtifactId}
+            >
               {dryRun.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Dry-run restore
             </Button>
           </div>
           {restoreReport ? (
-            <div className="rounded-lg border bg-slate-50 p-3">
+            <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
               <p className="font-medium">Dry-run report</p>
-              <ul className="mt-2 list-disc pl-5 text-muted-foreground">
+              <ul className="mt-2 list-disc pl-5 text-slate-300">
                 {Object.entries(restoreReport.counts).map(([key, value]) => (
                   <li key={key}>
                     {key}: {value}
@@ -307,7 +475,7 @@ export function SettingsBackupTab() {
                 ))}
               </ul>
               {restoreReport.warnings.length ? (
-                <ul className="mt-2 list-disc pl-5 text-amber-700">
+                <ul className="mt-2 list-disc pl-5 text-amber-300">
                   {restoreReport.warnings.map((warning) => (
                     <li key={warning}>{warning}</li>
                   ))}
@@ -315,7 +483,12 @@ export function SettingsBackupTab() {
               ) : null}
               <div className="mt-3 space-y-2">
                 <Label htmlFor="restore-confirm">Type RESTORE to apply</Label>
-                <Input id="restore-confirm" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
+                <Input
+                  id="restore-confirm"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  className="border-slate-700 bg-slate-900 text-slate-100"
+                />
                 <Button
                   variant="destructive"
                   disabled={!restoreReport.canApply || applyRestore.isPending}
@@ -326,8 +499,8 @@ export function SettingsBackupTab() {
               </div>
             </div>
           ) : null}
-          <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
-            <p className="font-medium text-foreground">Full database disaster recovery</p>
+          <div className="rounded-lg border border-dashed border-slate-800 p-3 text-xs text-slate-300">
+            <p className="font-medium text-slate-100">Full database disaster recovery</p>
             <p className="mt-1">
               If the entire VPS database is lost, use the server runbook with{' '}
               <code>deploy/postgres/scripts/pg-restore-full.sh</code> and uploaded backup artifacts.

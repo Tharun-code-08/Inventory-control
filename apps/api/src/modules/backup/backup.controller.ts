@@ -39,9 +39,13 @@ export class BackupController {
   }
 
   @Post('jobs')
-  createJob(@CurrentUser() user: RequestUser, @Body() body: { provider?: 'MANUAL' | 'GOOGLE_DRIVE' }) {
+  createJob(@CurrentUser() user: RequestUser, @Body() body: { provider?: 'MANUAL' | 'GOOGLE_DRIVE' | 'EMAIL' }) {
     const provider =
-      body?.provider === 'GOOGLE_DRIVE' ? BackupProvider.GOOGLE_DRIVE : BackupProvider.MANUAL;
+      body?.provider === 'GOOGLE_DRIVE'
+        ? BackupProvider.GOOGLE_DRIVE
+        : body?.provider === 'EMAIL'
+          ? BackupProvider.EMAIL
+          : BackupProvider.MANUAL;
     return this.backup.createBackupJob(user, provider);
   }
 
@@ -53,8 +57,14 @@ export class BackupController {
   @Public()
   @Get('google/callback')
   async googleCallback(@Query('code') code: string, @Query('state') state: string, @Res() res: Response) {
-    await this.backup.completeGoogleConnect(code, state);
-    return res.redirect(this.backup.googleRedirectSuccessUrl());
+    try {
+      await this.backup.completeGoogleConnect(code, state);
+      return res.redirect(this.backup.googleRedirectSuccessUrl());
+    } catch (err) {
+      const reason =
+        err instanceof Error && err.message ? encodeURIComponent(err.message) : 'google_oauth_error';
+      return res.redirect(`${this.backup.googleRedirectErrorUrl()}?reason=${reason}`);
+    }
   }
 
   @Delete('google/connect')

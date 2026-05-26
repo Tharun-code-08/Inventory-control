@@ -1455,6 +1455,7 @@ model CreditNote {
 enum BackupProvider {
   MANUAL
   GOOGLE_DRIVE
+  EMAIL
 }
 
 enum BackupJobStatus {

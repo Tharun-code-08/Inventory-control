@@ -8,6 +8,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BackupService } from './backup.service';
 import { GoogleDriveService } from './google-drive.service';
 import { TenantBackupService } from './tenant-backup.service';
+import { MailService } from '../../common/mail/mail.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  backupDeliveryHtml,
+  backupDeliverySubject,
+  backupDeliveryText,
+} from '../../common/mail/backup-delivery.template';
 
 type BackupJobPayload = { backupJobId: string };
 
@@ -20,6 +27,8 @@ export class BackupProcessor extends WorkerHost {
     private readonly tenantBackup: TenantBackupService,
     private readonly backupService: BackupService,
     private readonly googleDrive: GoogleDriveService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
     private readonly failures: JobFailureService,
     private readonly metrics: MetricsService,
   ) {
@@ -81,6 +90,53 @@ export class BackupProcessor extends WorkerHost {
         fileName,
         driveFileId,
       });
+
+      if (backupJob.provider === BackupProvider.EMAIL) {
+        if (!this.mail.isConfigured()) {
+          throw new Error('Email delivery is not configured (missing SMTP env)');
+        }
+        const recipient =
+          (backupJob.createdById
+            ? (
+                await this.prisma.user.findUnique({
+                  where: { id: backupJob.createdById },
+                  select: { email: true },
+                })
+              )?.email
+            : null) || this.config.get<string>('ADMIN_NOTIFICATION_EMAIL');
+        if (!recipient) {
+          throw new Error('No email recipient for backup delivery (user email and ADMIN_NOTIFICATION_EMAIL missing)');
+        }
+        const company = await this.prisma.company.findUnique({
+          where: { id: backupJob.companyId },
+          select: { companyCode: true },
+        });
+        const maxBytes = 20 * 1024 * 1024;
+        if (buffer.length > maxBytes) {
+          throw new Error('Backup file too large to email (limit 20MB)');
+        }
+        const approxSizeKb = Math.max(1, Math.round(buffer.length / 1024));
+        await this.mail.sendMail({
+          to: recipient,
+          subject: backupDeliverySubject({
+            companyCode: company?.companyCode ?? null,
+            fileName,
+            approxSizeKb,
+          }),
+          text: backupDeliveryText({
+            companyCode: company?.companyCode ?? null,
+            fileName,
+            approxSizeKb,
+          }),
+          html: backupDeliveryHtml({
+            companyCode: company?.companyCode ?? null,
+            fileName,
+            approxSizeKb,
+          }),
+          fromName: 'Retail IMS Backups',
+          attachments: [{ filename: fileName, content: buffer, contentType: 'application/gzip' }],
+        });
+      }
 
       await this.prisma.backupJob.update({
         where: { id: backupJob.id },

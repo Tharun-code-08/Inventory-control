@@ -28,6 +28,7 @@ import { AuditService } from '../audit/audit.service';
 import { BACKUP_QUEUE, BACKUP_SCHEMA_VERSION } from './backup.constants';
 import { GoogleDriveService } from './google-drive.service';
 import { TenantBackupService } from './tenant-backup.service';
+import { MailService } from '../../common/mail/mail.service';
 
 @Injectable()
 export class BackupService {
@@ -38,6 +39,7 @@ export class BackupService {
     private readonly subscriptions: SubscriptionService,
     private readonly tenantBackup: TenantBackupService,
     private readonly googleDrive: GoogleDriveService,
+    private readonly mail: MailService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
@@ -71,15 +73,28 @@ export class BackupService {
     const credential = await this.prisma.backupProviderCredential.findUnique({
       where: { companyId_provider: { companyId, provider: BackupProvider.GOOGLE_DRIVE } },
     });
-    const latestArtifact = await this.prisma.backupArtifact.findFirst({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [latestArtifact, aggregates] = await Promise.all([
+      this.prisma.backupArtifact.findFirst({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.backupArtifact.aggregate({
+        where: { companyId },
+        _count: { id: true },
+        _sum: { fileSize: true },
+      }),
+    ]);
+    const missingKeys = this.googleDrive.missingConfigKeys();
+    const totalStorageBytes = aggregates._sum.fileSize ?? BigInt(0);
     return {
       googleDriveConfigured: this.googleDrive.isConfigured(),
       googleDriveConnected: Boolean(credential),
       googleDriveEmail: credential?.accountEmail ?? null,
       latestBackupAt: latestArtifact?.createdAt?.toISOString() ?? null,
+      totalBackups: aggregates._count.id ?? 0,
+      totalStorageBytes: totalStorageBytes.toString(),
+      emailDeliveryConfigured: this.mail.isConfigured(),
+      googleDriveConfigMissing: missingKeys,
       schemaVersion: BACKUP_SCHEMA_VERSION,
     };
   }
@@ -168,6 +183,27 @@ export class BackupService {
 
   async createBackupJob(user: RequestUser, provider: BackupProvider = BackupProvider.MANUAL) {
     const companyId = await this.assertBackupAccess(user);
+    if (provider === BackupProvider.GOOGLE_DRIVE) {
+      if (!this.googleDrive.isConfigured()) {
+        const missing = this.googleDrive.missingConfigKeys();
+        throw new BadRequestException(
+          `Google Drive is not configured on the server${missing.length ? ` (missing ${missing.join(', ')})` : ''}`,
+        );
+      }
+      const credential = await this.prisma.backupProviderCredential.findUnique({
+        where: { companyId_provider: { companyId, provider: BackupProvider.GOOGLE_DRIVE } },
+      });
+      if (!credential) {
+        throw new BadRequestException('Connect Google Drive before creating Drive backups');
+      }
+    } else if (provider === BackupProvider.EMAIL) {
+      if (!this.mail.isConfigured()) {
+        throw new BadRequestException('Email delivery is not configured (set SMTP env vars)');
+      }
+      if (!user.email?.trim()) {
+        throw new BadRequestException('User email is required to send backups by email');
+      }
+    }
     const job = await this.prisma.backupJob.create({
       data: {
         companyId,
@@ -348,5 +384,11 @@ export class BackupService {
     const web = this.config.get<string>('PUBLIC_WEB_URL') ?? this.config.get<string>('WEB_ORIGIN') ?? '';
     const base = web.split(',')[0]?.trim() || 'http://localhost:5173';
     return `${base.replace(/\/$/, '')}/settings?tab=backups&drive=connected`;
+  }
+
+  googleRedirectErrorUrl() {
+    const web = this.config.get<string>('PUBLIC_WEB_URL') ?? this.config.get<string>('WEB_ORIGIN') ?? '';
+    const base = web.split(',')[0]?.trim() || 'http://localhost:5173';
+    return `${base.replace(/\/$/, '')}/settings?tab=backups&drive=error`;
   }
 }

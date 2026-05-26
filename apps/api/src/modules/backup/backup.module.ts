@@ -8,9 +8,10 @@ import { TenantBackupService } from './tenant-backup.service';
 import { BillingModule } from '../billing/billing.module';
 import { AuditModule } from '../audit/audit.module';
 import { BACKUP_QUEUE } from './backup.constants';
+import { MailModule } from '../../common/mail/mail.module';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: BACKUP_QUEUE }), BillingModule, AuditModule],
+  imports: [BullModule.registerQueue({ name: BACKUP_QUEUE }), BillingModule, AuditModule, MailModule],
   controllers: [BackupController],
   providers: [BackupService, BackupProcessor, GoogleDriveService, TenantBackupService],
   exports: [BackupService],

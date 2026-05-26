@@ -14,12 +14,23 @@ export type GoogleTokenBundle = {
 export class GoogleDriveService {
   constructor(private readonly config: ConfigService) {}
 
+  missingConfigKeys(): string[] {
+    const keys = [
+      { key: 'GOOGLE_OAUTH_CLIENT_ID', value: this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') },
+      {
+        key: 'GOOGLE_OAUTH_CLIENT_SECRET',
+        value: this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET'),
+      },
+      {
+        key: 'GOOGLE_OAUTH_REDIRECT_URI',
+        value: this.config.get<string>('GOOGLE_OAUTH_REDIRECT_URI'),
+      },
+    ];
+    return keys.filter((k) => !k.value || !k.value.trim()).map((k) => k.key);
+  }
+
   isConfigured() {
-    return Boolean(
-      this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') &&
-        this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET') &&
-        this.config.get<string>('GOOGLE_OAUTH_REDIRECT_URI'),
-    );
+    return this.missingConfigKeys().length === 0;
   }
 
   encryptionKey() {

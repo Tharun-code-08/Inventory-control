@@ -16,6 +16,10 @@ export type BackupStatus = {
   googleDriveConnected: boolean;
   googleDriveEmail: string | null;
   latestBackupAt: string | null;
+  totalBackups?: number;
+  totalStorageBytes?: string;
+  emailDeliveryConfigured?: boolean;
+  googleDriveConfigMissing?: string[];
   schemaVersion: number;
 };
 
@@ -60,7 +64,7 @@ export function useBackupArtifacts(enabled = true) {
 export function useCreateBackupJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (provider: 'MANUAL' | 'GOOGLE_DRIVE' = 'MANUAL') => {
+    mutationFn: async (provider: 'MANUAL' | 'GOOGLE_DRIVE' | 'EMAIL' = 'MANUAL') => {
       const res = await api.post('/backups/jobs', { provider });
       return res.data?.data ?? res.data;
     },
