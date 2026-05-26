@@ -21,10 +21,10 @@ run_dump() { # $1 table, $2 where clause, $3 tmp file path in container
   local tmp_file="$3"
   docker_exec_env env DUMP_TABLE="$table" WHERE_CLAUSE="$where_clause" TMP_FILE="$tmp_file" PGDATABASE="$PGDATABASE" PGHOST="$PGHOST" PGPORT="$PGPORT" PGUSER="$PGUSER" \
     bash -c 'pg_dump --data-only --inserts --column-inserts --no-owner --no-privileges --format=p \
-      --table="$DUMP_TABLE" --file=- --where="$WHERE_CLAUSE" "$PGDATABASE" >> "$TMP_FILE"'
+      --table="$DUMP_TABLE" --file=- --where "$WHERE_CLAUSE" "$PGDATABASE" >> "$TMP_FILE"'
 }
 
-companies_raw="$(docker_psql -At -c "select id || '|' || coalesce(nullif(company_code, ''), substring(id, 1, 8)) from companies order by 2")"
+companies_raw="$(docker_psql -At -c "select id || '|' || coalesce(nullif(company_code, ''), substring(id::text, 1, 8)) from companies order by 1")"
 
 if [[ -z "${companies_raw// }" ]]; then
   log "No companies found; skipping company backups"
@@ -50,21 +50,21 @@ while IFS='|' read -r company_id company_code; do
   run_dump "storage_locations" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
   run_dump "suppliers" "company_id = '${company_id}'" "${TMP_IN_CONTAINER}"
   run_dump "customers" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "product_plant" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "products" "id in (select product_id from product_plant where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
-  run_dump "product_specification" "product_id in (select product_id from product_plant where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "product_plants" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
+  run_dump "products" "id in (select product_id from product_plants where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "product_specifications" "product_id in (select product_id from product_plants where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
   run_dump "stock_summary" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
   run_dump "stock_ledger" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
   run_dump "purchase_order_header" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "purchase_order_item" "po_header_id in (select id from purchase_order_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "purchase_order_items" "po_header_id in (select id from purchase_order_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
   run_dump "goods_receipt_header" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "goods_receipt_item" "gr_header_id in (select id from goods_receipt_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "goods_receipt_items" "gr_header_id in (select id from goods_receipt_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
   run_dump "goods_issue_header" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "goods_issue_item" "gi_header_id in (select id from goods_issue_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "goods_issue_items" "gi_header_id in (select id from goods_issue_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
   run_dump "sales_order_header" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "sales_order_item" "so_header_id in (select id from sales_order_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
+  run_dump "sales_order_items" "so_header_id in (select id from sales_order_header where shop_id in (${SHOP_SUB}))" "${TMP_IN_CONTAINER}"
   run_dump "invoice_header" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
-  run_dump "payment_receipt" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
+  run_dump "payment_receipts" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
 
   docker_cp_from_container "${TMP_IN_CONTAINER}" "${TARGET}"
   checksum_file "${TARGET}"

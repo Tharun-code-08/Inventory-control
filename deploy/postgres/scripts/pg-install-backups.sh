@@ -10,19 +10,19 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DEPLOY_POSTGRES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_ROOT="/opt/retail-ims/postgres-backup"
 ENV_DEST="/etc/retail-ims/postgres-backup.env"
 BACKUP_ROOT="/var/backups/postgres"
 
 echo "[install] Copying backup scripts to ${INSTALL_ROOT}"
 mkdir -p "$INSTALL_ROOT/scripts"
-cp -r "${REPO_ROOT}/deploy/postgres/scripts/"* "$INSTALL_ROOT/scripts/"
+cp "${DEPLOY_POSTGRES}/scripts/"* "$INSTALL_ROOT/scripts/"
 chmod +x "$INSTALL_ROOT/scripts/"*.sh
 
 if [[ ! -f "$ENV_DEST" ]]; then
   mkdir -p /etc/retail-ims
-  cp "${REPO_ROOT}/deploy/postgres/env.example" "$ENV_DEST"
+  cp "${DEPLOY_POSTGRES}/env.example" "$ENV_DEST"
   chmod 600 "$ENV_DEST"
   echo "[install] Created ${ENV_DEST} — edit PGDATABASE and credentials before first run"
 else
@@ -34,7 +34,7 @@ chown -R postgres:postgres "$BACKUP_ROOT"
 chmod 750 "$BACKUP_ROOT"
 
 echo "[install] Installing systemd units"
-cp "${REPO_ROOT}/deploy/postgres/systemd/"* /etc/systemd/system/
+cp "${DEPLOY_POSTGRES}/systemd/"* /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable pg-full-backup.timer pg-wal-sync.timer pg-backup-prune.timer pg-backup-verify.timer
 

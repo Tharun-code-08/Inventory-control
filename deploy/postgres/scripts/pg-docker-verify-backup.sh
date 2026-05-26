@@ -32,7 +32,7 @@ ensure_dirs
 
 check_recent "${FULL_DIR}/latest.dump" "Full backup"
 
-companies_raw="$(docker_psql -At -c "select coalesce(nullif(company_code, ''), substring(id, 1, 8)) from companies order by 1" || true)"
+companies_raw="$(docker_psql -At -c "select coalesce(nullif(company_code, ''), substring(id::text, 1, 8)) from companies order by 1" || true)"
 if [[ -n "${companies_raw// }" ]]; then
   while IFS= read -r code; do
     [[ -z "$code" ]] && continue

@@ -26,7 +26,7 @@ flowchart LR
 SSH into the VPS as root:
 
 ```bash
-cd /opt/Inventory-control/retail-ims   # adjust to your checkout path
+cd /opt/Inventory-control   # repo root on VPS (adjust to your checkout path)
 sudo bash deploy/postgres/scripts/pg-install-backups.sh
 ```
 
