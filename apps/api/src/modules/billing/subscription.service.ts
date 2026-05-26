@@ -48,6 +48,7 @@ export type SubscriptionSnapshot = {
     api: boolean;
     vendorPortal: boolean;
     auditRbac: boolean;
+    backups: boolean;
   };
 };
 
@@ -124,6 +125,7 @@ export class SubscriptionService {
         api: planAllowsFeature(company.subscriptionPlan, 'api'),
         vendorPortal: planAllowsFeature(company.subscriptionPlan, 'vendor_portal'),
         auditRbac: planAllowsFeature(company.subscriptionPlan, 'audit_rbac'),
+        backups: planAllowsFeature(company.subscriptionPlan, 'backups'),
       },
     };
   }

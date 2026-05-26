@@ -23,6 +23,7 @@ export type GoodsIssue = {
   issueReason: string;
   remarks: string | null;
   status: GoodsIssueStatus;
+  itemCount?: number;
   items: GoodsIssueItem[];
   createdAt: string;
   shop?: {
@@ -57,12 +58,35 @@ export const giKeys = {
 };
 
 function extractGiRows(payload: unknown): GoodsIssue[] {
-  if (Array.isArray(payload)) return payload as GoodsIssue[];
+  if (Array.isArray(payload)) return normalizeGiList(payload as GoodsIssue[]);
   if (!payload || typeof payload !== 'object') return [];
   const source = payload as { data?: unknown; items?: unknown[] };
-  if (Array.isArray(source.items)) return source.items as GoodsIssue[];
-  if (Array.isArray(source.data)) return source.data as GoodsIssue[];
+  if (Array.isArray(source.items)) return normalizeGiList(source.items as GoodsIssue[]);
+  if (Array.isArray(source.data)) return normalizeGiList(source.data as GoodsIssue[]);
   return [];
+}
+
+function normalizeGiList(rows: GoodsIssue[]): GoodsIssue[] {
+  return rows.map((row) => {
+    const itemCount =
+      typeof row.itemCount === 'number'
+        ? row.itemCount
+        : Array.isArray(row.items)
+          ? row.items.length
+          : 0;
+    return {
+      ...row,
+      itemCount,
+      items: Array.isArray(row.items) ? row.items : [],
+    };
+  });
+}
+
+function unwrapGiPayload<T>(payload: unknown): T {
+  if (!payload || typeof payload !== 'object') return payload as T;
+  const source = payload as { data?: unknown };
+  if (source.data !== undefined) return source.data as T;
+  return payload as T;
 }
 
 export function useGoodsIssues(filters: GoodsIssueFilters = {}) {
@@ -75,7 +99,8 @@ export function useGoodsIssues(filters: GoodsIssueFilters = {}) {
       if (filters.shopId) params.shop_id = filters.shopId;
       if (filters.status) params.status = filters.status;
       const res = await api.get('/goods-issues', { params });
-      return extractGiRows(res.data?.data ?? res.data);
+      const payload = unwrapGiPayload<unknown>(res.data);
+      return extractGiRows(payload);
     },
     staleTime: 30_000,
   });
@@ -126,10 +151,13 @@ export function usePostGoodsIssue() {
       const res = await api.post(`/goods-issues/${id}/post`);
       return res.data.data as GoodsIssue;
     },
-    onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: giKeys.lists() });
-      qc.invalidateQueries({ queryKey: giKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: async (_data, id) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: giKeys.lists() }),
+        qc.invalidateQueries({ queryKey: giKeys.detail(id) }),
+        qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]);
     },
   });
 }

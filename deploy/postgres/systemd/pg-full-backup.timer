@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Retail IMS PostgreSQL full backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

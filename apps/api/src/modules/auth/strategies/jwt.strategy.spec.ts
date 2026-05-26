@@ -59,4 +59,26 @@ describe('JwtStrategy', () => {
       permissions: ['user:manage'],
     });
   });
+
+  it('includes the assigned shop in tenantShopIds even when it is inactive', async () => {
+    const { strategy, prisma } = makeStrategy();
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'owner@example.com',
+      isActive: true,
+      shopId: 'shop-legacy',
+      passwordChangedAt: null,
+      role: {
+        name: 'OWNER',
+        permissions: [],
+      },
+      shop: { companyId: 'co-1' },
+    });
+    prisma.shop.findMany.mockResolvedValue([{ id: 'shop-active' }]);
+
+    await expect(strategy.validate({ sub: 'user-1' })).resolves.toMatchObject({
+      companyId: 'co-1',
+      tenantShopIds: ['shop-active', 'shop-legacy'],
+    });
+  });
 });

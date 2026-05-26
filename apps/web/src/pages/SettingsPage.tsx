@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,6 +18,7 @@ import {
   EyeOff,
   Send,
   Cookie,
+  DatabaseBackup,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,6 +76,9 @@ import { AppLayout } from '@/components/AppLayout';
 import { CookiePreferencesTab } from '@/components/settings/CookiePreferencesTab';
 import { SettingsMfaCard } from '@/components/settings/SettingsMfaCard';
 import { SettingsRolesTab } from '@/components/settings/SettingsRolesTab';
+import { SettingsBackupTab } from '@/components/settings/SettingsBackupTab';
+import { useSubscription } from '@/hooks/use-subscription';
+import { backupsAllowed } from '@/lib/plans';
 import {
   ANIMAL_AVATARS,
   animalAvatarByKind,
@@ -1176,6 +1180,22 @@ function CategoriesTab() {
 export function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = isOrgAdminUser(user);
+  const { data: subscription } = useSubscription();
+  const backupEnabled = backupsAllowed(subscription);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activeTab = useMemo(() => {
+    const requested = searchParams.get('tab');
+    const allowed = new Set(['profile', 'shop', 'cookies']);
+    if (isAdmin && backupEnabled) allowed.add('backups');
+    if (isAdmin) {
+      allowed.add('users');
+      allowed.add('categories');
+      allowed.add('roles');
+    }
+    if (requested && allowed.has(requested)) return requested;
+    return 'profile';
+  }, [backupEnabled, isAdmin, searchParams]);
 
   return (
     <AppLayout active="Settings">
@@ -1189,7 +1209,11 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="profile" className="space-y-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={(tab) => setSearchParams({ tab }, { replace: true })}
+          className="space-y-4"
+        >
           <TabsList className="h-auto w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-2">
             <TabsTrigger value="profile" className="gap-1.5">
               <UserIcon className="h-3.5 w-3.5" />
@@ -1203,6 +1227,12 @@ export function SettingsPage() {
               <Cookie className="h-3.5 w-3.5" />
               Cookie Preferences
             </TabsTrigger>
+            {isAdmin && backupEnabled && (
+              <TabsTrigger value="backups" className="gap-1.5">
+                <DatabaseBackup className="h-3.5 w-3.5" />
+                Backups
+              </TabsTrigger>
+            )}
             {isAdmin && (
               <TabsTrigger value="users" className="gap-1.5">
                 <UsersIcon className="h-3.5 w-3.5" />
@@ -1234,6 +1264,12 @@ export function SettingsPage() {
           <TabsContent value="cookies">
             <CookiePreferencesTab />
           </TabsContent>
+
+          {isAdmin && backupEnabled && (
+            <TabsContent value="backups">
+              <SettingsBackupTab />
+            </TabsContent>
+          )}
 
           {isAdmin && (
             <TabsContent value="users">

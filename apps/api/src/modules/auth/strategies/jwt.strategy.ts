@@ -43,6 +43,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         select: { id: true },
       });
       tenantShopIds = shops.map((shop) => shop.id);
+      if (user.shopId && !tenantShopIds.includes(user.shopId)) {
+        tenantShopIds.push(user.shopId);
+      }
     } else if (user.shopId) {
       tenantShopIds = [user.shopId];
     }

@@ -1,0 +1,24 @@
+# PostgreSQL backup settings for Retail IMS VPS
+# Merge into /etc/postgresql/<version>/main/postgresql.conf
+# Then: sudo systemctl restart postgresql
+
+# --- WAL archiving (transaction log backup, near real-time) ---
+wal_level = replica
+archive_mode = on
+archive_timeout = 60s
+
+# Archive each completed WAL segment immediately to local disk.
+# The postgres OS user must own /var/backups/postgres/wal
+archive_command = 'test ! -f /var/backups/postgres/wal/%f && cp %p /var/backups/postgres/wal/%f'
+
+# Optional: force WAL switch every 15 minutes even under low write load
+# (archive_timeout above already switches every 60s when idle)
+
+# --- Replication settings (required for pg_basebackup) ---
+max_wal_senders = 3
+wal_keep_size = 1GB
+
+# --- Safety ---
+# Ensure enough WAL space during heavy writes
+max_wal_size = 2GB
+min_wal_size = 256MB

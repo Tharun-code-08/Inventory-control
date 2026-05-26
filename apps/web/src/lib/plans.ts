@@ -135,8 +135,15 @@ export type SubscriptionSnapshot = {
     api: boolean;
     vendorPortal: boolean;
     auditRbac: boolean;
+    backups?: boolean;
   };
 };
+
+export function backupsAllowed(sub: SubscriptionSnapshot | null | undefined): boolean {
+  if (!sub) return false;
+  if (sub.plan === 'TRIAL') return false;
+  return Boolean(sub.features?.backups ?? (sub.plan === 'PRO' || sub.plan === 'PLUS'));
+}
 
 export function planDisplayName(plan: SubscriptionSnapshot['plan']) {
   if (plan === 'PRO') return 'Pro';

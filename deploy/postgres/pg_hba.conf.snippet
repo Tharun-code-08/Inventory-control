@@ -1,0 +1,6 @@
+# Allow local replication connections for pg_basebackup (adjust version/path as needed)
+# Merge into /etc/postgresql/<version>/main/pg_hba.conf
+
+# TYPE  DATABASE  USER      ADDRESS         METHOD
+local   replication  postgres                peer
+host    replication  postgres  127.0.0.1/32  scram-sha-256

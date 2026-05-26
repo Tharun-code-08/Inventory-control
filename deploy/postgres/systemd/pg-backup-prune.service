@@ -1,0 +1,11 @@
+[Unit]
+Description=Retail IMS PostgreSQL backup retention prune
+After=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-prune-backups.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly Retail IMS PostgreSQL WAL offsite sync
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

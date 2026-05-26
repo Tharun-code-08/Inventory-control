@@ -14,6 +14,13 @@ import { AuditService } from '../audit/audit.service';
 
 type Line = { productId: string; quantity: number; uom: string };
 
+type GoodsIssueListRow = Prisma.GoodsIssueHeaderGetPayload<{
+  include: {
+    shop: true;
+    _count: { select: { items: true } };
+  };
+}>;
+
 @Injectable()
 export class GoodsIssuesService {
   constructor(
@@ -23,6 +30,29 @@ export class GoodsIssuesService {
     private readonly audit: AuditService,
     private readonly inventoryLots: InventoryLotService,
   ) {}
+
+  private serializeListRow(row: GoodsIssueListRow) {
+    return {
+      id: row.id,
+      giNumber: row.giNumber,
+      giDate: row.giDate.toISOString().slice(0, 10),
+      shopId: row.shopId,
+      issueReason: row.issueReason,
+      remarks: row.remarks,
+      status: row.status,
+      postedAt: row.postedAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      itemCount: row._count.items,
+      shop: row.shop
+        ? {
+            id: row.shop.id,
+            shopName: row.shop.shopName,
+            shopNumber: row.shop.shopNumber,
+          }
+        : undefined,
+    };
+  }
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
     const s = await tx.stockSummary.findUnique({
@@ -53,11 +83,14 @@ export class GoodsIssuesService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
-      include: { shop: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: {
+        shop: true,
+        _count: { select: { items: true } },
+      },
     });
     const { items, meta } = buildMeta(rows, take);
-    return { data: items, meta };
+    return { data: items.map((row) => this.serializeListRow(row)), meta };
   }
 
   async create(user: RequestUser, params: { giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }) {

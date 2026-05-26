@@ -1,0 +1,12 @@
+[Unit]
+Description=Retail IMS PostgreSQL WAL archive offsite sync
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-wal-sync.sh
+
+[Install]
+WantedBy=multi-user.target

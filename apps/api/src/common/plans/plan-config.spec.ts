@@ -20,5 +20,6 @@ describe('planAllowsFeature', () => {
     expect(planAllowsFeature(SubscriptionPlan.TRIAL, 'purchase_orders')).toBe(false);
     expect(planAllowsFeature(SubscriptionPlan.TRIAL, 'reports')).toBe(false);
     expect(planAllowsFeature(SubscriptionPlan.TRIAL, 'invoices')).toBe(false);
+    expect(planAllowsFeature(SubscriptionPlan.TRIAL, 'backups')).toBe(false);
   });
 });

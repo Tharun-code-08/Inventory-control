@@ -34,3 +34,13 @@ Use this checklist for every production release.
 1. Alert on API 5xx spikes at edge/proxy and origin.
 2. Alert on `/api/v1/health/ready` failures.
 3. Track 5xx error budget burn rate and page on sustained breach.
+
+## 5) Database backup readiness
+
+Before every production release, confirm PostgreSQL backups are healthy on the VPS:
+
+1. `systemctl status pg-full-backup.timer pg-wal-sync.timer pg-backup-verify.timer`
+2. `ENV_FILE=/etc/retail-ims/postgres-backup.env /opt/retail-ims/postgres-backup/scripts/pg-verify-backup.sh`
+3. Review `/var/backups/postgres/logs/backup.log` for recent success entries.
+
+Setup and recovery procedures: [postgres-backup-recovery.md](./postgres-backup-recovery.md)

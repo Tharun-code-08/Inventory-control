@@ -78,4 +78,11 @@ export const envValidationSchema = Joi.object({
   RAZORPAY_KEY_SECRET: Joi.string().optional(),
   /** Demo: charge Plus at this INR amount (e.g. 5). Unset to restore ₹599/₹549 pricing. */
   BILLING_DEMO_PLUS_PRICE_INR: Joi.number().integer().min(1).optional(),
+
+  BACKUP_FEATURE_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(true),
+  BACKUP_STORAGE_DIR: Joi.string().default('./storage/backups'),
+  BACKUP_ENCRYPTION_KEY: Joi.string().trim().empty('').optional(),
+  GOOGLE_OAUTH_CLIENT_ID: Joi.string().trim().empty('').optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: Joi.string().trim().empty('').optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: Joi.string().uri().optional(),
 });

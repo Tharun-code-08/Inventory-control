@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Ban, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Ban, CheckCircle2, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuthStore } from '@/store/authStore';
-import { useCreateGoodsIssue } from '@/hooks/use-goods-issues';
+import { useCreateGoodsIssue, usePostGoodsIssue } from '@/hooks/use-goods-issues';
 import { useSalesOrder, useSalesOrders } from '@/hooks/use-sales-orders';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
@@ -105,6 +105,8 @@ export function GoodsIssueCreatePage() {
     return map;
   }, [products, shopId]);
   const createGi = useCreateGoodsIssue();
+  const postGi = usePostGoodsIssue();
+  const isSubmitting = createGi.isPending || postGi.isPending;
 
   useEffect(() => {
     if (lockedShopId) setShopId(lockedShopId);
@@ -172,9 +174,9 @@ export function GoodsIssueCreatePage() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
 
-  async function handleCreate() {
+  async function submitGoodsIssue(mode: 'draft' | 'post') {
     if (!shopId) {
-      toast.error('Select a plant');
+      toast.error('Select a plant before saving');
       return;
     }
     const payloadItems = lines
@@ -186,7 +188,7 @@ export function GoodsIssueCreatePage() {
       .filter((line) => line.productId && line.quantity > 0);
 
     if (payloadItems.length === 0) {
-      toast.error('Add at least one item with issue quantity');
+      toast.error('Add at least one line with an issue quantity greater than zero');
       return;
     }
 
@@ -194,7 +196,7 @@ export function GoodsIssueCreatePage() {
       (item) => item.quantity > (stockByProductId.get(item.productId) ?? 0),
     );
     if (overStock) {
-      toast.error('Issue quantity cannot exceed available stock');
+      toast.error('Issue quantity cannot exceed available stock at the selected plant');
       return;
     }
 
@@ -218,15 +220,27 @@ export function GoodsIssueCreatePage() {
         remarks: remarks || undefined,
         items: payloadItems,
       });
-      toast.success(`Goods issue ${created.giNumber} created`);
-      navigate('/goods-issues');
+
+      if (mode === 'post') {
+        await postGi.mutateAsync(created.id);
+        toast.success(`Goods issue ${created.giNumber} created and posted`);
+      } else {
+        toast.success(`Draft ${created.giNumber} saved`);
+      }
+
+      navigate(`/goods-issues?detail=${created.id}`);
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Failed to create goods issue'));
+      toast.error(
+        getApiErrorMessage(
+          err,
+          mode === 'post' ? 'Failed to create and post goods issue' : 'Failed to save goods issue draft',
+        ),
+      );
     }
   }
 
   const showSoTable = issueType === 'Sales Order';
-  const canSubmit = !!shopId && lines.length > 0 && !createGi.isPending;
+  const canSubmit = !!shopId && lines.length > 0 && !isSubmitting;
 
   return (
     <AppLayout>
@@ -244,7 +258,8 @@ export function GoodsIssueCreatePage() {
               Create Goods Issue
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Issue stock for production, maintenance, or sales orders
+              Issue stock for production, maintenance, or sales orders. Saving a draft does not
+              reduce warehouse stock; posting will reduce stock.
             </p>
           </div>
           <Button variant="outline" asChild className="w-full sm:w-auto">
@@ -477,18 +492,36 @@ export function GoodsIssueCreatePage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" asChild>
-            <Link to="/goods-issues">Cancel</Link>
-          </Button>
-          <Button onClick={handleCreate} disabled={!canSubmit} className="gap-2">
-            {createGi.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            Create Goods Issue
-          </Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            Save as draft to review later, or create and post to issue stock immediately.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" asChild>
+              <Link to="/goods-issues">Cancel</Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => submitGoodsIssue('draft')}
+              disabled={!canSubmit}
+              className="gap-2"
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save as draft
+            </Button>
+            <Button onClick={() => submitGoodsIssue('post')} disabled={!canSubmit} className="gap-2">
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              Create and post
+            </Button>
+          </div>
         </div>
       </div>
     </AppLayout>

@@ -1,0 +1,11 @@
+[Unit]
+Description=Retail IMS PostgreSQL backup verification
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-verify-backup.sh
+
+[Install]
+WantedBy=multi-user.target

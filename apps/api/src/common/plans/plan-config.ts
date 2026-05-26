@@ -95,7 +95,8 @@ export type PlanFeature =
   | 'sales_quotations'
   | 'invoices'
   | 'payments'
-  | 'supplier_portal';
+  | 'supplier_portal'
+  | 'backups';
 
 export function planAllowsFeature(plan: SubscriptionPlan, feature: PlanFeature): boolean {
   if (plan === SubscriptionPlan.PLUS) return true;

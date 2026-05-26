@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowDownToLine,
   CheckCircle2,
@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/store/authStore';
+import { useShops } from '@/hooks/use-shops';
 import {
   useGoodsIssues,
   useGoodsIssue,
@@ -50,7 +51,7 @@ import {
   type GoodsIssue,
   type GoodsIssueStatus,
 } from '@/hooks/use-goods-issues';
-import { isShopOnlyUser } from '@/lib/shop-scope';
+import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
 import {
   ISSUE_TYPES,
   formatGiDate,
@@ -61,6 +62,10 @@ import { cn } from '@/lib/cn';
 import { csvDate, exportModuleCsv } from '@/lib/module-csv';
 
 const PAGE_SIZE = 10;
+
+function giItemCount(gi: GoodsIssue) {
+  return gi.itemCount ?? gi.items?.length ?? 0;
+}
 
 type KpiCardProps = {
   label: string;
@@ -107,9 +112,15 @@ function GiStatusPill({ status }: { status: GoodsIssueStatus }) {
 
 export function GoodsIssuePage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const shopId = isShopOnlyUser(user) ? user!.shopId! : undefined;
-
+  const isAdmin = isAdminUser(user);
+  const shopLocked = isShopOnlyUser(user);
+  const { data: shops = [] } = useShops();
+  const [plantFilter, setPlantFilter] = useState(
+    shopLocked && user?.shopId ? user.shopId : 'all',
+  );
+  const listShopId = productListShopId(user, plantFilter);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -119,13 +130,30 @@ export function GoodsIssuePage() {
     null,
   );
 
+  useEffect(() => {
+    if (shopLocked && user?.shopId) {
+      setPlantFilter(user.shopId);
+    }
+  }, [shopLocked, user?.shopId]);
+
+  useEffect(() => {
+    const detail = searchParams.get('detail');
+    if (detail) {
+      setDetailId(detail);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const giQuery = useGoodsIssues({
-    shopId,
+    shopId: listShopId,
     status: statusFilter !== 'all' ? (statusFilter as GoodsIssueStatus) : undefined,
     take: 300,
   });
 
   const allRows = giQuery.data ?? [];
+  const hasClientFilters = search.trim().length > 0 || typeFilter !== 'all';
+  const hasApiFilters =
+    statusFilter !== 'all' || (isAdmin && shops.length > 0 && plantFilter !== 'all');
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -145,10 +173,10 @@ export function GoodsIssuePage() {
   }, [allRows, search, typeFilter]);
 
   const stats = useMemo(() => {
-    const total = filtered.length;
-    const posted = filtered.filter((g) => g.status === 'POSTED').length;
+    const total = allRows.length;
+    const posted = allRows.filter((g) => g.status === 'POSTED').length;
     return { total, posted };
-  }, [filtered]);
+  }, [allRows]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -166,7 +194,7 @@ export function GoodsIssuePage() {
       { header: 'Reference', value: (gi) => parseGiReference(gi.remarks) },
       { header: 'Plant', value: (gi) => gi.shop?.shopName ?? '' },
       { header: 'Status', value: (gi) => gi.status },
-      { header: 'Items', value: (gi) => gi.items?.length ?? 0 },
+      { header: 'Items', value: (gi) => giItemCount(gi) },
       {
         header: 'Issue Qty',
         value: (gi) => gi.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0),
@@ -239,21 +267,25 @@ export function GoodsIssuePage() {
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <KpiCard
-          label="Total Issues"
-          value={stats.total}
+          label={hasClientFilters ? 'Matching Issues (filtered view)' : 'Total Issues'}
+          value={hasClientFilters ? filtered.length : stats.total}
           accent="bg-sky-500"
           icon={<ArrowDownToLine className="h-5 w-5 text-sky-600" />}
         />
         <KpiCard
-          label="Posted"
-          value={stats.posted}
+          label={hasClientFilters ? 'Posted (filtered view)' : 'Posted'}
+          value={
+            hasClientFilters
+              ? filtered.filter((g) => g.status === 'POSTED').length
+              : stats.posted
+          }
           accent="bg-emerald-500"
           icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
         />
       </div>
 
       <Card className="mb-4 border-slate-200/90 p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-1.5 sm:col-span-2">
             <Label className="text-xs text-slate-500">Search</Label>
             <div className="relative">
@@ -269,6 +301,30 @@ export function GoodsIssuePage() {
               />
             </div>
           </div>
+          {isAdmin && shops.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-500">Plant</Label>
+              <Select
+                value={plantFilter}
+                onValueChange={(value) => {
+                  setPlantFilter(value);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All plants" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All plants</SelectItem>
+                  {shops.map((shop) => (
+                    <SelectItem key={shop.id} value={shop.id}>
+                      {shop.shopName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label className="text-xs text-slate-500">Status</Label>
             <Select
@@ -327,11 +383,44 @@ export function GoodsIssuePage() {
         ) : pageRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <PackageOpen className="mb-3 h-12 w-12 text-slate-300" />
-            <p className="text-sm font-medium text-slate-600">No goods issues found</p>
-            <Button variant="outline" className="mt-4" onClick={() => navigate('/goods-issues/new')}>
-              <Plus className="h-4 w-4" />
-              Create GI
-            </Button>
+            {allRows.length === 0 ? (
+              <>
+                <p className="text-sm font-medium text-slate-600">No goods issues yet</p>
+                <p className="mt-2 max-w-md text-sm text-slate-500">
+                  Saved drafts appear here immediately. Warehouse stock is reduced only when a
+                  goods issue is posted.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-slate-600">
+                  No matches for current filters
+                </p>
+                <p className="mt-2 max-w-md text-sm text-slate-500">
+                  Try clearing search, status, plant, or issue type filters.
+                </p>
+              </>
+            )}
+            {allRows.length === 0 ? (
+              <Button variant="outline" className="mt-4" onClick={() => navigate('/goods-issues/new')}>
+                <Plus className="h-4 w-4" />
+                Create GI
+              </Button>
+            ) : hasApiFilters || hasClientFilters ? (
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('all');
+                  setTypeFilter('all');
+                  if (isAdmin) setPlantFilter('all');
+                  setPage(1);
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -371,7 +460,7 @@ export function GoodsIssuePage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="inline-flex min-w-[1.75rem] items-center justify-center rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-700">
-                          {gi.items?.length ?? 0}
+                          {giItemCount(gi)}
                         </span>
                       </TableCell>
                       <TableCell className="text-slate-600">{formatGiDate(gi.giDate)}</TableCell>

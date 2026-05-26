@@ -47,6 +47,7 @@ import { FxModule } from './modules/fx/fx.module';
 import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -152,6 +153,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     QuotationPortalModule,
     NotificationsModule,
     HealthModule,
+    BackupModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -134,6 +134,10 @@ model Company {
   shops                Shop[]
   suppliers            Supplier[]
   subscriptionPayments SubscriptionPayment[]
+  backupProviderCredentials BackupProviderCredential[]
+  backupJobs           BackupJob[]
+  backupArtifacts      BackupArtifact[]
+  restoreJobs          RestoreJob[]
 
   @@map("companies")
 }
@@ -1446,4 +1450,105 @@ model CreditNote {
   @@index([shopId, creditDate])
   @@index([customerId])
   @@map("credit_notes")
+}
+
+enum BackupProvider {
+  MANUAL
+  GOOGLE_DRIVE
+}
+
+enum BackupJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RestoreJobStatus {
+  PENDING
+  DRY_RUN_COMPLETED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RestoreMode {
+  TENANT_REPLACE
+  FULL_DB
+}
+
+model BackupProviderCredential {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @map("company_id") @db.Uuid
+  provider        BackupProvider @default(GOOGLE_DRIVE)
+  encryptedTokens String         @map("encrypted_tokens")
+  accountEmail    String?        @map("account_email")
+  driveFolderId   String?        @map("drive_folder_id")
+  connectedAt     DateTime       @default(now()) @map("connected_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider])
+  @@map("backup_provider_credentials")
+}
+
+model BackupArtifact {
+  id            String         @id @default(uuid()) @db.Uuid
+  companyId     String         @map("company_id") @db.Uuid
+  backupJobId   String?        @unique @map("backup_job_id") @db.Uuid
+  fileName      String         @map("file_name")
+  storagePath   String         @map("storage_path")
+  fileSize      BigInt         @map("file_size")
+  sha256        String
+  provider      BackupProvider
+  driveFileId   String?        @map("drive_file_id")
+  schemaVersion Int            @default(1) @map("schema_version")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  backupJob BackupJob? @relation(fields: [backupJobId], references: [id], onDelete: SetNull)
+  restoreJobs RestoreJob[]
+
+  @@index([companyId, createdAt])
+  @@map("backup_artifacts")
+}
+
+model BackupJob {
+  id           String          @id @default(uuid()) @db.Uuid
+  companyId    String          @map("company_id") @db.Uuid
+  status       BackupJobStatus @default(PENDING)
+  provider     BackupProvider
+  errorMessage String?         @map("error_message")
+  startedAt    DateTime?       @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdById  String?         @map("created_by") @db.Uuid
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  artifact BackupArtifact?
+
+  @@index([companyId, createdAt])
+  @@map("backup_jobs")
+}
+
+model RestoreJob {
+  id                String           @id @default(uuid()) @db.Uuid
+  companyId         String           @map("company_id") @db.Uuid
+  artifactId        String           @map("artifact_id") @db.Uuid
+  mode              RestoreMode      @default(TENANT_REPLACE)
+  status            RestoreJobStatus @default(PENDING)
+  dryRunReport      Json?            @map("dry_run_report")
+  confirmationToken String?          @map("confirmation_token")
+  errorMessage      String?          @map("error_message")
+  startedAt         DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?        @map("completed_at") @db.Timestamptz(6)
+  createdById       String?          @map("created_by") @db.Uuid
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  artifact BackupArtifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@map("restore_jobs")
 }
