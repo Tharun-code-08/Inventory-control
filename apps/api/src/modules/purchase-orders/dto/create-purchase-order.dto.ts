@@ -3,9 +3,10 @@ import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 class PoLine {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Optional when lineDescription is provided (service line)' })
+  @IsOptional()
   @IsUUID()
-  productId!: string;
+  productId?: string;
 
   @ApiPropertyOptional({ description: 'Custom description to print on the PO line' })
   @IsOptional()

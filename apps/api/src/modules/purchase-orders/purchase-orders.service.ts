@@ -61,6 +61,154 @@ export class PurchaseOrdersService {
     return 'global';
   }
 
+  private shopScopedServiceCode(shopNumber: string) {
+    const safe = shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'GEN';
+    return `SVC-${safe}`;
+  }
+
+  private async resolvePoLineProduct(
+    tx: Prisma.TransactionClient,
+    shopId: string,
+    userId: string,
+    line: { productId?: string; lineDescription?: string; lineCategory?: string },
+  ) {
+    const productId = line.productId?.trim();
+    const lineDescription = line.lineDescription?.trim();
+
+    if (productId) {
+      return {
+        productId,
+        lineDescription: lineDescription || null,
+        lineCategory: line.lineCategory?.trim() || null,
+      };
+    }
+
+    if (!lineDescription) {
+      throw new BadRequestException('Each line must have a product or a description');
+    }
+
+    const shop = await tx.shop.findUnique({
+      where: { id: shopId },
+      select: { shopNumber: true },
+    });
+    const serviceCode = this.shopScopedServiceCode(shop?.shopNumber ?? 'GEN');
+    let product = await tx.product.findUnique({ where: { productCode: serviceCode } });
+    if (!product) {
+      product = await tx.product.create({
+        data: {
+          productCode: serviceCode,
+          description: 'Service line (PO)',
+          uom: 'EA',
+          category: 'Service',
+          purchasePrice: new Prisma.Decimal(0),
+          sellingPrice: new Prisma.Decimal(0),
+          isActive: true,
+          createdById: userId,
+          plants: {
+            create: {
+              shopId,
+              minStockLevel: new Prisma.Decimal(0),
+              isActive: true,
+              createdById: userId,
+            },
+          },
+        },
+      });
+    } else {
+      const plant = await tx.productPlant.findFirst({
+        where: { productId: product.id, shopId, isActive: true },
+      });
+      if (!plant) {
+        await tx.productPlant.create({
+          data: {
+            productId: product.id,
+            shopId,
+            minStockLevel: new Prisma.Decimal(0),
+            isActive: true,
+            createdById: userId,
+          },
+        });
+      }
+    }
+
+    return {
+      productId: product.id,
+      lineDescription,
+      lineCategory: 'Service',
+    };
+  }
+
+  private async buildPoLineCreates(
+    tx: Prisma.TransactionClient,
+    shopId: string,
+    userId: string,
+    items: Array<{
+      productId?: string;
+      rfqItemId?: string;
+      lineDescription?: string;
+      lineCategory?: string;
+      orderQty: number;
+      rate: number;
+    }>,
+  ) {
+    const resolved = [];
+    for (const line of items) {
+      resolved.push(await this.resolvePoLineProduct(tx, shopId, userId, line));
+    }
+
+    const productIds = resolved.map((line) => line.productId);
+    const [products, summaries] = await Promise.all([
+      tx.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          plants: {
+            where: { shopId, isActive: true },
+            select: { minStockLevel: true },
+            take: 1,
+          },
+        },
+      }),
+      tx.stockSummary.findMany({
+        where: { shopId, productId: { in: productIds } },
+        select: { productId: true, currentStock: true },
+      }),
+    ]);
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    const summaryMap = new Map(summaries.map((s) => [s.productId, s.currentStock]));
+
+    let total = new Prisma.Decimal(0);
+    const lines = [];
+    for (let i = 0; i < items.length; i++) {
+      const line = items[i];
+      const meta = resolved[i];
+      if (line.orderQty <= 0) throw new BadRequestException('Order qty must be > 0');
+      const product = productMap.get(meta.productId);
+      if (!product) throw new BadRequestException('Invalid product');
+      const currentStock = summaryMap.get(meta.productId) ?? new Prisma.Decimal(0);
+      const minStock = product.plants[0]?.minStockLevel ?? new Prisma.Decimal(0);
+      const rawSuggested = minStock.mul(new Prisma.Decimal(2)).sub(currentStock);
+      const suggested = rawSuggested.lt(0) ? new Prisma.Decimal(0) : rawSuggested;
+      const lineValue = new Prisma.Decimal(line.orderQty).mul(new Prisma.Decimal(line.rate));
+      total = total.add(lineValue);
+      lines.push({
+        productId: meta.productId,
+        rfqItemId: line.rfqItemId ?? null,
+        lineDescription: meta.lineDescription,
+        lineCategory: meta.lineCategory,
+        currentStock,
+        minStock,
+        suggestedQty: suggested,
+        orderQty: new Prisma.Decimal(line.orderQty),
+        rate: new Prisma.Decimal(line.rate),
+        lineValue,
+        createdById: userId,
+      });
+    }
+
+    return { lines, total };
+  }
+
   private withLifecycle(
     po: {
       status: PurchaseOrderStatus;
@@ -324,57 +472,7 @@ export class PurchaseOrdersService {
           date: poDate,
         }));
 
-      const productIds = dto.items.map((line) => line.productId);
-      // We need to know each product is assigned to dto.shopId before we
-      // accept it on the PO, and we need that plant's minStockLevel for
-      // suggested-qty math. Fetch the product master + the matching plant
-      // assignment in a single round-trip per product.
-      const [products, summaries] = await Promise.all([
-        tx.product.findMany({
-          where: { id: { in: productIds } },
-          select: {
-            id: true,
-            plants: {
-              where: { shopId: dto.shopId, isActive: true },
-              select: { minStockLevel: true },
-              take: 1,
-            },
-          },
-        }),
-        tx.stockSummary.findMany({
-          where: { shopId: dto.shopId, productId: { in: productIds } },
-          select: { productId: true, currentStock: true },
-        }),
-      ]);
-      const productMap = new Map(products.map((p) => [p.id, p]));
-      const summaryMap = new Map(summaries.map((s) => [s.productId, s.currentStock]));
-
-      let total = new Prisma.Decimal(0);
-      const lines = [];
-      for (const line of dto.items) {
-        if (line.orderQty <= 0) throw new BadRequestException('Order qty must be > 0');
-        const product = productMap.get(line.productId);
-        if (!product) throw new BadRequestException('Invalid product');
-        const currentStock = summaryMap.get(line.productId) ?? new Prisma.Decimal(0);
-        const minStock = product.plants[0]?.minStockLevel ?? new Prisma.Decimal(0);
-        const rawSuggested = minStock.mul(new Prisma.Decimal(2)).sub(currentStock);
-        const suggested = rawSuggested.lt(0) ? new Prisma.Decimal(0) : rawSuggested;
-        const lineValue = new Prisma.Decimal(line.orderQty).mul(new Prisma.Decimal(line.rate));
-        total = total.add(lineValue);
-        lines.push({
-          productId: line.productId,
-          rfqItemId: line.rfqItemId ?? null,
-          lineDescription: line.lineDescription?.trim() || null,
-          lineCategory: line.lineCategory?.trim() || null,
-          currentStock,
-          minStock,
-          suggestedQty: suggested,
-          orderQty: new Prisma.Decimal(line.orderQty),
-          rate: new Prisma.Decimal(line.rate),
-          lineValue,
-          createdById: user.id,
-        });
-      }
+      const { lines, total } = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
 
       const created = await tx.purchaseOrderHeader.create({
         data: {
@@ -463,60 +561,10 @@ export class PurchaseOrdersService {
       if (dto.items) {
         await tx.purchaseOrderItem.deleteMany({ where: { poHeaderId: id } });
         const shopId = dto.shopId ?? existing.shopId;
-        const productIds = dto.items.map((line) => line.productId);
-        const [products, summaries] = await Promise.all([
-          tx.product.findMany({
-            where: { id: { in: productIds } },
-            select: {
-              id: true,
-              plants: {
-                where: { shopId, isActive: true },
-                select: { minStockLevel: true },
-                take: 1,
-              },
-            },
-          }),
-          tx.stockSummary.findMany({
-            where: { shopId, productId: { in: productIds } },
-            select: { productId: true, currentStock: true },
-          }),
-        ]);
-        const productMap = new Map(products.map((p) => [p.id, p]));
-        const summaryMap = new Map(summaries.map((s) => [s.productId, s.currentStock]));
-
-        let total = new Prisma.Decimal(0);
-        const creates = [];
-        for (const line of dto.items) {
-          if (line.orderQty <= 0) throw new BadRequestException('Order qty must be > 0');
-          const product = productMap.get(line.productId);
-          if (!product) throw new BadRequestException('Invalid product');
-          if (product.plants.length === 0) {
-            throw new BadRequestException(
-              'Product is not assigned (or is deactivated) for this plant',
-            );
-          }
-          const currentStock = summaryMap.get(line.productId) ?? new Prisma.Decimal(0);
-          const minStock = product.plants[0]!.minStockLevel;
-          const rawSuggested = minStock.mul(new Prisma.Decimal(2)).sub(currentStock);
-          const suggested = rawSuggested.lt(0) ? new Prisma.Decimal(0) : rawSuggested;
-          const lineValue = new Prisma.Decimal(line.orderQty).mul(new Prisma.Decimal(line.rate));
-          total = total.add(lineValue);
-          creates.push({
-            poHeaderId: id,
-            productId: line.productId,
-            rfqItemId: line.rfqItemId ?? null,
-            lineDescription: line.lineDescription?.trim() || null,
-            lineCategory: line.lineCategory?.trim() || null,
-            currentStock,
-            minStock,
-            suggestedQty: suggested,
-            orderQty: new Prisma.Decimal(line.orderQty),
-            rate: new Prisma.Decimal(line.rate),
-            lineValue,
-            createdById: user.id,
-          });
-        }
-        await tx.purchaseOrderItem.createMany({ data: creates });
+        const { lines, total } = await this.buildPoLineCreates(tx, shopId, user.id, dto.items);
+        await tx.purchaseOrderItem.createMany({
+          data: lines.map((line) => ({ ...line, poHeaderId: id })),
+        });
         await tx.purchaseOrderHeader.update({ where: { id }, data: { totalValue: total } });
       }
 
@@ -584,6 +632,10 @@ export class PurchaseOrdersService {
   async cancel(user: RequestUser, id: string, idempotencyKey?: string) {
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CANCELLED) return po;
+    const hasPostedReceipt = (po.receiptProgress ?? []).some((line) => Number(line.receivedQty) > 0);
+    if (hasPostedReceipt) {
+      throw new BadRequestException('Cannot cancel a purchase order with posted goods receipts');
+    }
     const idempotencyScope = this.idempotencyScope(user);
     return this.prisma.$transaction(async (tx) => {
       const cacheKey = idempotencyKey ? `${id}:${idempotencyKey}` : undefined;

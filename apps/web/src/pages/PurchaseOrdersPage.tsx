@@ -74,8 +74,7 @@ import {
   usePurchaseOrder,
   useCreatePurchaseOrder,
   useConfirmPurchaseOrder,
-  useRequestPoCancel,
-  useConfirmPoCancel,
+  useCancelPurchaseOrder,
   useSendPurchaseOrder,
   type PurchaseOrder,
   type PurchaseOrderStatus,
@@ -105,7 +104,6 @@ import {
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useSupplierBills } from '@/hooks/use-supplier-bills';
-import { OtpCodeInput } from '@/components/auth/OtpCodeInput';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { useCookieConsentStore } from '@/store/cookieConsentStore';
 
@@ -120,18 +118,30 @@ function isShopScopedRole(role?: string | null): boolean {
 // Schema
 // ---------------------------------------------------------------------------
 
-const poItemSchema = z.object({
-  productId: z.string().min(1, 'Select a product'),
-  rfqItemId: z.string().optional(),
-  lineDescription: z.string().optional(),
-  lineCategory: z.string().optional(),
-  currentStock: z.coerce.number().min(0),
-  minStock: z.coerce.number().min(0),
-  suggestedQty: z.coerce.number().min(0),
-  orderQty: z.coerce.number().positive('Order qty must be > 0'),
-  rate: z.coerce.number().positive('Rate must be > 0'),
-  taxPercent: z.coerce.number().min(0).max(100).optional(),
-});
+const poItemSchema = z
+  .object({
+    productId: z.string().optional(),
+    rfqItemId: z.string().optional(),
+    lineDescription: z.string().optional(),
+    lineCategory: z.string().optional(),
+    currentStock: z.coerce.number().min(0),
+    minStock: z.coerce.number().min(0),
+    suggestedQty: z.coerce.number().min(0),
+    orderQty: z.coerce.number().positive('Order qty must be > 0'),
+    rate: z.coerce.number().positive('Rate must be > 0'),
+    taxPercent: z.coerce.number().min(0).max(100).optional(),
+  })
+  .superRefine((line, ctx) => {
+    const hasProduct = Boolean(line.productId?.trim());
+    const hasDescription = Boolean(line.lineDescription?.trim());
+    if (!hasProduct && !hasDescription) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Select a product or enter a description',
+        path: ['lineDescription'],
+      });
+    }
+  });
 
 const poFormSchema = z.object({
   poDate: z.string().min(1, 'Date is required'),
@@ -339,9 +349,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const [cancelDialog, setCancelDialog] = useState<{
     id: string;
     poNumber: string;
-    step: 'reason' | 'otp';
-    reason: string;
-    otp: string;
   } | null>(null);
 
   // ---- queries ----
@@ -412,7 +419,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [supplierBills, detailPO?.id],
   );
 
-  const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
+  const productsQuery = useProducts({ isActive: true, limit: 200, page: 1 });
   const { data: rfqs = [] } = useRfqs();
   const rfqMap = useMemo(() => new Map(rfqs.map((r) => [r.id, r])), [rfqs]);
   const { data: contracts = [] } = useContracts();
@@ -438,8 +445,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
-  const requestCancelMut = useRequestPoCancel();
-  const confirmCancelMut = useConfirmPoCancel();
+  const cancelMut = useCancelPurchaseOrder();
   const sendMut = useSendPurchaseOrder();
 
   // ---- form ----
@@ -473,7 +479,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     '';
   const selectedRfq = sourceRfqId ? rfqMap.get(sourceRfqId) : undefined;
   const rfqPosRemaining = selectedRfq?.fulfillment?.posRemaining ?? null;
-  const canAddLineItems = Boolean(resolvedDeliveryPlantId && resolvedStorageLocationId) && (rfqPosRemaining == null || rfqPosRemaining > 0);
+  const canAddLineItems =
+    Boolean(resolvedDeliveryPlantId) && (rfqPosRemaining == null || rfqPosRemaining > 0);
 
   const applyDeliveryAddressFromPlant = useCallback(
     (plantId?: string) => {
@@ -962,14 +969,20 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       const normalizedValues: POFormValues = {
         ...values,
         items: values.items.map((item) => {
-          const product = productMap.get(item.productId);
+          const product = item.productId ? productMap.get(item.productId) : undefined;
+          const hasProduct = Boolean(item.productId?.trim());
           const description = item.lineDescription?.trim() || product?.description || '';
-          const category = item.lineCategory?.trim() || product?.category || '';
+          const category = hasProduct
+            ? item.lineCategory?.trim() || product?.category || ''
+            : description
+              ? 'Service'
+              : item.lineCategory?.trim() || '';
           return {
             ...item,
+            productId: hasProduct ? item.productId : '',
             lineDescription: description,
             lineCategory: category,
-            taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
+            taxPercent: effectivePoLineTaxPercent(item.productId ?? '', item.taxPercent, productMap),
           };
         }),
       };
@@ -1086,36 +1099,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     setConfirmState(null);
   }
 
-  async function handleSendCancelOtp() {
+  async function handleCancelPo() {
     if (!cancelDialog) return;
-    const reason = cancelDialog.reason.trim();
-    if (!reason) {
-      toast.error('Enter a cancellation reason');
-      return;
-    }
     try {
-      await requestCancelMut.mutateAsync({ id: cancelDialog.id, reason });
-      setCancelDialog((prev) => (prev ? { ...prev, step: 'otp' } : null));
-      toast.success('OTP sent — check your email');
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to send cancellation OTP'));
-    }
-  }
-
-  async function handleConfirmCancel() {
-    if (!cancelDialog) return;
-    const reason = cancelDialog.reason.trim();
-    const otp = cancelDialog.otp.trim();
-    if (!otp) {
-      toast.error('Enter the OTP from your email');
-      return;
-    }
-    try {
-      await confirmCancelMut.mutateAsync({
-        id: cancelDialog.id,
-        reason,
-        otp,
-      });
+      await cancelMut.mutateAsync(cancelDialog.id);
       toast.success('Purchase order cancelled');
       setCancelDialog(null);
       setDetailId(null);
@@ -1394,9 +1381,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                                   setCancelDialog({
                                     id: po.id,
                                     poNumber: po.poNumber,
-                                    step: 'reason',
-                                    reason: '',
-                                    otp: '',
                                   })
                                 }
                               >
@@ -1410,6 +1394,18 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => handleConvertToGR(po.id)}>
                                 <ArrowRightFromLine className="mr-2 h-4 w-4" /> Convert to GR
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                disabled={!canMutatePo}
+                                onClick={() =>
+                                  setCancelDialog({
+                                    id: po.id,
+                                    poNumber: po.poNumber,
+                                  })
+                                }
+                              >
+                                <XCircle className="mr-2 h-4 w-4" /> Cancel
                               </DropdownMenuItem>
                             </>
                           )}
@@ -1623,7 +1619,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Storage Location *</Label>
+                  <Label className="text-xs">Storage Location (optional)</Label>
                   <Controller
                     control={form.control}
                     name="storageLocationId"
@@ -1917,12 +1913,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </div>
               {!canAddLineItems && (
                 <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                  Select a delivery plant and storage location first to add line items.
-                  {resolvedDeliveryPlantId && storageLocations.length === 0 && (
-                    <span className="mt-1 block">
-                      No storage locations found for this plant — add one under Settings → Storage.
-                    </span>
-                  )}
+                  Select a delivery plant first to add line items.
                 </div>
               )}
 
@@ -1969,16 +1960,22 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               name={`items.${idx}.productId`}
                               render={({ field: f }) => (
                                 <Select
-                                  value={f.value}
+                                  value={f.value || '__none__'}
                                   onValueChange={(v) => {
+                                    if (v === '__none__') {
+                                      f.onChange('');
+                                      form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                                      return;
+                                    }
                                     f.onChange(v);
                                     handleProductChange(idx, v);
                                   }}
                                 >
                                   <SelectTrigger className={cn('h-8 w-full max-w-full text-xs', PO_SELECT_TRIGGER)}>
-                                    <SelectValue placeholder="Product…" className="truncate" />
+                                    <SelectValue placeholder="Product (optional)…" className="truncate" />
                                   </SelectTrigger>
                                   <SelectContent className={PO_SELECT_CONTENT}>
+                                    <SelectItem value="__none__">— Service / no product —</SelectItem>
                                     <div className="p-2">
                                       <Input
                                         placeholder="Search products..."
@@ -2023,13 +2020,22 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             <div className="space-y-1">
                               <Input
                                 className="h-8 w-full text-xs"
-                                placeholder={product?.description ?? 'Description'}
+                                placeholder={product?.description ?? 'Description (required if no product)'}
                                 {...form.register(`items.${idx}.lineDescription`)}
+                                onChange={(e) => {
+                                  form.setValue(`items.${idx}.lineDescription`, e.target.value, {
+                                    shouldDirty: true,
+                                  });
+                                  const next = e.target.value.trim();
+                                  const productId = form.getValues(`items.${idx}.productId`);
+                                  if (!productId?.trim() && next) {
+                                    form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                                  }
+                                }}
                                 onBlur={(e) => {
                                   const next = e.target.value?.trim();
-                                  const prodDesc = product?.description?.trim();
-                                  const prodCode = product?.productCode;
-                                  if (next && next !== prodDesc && prodCode && next.includes(prodCode)) {
+                                  const productId = form.getValues(`items.${idx}.productId`);
+                                  if (!productId?.trim() && next) {
                                     form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
                                   }
                                 }}
@@ -2410,9 +2416,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             setCancelDialog({
                               id: detailPO.id,
                               poNumber: detailPO.poNumber,
-                              step: 'reason',
-                              reason: '',
-                              otp: '',
                             })
                           }
                         >
@@ -2453,82 +2456,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         loading={confirmMut.isPending}
       />
 
-      <Dialog open={!!cancelDialog} onOpenChange={(open) => !open && setCancelDialog(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cancel purchase order</DialogTitle>
-            <DialogDescription>
-              {cancelDialog?.poNumber
-                ? `Cancel ${cancelDialog.poNumber} with email OTP verification.`
-                : 'Cancel this order with email OTP verification.'}
-            </DialogDescription>
-          </DialogHeader>
-          {cancelDialog?.step === 'reason' ? (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="cancel-reason">Reason</Label>
-                <Textarea
-                  id="cancel-reason"
-                  rows={3}
-                  placeholder="Why is this PO being cancelled?"
-                  value={cancelDialog.reason}
-                  onChange={(e) =>
-                    setCancelDialog((prev) =>
-                      prev ? { ...prev, reason: e.target.value } : null,
-                    )
-                  }
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setCancelDialog(null)}>
-                  Close
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleSendCancelOtp}
-                  disabled={requestCancelMut.isPending}
-                >
-                  {requestCancelMut.isPending ? 'Sending…' : 'Send OTP'}
-                </Button>
-              </div>
-            </div>
-          ) : cancelDialog ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Enter the OTP sent to your email to confirm cancellation.
-              </p>
-              <OtpCodeInput
-                value={cancelDialog.otp}
-                onChange={(otp) =>
-                  setCancelDialog((prev) => (prev ? { ...prev, otp } : null))
-                }
-              />
-              <div className="flex justify-between gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    setCancelDialog((prev) => (prev ? { ...prev, step: 'reason' } : null))
-                  }
-                >
-                  Back
-                </Button>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setCancelDialog(null)}>
-                    Close
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleConfirmCancel}
-                    disabled={confirmCancelMut.isPending}
-                  >
-                    {confirmCancelMut.isPending ? 'Cancelling…' : 'Confirm cancel'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!cancelDialog}
+        onOpenChange={(open) => !open && setCancelDialog(null)}
+        title="Cancel Purchase Order"
+        description={`Are you sure you want to cancel ${cancelDialog?.poNumber ?? 'this order'}? This cannot be undone.`}
+        confirmLabel="Cancel Order"
+        variant="destructive"
+        onConfirm={handleCancelPo}
+        loading={cancelMut.isPending}
+      />
     </AppLayout>
   );
 }

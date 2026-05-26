@@ -80,7 +80,7 @@ export type CreatePurchaseOrderPayload = {
   /** Create as CONFIRMED when emailing supplier. */
   confirmOnSend?: boolean;
   items: Array<{
-    productId: string;
+    productId?: string;
     rfqItemId?: string;
     lineDescription?: string;
     lineCategory?: string;

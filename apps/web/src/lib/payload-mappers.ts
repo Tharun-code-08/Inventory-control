@@ -11,7 +11,7 @@ function devAssert(condition: unknown, message: string): asserts condition {
 }
 
 type PoFormItem = {
-  productId: string;
+  productId?: string;
   rfqItemId?: string;
   lineDescription?: string;
   lineCategory?: string;
@@ -49,14 +49,16 @@ export function mapPoFormToCreatePayload(args: {
     rfqId: sourceType === 'RFQ' ? sourceRfqId : undefined,
     remarks: encodePoFormRemarks(values, shop),
     items: values.items.map((it) => {
-      devAssert(Boolean(it.productId), 'Purchase order item requires a product');
+      const hasProduct = Boolean(it.productId?.trim());
+      const hasDescription = Boolean(it.lineDescription?.trim());
+      devAssert(hasProduct || hasDescription, 'Purchase order item requires a product or description');
       devAssert(it.orderQty > 0, 'Purchase order qty must be > 0');
       devAssert(it.rate > 0, 'Purchase order rate must be > 0');
       return {
-        productId: it.productId,
+        productId: hasProduct ? it.productId!.trim() : undefined,
         rfqItemId: it.rfqItemId,
         lineDescription: it.lineDescription?.trim() || undefined,
-        lineCategory: it.lineCategory?.trim() || undefined,
+        lineCategory: it.lineCategory?.trim() || (hasDescription && !hasProduct ? 'Service' : undefined),
         orderQty: it.orderQty,
         rate: it.rate,
       };
