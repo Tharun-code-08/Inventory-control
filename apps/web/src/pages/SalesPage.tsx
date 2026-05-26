@@ -369,12 +369,12 @@ export function SalesPage() {
     }));
   };
 
-  const validateAndBuildPayload = () => {
+  const validateAndBuildPayload = (mode: 'create' | 'update') => {
     if (!form.customerId) {
       toast.error('Customer is required');
       return null;
     }
-    if (!resolvedShopId) {
+    if (mode === 'create' && !resolvedShopId) {
       toast.error('No plant available for this order');
       return null;
     }
@@ -390,17 +390,20 @@ export function SalesPage() {
       toast.error('Add at least one line item');
       return null;
     }
-    return {
-      shopId: resolvedShopId,
+    const base = {
       customerId: form.customerId,
       expectedDate: form.expectedDate || undefined,
       remarks: buildRemarks(form),
       items,
     };
+    if (mode === 'create') {
+      return { ...base, shopId: resolvedShopId };
+    }
+    return base;
   };
 
   const onSave = async () => {
-    const payload = validateAndBuildPayload();
+    const payload = validateAndBuildPayload(editingId ? 'update' : 'create');
     if (!payload) return;
 
     try {
