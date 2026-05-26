@@ -104,7 +104,7 @@ export function UpgradePage() {
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#030b2a]">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <PricingSection
             variant="upgrade"
             currentPlan={data?.plan}

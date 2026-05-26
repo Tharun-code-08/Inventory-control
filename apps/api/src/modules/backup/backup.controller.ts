@@ -49,6 +49,11 @@ export class BackupController {
     return this.backup.createBackupJob(user, provider);
   }
 
+  @Get('jobs/:id')
+  getJob(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.backup.getBackupJob(user, id);
+  }
+
   @Get('google/connect')
   googleConnect(@CurrentUser() user: RequestUser) {
     return this.backup.buildGoogleConnectUrl(user);

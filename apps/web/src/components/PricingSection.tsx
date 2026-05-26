@@ -42,6 +42,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   const { checkout, loading } = useRazorpayCheckout();
   const active = normalizePlan(currentPlan);
   const activeTier = active ? subscriptionPlanTier(active) : null;
+  const isUpgrade = variant === 'upgrade';
 
   async function handlePlanClick(plan: PlanId) {
     // Public (unauthenticated) flow: send users to signup with plan context.
@@ -89,26 +90,42 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
     <section
       id="pricing"
       className={
-        variant === 'landing'
-          ? 'border-y border-white/10 bg-gradient-to-b from-[#0b1024] via-[#0f1a35] to-[#0b1024]'
-          : 'bg-[#0b1024]'
+        isUpgrade
+          ? 'bg-white'
+          : 'border-y border-white/10 bg-gradient-to-b from-[#0b1024] via-[#0f1a35] to-[#0b1024]'
       }
     >
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
         <div className="text-center">
-          <h2 className="text-3xl font-semibold text-slate-50 sm:text-4xl">Plans &amp; Pricing</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-slate-300">
+          <h2
+            className={
+              isUpgrade ? 'text-3xl font-semibold text-slate-900 sm:text-4xl' : 'text-3xl font-semibold text-slate-50 sm:text-4xl'
+            }
+          >
+            Plans &amp; Pricing
+          </h2>
+          <p className={`mx-auto mt-3 max-w-2xl ${isUpgrade ? 'text-slate-600' : 'text-slate-300'}`}>
             Flexible plans for warehouses of every size. No lock-in, cancel anytime.
           </p>
-          <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 p-1 shadow-lg shadow-slate-900/40 backdrop-blur">
+          <div
+            className={
+              isUpgrade
+                ? 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm'
+                : 'mt-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 p-1 shadow-lg shadow-slate-900/40 backdrop-blur'
+            }
+          >
             <button
               type="button"
               onClick={() => setBilling('monthly')}
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'monthly'
-                  ? 'bg-white text-slate-900 shadow'
-                  : 'text-slate-200 hover:text-white hover:bg-white/10',
+                  ? isUpgrade
+                    ? 'bg-white text-slate-900 shadow'
+                    : 'bg-white text-slate-900 shadow'
+                  : isUpgrade
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    : 'text-slate-200 hover:text-white hover:bg-white/10',
               )}
             >
               Monthly
@@ -119,12 +136,22 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'yearly'
-                  ? 'bg-white text-slate-900 shadow'
-                  : 'text-slate-200 hover:text-white hover:bg-white/10',
+                  ? isUpgrade
+                    ? 'bg-white text-slate-900 shadow'
+                    : 'bg-white text-slate-900 shadow'
+                  : isUpgrade
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    : 'text-slate-200 hover:text-white hover:bg-white/10',
               )}
             >
               Yearly
-              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span
+                className={
+                  isUpgrade
+                    ? 'ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700'
+                    : 'ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700'
+                }
+              >
                 {yearlySavingsLabel()}
               </span>
             </button>
@@ -141,30 +168,45 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
             const isCurrent = active === planId;
             const isDowngrade =
               activeTier != null && subscriptionPlanTier(planId) < activeTier;
+            const cardBase = isUpgrade
+              ? 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm'
+              : 'flex flex-col rounded-2xl border bg-white/10 p-6 text-slate-100 backdrop-blur';
             const borderClass =
               planId === 'pro'
-                ? 'border-emerald-400/50 shadow-[0_15px_40px_rgba(16,185,129,0.18)]'
+                ? isUpgrade
+                  ? 'border-emerald-200 shadow-[0_12px_30px_rgba(16,185,129,0.12)]'
+                  : 'border-emerald-400/50 shadow-[0_15px_40px_rgba(16,185,129,0.18)]'
                 : planId === 'plus'
-                  ? 'border-violet-400/50 shadow-[0_15px_40px_rgba(139,92,246,0.18)]'
-                  : 'border-white/10 shadow-[0_10px_32px_rgba(15,23,42,0.45)]';
+                  ? isUpgrade
+                    ? 'border-violet-200 shadow-[0_12px_30px_rgba(139,92,246,0.12)]'
+                    : 'border-violet-400/50 shadow-[0_15px_40px_rgba(139,92,246,0.18)]'
+                  : isUpgrade
+                    ? 'border-slate-200 shadow-[0_10px_26px_rgba(15,23,42,0.06)]'
+                    : 'border-white/10 shadow-[0_10px_32px_rgba(15,23,42,0.45)]';
 
             return (
               <div
                 key={planId}
                 className={cn(
-                  'flex flex-col rounded-2xl border bg-white/10 p-6 text-slate-100 backdrop-blur',
+                  cardBase,
                   borderClass,
-                  isCurrent && 'ring-2 ring-indigo-300/70',
+                  isCurrent &&
+                    (isUpgrade ? 'ring-2 ring-indigo-200' : 'ring-2 ring-indigo-300/70'),
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xl font-semibold text-white">{plan.name}</h3>
+                  <h3 className={isUpgrade ? 'text-xl font-semibold text-slate-900' : 'text-xl font-semibold text-white'}>
+                    {plan.name}
+                  </h3>
                   <span
                     className={cn(
                       'rounded-full px-2.5 py-1 text-xs font-semibold',
-                      planId === 'pro' && 'bg-emerald-500/15 text-emerald-200',
-                      planId === 'plus' && 'bg-violet-500/15 text-violet-200',
-                      planId === 'trial' && 'bg-blue-500/15 text-blue-200',
+                      planId === 'pro' &&
+                        (isUpgrade ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/15 text-emerald-200'),
+                      planId === 'plus' &&
+                        (isUpgrade ? 'bg-violet-50 text-violet-700' : 'bg-violet-500/15 text-violet-200'),
+                      planId === 'trial' &&
+                        (isUpgrade ? 'bg-blue-50 text-blue-700' : 'bg-blue-500/15 text-blue-200'),
                     )}
                   >
                     {plan.badge}
@@ -173,20 +215,26 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
 
                 <div className="mt-5">
                   {planId === 'trial' ? (
-                    <p className="text-4xl font-bold text-white">
+                    <p className={isUpgrade ? 'text-4xl font-bold text-slate-900' : 'text-4xl font-bold text-white'}>
                       ₹0 <span className="text-lg font-medium text-slate-300">free</span>
                     </p>
                   ) : (
-                    <p className="text-4xl font-bold text-white">
+                    <p className={isUpgrade ? 'text-4xl font-bold text-slate-900' : 'text-4xl font-bold text-white'}>
                       ₹{price}
                       {plan.originalMonthly && billing === 'monthly' && !(planId === 'plus' && isDemoPlusPricing()) ? (
-                        <span className="ml-2 text-lg font-medium text-slate-500 line-through">
+                        <span
+                          className={
+                            isUpgrade
+                              ? 'ml-2 text-lg font-medium text-slate-500 line-through'
+                              : 'ml-2 text-lg font-medium text-slate-500 line-through'
+                          }
+                        >
                           ₹{plan.originalMonthly}
                         </span>
                       ) : null}
                     </p>
                   )}
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className={isUpgrade ? 'mt-1 text-sm text-slate-600' : 'mt-1 text-sm text-slate-300'}>
                     {planId === 'trial'
                       ? 'No credit card required'
                       : billing === 'yearly'
@@ -197,13 +245,23 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
 
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.features.map((feature) => (
-                    <li key={feature.label} className="flex items-start gap-2 text-sm">
+                    <li
+                      key={feature.label}
+                      className={cn('flex items-start gap-2 text-sm', isUpgrade ? 'text-slate-700' : '')}
+                    >
                       {feature.included ? (
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                        <Check
+                          className={cn(
+                            'mt-0.5 h-4 w-4 shrink-0',
+                            isUpgrade ? 'text-emerald-600' : 'text-emerald-300',
+                          )}
+                        />
                       ) : (
-                        <X className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+                        <X
+                          className={cn('mt-0.5 h-4 w-4 shrink-0', isUpgrade ? 'text-slate-400' : 'text-slate-600')}
+                        />
                       )}
-                      <span className={feature.included ? 'text-slate-100' : 'text-slate-500'}>
+                      <span className={feature.included ? (isUpgrade ? 'text-slate-900' : 'text-slate-100') : 'text-slate-500'}>
                         {feature.label}
                       </span>
                     </li>
@@ -217,11 +275,17 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   className={cn(
                     'mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-60',
                     planId === 'pro' &&
-                      'border border-emerald-400 bg-emerald-500 text-emerald-950 hover:bg-emerald-400 hover:text-emerald-950',
+                      (isUpgrade
+                        ? 'border border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500'
+                        : 'border border-emerald-400 bg-emerald-500 text-emerald-950 hover:bg-emerald-400 hover:text-emerald-950'),
                     planId === 'plus' &&
-                      'border border-violet-400 bg-violet-500 text-white hover:bg-violet-400',
+                      (isUpgrade
+                        ? 'border border-violet-500 bg-violet-600 text-white hover:bg-violet-500'
+                        : 'border border-violet-400 bg-violet-500 text-white hover:bg-violet-400'),
                     planId === 'trial' &&
-                      'border border-white/20 bg-white/10 text-white hover:bg-white/20',
+                      (isUpgrade
+                        ? 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50'
+                        : 'border border-white/20 bg-white/10 text-white hover:bg-white/20'),
                   )}
                 >
                   {isCurrent
@@ -236,16 +300,36 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
         </div>
 
         <div className="mt-14">
-          <h3 className="text-center text-2xl font-semibold text-white">Why upgrade from Trial?</h3>
-          <p className="mt-2 text-center text-slate-300">Key advantages of paid plans over the free trial</p>
+          <h3
+            className={
+              isUpgrade ? 'text-center text-2xl font-semibold text-slate-900' : 'text-center text-2xl font-semibold text-white'
+            }
+          >
+            Why upgrade from Trial?
+          </h3>
+          <p className={isUpgrade ? 'mt-2 text-center text-slate-600' : 'mt-2 text-center text-slate-300'}>
+            Key advantages of paid plans over the free trial
+          </p>
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             {UPGRADE_HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-white/12 bg-white/8 p-5 shadow-lg shadow-slate-900/30"
+                className={
+                  isUpgrade
+                    ? 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
+                    : 'rounded-2xl border border-white/12 bg-white/8 p-5 shadow-lg shadow-slate-900/30'
+                }
               >
-                <h4 className="font-semibold text-white">{item.title}</h4>
-                <p className="mt-2 text-sm leading-relaxed text-slate-200">{item.body}</p>
+                <h4 className={isUpgrade ? 'font-semibold text-slate-900' : 'font-semibold text-white'}>{item.title}</h4>
+                <p
+                  className={
+                    isUpgrade
+                      ? 'mt-2 text-sm leading-relaxed text-slate-700'
+                      : 'mt-2 text-sm leading-relaxed text-slate-200'
+                  }
+                >
+                  {item.body}
+                </p>
               </div>
             ))}
           </div>

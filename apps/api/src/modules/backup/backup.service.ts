@@ -380,6 +380,23 @@ export class BackupService {
     });
   }
 
+  async getBackupJob(user: RequestUser, jobId: string) {
+    const companyId = await this.assertBackupAccess(user);
+    const job = await this.prisma.backupJob.findFirst({
+      where: { id: jobId, companyId },
+      select: {
+        id: true,
+        status: true,
+        provider: true,
+        errorMessage: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+    if (!job) throw new NotFoundException('Backup job not found');
+    return job;
+  }
+
   googleRedirectSuccessUrl() {
     const web = this.config.get<string>('PUBLIC_WEB_URL') ?? this.config.get<string>('WEB_ORIGIN') ?? '';
     const base = web.split(',')[0]?.trim() || 'http://localhost:5173';

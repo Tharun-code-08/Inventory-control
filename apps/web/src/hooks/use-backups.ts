@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '@/api/client';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 export type BackupArtifact = {
   id: string;
   fileName: string;
   fileSize: string;
   sha256: string;
-  provider: 'MANUAL' | 'GOOGLE_DRIVE';
+  provider: 'MANUAL' | 'GOOGLE_DRIVE' | 'EMAIL';
   schemaVersion: number;
   createdAt: string;
 };
@@ -23,6 +25,15 @@ export type BackupStatus = {
   schemaVersion: number;
 };
 
+export type BackupJob = {
+  id: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  provider: 'MANUAL' | 'GOOGLE_DRIVE' | 'EMAIL';
+  errorMessage?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+};
+
 export type DryRunReport = {
   schemaVersion: number;
   exportedAt: string | null;
@@ -37,6 +48,7 @@ export const backupKeys = {
   all: ['backups'] as const,
   status: () => [...backupKeys.all, 'status'] as const,
   artifacts: () => [...backupKeys.all, 'artifacts'] as const,
+  job: (id: string) => [...backupKeys.all, 'job', id] as const,
 };
 
 export function useBackupStatus(enabled = true) {
@@ -81,6 +93,9 @@ export function useConnectGoogleDrive() {
       const payload = res.data?.data ?? res.data;
       if (payload?.url) window.location.href = payload.url as string;
       return payload;
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, 'Could not start Google Drive connection'));
     },
   });
 }
@@ -137,4 +152,9 @@ export function useApplyRestore() {
 
 export function backupDownloadUrl(artifactId: string) {
   return `/backups/artifacts/${artifactId}/download`;
+}
+
+export async function fetchBackupJob(jobId: string): Promise<BackupJob> {
+  const res = await api.get(`/backups/jobs/${jobId}`);
+  return (res.data?.data ?? res.data) as BackupJob;
 }
