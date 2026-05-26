@@ -130,14 +130,25 @@ export function SettingsBackupTab() {
   async function handleDownload(artifactId: string, fileName: string) {
     try {
       const res = await api.get(backupDownloadUrl(artifactId), { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data);
+      const blob = res.data as Blob;
+      if (blob.type.includes('json') && blob.size < 4096) {
+        const text = await blob.text();
+        try {
+          const payload = JSON.parse(text) as { error?: { message?: string }; message?: string };
+          toast.error(payload.error?.message ?? payload.message ?? 'Download failed');
+          return;
+        } catch {
+          // Not JSON — treat as file payload.
+        }
+      }
+      const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = fileName;
       anchor.click();
       URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Download failed');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Download failed'));
     }
   }
 
@@ -178,9 +189,18 @@ export function SettingsBackupTab() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {!status?.googleDriveConfigured ? (
-            <p className="text-muted-foreground">
-              Google OAuth is not configured on the server yet. Manual upload/download still works.
-            </p>
+            <div className="space-y-2 text-muted-foreground">
+              <p>
+                Google Drive is not enabled on the server yet. Manual upload and download still work.
+              </p>
+              <p className="text-xs">
+                Server admin: set <code>GOOGLE_OAUTH_CLIENT_ID</code>,{' '}
+                <code>GOOGLE_OAUTH_CLIENT_SECRET</code>, and{' '}
+                <code>GOOGLE_OAUTH_REDIRECT_URI</code> (must end with{' '}
+                <code>/api/v1/backups/google/callback</code>) in the API environment, then restart
+                the API.
+              </p>
+            </div>
           ) : status.googleDriveConnected ? (
             <>
               <p>

@@ -132,5 +132,5 @@ export function useApplyRestore() {
 }
 
 export function backupDownloadUrl(artifactId: string) {
-  return `/api/v1/backups/artifacts/${artifactId}/download`;
+  return `/backups/artifacts/${artifactId}/download`;
 }
