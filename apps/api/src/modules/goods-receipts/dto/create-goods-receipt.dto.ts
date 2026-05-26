@@ -39,6 +39,16 @@ export class GoodsReceiptLineDto {
   @IsOptional()
   @IsString()
   serialNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expiryDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  storageLocationId?: string;
 }
 
 export class CreateGoodsReceiptDto {

@@ -74,7 +74,8 @@ import {
   usePurchaseOrder,
   useCreatePurchaseOrder,
   useConfirmPurchaseOrder,
-  useCancelPurchaseOrder,
+  useRequestPoCancel,
+  useConfirmPoCancel,
   useSendPurchaseOrder,
   type PurchaseOrder,
   type PurchaseOrderStatus,
@@ -102,6 +103,9 @@ import {
   taxPercentForProduct,
 } from '@/lib/po-line-calculations';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { useSupplierBills } from '@/hooks/use-supplier-bills';
+import { OtpCodeInput } from '@/components/auth/OtpCodeInput';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { useCookieConsentStore } from '@/store/cookieConsentStore';
 
@@ -119,6 +123,8 @@ function isShopScopedRole(role?: string | null): boolean {
 const poItemSchema = z.object({
   productId: z.string().min(1, 'Select a product'),
   rfqItemId: z.string().optional(),
+  lineDescription: z.string().optional(),
+  lineCategory: z.string().optional(),
   currentStock: z.coerce.number().min(0),
   minStock: z.coerce.number().min(0),
   suggestedQty: z.coerce.number().min(0),
@@ -133,7 +139,7 @@ const poFormSchema = z.object({
   paymentTerms: z.string().optional(),
   supplier: z.string().min(1, 'Supplier is required'),
   deliveryPlantId: z.string().min(1, 'Delivery plant is required'),
-  storageLocationId: z.string().min(1, 'Storage location is required'),
+  storageLocationId: z.string().optional(),
   deliveryAddress: z.string().optional(),
   remarks: z.string().optional(),
   requisitioner: z.string().optional(),
@@ -141,6 +147,8 @@ const poFormSchema = z.object({
   shipVia: z.string().optional(),
   fob: z.string().optional(),
   shippingTerms: z.string().optional(),
+  useManualPoNumber: z.boolean().optional(),
+  poNumberManual: z.string().optional(),
   items: z.array(poItemSchema).min(1, 'Add at least one item'),
 });
 
@@ -198,6 +206,8 @@ function defaultPoLineItem() {
   return {
     productId: '',
     rfqItemId: undefined as string | undefined,
+    lineDescription: '',
+    lineCategory: '',
     currentStock: 0,
     minStock: 0,
     suggestedQty: 0,
@@ -325,7 +335,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [confirmState, setConfirmState] = useState<{ type: 'confirm' | 'cancel'; id: string; poNumber: string } | null>(null);
+  const [confirmState, setConfirmState] = useState<{ type: 'confirm'; id: string; poNumber: string } | null>(null);
+  const [cancelDialog, setCancelDialog] = useState<{
+    id: string;
+    poNumber: string;
+    step: 'reason' | 'otp';
+    reason: string;
+    otp: string;
+  } | null>(null);
 
   // ---- queries ----
   const poQuery = usePurchaseOrders({
@@ -386,6 +403,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
+  const { data: supplierBills = [] } = useSupplierBills({
+    shopId: detailPO?.shopId,
+    take: 100,
+  });
+  const detailPoBills = useMemo(
+    () => supplierBills.filter((bill) => bill.purchaseOrderId === detailPO?.id),
+    [supplierBills, detailPO?.id],
+  );
 
   const productsQuery = useProducts({ shopId: shopId || undefined, isActive: true, limit: 100, page: 1 });
   const { data: rfqs = [] } = useRfqs();
@@ -413,7 +438,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
-  const cancelMut = useCancelPurchaseOrder();
+  const requestCancelMut = useRequestPoCancel();
+  const confirmCancelMut = useConfirmPoCancel();
   const sendMut = useSendPurchaseOrder();
 
   // ---- form ----
@@ -437,6 +463,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
   const selectedStorageLocationId = form.watch('storageLocationId');
+  const manualNumberEnabled = form.watch('useManualPoNumber');
   const resolvedDeliveryPlantId =
     selectedDeliveryPlantId || shopId || (shops.length === 1 ? shops[0]?.id : '') || '';
   const { data: storageLocations = [] } = useStorageLocations(resolvedDeliveryPlantId || undefined);
@@ -504,17 +531,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     }
   }, [createOnly, sheetOpen, resolvedDeliveryPlantId, storageLocations, form]);
 
-  const targetProductShopId = selectedDeliveryPlantId || shopId || '';
-  // Multi-plant: a product is "selectable for this PO" if it's assigned to
-  // the delivery plant. We still fall back to all products when no plant is
-  // chosen (so the dropdown isn't empty before the user picks one).
-  const selectableProducts = useMemo(
-    () =>
-      targetProductShopId
-        ? products.filter((p) => p.plants.some((plant) => plant.shopId === targetProductShopId))
-        : products,
-    [products, targetProductShopId],
-  );
+  const selectableProducts = useMemo(() => products, [products]);
   const productMap = useMemo(() => new Map(selectableProducts.map((p) => [p.id, p])), [selectableProducts]);
   const normalizedWatchedItems = useMemo(
     () =>
@@ -625,6 +642,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         storageLocationId: '',
         deliveryAddress: resolvePoDeliveryAddress(shops.find((s) => s.id === shopId)),
       remarks: '',
+      useManualPoNumber: false,
+      poNumberManual: '',
       ...defaultPoLogisticsFields(user?.name),
       items: [defaultPoLineItem()],
     });
@@ -633,6 +652,56 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     setSourceRfqId('');
     setSourceContractId('');
   }, [form, shopId, shops, user?.name]);
+
+  useEffect(() => {
+    const rfqPrefill = (location.state as PoPrefillState | null)?.rfqPrefill;
+    if (!rfqPrefill) return;
+    if (!productMap || productMap.size === 0) return;
+    if (prefillAppliedRef.current) return;
+    prefillAppliedRef.current = true;
+    const items = rfqPrefill.items
+      .map((line) => {
+        const product = productMap.get(line.productId);
+        if (!product) return null;
+        return {
+          productId: line.productId,
+          rfqItemId: line.rfqItemId ?? undefined,
+          lineDescription: product.description,
+          lineCategory: product.category,
+          currentStock: product.currentStock ?? 0,
+          minStock: getProductPlant(product, rfqPrefill.shopId)?.minStockLevel ?? 0,
+          suggestedQty: 0,
+          orderQty: line.orderQty,
+          rate: line.rate,
+          taxPercent: '',
+        };
+      })
+      .filter(Boolean) as POFormValues['items'];
+    if (items.length === 0) {
+      toast.error('No products found for RFQ prefill');
+      return;
+    }
+    if (!user?.shopId) setSelectedShopId(rfqPrefill.shopId);
+    form.reset({
+      poDate: tomorrowDateString(),
+      priority: 'Medium',
+      paymentTerms: 'Net 30',
+      supplier: rfqPrefill.supplier ?? '',
+      deliveryPlantId: rfqPrefill.shopId,
+      storageLocationId: '',
+      deliveryAddress: resolvePoDeliveryAddress(shops.find((s) => s.id === rfqPrefill.shopId)),
+      remarks: '',
+      useManualPoNumber: false,
+      poNumberManual: '',
+      ...defaultPoLogisticsFields(user?.name),
+      items,
+    });
+    setSheetOpen(true);
+    setSourceType('RFQ');
+    setSourceRfqId(rfqPrefill.rfqId ?? '');
+    setSourceContractId('');
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, productMap, form, shops, user?.name, user?.shopId, navigate]);
 
   type PoPrefillState = {
     poPrefill?: {
@@ -645,8 +714,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       minStockLevel: number;
       suggestedQty: number;
       hasPriorOrder: boolean;
-      lastPoNumber: string | null;
+    lastPoNumber: string | null;
     };
+  rfqPrefill?: {
+    rfqId?: string;
+    shopId: string;
+    supplier?: string | null;
+    items: Array<{ productId: string; rfqItemId?: string | null; orderQty: number; rate: number }>;
+  };
   };
 
   const prefillAppliedRef = useRef(false);
@@ -683,9 +758,13 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         prefill.hasPriorOrder && prefill.lastPoNumber
           ? `Reorder (low stock) — last PO ${prefill.lastPoNumber}`
           : 'Reorder (low stock)',
+      useManualPoNumber: false,
+      poNumberManual: '',
       items: [
         {
           productId: prefill.productId,
+          lineDescription: productMap.get(prefill.productId)?.description ?? '',
+          lineCategory: productMap.get(prefill.productId)?.category ?? '',
           currentStock: prefill.currentStock,
           minStock: prefill.minStockLevel,
           suggestedQty: prefill.suggestedQty,
@@ -724,6 +803,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         storageLocationId: '',
         deliveryAddress: resolvePoDeliveryAddress(shop),
         remarks: humanRemarks,
+        useManualPoNumber: false,
+        poNumberManual: po.poNumber,
         ...logisticsFieldsFromDocumentWithPayment(docMeta, 'Net 30'),
         items: po.items.map((it) => {
           const savedTaxPercent = taxPercentFromDocument(docMeta, it.productId);
@@ -734,6 +815,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           );
           return {
             productId: it.productId,
+          lineDescription: it.lineDescription ?? it.product?.description ?? '',
+          lineCategory: it.lineCategory ?? it.product?.category ?? '',
             rfqItemId: (it as { rfqItemId?: string | null }).rfqItemId ?? undefined,
             currentStock: it.currentStock,
             minStock: it.minStock,
@@ -781,7 +864,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   function handleProductChange(idx: number, productId: string) {
     const p = productMap.get(productId);
     if (!p) return;
-    const plantId = targetProductShopId || shopId;
+    const plantId = selectedDeliveryPlantId || shopId || '';
     const plantStock = plantId ? p.stockByShop?.[plantId] : undefined;
     const currentStock = plantStock ?? p.currentStock ?? 0;
     const plantAssignment = plantId ? getProductPlant(p, plantId) : undefined;
@@ -793,6 +876,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     form.setValue(`items.${idx}.minStock`, minStock, { shouldDirty: true });
     form.setValue(`items.${idx}.suggestedQty`, suggestedQty, { shouldDirty: true });
     form.setValue(`items.${idx}.orderQty`, defaultQty, { shouldDirty: true });
+    form.setValue(`items.${idx}.lineDescription`, p.description ?? '', { shouldDirty: true });
+    form.setValue(`items.${idx}.lineCategory`, p.category ?? '', { shouldDirty: true });
     form.setValue(`items.${idx}.rate`, p.purchasePrice ?? 0, { shouldDirty: true });
     form.setValue(`items.${idx}.taxPercent`, p.taxPreference === 'NON_TAXABLE' ? 0 : '', {
       shouldDirty: true,
@@ -870,12 +955,23 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.error('Select a delivery plant');
         return;
       }
+      if (values.useManualPoNumber && !values.poNumberManual?.trim()) {
+        toast.error('Enter a PO number or disable manual numbering.');
+        return;
+      }
       const normalizedValues: POFormValues = {
         ...values,
-        items: values.items.map((item) => ({
-          ...item,
-          taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
-        })),
+        items: values.items.map((item) => {
+          const product = productMap.get(item.productId);
+          const description = item.lineDescription?.trim() || product?.description || '';
+          const category = item.lineCategory?.trim() || product?.category || '';
+          return {
+            ...item,
+            lineDescription: description,
+            lineCategory: category,
+            taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
+          };
+        }),
       };
       const deliveryShop = shops.find((s) => s.id === resolvedShopId);
       const payload = mapPoFormToCreatePayload({
@@ -899,7 +995,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `po-${Date.now()}`;
-      const createBase = { ...payload, idempotencyKey };
+      const createBase = { ...payload, idempotencyKey, confirmOnSend: sendNow };
 
       let result: Awaited<ReturnType<typeof createMut.mutateAsync>> | undefined;
 
@@ -990,14 +1086,42 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     setConfirmState(null);
   }
 
-  async function handleCancel(id: string) {
-    try {
-      await cancelMut.mutateAsync(id);
-      toast.success('Purchase order cancelled');
-    } catch {
-      toast.error('Failed to cancel purchase order');
+  async function handleSendCancelOtp() {
+    if (!cancelDialog) return;
+    const reason = cancelDialog.reason.trim();
+    if (!reason) {
+      toast.error('Enter a cancellation reason');
+      return;
     }
-    setConfirmState(null);
+    try {
+      await requestCancelMut.mutateAsync({ id: cancelDialog.id, reason });
+      setCancelDialog((prev) => (prev ? { ...prev, step: 'otp' } : null));
+      toast.success('OTP sent — check your email');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to send cancellation OTP'));
+    }
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelDialog) return;
+    const reason = cancelDialog.reason.trim();
+    const otp = cancelDialog.otp.trim();
+    if (!otp) {
+      toast.error('Enter the OTP from your email');
+      return;
+    }
+    try {
+      await confirmCancelMut.mutateAsync({
+        id: cancelDialog.id,
+        reason,
+        otp,
+      });
+      toast.success('Purchase order cancelled');
+      setCancelDialog(null);
+      setDetailId(null);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to cancel purchase order'));
+    }
   }
 
   function handleConvertToGR(poId: string) {
@@ -1014,21 +1138,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       (p) => p.description.toLowerCase().includes(s) || p.productCode.toLowerCase().includes(s),
     );
   }, [selectableProducts, productSearch]);
-
-  useEffect(() => {
-    if (!targetProductShopId) return;
-    const items = form.getValues('items');
-    items.forEach((item, idx) => {
-      if (item.productId && !productMap.has(item.productId)) {
-        form.setValue(`items.${idx}.productId`, '');
-        form.setValue(`items.${idx}.currentStock`, 0);
-        form.setValue(`items.${idx}.minStock`, 0);
-        form.setValue(`items.${idx}.suggestedQty`, 0);
-        form.setValue(`items.${idx}.orderQty`, 0);
-        form.setValue(`items.${idx}.rate`, 0);
-      }
-    });
-  }, [form, productMap, targetProductShopId]);
 
   useEffect(() => {
     watchedItems.forEach((item, idx) => {
@@ -1048,8 +1157,21 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
   }
 
-  function lifecycleSteps(po: PurchaseOrder): P2PStep[] {
+  function lifecycleSteps(po: PurchaseOrder, bills = detailPoBills): P2PStep[] {
     const status = po.lifecycleStatus ?? po.status;
+    const hasBill = bills.length > 0;
+    const billPaid = bills.some((bill) => {
+      const total = Number(bill.totalValue ?? 0);
+      const paid = Number(bill.paidValue ?? 0);
+      return total > 0 && paid >= total;
+    });
+    const invoiceState =
+      billPaid || hasBill
+        ? 'done'
+        : status === 'FULLY_RECEIVED'
+          ? 'active'
+          : 'todo';
+    const paymentState = billPaid ? 'done' : hasBill ? 'active' : 'todo';
     return [
       { key: 'po', label: 'PO confirmed', state: status === 'DRAFT' ? 'active' : 'done' },
       {
@@ -1058,8 +1180,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         state: status === 'PARTIALLY_RECEIVED' ? 'active' : status === 'FULLY_RECEIVED' ? 'done' : 'todo',
       },
       { key: 'full', label: 'PO fully received', state: status === 'FULLY_RECEIVED' ? 'done' : 'todo' },
-      { key: 'invoice', label: 'Invoice & payable', state: 'todo' },
-      { key: 'payment', label: 'Payment tracking', state: 'todo' },
+      { key: 'invoice', label: 'Invoice & payable', state: invoiceState },
+      { key: 'payment', label: 'Payment tracking', state: paymentState },
     ];
   }
 
@@ -1187,7 +1309,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>PO Number</TableHead>
-                  <TableHead className="w-[88px]">Date</TableHead>
+                  <TableHead className="w-[112px]">Delivery Date</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead className="w-12 text-center">Items</TableHead>
                   <TableHead className="w-28 text-right">Gross Amount</TableHead>
@@ -1208,7 +1330,21 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       </button>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {new Date(po.poDate).toLocaleDateString()}
+                      <div className="flex flex-col leading-tight">
+                        <span>{new Date(po.poDate).toLocaleDateString()}</span>
+                        {(() => {
+                          const status = po.lifecycleStatus ?? po.status;
+                          const poDate = new Date(po.poDate);
+                          const today = new Date();
+                          const isOverdue = status === 'CONFIRMED' && poDate < today;
+                          if (!isOverdue) return null;
+                          const diffDays = Math.max(
+                            1,
+                            Math.ceil((today.getTime() - poDate.getTime()) / (1000 * 60 * 60 * 24)),
+                          );
+                          return <span className="text-[10px] text-amber-700">Overdue by {diffDays} day(s)</span>;
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell className="max-w-[160px] truncate">{po.supplier}</TableCell>
                     <TableCell className="text-center tabular-nums">{po.items?.length ?? '—'}</TableCell>
@@ -1254,7 +1390,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 disabled={!canMutatePo}
-                                onClick={() => setConfirmState({ type: 'cancel', id: po.id, poNumber: po.poNumber })}
+                                onClick={() =>
+                                  setCancelDialog({
+                                    id: po.id,
+                                    poNumber: po.poNumber,
+                                    step: 'reason',
+                                    reason: '',
+                                    otp: '',
+                                  })
+                                }
                               >
                                 <XCircle className="mr-2 h-4 w-4" /> Cancel
                               </DropdownMenuItem>
@@ -1642,6 +1786,27 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2 lg:col-span-4">
+                  <Label className="text-xs">PO numbering</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={!!manualNumberEnabled}
+                      onChange={(e) =>
+                        form.setValue('useManualPoNumber', e.target.checked, { shouldDirty: true })
+                      }
+                    />
+                    <span className="text-xs">Enter PO number manually</span>
+                    <Input
+                      className="h-8 text-xs sm:w-64"
+                      placeholder="PO-0001"
+                      disabled={!manualNumberEnabled}
+                      {...form.register('poNumberManual')}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Leave unchecked to auto-generate.</p>
+                </div>
+                <div className="space-y-1 sm:col-span-2 lg:col-span-4">
                   <Label className="text-xs">Delivery address</Label>
                   <p className="text-[10px] text-muted-foreground">
                     From selected plant
@@ -1772,7 +1937,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <TableRow>
                       <TableHead className="w-[22%]">Product</TableHead>
                       <TableHead className="w-[8%] text-right">Stock</TableHead>
-                      <TableHead className="w-[11%]">Category</TableHead>
+                      <TableHead className="w-[18%]">Description</TableHead>
                       <TableHead className="w-[10%] text-right">Order Qty</TableHead>
                       <TableHead className="w-[8%]">UOM</TableHead>
                       <TableHead className="w-[11%] text-right">Rate</TableHead>
@@ -1853,15 +2018,26 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             />
                           </TableCell>
 
-                          {/* Category (from product) */}
+                          {/* Description (editable) */}
                           <TableCell>
-                            <Input
-                              readOnly
-                              tabIndex={-1}
-                              className="h-8 w-full truncate bg-muted text-xs"
-                              value={product?.category ?? ''}
-                              placeholder="—"
-                            />
+                            <div className="space-y-1">
+                              <Input
+                                className="h-8 w-full text-xs"
+                                placeholder={product?.description ?? 'Description'}
+                                {...form.register(`items.${idx}.lineDescription`)}
+                                onBlur={(e) => {
+                                  const next = e.target.value?.trim();
+                                  const prodDesc = product?.description?.trim();
+                                  const prodCode = product?.productCode;
+                                  if (next && next !== prodDesc && prodCode && next.includes(prodCode)) {
+                                    form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                                  }
+                                }}
+                              />
+                              <p className="text-[10px] text-muted-foreground">
+                                Category: {row.lineCategory || product?.category || '—'}
+                              </p>
+                            </div>
                           </TableCell>
 
                           {/* Order Qty (editable) */}
@@ -2084,7 +2260,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               <P2PFlowTimeline title="P2P progress" steps={lifecycleSteps(detailPO as PurchaseOrder)} />
               <div className="grid gap-4 sm:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Date</p>
+                  <p className="text-xs text-muted-foreground">Delivery Date</p>
                   <p className="font-medium">{new Date(detailPO.poDate).toLocaleDateString()}</p>
                 </div>
                 <div>
@@ -2206,17 +2382,61 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   </>
                 )}
 
-              {detailPO.status === 'CONFIRMED' && (
-                <>
-                  <Separator />
-                  <div className="flex justify-end">
-                    <Button onClick={() => { setDetailId(null); handleConvertToGR(detailPO.id); }}>
-                      <ArrowRightFromLine className="h-4 w-4" />
-                      Convert to Goods Receipt
-                    </Button>
-                  </div>
-                </>
-              )}
+              {(() => {
+                const lifecycle = detailPO.lifecycleStatus ?? detailPO.status;
+                const isCancelled =
+                  lifecycle === 'CANCELLED' || detailPO.status === 'CANCELLED';
+                const canConvert =
+                  !isCancelled &&
+                  (detailPO.status === 'CONFIRMED' ||
+                    detailPO.status === 'DRAFT' ||
+                    lifecycle === 'CONFIRMED');
+                const canCancel =
+                  !isCancelled &&
+                  (detailPO.status === 'CONFIRMED' ||
+                    detailPO.status === 'DRAFT' ||
+                    lifecycle === 'CONFIRMED' ||
+                    lifecycle === 'DRAFT');
+                if (!canCancel && !canConvert) return null;
+                return (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      {canCancel ? (
+                        <Button
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() =>
+                            setCancelDialog({
+                              id: detailPO.id,
+                              poNumber: detailPO.poNumber,
+                              step: 'reason',
+                              reason: '',
+                              otp: '',
+                            })
+                          }
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Cancel PO
+                        </Button>
+                      ) : (
+                        <span />
+                      )}
+                      {canConvert ? (
+                        <Button
+                          onClick={() => {
+                            setDetailId(null);
+                            handleConvertToGR(detailPO.id);
+                          }}
+                        >
+                          <ArrowRightFromLine className="h-4 w-4" />
+                          Convert to Goods Receipt
+                        </Button>
+                      ) : null}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ) : null}
         </DialogContent>
@@ -2233,16 +2453,82 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         loading={confirmMut.isPending}
       />
 
-      <ConfirmDialog
-        open={confirmState?.type === 'cancel'}
-        onOpenChange={(open) => !open && setConfirmState(null)}
-        title="Cancel Purchase Order"
-        description={`Are you sure you want to cancel ${confirmState?.poNumber ?? 'this order'}? This action cannot be undone.`}
-        confirmLabel="Cancel Order"
-        variant="destructive"
-        onConfirm={() => confirmState && handleCancel(confirmState.id)}
-        loading={cancelMut.isPending}
-      />
+      <Dialog open={!!cancelDialog} onOpenChange={(open) => !open && setCancelDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel purchase order</DialogTitle>
+            <DialogDescription>
+              {cancelDialog?.poNumber
+                ? `Cancel ${cancelDialog.poNumber} with email OTP verification.`
+                : 'Cancel this order with email OTP verification.'}
+            </DialogDescription>
+          </DialogHeader>
+          {cancelDialog?.step === 'reason' ? (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="cancel-reason">Reason</Label>
+                <Textarea
+                  id="cancel-reason"
+                  rows={3}
+                  placeholder="Why is this PO being cancelled?"
+                  value={cancelDialog.reason}
+                  onChange={(e) =>
+                    setCancelDialog((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : null,
+                    )
+                  }
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCancelDialog(null)}>
+                  Close
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleSendCancelOtp}
+                  disabled={requestCancelMut.isPending}
+                >
+                  {requestCancelMut.isPending ? 'Sending…' : 'Send OTP'}
+                </Button>
+              </div>
+            </div>
+          ) : cancelDialog ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter the OTP sent to your email to confirm cancellation.
+              </p>
+              <OtpCodeInput
+                value={cancelDialog.otp}
+                onChange={(otp) =>
+                  setCancelDialog((prev) => (prev ? { ...prev, otp } : null))
+                }
+              />
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    setCancelDialog((prev) => (prev ? { ...prev, step: 'reason' } : null))
+                  }
+                >
+                  Back
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setCancelDialog(null)}>
+                    Close
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleConfirmCancel}
+                    disabled={confirmCancelMut.isPending}
+                  >
+                    {confirmCancelMut.isPending ? 'Cancelling…' : 'Confirm cancel'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

@@ -34,6 +34,8 @@ enum TransactionType {
   GOODS_ISSUE
   DAMAGE
   ADJUSTMENT
+  STOCK_TRANSFER_OUT
+  STOCK_TRANSFER_IN
 }
 
 enum AuditAction {
@@ -199,6 +201,10 @@ model Shop {
   customerReturns    CustomerReturn[]
   supplierReturns    SupplierReturn[]
   creditNotes        CreditNote[]
+  supplierBills      SupplierBillHeader[]
+  supplierPayments   SupplierPayment[]
+  stockTransfersFrom StockTransferHeader[] @relation("StockTransferFromShop")
+  stockTransfersTo   StockTransferHeader[] @relation("StockTransferToShop")
 
   @@map("shops")
 }
@@ -215,8 +221,11 @@ model StorageLocation {
   createdById String?  @map("created_by") @db.Uuid
   updatedById String?  @map("updated_by") @db.Uuid
 
-  shop          Shop           @relation(fields: [shopId], references: [id])
-  productPlants ProductPlant[]
+  shop              Shop               @relation(fields: [shopId], references: [id])
+  productPlants     ProductPlant[]
+  goodsReceiptItems GoodsReceiptItem[]
+  stockTransfersFrom StockTransferHeader[] @relation("StockTransferFromLocation")
+  stockTransfersTo   StockTransferHeader[] @relation("StockTransferToLocation")
 
   @@unique([shopId, code])
   @@index([shopId, code])
@@ -450,6 +459,8 @@ model Product {
   costLayers             CostLayer[]
   customerReturnItems    CustomerReturnItem[]
   supplierReturnItems    SupplierReturnItem[]
+  supplierBillItems      SupplierBillItem[]
+  stockTransferItems     StockTransferItem[]
 
   @@map("products")
 }
@@ -529,6 +540,7 @@ model Supplier {
   contracts       ContractHeader[]
   quotations      SupplierQuotationHeader[]
   supplierReturns SupplierReturn[]
+  supplierBills   SupplierBillHeader[]
 
   @@index([companyId])
   @@index([supplierName])
@@ -723,6 +735,7 @@ model GoodsReceiptHeader {
   purchaseOrder PurchaseOrderHeader? @relation(fields: [purchaseOrderId], references: [id])
   items         GoodsReceiptItem[]
   returns       SupplierReturn[]
+  supplierBills SupplierBillHeader[]
 
   @@index([shopId, grDate])
   @@index([shopId, status, grDate])
@@ -731,26 +744,30 @@ model GoodsReceiptHeader {
 }
 
 model GoodsReceiptItem {
-  id           String   @id @default(uuid()) @db.Uuid
-  grHeaderId   String   @map("gr_header_id") @db.Uuid
-  productId    String   @map("product_id") @db.Uuid
-  quantity     Decimal  @db.Decimal(12, 3)
-  uom          String
-  purchaseRate Decimal  @map("purchase_rate") @db.Decimal(12, 2)
-  lineValue    Decimal  @map("line_value") @db.Decimal(14, 2)
-  batchNumber  String?  @map("batch_number")
-  serialNumber String?  @map("serial_number")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById  String?  @map("created_by") @db.Uuid
-  updatedById  String?  @map("updated_by") @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
+  grHeaderId        String    @map("gr_header_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  quantity          Decimal   @db.Decimal(12, 3)
+  uom               String
+  purchaseRate      Decimal   @map("purchase_rate") @db.Decimal(12, 2)
+  lineValue         Decimal   @map("line_value") @db.Decimal(14, 2)
+  batchNumber       String?   @map("batch_number")
+  serialNumber      String?   @map("serial_number")
+  expiryDate        DateTime? @map("expiry_date") @db.Date
+  storageLocationId String?   @map("storage_location_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?   @map("created_by") @db.Uuid
+  updatedById       String?   @map("updated_by") @db.Uuid
 
-  header      GoodsReceiptHeader   @relation(fields: [grHeaderId], references: [id], onDelete: Cascade)
-  product     Product              @relation(fields: [productId], references: [id])
-  returnItems SupplierReturnItem[]
+  header          GoodsReceiptHeader   @relation(fields: [grHeaderId], references: [id], onDelete: Cascade)
+  product         Product              @relation(fields: [productId], references: [id])
+  storageLocation StorageLocation?     @relation(fields: [storageLocationId], references: [id])
+  returnItems     SupplierReturnItem[]
 
   @@index([grHeaderId])
   @@index([productId])
+  @@index([storageLocationId])
   @@map("goods_receipt_items")
 }
 
@@ -846,7 +863,9 @@ model PurchaseOrderHeader {
   contract        ContractHeader?      @relation(fields: [contractId], references: [id])
   items           PurchaseOrderItem[]
   goodsReceipts   GoodsReceiptHeader[]
-  supplierReturns SupplierReturn[]
+  supplierReturns        SupplierReturn[]
+  supplierBills          SupplierBillHeader[]
+  poCancelVerifications  PoCancelVerification[]
 
   @@index([shopId, poDate])
   @@index([shopId, status])
@@ -860,6 +879,8 @@ model PurchaseOrderItem {
   poHeaderId     String   @map("po_header_id") @db.Uuid
   productId      String   @map("product_id") @db.Uuid
   rfqItemId      String?  @map("rfq_item_id") @db.Uuid
+  lineDescription String?  @map("line_description")
+  lineCategory    String?  @map("line_category")
   currentStock   Decimal  @map("current_stock") @db.Decimal(12, 3)
   minStock       Decimal  @map("min_stock") @db.Decimal(12, 3)
   suggestedQty   Decimal  @map("suggested_qty") @db.Decimal(12, 3)
@@ -1051,6 +1072,14 @@ enum InvoiceStatus {
   VOID
 }
 
+enum SupplierBillStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
 enum AlertType {
   LOW_STOCK
   CONTRACT_EXPIRY
@@ -1060,7 +1089,7 @@ enum AlertType {
 
 model Customer {
   id           String   @id @default(uuid()) @db.Uuid
-  customerCode String   @unique @map("customer_code")
+  customerCode String   @map("customer_code")
   customerName String   @map("customer_name")
   email        String?
   phone        String?
@@ -1084,6 +1113,7 @@ model Customer {
   customerReturns CustomerReturn[]
   creditNotes     CreditNote[]
 
+  @@unique([shopId, customerCode])
   @@index([shopId, customerName])
   @@map("customers")
 }
@@ -1450,6 +1480,138 @@ model CreditNote {
   @@index([shopId, creditDate])
   @@index([customerId])
   @@map("credit_notes")
+}
+
+model PoCancelVerification {
+  id          String   @id @default(uuid()) @db.Uuid
+  poId        String   @map("po_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  reason      String
+  otpHash     String   @map("otp_hash")
+  attemptCount Int     @default(0) @map("attempt_count")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  po PurchaseOrderHeader @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId, userId])
+  @@index([expiresAt])
+  @@map("po_cancel_verifications")
+}
+
+model SupplierBillHeader {
+  id              String             @id @default(uuid()) @db.Uuid
+  billNumber      String             @unique @map("bill_number")
+  billDate        DateTime           @map("bill_date") @db.Date
+  dueDate         DateTime?          @map("due_date") @db.Date
+  shopId          String             @map("shop_id") @db.Uuid
+  supplierId      String             @map("supplier_id") @db.Uuid
+  purchaseOrderId String?            @map("purchase_order_id") @db.Uuid
+  goodsReceiptId  String?            @map("goods_receipt_id") @db.Uuid
+  status          SupplierBillStatus @default(DRAFT)
+  totalValue      Decimal            @map("total_value") @db.Decimal(14, 2)
+  paidValue       Decimal            @default(0) @map("paid_value") @db.Decimal(14, 2)
+  remarks         String?
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?            @map("created_by") @db.Uuid
+  updatedById     String?            @map("updated_by") @db.Uuid
+
+  shop          Shop                  @relation(fields: [shopId], references: [id])
+  supplier      Supplier              @relation(fields: [supplierId], references: [id])
+  purchaseOrder PurchaseOrderHeader?  @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceipt  GoodsReceiptHeader?   @relation(fields: [goodsReceiptId], references: [id])
+  items         SupplierBillItem[]
+  payments      SupplierPayment[]
+
+  @@index([shopId, billDate])
+  @@index([shopId, status, billDate])
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([goodsReceiptId])
+  @@map("supplier_bill_header")
+}
+
+model SupplierBillItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  billHeaderId String  @map("bill_header_id") @db.Uuid
+  productId    String  @map("product_id") @db.Uuid
+  quantity     Decimal @db.Decimal(12, 3)
+  uom          String
+  unitCost     Decimal @map("unit_cost") @db.Decimal(12, 2)
+  lineValue    Decimal @map("line_value") @db.Decimal(14, 2)
+
+  header  SupplierBillHeader @relation(fields: [billHeaderId], references: [id], onDelete: Cascade)
+  product Product            @relation(fields: [productId], references: [id])
+
+  @@index([billHeaderId])
+  @@map("supplier_bill_items")
+}
+
+model SupplierPayment {
+  id            String   @id @default(uuid()) @db.Uuid
+  paymentNumber String   @unique @map("payment_number")
+  paymentDate   DateTime @map("payment_date") @db.Date
+  supplierBillId String  @map("supplier_bill_id") @db.Uuid
+  shopId        String   @map("shop_id") @db.Uuid
+  amount        Decimal  @db.Decimal(14, 2)
+  method        String?
+  reference     String?
+  remarks       String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  supplierBill SupplierBillHeader @relation(fields: [supplierBillId], references: [id], onDelete: Cascade)
+  shop         Shop               @relation(fields: [shopId], references: [id])
+
+  @@index([shopId, paymentDate])
+  @@index([supplierBillId])
+  @@map("supplier_payments")
+}
+
+model StockTransferHeader {
+  id                     String         @id @default(uuid()) @db.Uuid
+  transferNumber         String         @unique @map("transfer_number")
+  transferDate           DateTime       @map("transfer_date") @db.Date
+  fromShopId             String         @map("from_shop_id") @db.Uuid
+  toShopId               String         @map("to_shop_id") @db.Uuid
+  fromStorageLocationId  String?        @map("from_storage_location_id") @db.Uuid
+  toStorageLocationId    String?        @map("to_storage_location_id") @db.Uuid
+  status                 DocumentStatus @default(DRAFT)
+  notes                  String?
+  postedAt               DateTime?      @map("posted_at") @db.Timestamptz(6)
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?        @map("created_by") @db.Uuid
+  updatedById            String?        @map("updated_by") @db.Uuid
+
+  fromShop            Shop             @relation("StockTransferFromShop", fields: [fromShopId], references: [id])
+  toShop              Shop             @relation("StockTransferToShop", fields: [toShopId], references: [id])
+  fromStorageLocation StorageLocation? @relation("StockTransferFromLocation", fields: [fromStorageLocationId], references: [id])
+  toStorageLocation   StorageLocation? @relation("StockTransferToLocation", fields: [toStorageLocationId], references: [id])
+  items               StockTransferItem[]
+
+  @@index([fromShopId, transferDate])
+  @@index([toShopId, transferDate])
+  @@index([status])
+  @@map("stock_transfer_header")
+}
+
+model StockTransferItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  transferId String  @map("transfer_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  quantity   Decimal @db.Decimal(12, 3)
+  uom        String
+
+  header  StockTransferHeader @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product Product             @relation(fields: [productId], references: [id])
+
+  @@index([transferId])
+  @@map("stock_transfer_items")
 }
 
 enum BackupProvider {

@@ -4,12 +4,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbers: DocumentNumberService,
+  ) {}
 
   async list(
     user: RequestUser,
@@ -54,25 +59,35 @@ export class CustomersService {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
-    const count = await this.prisma.customer.count({ where: { shopId } });
-    const customerCode = dto.customerCode?.trim() || `CUS-${String(count + 1).padStart(5, '0')}`;
-    return this.prisma.customer.create({
-      data: {
-        customerCode,
-        customerName: dto.customerName,
-        email: dto.email?.toLowerCase?.() ?? null,
-        phone: dto.phone ?? null,
-        taxId: dto.taxId ?? null,
-        street: dto.street ?? null,
-        city: dto.city ?? null,
-        state: dto.state ?? null,
-        postalCode: dto.postalCode ?? null,
-        country: dto.country ?? null,
-        shopId,
-        isActive: dto.isActive ?? true,
-        createdById: user.id,
-      },
-      include: { shop: true },
+
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const customerCode =
+        dto.customerCode?.trim() ||
+        (await this.numbers.nextShopScopedNumber(tx, {
+          shopId,
+          docType: 'CUS',
+          basePrefix: 'CUS',
+          date: new Date(),
+        }));
+
+      return tx.customer.create({
+        data: {
+          customerCode,
+          customerName: dto.customerName,
+          email: dto.email?.toLowerCase?.() ?? null,
+          phone: dto.phone ?? null,
+          taxId: dto.taxId ?? null,
+          street: dto.street ?? null,
+          city: dto.city ?? null,
+          state: dto.state ?? null,
+          postalCode: dto.postalCode ?? null,
+          country: dto.country ?? null,
+          shopId,
+          isActive: dto.isActive ?? true,
+          createdById: user.id,
+        },
+        include: { shop: true },
+      });
     });
   }
 

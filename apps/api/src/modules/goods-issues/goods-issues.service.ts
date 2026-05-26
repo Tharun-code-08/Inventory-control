@@ -55,10 +55,7 @@ export class GoodsIssuesService {
   }
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
-    const s = await tx.stockSummary.findUnique({
-      where: { shopId_productId: { shopId, productId } },
-    });
-    return s?.currentStock ?? new Prisma.Decimal(0);
+    return this.stock.resolveBalance(tx, shopId, productId);
   }
 
   async list(

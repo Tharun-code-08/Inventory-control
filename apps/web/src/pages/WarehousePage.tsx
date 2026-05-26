@@ -58,6 +58,7 @@ import {
 import { useGoodsReceipts } from '@/hooks/use-goods-receipts';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
+import { buildWarehouseExpiryMap, useWarehouseInventory } from '@/hooks/use-warehouse-inventory';
 import { downloadCsv, parseCsv, toCsv, type CsvColumn } from '@/lib/csv';
 import { isAdminUser, isShopOnlyUser, productListShopId } from '@/lib/shop-scope';
 import { useAuthStore } from '@/store/authStore';
@@ -269,6 +270,11 @@ export function WarehousePage() {
   const { data: shops = [] } = useShops();
   const selectedPlantId = plantFilter === 'all' ? undefined : plantFilter;
   const { data: storageLocations = [] } = useStorageLocations(selectedPlantId);
+  const { data: warehouseInventory = [] } = useWarehouseInventory(listShopId);
+  const warehouseExpiryMaps = useMemo(
+    () => buildWarehouseExpiryMap(warehouseInventory),
+    [warehouseInventory],
+  );
   const products = useMemo(() => extractProductRows(productsQuery.data), [productsQuery.data]);
   const shopNameById = useMemo(
     () => new Map(shops.map((s) => [s.id, `${s.shopName}`])),
@@ -389,7 +395,14 @@ export function WarehousePage() {
         value: (r) =>
           r.shopId ? batchByProductShop.get(`${r.productId}:${r.shopId}`) ?? '' : '',
       },
-      { header: 'Expiry', value: () => '' },
+      {
+        header: 'Expiry',
+        value: (r) => {
+          const locationKey = r.storageLocationId || 'default';
+          const key = r.shopId ? `${r.productId}:${r.shopId}:${locationKey}` : '';
+          return key ? warehouseExpiryMaps.expiry.get(key) ?? '' : '';
+        },
+      },
       { header: 'Current Stock', value: (r) => r.currentStock },
       { header: 'Min Stock', value: (r) => r.minStock },
       { header: 'Max Stock', value: (r) => (r.maxStock == null ? '' : r.maxStock) },
@@ -556,6 +569,7 @@ export function WarehousePage() {
               onExport={onExport}
               shopNumberById={shopNumberById}
               batchByProductShop={batchByProductShop}
+              expiryByProductShopLocation={warehouseExpiryMaps.expiry}
               shops={shops}
               showPlantFilter={isAdmin && shops.length > 0}
               plantFilter={plantFilter}
@@ -627,6 +641,7 @@ function StockTableSection({
   onExport,
   shopNumberById,
   batchByProductShop,
+  expiryByProductShopLocation,
   shops,
   showPlantFilter,
   plantFilter,
@@ -643,6 +658,7 @@ function StockTableSection({
   onExport: () => void;
   shopNumberById: Map<string, string>;
   batchByProductShop: Map<string, string>;
+  expiryByProductShopLocation: Map<string, string>;
   shops: Array<{ id: string; shopName: string; shopNumber: string }>;
   showPlantFilter: boolean;
   plantFilter: string;
@@ -745,6 +761,13 @@ function StockTableSection({
                   row.shopId
                     ? batchByProductShop.get(`${row.productId}:${row.shopId}`)
                     : undefined;
+                const locationKey = row.storageLocationId || 'default';
+                const expiryKey = row.shopId
+                  ? `${row.productId}:${row.shopId}:${locationKey}`
+                  : '';
+                const expiry = expiryKey
+                  ? expiryByProductShopLocation.get(expiryKey)
+                  : undefined;
                 return (
                   <TableRow key={row.key}>
                     <TableCell className="font-medium text-indigo-600">{row.sku}</TableCell>
@@ -752,7 +775,9 @@ function StockTableSection({
                     <TableCell>{row.plant}</TableCell>
                     <TableCell>{row.location}</TableCell>
                     <TableCell className="text-sm">{batch ?? '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {expiry ?? '—'}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Badge variant={stock.variant}>{stock.label}</Badge>
                     </TableCell>

@@ -346,32 +346,28 @@ export function RfqDetailPage() {
       toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
       return;
     }
-
-    setCreatingQuoteId(quoteId);
-    try {
-      const result = await acceptQuote.mutateAsync({
-        id: quoteId,
-        items: plan.items.map((item) => ({
-          quotationItemId: item.quotationItemId,
-          rfqItemId: item.rfqItemId,
-          orderQty: item.allocatedQty,
-        })),
-      });
-      const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
-      persistAllocations(clearQuoteAllocations(savedAllocations, quoteId));
-      toast.success(
-        po?.poNumber
-          ? `PO ${po.poNumber} created for ${plan.supplierName}`
-          : `Purchase order created for ${plan.supplierName}`,
-      );
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Could not create PO from saved allocation';
-      toast.error(msg);
-    } finally {
-      setCreatingQuoteId(null);
+    const rfqId = rfq?.id ?? '';
+    const shopId = rfq?.shopId ?? rfq?.shop?.id ?? '';
+    if (!shopId) {
+      toast.error('RFQ has no plant assigned');
+      return;
     }
+    navigate('/purchase-orders/new', {
+      state: {
+        rfqPrefill: {
+          rfqId,
+          shopId,
+          supplier: plan.supplierName,
+          items: plan.items.map((item) => ({
+            productId: item.productId,
+            rfqItemId: item.rfqItemId,
+            orderQty: item.allocatedQty,
+            rate: item.unitPrice,
+          })),
+        },
+      },
+    });
+    toast.message('PO form opened with RFQ allocation. Review and send.');
   }
 
   async function createAllPurchaseOrders() {
@@ -383,37 +379,11 @@ export function RfqDetailPage() {
       toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
       return;
     }
-
     setIsCreatingAll(true);
-    try {
-      let nextAllocations = savedAllocations;
-      for (const plan of allocationPlans) {
-        const result = await acceptQuote.mutateAsync({
-          id: plan.quoteId,
-          items: plan.items.map((item) => ({
-            quotationItemId: item.quotationItemId,
-            rfqItemId: item.rfqItemId,
-            orderQty: item.allocatedQty,
-          })),
-        });
-        const po = (result as { purchaseOrder?: { poNumber?: string } })?.purchaseOrder;
-        nextAllocations = clearQuoteAllocations(nextAllocations, plan.quoteId);
-        persistAllocations(nextAllocations);
-        toast.success(
-          po?.poNumber
-            ? `PO ${po.poNumber} created for ${plan.supplierName}`
-            : `Purchase order created for ${plan.supplierName}`,
-        );
-      }
-      setPoDialogOpen(false);
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Could not create purchase orders from saved allocations';
-      toast.error(msg);
-    } finally {
-      setIsCreatingAll(false);
-    }
+    const first = allocationPlans[0];
+    await createPoForAllocationPlan(first.quoteId);
+    setIsCreatingAll(false);
+    setPoDialogOpen(false);
   }
 
   const linkedContractCount = useMemo(

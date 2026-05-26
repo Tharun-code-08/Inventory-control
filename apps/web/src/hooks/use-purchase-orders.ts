@@ -8,6 +8,8 @@ export type PurchaseOrderItem = {
   id: string;
   productId: string;
   rfqItemId?: string | null;
+  lineDescription?: string | null;
+  lineCategory?: string | null;
   currentStock: number;
   minStock: number;
   suggestedQty: number;
@@ -67,6 +69,7 @@ export type PurchaseOrderListResponse = {
 export type CreatePurchaseOrderPayload = {
   shopId: string;
   poDate: string;
+  poNumber?: string;
   supplier: string;
   remarks?: string;
   contractId?: string;
@@ -74,9 +77,13 @@ export type CreatePurchaseOrderPayload = {
   idempotencyKey?: string;
   /** When true, newer APIs email the supplier as part of create. */
   sendToSupplier?: boolean;
+  /** Create as CONFIRMED when emailing supplier. */
+  confirmOnSend?: boolean;
   items: Array<{
     productId: string;
     rfqItemId?: string;
+    lineDescription?: string;
+    lineCategory?: string;
     orderQty: number;
     rate: number;
   }>;
@@ -178,6 +185,29 @@ export function useCancelPurchaseOrder() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: poKeys.lists() });
       qc.invalidateQueries({ queryKey: poKeys.detail(id) });
+    },
+  });
+}
+
+export function useRequestPoCancel() {
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const res = await api.post(`/purchase-orders/${id}/cancel/request`, { reason });
+      return res.data.data ?? res.data;
+    },
+  });
+}
+
+export function useConfirmPoCancel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason, otp }: { id: string; reason: string; otp: string }) => {
+      const res = await api.post(`/purchase-orders/${id}/cancel/confirm`, { reason, otp });
+      return res.data.data as PurchaseOrder;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: poKeys.lists() });
+      qc.invalidateQueries({ queryKey: poKeys.detail(variables.id) });
     },
   });
 }

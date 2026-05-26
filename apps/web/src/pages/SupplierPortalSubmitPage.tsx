@@ -103,7 +103,6 @@ export function SupplierPortalSubmitPage() {
 
   const [step, setStep] = useState<Step>(1);
   const [email, setEmail] = useState('');
-  const [companyName, setCompanyName] = useState('');
   const [accessCode, setAccessCode] = useState(presetRfqId);
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
   const [rfq, setRfq] = useState<PortalRfq | null>(null);
@@ -131,7 +130,6 @@ export function SupplierPortalSubmitPage() {
     try {
       const result = await portalPost<VerifyResult>('/supplier-portal/verify', {
         email: email.trim(),
-        companyName: companyName.trim(),
         rfqId: accessCode.trim() || undefined,
       });
       setVerifyResult(result);
@@ -228,14 +226,6 @@ export function SupplierPortalSubmitPage() {
                   placeholder="supplier@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Company name</Label>
-                <Input
-                  placeholder="Registered supplier name"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
                 />
               </div>
               <div className="space-y-1">

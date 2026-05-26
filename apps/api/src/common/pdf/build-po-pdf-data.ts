@@ -13,6 +13,8 @@ type PoForPdf = {
   shop?: { shopName?: string | null } | null;
   items: Array<{
     productId: string;
+    lineDescription?: string | null;
+    lineCategory?: string | null;
     orderQty: unknown;
     rate: unknown;
     lineValue: unknown;
@@ -86,7 +88,7 @@ export async function buildPoPdfDataFromRecord(
     const lineTotal = lineSubtotal + lineTaxAmount;
     return {
       code: i.product?.productCode ?? i.productId,
-      description: i.product?.description ?? '',
+      description: i.lineDescription?.trim() || i.product?.description || '',
       qty: Number.isInteger(qty) ? String(qty) : formatPoPdfMoney(qty),
       unitPrice: formatPoPdfMoney(rate),
       taxPercent: taxPercent > 0 ? `${formatPoPdfMoney(taxPercent)}%` : '0%',

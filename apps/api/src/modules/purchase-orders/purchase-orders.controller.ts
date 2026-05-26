@@ -10,6 +10,8 @@ import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
+import { PoCancelService } from './po-cancel.service';
+import { RequestPoCancelDto, ConfirmPoCancelDto } from './dto/cancel-purchase-order.dto';
 
 @ApiTags('purchase-orders')
 @ApiBearerAuth()
@@ -17,6 +19,7 @@ import { PurchaseOrdersService } from './purchase-orders.service';
 export class PurchaseOrdersController {
   constructor(
     private readonly service: PurchaseOrdersService,
+    private readonly poCancel: PoCancelService,
     @InjectQueue('exports') private readonly exportsQueue: Queue,
   ) {}
 
@@ -61,6 +64,18 @@ export class PurchaseOrdersController {
   @Post(':id/confirm')
   confirm(@CurrentUser() user: RequestUser, @Param('id') id: string, @Headers('x-idempotency-key') idempotencyKey?: string) {
     return this.service.confirm(user, id, idempotencyKey);
+  }
+
+  @RequirePermission('purchase_order:create')
+  @Post(':id/cancel/request')
+  requestCancel(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: RequestPoCancelDto) {
+    return this.poCancel.requestCancel(user, id, dto.reason);
+  }
+
+  @RequirePermission('purchase_order:create')
+  @Post(':id/cancel/confirm')
+  confirmCancel(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: ConfirmPoCancelDto) {
+    return this.poCancel.confirmCancel(user, id, dto.reason, dto.otp);
   }
 
   @RequirePermission('purchase_order:create')

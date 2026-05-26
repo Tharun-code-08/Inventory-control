@@ -13,6 +13,8 @@ function devAssert(condition: unknown, message: string): asserts condition {
 type PoFormItem = {
   productId: string;
   rfqItemId?: string;
+  lineDescription?: string;
+  lineCategory?: string;
   orderQty: number;
   rate: number;
   taxPercent?: number | string;
@@ -21,6 +23,8 @@ type PoFormItem = {
 type PoFormValues = PoLogisticsForm & {
   poDate: string;
   supplier: string;
+  useManualPoNumber?: boolean;
+  poNumberManual?: string;
   items: PoFormItem[];
 };
 
@@ -39,6 +43,7 @@ export function mapPoFormToCreatePayload(args: {
   return {
     shopId: resolvedShopId,
     poDate: values.poDate,
+    poNumber: values.useManualPoNumber ? values.poNumberManual?.trim() || undefined : undefined,
     supplier: values.supplier,
     contractId: sourceType === 'CONTRACT' ? sourceContractId : undefined,
     rfqId: sourceType === 'RFQ' ? sourceRfqId : undefined,
@@ -50,6 +55,8 @@ export function mapPoFormToCreatePayload(args: {
       return {
         productId: it.productId,
         rfqItemId: it.rfqItemId,
+        lineDescription: it.lineDescription?.trim() || undefined,
+        lineCategory: it.lineCategory?.trim() || undefined,
         orderQty: it.orderQty,
         rate: it.rate,
       };

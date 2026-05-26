@@ -19,11 +19,10 @@ export class SupplierPortalService {
     private readonly subscriptions: SubscriptionService,
   ) {}
 
-  private async resolveSupplier(email: string, companyName: string) {
+  private async resolveSupplier(email: string) {
     const normalizedEmail = email.trim().toLowerCase();
-    const company = companyName.trim();
-    if (!normalizedEmail || !company) {
-      throw new BadRequestException('Email and company name are required');
+    if (!normalizedEmail) {
+      throw new BadRequestException('Email is required');
     }
 
     const suppliers = await this.prisma.supplier.findMany({
@@ -31,10 +30,6 @@ export class SupplierPortalService {
         isActive: true,
         deletedAt: null,
         email: { equals: normalizedEmail, mode: 'insensitive' },
-        OR: [
-          { supplierName: { contains: company, mode: 'insensitive' } },
-          { company: { companyName: { contains: company, mode: 'insensitive' } } },
-        ],
       },
       include: { company: true },
       take: 5,
@@ -42,7 +37,7 @@ export class SupplierPortalService {
 
     if (suppliers.length === 0) {
       throw new UnauthorizedException(
-        'We could not verify your details. Check email and company name match our records.',
+        'We could not verify your email. Check that it matches our supplier records.',
       );
     }
 
@@ -50,7 +45,7 @@ export class SupplierPortalService {
   }
 
   async verify(dto: VerifySupplierDto) {
-    const supplier = await this.resolveSupplier(dto.email, dto.companyName);
+    const supplier = await this.resolveSupplier(dto.email);
     if (supplier.companyId) {
       await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
     }

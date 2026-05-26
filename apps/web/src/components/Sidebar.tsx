@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  ArrowLeftRight,
   BarChart3,
   Building2,
   ChevronUp,
@@ -50,7 +51,20 @@ function isActive(currentPath: string, itemPath: string) {
 
 function sectionFor(path: string) {
   if (['/companies', '/plants', '/storage-locations', '/products', '/suppliers', '/customers'].includes(path)) return 'Master Data';
-  if (['/rfqs', '/contracts', '/purchase-orders', '/goods-receipts', '/returns', '/supplier-portal'].includes(path)) return 'Procurement';
+  if (
+    [
+      '/rfqs',
+      '/contracts',
+      '/purchase-orders',
+      '/goods-receipts',
+      '/returns',
+      '/supplier-portal',
+      '/supplier-bills',
+      '/supplier-payments',
+    ].includes(path)
+  ) {
+    return 'Procurement';
+  }
   if (['/quotations', '/sales', '/goods-issues', '/invoices', '/payments'].includes(path)) return 'Sales & Finance';
   return 'Operations';
 }
@@ -95,6 +109,8 @@ export function Sidebar({
       { label: 'Goods Receipt', icon: ArrowDownToLine, path: '/goods-receipts' },
       ...(has('shop:read') ? [{ label: 'Goods Returns', icon: Undo2, path: '/returns' }] : []),
       ...(has('supplier:read') ? [{ label: 'Supplier Portal', icon: Truck, path: '/supplier-portal' }] : []),
+      ...(has('shop:read') ? [{ label: 'Supplier Bills', icon: FileText, path: '/supplier-bills' }] : []),
+      ...(has('shop:read') ? [{ label: 'Supplier Payments', icon: FileCheck, path: '/supplier-payments' }] : []),
 
       // Sales
       ...(has('shop:read') ? [{ label: 'Sales Quotations', icon: FileCheck, path: '/quotations' }] : []),
@@ -104,6 +120,9 @@ export function Sidebar({
       ...(has('shop:read') ? [{ label: 'Payments', icon: FileCheck, path: '/payments' }] : []),
 
       // Warehouse + Admin
+      ...(has('stock_transfer:read')
+        ? [{ label: 'Stock Transfers', icon: ArrowLeftRight, path: '/stock-transfers' }]
+        : []),
       ...(has('report:view') ? [{ label: 'Warehouse', icon: Warehouse, path: '/warehouse' }] : []),
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),

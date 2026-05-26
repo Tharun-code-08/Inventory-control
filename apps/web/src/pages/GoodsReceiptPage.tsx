@@ -83,6 +83,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
+import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
@@ -95,6 +96,8 @@ const grItemSchema = z.object({
   purchaseRate: z.coerce.number().min(0, 'Rate must be 0 or more'),
   batchNumber: z.string().optional(),
   serialNumber: z.string().optional(),
+  expiryDate: z.string().min(1, 'Expiry date is required'),
+  storageLocationId: z.string().min(1, 'Storage location is required'),
 });
 
 const grFormSchema = z.object({
@@ -108,7 +111,16 @@ const grFormSchema = z.object({
 
 type GRFormValues = z.infer<typeof grFormSchema>;
 
-const emptyItem = { productId: '', quantity: 1, uom: '', purchaseRate: 0, batchNumber: '', serialNumber: '' };
+const emptyItem = {
+  productId: '',
+  quantity: 1,
+  uom: '',
+  purchaseRate: 0,
+  batchNumber: '',
+  serialNumber: '',
+  expiryDate: todayISO(),
+  storageLocationId: '',
+};
 
 function todayISO() {
   return new Date().toISOString().split('T')[0];
@@ -151,6 +163,8 @@ function poSuggestedItems(po: PurchaseOrder) {
         purchaseRate: 0,
         batchNumber: '',
         serialNumber: '',
+        expiryDate: todayISO(),
+        storageLocationId: '',
       }));
   }
 
@@ -161,6 +175,8 @@ function poSuggestedItems(po: PurchaseOrder) {
     purchaseRate: Number(line.rate) || 0,
     batchNumber: '',
     serialNumber: '',
+    expiryDate: todayISO(),
+    storageLocationId: '',
   }));
 }
 
@@ -271,6 +287,12 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     () => eligiblePoList.find((po) => po.id === (watchedPurchaseOrderId || '')),
     [eligiblePoList, watchedPurchaseOrderId],
   );
+  const grShopId = user?.shopId ?? selectedPo?.shopId ?? poQuery.data?.shopId ?? '';
+  const { data: storageLocations = [] } = useStorageLocations(grShopId || undefined);
+  const defaultStorageLocationId = useMemo(
+    () => storageLocations.find((loc) => loc.isActive)?.id ?? '',
+    [storageLocations],
+  );
 
   const watchedItems = form.watch('items') ?? [];
   const lineValues = watchedItems.map((item) => (item?.quantity || 0) * (item?.purchaseRate || 0));
@@ -296,8 +318,10 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 purchaseRate: 0,
                 batchNumber: '',
                 serialNumber: '',
+                expiryDate: todayISO(),
+                storageLocationId: defaultStorageLocationId,
               }))
-          : [{ ...emptyItem }],
+          : [{ ...emptyItem, storageLocationId: defaultStorageLocationId }],
     });
     setSheetOpen(true);
   };
@@ -401,6 +425,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       purchaseRate: item.purchaseRate,
       batchNumber: item.batchNumber ?? '',
       serialNumber: item.serialNumber ?? '',
+      expiryDate: item.expiryDate?.split('T')[0] ?? todayISO(),
+      storageLocationId: item.storageLocationId ?? defaultStorageLocationId,
     }));
     const linkedPo = availablePoList.find((po) => po.id === gr.purchaseOrderId);
     const fallbackItems = linkedPo ? poSuggestedItems(linkedPo) : [{ ...emptyItem }];
@@ -440,6 +466,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           purchaseRate: item.purchaseRate,
           batchNumber: item.batchNumber?.trim() || undefined,
           serialNumber: item.serialNumber?.trim() || undefined,
+          expiryDate: item.expiryDate,
+          storageLocationId: item.storageLocationId,
         }));
         await updateGR.mutateAsync({
           id: editingGR.id,
@@ -460,6 +488,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           purchaseRate: item.purchaseRate,
           batchNumber: item.batchNumber?.trim() || undefined,
           serialNumber: item.serialNumber?.trim() || undefined,
+          expiryDate: item.expiryDate,
+          storageLocationId: item.storageLocationId,
         }));
         await createGR.mutateAsync({
           shopId: resolvedShopId,
@@ -1048,9 +1078,11 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                       <TableHead className="font-semibold w-[210px]">Product</TableHead>
                       <TableHead className="font-semibold text-right w-[100px]">Received Quantity</TableHead>
                       <TableHead className="font-semibold w-[70px]">UOM</TableHead>
-                      <TableHead className="font-semibold w-[140px]">Batch Number</TableHead>
-                      <TableHead className="font-semibold w-[140px]">Serial Number</TableHead>
-                      <TableHead className="font-semibold text-right w-[100px]">Value</TableHead>
+                      <TableHead className="font-semibold w-[120px]">Expiry</TableHead>
+                      <TableHead className="font-semibold w-[150px]">Storage</TableHead>
+                      <TableHead className="font-semibold w-[120px]">Batch</TableHead>
+                      <TableHead className="font-semibold w-[120px]">Serial</TableHead>
+                      <TableHead className="font-semibold text-right w-[90px]">Value</TableHead>
                       <TableHead className="w-[40px]" />
                     </TableRow>
                   </TableHeader>
@@ -1106,6 +1138,44 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                             className="h-8 text-xs bg-muted/50"
                             readOnly
                             {...form.register(`items.${index}.uom`)}
+                          />
+                        </TableCell>
+                        <TableCell className="p-1.5">
+                          <Input
+                            type="date"
+                            className={cn(
+                              'h-8 text-xs',
+                              form.formState.errors.items?.[index]?.expiryDate && 'border-destructive',
+                            )}
+                            {...form.register(`items.${index}.expiryDate`)}
+                          />
+                        </TableCell>
+                        <TableCell className="p-1.5">
+                          <Controller
+                            control={form.control}
+                            name={`items.${index}.storageLocationId`}
+                            render={({ field: f }) => (
+                              <Select value={f.value} onValueChange={f.onChange}>
+                                <SelectTrigger
+                                  className={cn(
+                                    'h-8 text-xs',
+                                    form.formState.errors.items?.[index]?.storageLocationId &&
+                                      'border-destructive',
+                                  )}
+                                >
+                                  <SelectValue placeholder="Location" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {storageLocations
+                                    .filter((loc) => loc.isActive)
+                                    .map((loc) => (
+                                      <SelectItem key={loc.id} value={loc.id}>
+                                        {loc.name || loc.code}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           />
                         </TableCell>
                         <TableCell className="p-1.5">

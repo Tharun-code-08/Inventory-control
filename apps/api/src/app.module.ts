@@ -17,6 +17,7 @@ import { StockModule } from './modules/stock/stock.module';
 import { GoodsReceiptsModule } from './modules/goods-receipts/goods-receipts.module';
 import { GoodsIssuesModule } from './modules/goods-issues/goods-issues.module';
 import { DamagedStockModule } from './modules/damaged-stock/damaged-stock.module';
+import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -34,6 +35,8 @@ import { SalesOrdersModule } from './modules/sales-orders/sales-orders.module';
 import { SalesQuotationsModule } from './modules/sales-quotations/sales-quotations.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { SupplierBillsModule } from './modules/supplier-bills/supplier-bills.module';
+import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
@@ -48,6 +51,7 @@ import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { WarehouseModule } from './modules/warehouse/warehouse.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -131,6 +135,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     GoodsReceiptsModule,
     GoodsIssuesModule,
     DamagedStockModule,
+    StockTransfersModule,
     PurchaseOrdersModule,
     ReportsModule,
     DashboardModule,
@@ -147,6 +152,8 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     SalesQuotationsModule,
     InvoicesModule,
     PaymentsModule,
+    SupplierBillsModule,
+    SupplierPaymentsModule,
     ReturnsModule,
     AlertsModule,
     SupplierPortalModule,
@@ -154,6 +161,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     NotificationsModule,
     HealthModule,
     BackupModule,
+    WarehouseModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -12,6 +12,8 @@ export type GoodsReceiptItem = {
   lineValue: number;
   batchNumber?: string | null;
   serialNumber?: string | null;
+  expiryDate?: string | null;
+  storageLocationId?: string | null;
   product?: {
     description: string;
     productCode: string;

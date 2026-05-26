@@ -116,6 +116,8 @@ export class GoodsReceiptsService {
             lineValue: true,
             batchNumber: true,
             serialNumber: true,
+            expiryDate: true,
+            storageLocationId: true,
             product: {
               select: {
                 id: true,
@@ -182,6 +184,8 @@ export class GoodsReceiptsService {
               lineValue: new Prisma.Decimal(i.quantity).mul(new Prisma.Decimal(i.purchaseRate)),
               batchNumber: i.batchNumber?.trim() || null,
               serialNumber: i.serialNumber?.trim() || null,
+              expiryDate: i.expiryDate ? new Date(i.expiryDate) : null,
+              storageLocationId: i.storageLocationId ?? null,
               createdById: user.id,
             })),
           },
@@ -195,7 +199,7 @@ export class GoodsReceiptsService {
   async get(user: RequestUser, id: string) {
     const gr = await this.prisma.goodsReceiptHeader.findUnique({
       where: { id },
-      include: { items: { include: { product: true } }, shop: true },
+      include: { items: { include: { product: true, storageLocation: true } }, shop: true },
     });
     if (!gr) throw new NotFoundException('Goods receipt not found');
     assertShopScope(user, gr.shopId);
@@ -240,6 +244,8 @@ export class GoodsReceiptsService {
                     lineValue: new Prisma.Decimal(i.quantity).mul(new Prisma.Decimal(i.purchaseRate)),
                     batchNumber: i.batchNumber?.trim() || null,
                     serialNumber: i.serialNumber?.trim() || null,
+                    expiryDate: i.expiryDate ? new Date(i.expiryDate) : null,
+                    storageLocationId: i.storageLocationId ?? null,
                     createdById: user.id,
                   })),
                 },
@@ -275,6 +281,21 @@ export class GoodsReceiptsService {
           fresh.purchaseOrderId,
           fresh.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         );
+      }
+
+      for (const line of fresh.items) {
+        if (!line.storageLocationId) {
+          throw new BadRequestException('Storage location is required on each line before posting');
+        }
+        if (!line.expiryDate) {
+          throw new BadRequestException('Expiry date is required on each line before posting');
+        }
+        const location = await tx.storageLocation.findFirst({
+          where: { id: line.storageLocationId, shopId: fresh.shopId, isActive: true },
+        });
+        if (!location) {
+          throw new BadRequestException('Invalid storage location for this plant');
+        }
       }
 
       // Resolve the shop costing method once per posting; cost layers and
@@ -336,7 +357,7 @@ export class GoodsReceiptsService {
 
       const posted = await tx.goodsReceiptHeader.findUniqueOrThrow({
         where: { id },
-        include: { items: { include: { product: true } }, shop: true },
+        include: { items: { include: { product: true, storageLocation: true } }, shop: true },
       });
       await this.audit.log(
         {

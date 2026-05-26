@@ -29,6 +29,13 @@ const RECEIPT_INCLUDE = {
   },
 } as const;
 
+const RETURN_INCLUDE = {
+  select: {
+    status: true,
+    items: { select: { productId: true, quantity: true } },
+  },
+} as const;
+
 const ITEM_WITH_PRODUCT = {
   include: {
     product: { select: { id: true, productCode: true, description: true } },
@@ -59,6 +66,7 @@ export class PurchaseOrdersService {
       status: PurchaseOrderStatus;
       items: Array<{ productId: string; orderQty: Prisma.Decimal | number }>;
       goodsReceipts?: Array<{ status: string; items?: Array<{ productId: string; quantity: Prisma.Decimal | number }> }>;
+      supplierReturns?: Array<{ status: string; items?: Array<{ productId: string; quantity: Prisma.Decimal | number }> }>;
     },
   ) {
     if (po.status === PurchaseOrderStatus.CANCELLED) {
@@ -75,6 +83,16 @@ export class PurchaseOrdersService {
         const curr = receivedByProduct.get(line.productId) ?? new Prisma.Decimal(0);
         const qty = line.quantity instanceof Prisma.Decimal ? line.quantity : new Prisma.Decimal(line.quantity);
         receivedByProduct.set(line.productId, curr.add(qty));
+      }
+    }
+
+    const postedReturns = (po.supplierReturns ?? []).filter((ret) => ret.status === 'POSTED');
+    for (const ret of postedReturns) {
+      for (const line of ret.items ?? []) {
+        const curr = receivedByProduct.get(line.productId) ?? new Prisma.Decimal(0);
+        const qty = line.quantity instanceof Prisma.Decimal ? line.quantity : new Prisma.Decimal(line.quantity);
+        const next = curr.sub(qty);
+        receivedByProduct.set(line.productId, next.lt(0) ? new Prisma.Decimal(0) : next);
       }
     }
 
@@ -167,6 +185,8 @@ export class PurchaseOrdersService {
         id: item.id ?? `${item.productId}:${String(item.orderQty)}`,
         productId: item.productId,
         rfqItemId: (item as { rfqItemId?: string | null }).rfqItemId ?? null,
+        lineDescription: (item as { lineDescription?: string | null }).lineDescription ?? null,
+        lineCategory: (item as { lineCategory?: string | null }).lineCategory ?? null,
         currentStock: Number(item.currentStock),
         minStock: Number(item.minStock),
         suggestedQty: Number(item.suggestedQty),
@@ -217,7 +237,7 @@ export class PurchaseOrdersService {
     const findArgs: Prisma.PurchaseOrderHeaderFindManyArgs = {
       where,
       orderBy,
-      include: { items: ITEM_WITH_PRODUCT, goodsReceipts: RECEIPT_INCLUDE },
+      include: { items: ITEM_WITH_PRODUCT, goodsReceipts: RECEIPT_INCLUDE, supplierReturns: RETURN_INCLUDE },
       take: useCursor ? take + 1 : take,
       ...(useCursor
         ? {
@@ -290,12 +310,19 @@ export class PurchaseOrdersService {
         if (prior) return this.serialize(this.withLifecycle(prior as any));
       }
 
-      const poNumber = await this.numbers.nextShopScopedNumber(tx, {
-        shopId: dto.shopId,
-        docType: 'PO',
-        basePrefix: 'PO',
-        date: poDate,
-      });
+      const manualNumber = dto.poNumber?.trim();
+      if (manualNumber) {
+        const exists = await tx.purchaseOrderHeader.findUnique({ where: { poNumber: manualNumber } });
+        if (exists) throw new BadRequestException('PO number already exists');
+      }
+      const poNumber =
+        manualNumber ||
+        (await this.numbers.nextShopScopedNumber(tx, {
+          shopId: dto.shopId,
+          docType: 'PO',
+          basePrefix: 'PO',
+          date: poDate,
+        }));
 
       const productIds = dto.items.map((line) => line.productId);
       // We need to know each product is assigned to dto.shopId before we
@@ -328,13 +355,8 @@ export class PurchaseOrdersService {
         if (line.orderQty <= 0) throw new BadRequestException('Order qty must be > 0');
         const product = productMap.get(line.productId);
         if (!product) throw new BadRequestException('Invalid product');
-        if (product.plants.length === 0) {
-          throw new BadRequestException(
-            'Product is not assigned (or is deactivated) for this plant',
-          );
-        }
         const currentStock = summaryMap.get(line.productId) ?? new Prisma.Decimal(0);
-        const minStock = product.plants[0]!.minStockLevel;
+        const minStock = product.plants[0]?.minStockLevel ?? new Prisma.Decimal(0);
         const rawSuggested = minStock.mul(new Prisma.Decimal(2)).sub(currentStock);
         const suggested = rawSuggested.lt(0) ? new Prisma.Decimal(0) : rawSuggested;
         const lineValue = new Prisma.Decimal(line.orderQty).mul(new Prisma.Decimal(line.rate));
@@ -342,6 +364,8 @@ export class PurchaseOrdersService {
         lines.push({
           productId: line.productId,
           rfqItemId: line.rfqItemId ?? null,
+          lineDescription: line.lineDescription?.trim() || null,
+          lineCategory: line.lineCategory?.trim() || null,
           currentStock,
           minStock,
           suggestedQty: suggested,
@@ -361,7 +385,7 @@ export class PurchaseOrdersService {
           contractId: dto.contractId ?? null,
           supplier: dto.supplier.trim(),
           remarks: dto.remarks?.trim(),
-          status: PurchaseOrderStatus.DRAFT,
+          status: dto.confirmOnSend ? PurchaseOrderStatus.CONFIRMED : PurchaseOrderStatus.DRAFT,
           totalValue: total,
           createdById: user.id,
           items: { create: lines },
@@ -402,6 +426,8 @@ export class PurchaseOrdersService {
         items: ITEM_WITH_PRODUCT,
         shop: { select: { id: true, shopName: true, shopNumber: true } },
         goodsReceipts: { ...RECEIPT_INCLUDE, orderBy: { grDate: 'asc' } },
+        supplierReturns: RETURN_INCLUDE,
+        supplierBills: { select: { id: true, status: true, totalValue: true, paidValue: true } },
       },
     });
     if (!po) throw new NotFoundException('Not found');
@@ -479,6 +505,8 @@ export class PurchaseOrdersService {
             poHeaderId: id,
             productId: line.productId,
             rfqItemId: line.rfqItemId ?? null,
+            lineDescription: line.lineDescription?.trim() || null,
+            lineCategory: line.lineCategory?.trim() || null,
             currentStock,
             minStock,
             suggestedQty: suggested,

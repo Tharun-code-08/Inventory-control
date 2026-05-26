@@ -38,7 +38,10 @@ function makeService(tx: ReturnType<typeof buildTx>) {
     $transaction: jest.fn(async (work: (client: typeof tx) => Promise<unknown>) => work(tx)),
   } as any;
 
-  const stock = { postMovementOnce: jest.fn() } as any;
+  const stock = {
+    postMovementOnce: jest.fn(),
+    resolveBalance: jest.fn().mockResolvedValue(new Prisma.Decimal(10)),
+  } as any;
   const numbers = {
     nextShopScopedNumber: jest.fn().mockResolvedValue('GI-202605-00001'),
   } as any;
@@ -184,6 +187,7 @@ describe('GoodsIssuesService', () => {
 
     expect(posted.status).toBe(DocumentStatus.POSTED);
     expect(stock.postMovementOnce).toHaveBeenCalledTimes(1);
+    expect(stock.resolveBalance).toHaveBeenCalled();
     expect(stock.postMovementOnce).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

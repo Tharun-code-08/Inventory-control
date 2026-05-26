@@ -25,7 +25,27 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
 
   const nested = payload.error;
   if (nested && typeof nested === 'object' && nested !== null) {
-    const msg = (nested as { message?: string | string[] }).message;
+    const nestedObj = nested as {
+      message?: string | string[];
+      code?: string;
+      details?: unknown;
+    };
+    const msg = nestedObj.message;
+    if (nestedObj.code === 'INSUFFICIENT_STOCK' && Array.isArray(nestedObj.details) && nestedObj.details.length > 0) {
+      const first = nestedObj.details[0] as {
+        productCode?: string;
+        available?: string;
+        requested?: string;
+      };
+      const parts = [
+        typeof msg === 'string' ? msg.trim() : '',
+        first.productCode ? `Product ${first.productCode}` : '',
+        first.available != null && first.requested != null
+          ? `(available ${first.available}, requested ${first.requested})`
+          : '',
+      ].filter(Boolean);
+      if (parts.length > 0) return parts.join(' ');
+    }
     if (Array.isArray(msg)) return msg.filter(Boolean).join(', ');
     if (typeof msg === 'string' && msg.trim()) return msg.trim();
   }

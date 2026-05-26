@@ -61,6 +61,18 @@ const SalesOrderDetailPage = lazyPage(
 const WarehousePage = lazyPage(() => import('@/pages/WarehousePage'), 'WarehousePage');
 const InvoicesPage = lazyPage(() => import('@/pages/InvoicesPage'), 'InvoicesPage');
 const PaymentsPage = lazyPage(() => import('@/pages/PaymentsPage'), 'PaymentsPage');
+const SupplierBillsPage = lazyPage(() => import('@/pages/SupplierBillsPage'), 'SupplierBillsPage');
+const SupplierPaymentsPage = lazyPage(
+  () => import('@/pages/SupplierPaymentsPage'),
+  'SupplierPaymentsPage',
+);
+const StockTransfersPage = lazyPage(
+  () =>
+    import('@/pages/StockTransfersPage') as Promise<
+      Record<string, import('react').ComponentType<unknown>>
+    >,
+  'StockTransfersPage',
+);
 const ReturnsPage = lazyPage(() => import('@/pages/ReturnsPage'), 'ReturnsPage');
 const ReturnAcknowledgementPage = lazyPage(
   () => import('@/pages/ReturnAcknowledgementPage'),
@@ -263,6 +275,13 @@ export function AppRoutes() {
           />
           <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
           <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
+          <Route path="/supplier-bills" element={<Protected><SupplierBillsPage /></Protected>} />
+          <Route path="/supplier-payments" element={<Protected><SupplierPaymentsPage /></Protected>} />
+          <Route path="/stock-transfers" element={<Protected><StockTransfersPage /></Protected>} />
+          <Route
+            path="/stock-transfers/new"
+            element={<Protected><StockTransfersPage createOnly /></Protected>}
+          />
           <Route path="/goods-receipts" element={<Protected><GoodsReceiptPage /></Protected>} />
           <Route path="/goods-receipts/new" element={<Protected><GoodsReceiptPage createOnly /></Protected>} />
           <Route path="/goods-issues" element={<Protected><GoodsIssuePage /></Protected>} />

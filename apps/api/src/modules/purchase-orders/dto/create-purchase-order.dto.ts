@@ -7,6 +7,16 @@ class PoLine {
   @IsUUID()
   productId!: string;
 
+  @ApiPropertyOptional({ description: 'Custom description to print on the PO line' })
+  @IsOptional()
+  @IsString()
+  lineDescription?: string;
+
+  @ApiPropertyOptional({ description: 'Optional line category (e.g., Service)' })
+  @IsOptional()
+  @IsString()
+  lineCategory?: string;
+
   @ApiPropertyOptional({ description: 'RFQ line this PO line fulfills' })
   @IsOptional()
   @IsUUID()
@@ -24,6 +34,11 @@ class PoLine {
 }
 
 export class CreatePurchaseOrderDto {
+  @ApiPropertyOptional({ description: 'Optional manual PO number (must be unique)' })
+  @IsOptional()
+  @IsString()
+  poNumber?: string;
+
   @ApiProperty()
   @IsDateString()
   poDate!: string;
@@ -68,4 +83,10 @@ export class CreatePurchaseOrderDto {
   @Type(() => Boolean)
   @IsBoolean()
   sendToSupplier?: boolean;
+
+  @ApiPropertyOptional({ description: 'If true, create as CONFIRMED when sending to supplier' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  confirmOnSend?: boolean;
 }

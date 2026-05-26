@@ -100,6 +100,35 @@ export class StockService {
     }
   }
 
+  /**
+   * On-hand quantity for a shop+product. When ledger rows exist, use net
+   * ledger movement (matches product list / warehouse display). Otherwise fall
+   * back to stock_summary — avoids rejecting issues when summary row is missing
+   * or stale but ledger shows available stock.
+   */
+  async resolveBalance(
+    tx: Prisma.TransactionClient | PrismaService,
+    shopId: string,
+    productId: string,
+  ): Promise<Prisma.Decimal> {
+    const ledger = await tx.stockLedger.aggregate({
+      where: { shopId, productId },
+      _sum: { inQty: true, outQty: true },
+      _count: { _all: true },
+    });
+    if ((ledger._count._all ?? 0) > 0) {
+      const inQty = ledger._sum.inQty ?? new Prisma.Decimal(0);
+      const outQty = ledger._sum.outQty ?? new Prisma.Decimal(0);
+      return inQty.sub(outQty);
+    }
+
+    const summary = await tx.stockSummary.findUnique({
+      where: { shopId_productId: { shopId, productId } },
+      select: { currentStock: true },
+    });
+    return summary?.currentStock ?? new Prisma.Decimal(0);
+  }
+
   async reconcile(shopId?: string) {
     const rows = await this.prisma.stockSummary.findMany({
       where: shopId ? { shopId } : undefined,

@@ -39,6 +39,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return 'A record with this idempotency key already exists';
     }
 
+    if (normalized.includes('customer_code') && normalized.includes('shop_id')) {
+      return 'A customer with this code already exists for the selected shop';
+    }
+
+    if (normalized.includes('return_number')) {
+      return 'A return with this number already exists';
+    }
+
     return 'A record with the same values already exists';
   }
 
