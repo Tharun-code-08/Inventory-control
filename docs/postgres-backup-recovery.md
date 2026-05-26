@@ -21,7 +21,7 @@ flowchart LR
   walDir --> restorePitr
 ```
 
-## 1. One-time VPS setup
+## 1. One-time VPS setup (hosted PostgreSQL)
 
 SSH into the VPS as root:
 
@@ -82,7 +82,30 @@ sudo systemctl start pg-full-backup.timer pg-wal-sync.timer pg-backup-prune.time
 sudo systemctl status pg-full-backup.timer
 ```
 
-## 2. Backup schedule (default)
+## 1a. One-time setup (Docker PostgreSQL on the same VPS)
+
+Use this when PostgreSQL runs in a container (e.g., `docker-postgres-1`).
+
+```bash
+cd /opt/Inventory-control
+sudo bash deploy/postgres/scripts/pg-docker-install-backups.sh
+sudo nano /etc/retail-ims/postgres-backup.env   # set DOCKER_CONTAINER, PGUSER/PGPASSWORD if needed
+sudo systemctl start pg-docker-full-backup.timer pg-docker-company-backup.timer
+sudo systemctl start pg-docker-prune.timer pg-docker-verify.timer
+systemctl list-timers 'pg-docker-*'
+```
+
+Backups land on the host at:
+
+```
+/var/backups/postgres/full         # hourly full DB dumps (custom pg_dump format)
+/var/backups/postgres/companies    # hourly per-company SQL dumps (filtered inserts)
+/var/backups/postgres/logs         # backup.log
+```
+
+Retention: files older than **30 days** in `full/` and `companies/` are deleted by `pg-docker-prune.sh`.
+
+## 2. Backup schedule (hosted default)
 
 | Timer | Schedule | Script |
 |-------|----------|--------|
@@ -92,6 +115,15 @@ sudo systemctl status pg-full-backup.timer
 | `pg-backup-verify.timer` | Daily 04:00 UTC | Fail if latest backup missing/stale |
 
 WAL segments are archived **continuously** by PostgreSQL (`archive_command`), not by cron. That is your real-time / 15-minute transaction log protection.
+
+### Docker schedules
+
+| Timer | Schedule | Script |
+|-------|----------|--------|
+| `pg-docker-full-backup.timer` | Hourly (randomized delay) | `pg-docker-full-backup.sh` |
+| `pg-docker-company-backup.timer` | Hourly (randomized delay) | `pg-docker-company-backup.sh` |
+| `pg-docker-prune.timer` | Daily 03:30 UTC | `pg-docker-prune.sh` |
+| `pg-docker-verify.timer` | Daily 04:00 UTC | `pg-docker-verify-backup.sh` |
 
 ### Retention defaults
 
@@ -177,6 +209,38 @@ Requires:
 
 1. A physical base backup (`full/latest-base.tar.gz`)
 2. WAL files from base backup time through recovery target (`/var/backups/postgres/wal/` or offsite copy)
+
+### Path A (Docker): Quick full restore
+
+```bash
+# Stop API first
+pm2 stop retail-api
+
+# Restore into a new database name
+docker cp /var/backups/postgres/full/latest.dump docker-postgres-1:/tmp/restore.dump
+docker exec -i docker-postgres-1 pg_restore -U retail -d retail_ims_restored /tmp/restore.dump
+
+# Validate
+docker exec -i docker-postgres-1 psql -U retail -d retail_ims_restored -c "SELECT count(*) FROM users;"
+
+# Swap (maintenance window)
+docker exec -i docker-postgres-1 psql -U retail -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='retail_ims';"
+docker exec -i docker-postgres-1 psql -U retail -d postgres -c "DROP DATABASE retail_ims;"
+docker exec -i docker-postgres-1 psql -U retail -d postgres -c "ALTER DATABASE retail_ims_restored RENAME TO retail_ims;"
+pm2 restart retail-api
+```
+
+### Path B (Docker): Company-scoped restore (SQL subset)
+
+Each company dump is a **filtered SQL file** (INSERT statements) under `/var/backups/postgres/companies/{code}/latest.dump`. To test/restore:
+
+```bash
+COMPANY_CODE=ACME       # folder name in companies/
+docker cp /var/backups/postgres/companies/${COMPANY_CODE}/latest.dump docker-postgres-1:/tmp/company.sql
+docker exec -i docker-postgres-1 psql -U retail -d retail_ims_restored -f /tmp/company.sql
+```
+
+These are **data-only** subsets (no schema). Use for audit or targeted re-seeding into a scratch database; they are not PITR or full-database backups.
 
 ### Path C: Catastrophic VPS loss
 

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { isChunkLoadError, reloadAppForStaleChunks } from '@/lib/chunk-reload';
 
 type Props = {
   children: ReactNode;
@@ -32,9 +33,15 @@ export class AppErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
 
     const isDevModuleUrl = /\.tsx(\?|$)/i.test(this.state.message);
-    const isChunkError =
-      /Failed to fetch dynamically imported module/i.test(this.state.message) ||
-      /Loading chunk/i.test(this.state.message);
+    const isChunkError = isChunkLoadError(new Error(this.state.message));
+
+    const handleReload = () => {
+      if (isChunkError) {
+        reloadAppForStaleChunks(true);
+        return;
+      }
+      window.location.reload();
+    };
 
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -61,11 +68,11 @@ export class AppErrorBoundary extends Component<Props, State> {
 
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={handleReload}
             className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             <RefreshCw className="h-4 w-4" />
-            Reload page
+            {isChunkError ? 'Reload latest version' : 'Reload page'}
           </button>
         </div>
       </div>

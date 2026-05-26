@@ -1,0 +1,13 @@
+[Unit]
+Description=Retail IMS Docker full database backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-docker-full-backup.sh
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

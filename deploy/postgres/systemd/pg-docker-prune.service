@@ -1,0 +1,12 @@
+[Unit]
+Description=Retail IMS Docker backup prune
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-docker-prune.sh
+
+[Install]
+WantedBy=multi-user.target

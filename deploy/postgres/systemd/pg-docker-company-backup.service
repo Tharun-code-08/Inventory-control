@@ -1,0 +1,13 @@
+[Unit]
+Description=Retail IMS Docker company-scoped backups
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/retail-ims/postgres-backup.env
+ExecStart=/opt/retail-ims/postgres-backup/scripts/pg-docker-company-backup.sh
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
