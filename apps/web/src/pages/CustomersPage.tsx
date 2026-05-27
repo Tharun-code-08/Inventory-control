@@ -60,6 +60,8 @@ type CustomerForm = {
   customerName: string;
   email: string;
   phone: string;
+  taxId: string;
+  pan: string;
   city: string;
   state: string;
   postalCode: string;
@@ -70,6 +72,8 @@ const emptyForm = (): CustomerForm => ({
   customerName: '',
   email: '',
   phone: '',
+  taxId: '',
+  pan: '',
   city: '',
   state: '',
   postalCode: '',
@@ -200,6 +204,8 @@ export function CustomersPage() {
       customerName: c.customerName,
       email: c.email ?? '',
       phone: c.phone ?? '',
+      taxId: c.taxId ?? '',
+      pan: c.pan ?? '',
       city: c.city ?? '',
       state: c.state ?? '',
       postalCode: c.postalCode ?? '',
@@ -222,6 +228,8 @@ export function CustomersPage() {
       customerName: form.customerName.trim(),
       email: stripOptional(form.email),
       phone: stripOptional(form.phone),
+      taxId: stripOptional(form.taxId)?.toUpperCase?.(),
+      pan: stripOptional(form.pan)?.toUpperCase?.(),
       city: stripOptional(form.city),
       state: stripOptional(form.state),
       postalCode: stripOptional(form.postalCode),
@@ -264,6 +272,8 @@ export function CustomersPage() {
       { header: 'Name', value: (r) => r.customerName },
       { header: 'Email', value: (r) => r.email ?? '' },
       { header: 'Phone', value: (r) => r.phone ?? '' },
+      { header: 'GSTIN', value: (r) => r.taxId ?? '' },
+      { header: 'PAN', value: (r) => r.pan ?? '' },
       { header: 'City', value: (r) => r.city ?? '' },
       { header: 'Status', value: (r) => (r.isActive ? 'Active' : 'Inactive') },
     ];
@@ -347,6 +357,12 @@ export function CustomersPage() {
                       Phone
                     </TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      GSTIN
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      PAN
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
                       Status
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">
@@ -357,13 +373,13 @@ export function CustomersPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
                         Loading customers…
                       </TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
                         No customers in this view.
                       </TableCell>
                     </TableRow>
@@ -391,6 +407,8 @@ export function CustomersPage() {
                           {c.email || '—'}
                         </TableCell>
                         <TableCell className="text-sm text-slate-600">{c.phone || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-600">{c.taxId || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-600">{c.pan || '—'}</TableCell>
                         <TableCell>
                           <span
                             className={cn(
@@ -498,6 +516,24 @@ export function CustomersPage() {
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
               />
             </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>GSTIN</Label>
+                <Input
+                  value={form.taxId}
+                  onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
+                  placeholder="15-character GSTIN"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>PAN</Label>
+                <Input
+                  value={form.pan}
+                  onChange={(e) => setForm((p) => ({ ...p, pan: e.target.value }))}
+                  placeholder="10-character PAN"
+                />
+              </div>
+            </div>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>ZIP / postal code</Label>
@@ -564,6 +600,14 @@ export function CustomersPage() {
               <div>
                 <dt className="text-slate-500">Phone</dt>
                 <dd>{viewing.phone || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">GSTIN</dt>
+                <dd>{viewing.taxId || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">PAN</dt>
+                <dd>{viewing.pan || '—'}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Location</dt>

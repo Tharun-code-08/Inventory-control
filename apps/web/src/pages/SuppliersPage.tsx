@@ -137,8 +137,8 @@ function formToPayload(form: SupplierFormState): CreateSupplierPayload {
     companyId: form.companyId || undefined,
     supplierCode: form.supplierCode || undefined,
     supplierName: form.supplierName,
-    taxId: form.taxId || undefined,
-    vatNumber: form.vatNumber || undefined,
+    taxId: form.taxId ? form.taxId.toUpperCase() : undefined,
+    vatNumber: form.vatNumber ? form.vatNumber.toUpperCase() : undefined,
     rating: form.rating,
     categories: form.categories
       .split(',')
@@ -318,11 +318,11 @@ function SupplierFormFields({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Tax ID</Label>
+            <Label>GSTIN</Label>
             <Input value={form.taxId} onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label>VAT number</Label>
+            <Label>PAN</Label>
             <Input
               value={form.vatNumber}
               onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value }))}
@@ -670,6 +670,12 @@ export function SuppliersPage() {
                       Phone
                     </TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      GSTIN
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
+                      PAN
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">
                       Rating
                     </TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">
@@ -683,13 +689,13 @@ export function SuppliersPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         Loading suppliers…
                       </TableCell>
                     </TableRow>
                   ) : filteredSuppliers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         No suppliers match your filters.
                       </TableCell>
                     </TableRow>

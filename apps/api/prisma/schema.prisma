@@ -1094,6 +1094,7 @@ model Customer {
   email        String?
   phone        String?
   taxId        String?  @map("tax_id")
+  pan          String?
   street       String?
   city         String?
   state        String?

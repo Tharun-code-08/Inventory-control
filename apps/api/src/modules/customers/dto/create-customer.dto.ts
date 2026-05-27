@@ -36,6 +36,11 @@ export class CreateCustomerDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  pan?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   street?: string;
 
   @ApiPropertyOptional()
