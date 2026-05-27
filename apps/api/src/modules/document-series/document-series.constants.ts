@@ -1,0 +1,123 @@
+import { DocumentSeriesRestart } from '@prisma/client';
+
+export type DocumentSeriesModuleDef = {
+  docType: string;
+  moduleLabel: string;
+  defaultPrefix: string;
+  defaultStartingNumber: number;
+  defaultPadWidth: number;
+  defaultRestartPeriod: DocumentSeriesRestart;
+  shopScoped: boolean;
+  defaultUseCategoryPrefix?: boolean;
+};
+
+export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
+  {
+    docType: 'PRD',
+    moduleLabel: 'Products',
+    defaultPrefix: 'PRD',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
+    defaultUseCategoryPrefix: true,
+  },
+  {
+    docType: 'CUS',
+    moduleLabel: 'Customers',
+    defaultPrefix: 'CUS',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'RFQ',
+    moduleLabel: 'RFQ',
+    defaultPrefix: 'RFQ',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'CT',
+    moduleLabel: 'Contracts',
+    defaultPrefix: 'CT',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'PO',
+    moduleLabel: 'Purchase Order',
+    defaultPrefix: 'PO',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'GR',
+    moduleLabel: 'Goods Receipt',
+    defaultPrefix: 'GR',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'CRT',
+    moduleLabel: 'Goods Return (Customer)',
+    defaultPrefix: 'CRT',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: false,
+  },
+  {
+    docType: 'SRT',
+    moduleLabel: 'Goods Return (Supplier)',
+    defaultPrefix: 'RMO',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: false,
+  },
+  {
+    docType: 'SQT',
+    moduleLabel: 'Sales Quotation',
+    defaultPrefix: 'QT',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'SO',
+    moduleLabel: 'Sales Order',
+    defaultPrefix: 'SO',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+  {
+    docType: 'GI',
+    moduleLabel: 'Goods Issue',
+    defaultPrefix: 'GI',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    shopScoped: true,
+  },
+];
+
+export const DOCUMENT_SERIES_MODULE_BY_TYPE = new Map(
+  DOCUMENT_SERIES_MODULES.map((module) => [module.docType, module]),
+);
+
+export function getBuiltInSeriesDefault(docType: string): DocumentSeriesModuleDef | undefined {
+  return DOCUMENT_SERIES_MODULE_BY_TYPE.get(docType);
+}

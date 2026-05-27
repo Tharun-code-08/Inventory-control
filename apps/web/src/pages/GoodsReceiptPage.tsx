@@ -86,6 +86,7 @@ import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { displayDocumentNumber } from '@/lib/document-display';
 
 const PAGE_SIZE = 10;
 
@@ -148,7 +149,7 @@ function resolveGrLineProduct(
     productCode:
       fromLine?.productCode?.trim() ||
       fromCatalog?.productCode ||
-      item.productId,
+      '—',
   };
 }
 
@@ -282,6 +283,17 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       }),
     [availablePoList],
   );
+  const poNumberById = useMemo(
+    () => new Map(availablePoList.map((po) => [po.id, po.poNumber])),
+    [availablePoList],
+  );
+  const resolveGrPoNumber = useCallback(
+    (purchaseOrderId?: string | null) =>
+      displayDocumentNumber(
+        purchaseOrderId ? poNumberById.get(purchaseOrderId) : undefined,
+      ),
+    [poNumberById],
+  );
   const watchedPurchaseOrderId = form.watch('purchaseOrderId');
   const selectedPo = useMemo(
     () => eligiblePoList.find((po) => po.id === (watchedPurchaseOrderId || '')),
@@ -379,7 +391,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       { header: 'GR Number', value: (row) => row.grNumber },
       { header: 'GR Date', value: (row) => csvDate(row.grDate) },
       { header: 'Supplier', value: (row) => row.supplierName },
-      { header: 'PO Id', value: (row) => row.purchaseOrderId ?? '' },
+      { header: 'PO Number', value: (row) => resolveGrPoNumber(row.purchaseOrderId) },
       { header: 'Supplier Ref', value: (row) => row.supplierRef ?? '' },
       { header: 'Status', value: (row) => row.status },
       { header: 'Items', value: (row) => row.items.length },
@@ -399,7 +411,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       { header: 'GR Number', value: ({ gr: current }) => current.grNumber },
       { header: 'GR Date', value: ({ gr: current }) => csvDate(current.grDate) },
       { header: 'Supplier', value: ({ gr: current }) => current.supplierName },
-      { header: 'PO Id', value: ({ gr: current }) => current.purchaseOrderId ?? '' },
+      { header: 'PO Number', value: ({ gr: current }) => resolveGrPoNumber(current.purchaseOrderId) },
       { header: 'Supplier Ref', value: ({ gr: current }) => current.supplierRef ?? '' },
       { header: 'Status', value: ({ gr: current }) => current.status },
       { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },

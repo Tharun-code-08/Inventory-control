@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader } from '@/components/shared/page-header';
+import { DocumentReferenceSelect, PageHeader, P2PFlowTimeline } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useInvoices } from '@/hooks/use-invoices';
 import { useCreatePayment, usePayments } from '@/hooks/use-payments';
-import { P2PFlowTimeline } from '@/components/shared';
 import { useAuthStore } from '@/store/authStore';
 import { hasPermission } from '@/lib/permissions';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { formatInvoiceOption } from '@/lib/document-display';
 
 export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
@@ -116,7 +116,17 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
         <Card className="surface-1 border-white/10">
           <CardHeader><CardTitle>Record Payment</CardTitle></CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Invoice ID</Label><Input list="invoice-list" value={form.invoiceId} onChange={(e) => setForm((p) => ({ ...p, invoiceId: e.target.value }))} /><datalist id="invoice-list">{invoices.map((inv) => <option key={inv.id} value={inv.id}>{inv.invoiceNumber}</option>)}</datalist></div>
+            <div className="space-y-2">
+              <Label>Invoice</Label>
+              <DocumentReferenceSelect
+                items={invoices}
+                value={form.invoiceId}
+                onValueChange={(invoiceId) => setForm((p) => ({ ...p, invoiceId }))}
+                getValue={(invoice) => invoice.id}
+                getLabel={(invoice) => formatInvoiceOption(invoice)}
+                placeholder="Select invoice"
+              />
+            </div>
             <div className="space-y-2"><Label>Amount</Label><Input type="number" min="0.01" max={openBalance || undefined} value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>
             <div className="space-y-2"><Label>Method</Label><Input value={form.method} onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))} placeholder="Bank Transfer / Cash / UPI" /></div>
             <div className="space-y-2"><Label>Reference</Label><Input value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} /></div>

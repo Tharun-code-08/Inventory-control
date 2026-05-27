@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader } from '@/components/shared/page-header';
+import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { useCreateSupplierPayment, useSupplierPayments } from '@/hooks/use-suppl
 import { useSupplierBills } from '@/hooks/use-supplier-bills';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatBillOption } from '@/lib/document-display';
 
 export function SupplierPaymentsPage() {
   const user = useAuthStore((s) => s.user);
@@ -71,18 +72,16 @@ export function SupplierPaymentsPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Supplier bill</Label>
-              <Input
-                list="bill-list"
+              <DocumentReferenceSelect
+                items={bills}
                 value={form.supplierBillId}
-                onChange={(e) => setForm((p) => ({ ...p, supplierBillId: e.target.value }))}
+                onValueChange={(supplierBillId) =>
+                  setForm((p) => ({ ...p, supplierBillId }))
+                }
+                getValue={(bill) => bill.id}
+                getLabel={(bill) => formatBillOption(bill)}
+                placeholder="Select supplier bill"
               />
-              <datalist id="bill-list">
-                {bills.map((bill) => (
-                  <option key={bill.id} value={bill.id}>
-                    {bill.billNumber}
-                  </option>
-                ))}
-              </datalist>
             </div>
             <div className="space-y-2">
               <Label>Amount</Label>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader } from '@/components/shared/page-header';
+import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { useCreateSupplierBillFromGr, useSupplierBills } from '@/hooks/use-suppl
 import { useGoodsReceipts } from '@/hooks/use-goods-receipts';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { displayDocumentNumber, formatGrOption } from '@/lib/document-display';
 
 export function SupplierBillsPage() {
   const user = useAuthStore((s) => s.user);
@@ -61,19 +62,14 @@ export function SupplierBillsPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label>Posted GR</Label>
-              <Input
-                list="gr-list"
+              <DocumentReferenceSelect
+                items={postedGrs}
                 value={form.grId}
-                onChange={(e) => setForm((p) => ({ ...p, grId: e.target.value }))}
-                placeholder="Goods receipt id"
+                onValueChange={(grId) => setForm((p) => ({ ...p, grId }))}
+                getValue={(gr) => gr.id}
+                getLabel={(gr) => formatGrOption(gr)}
+                placeholder="Select goods receipt"
               />
-              <datalist id="gr-list">
-                {postedGrs.map((gr) => (
-                  <option key={gr.id} value={gr.id}>
-                    {gr.grNumber} — {gr.supplierName}
-                  </option>
-                ))}
-              </datalist>
             </div>
             <div className="space-y-2">
               <Label>Due date</Label>
@@ -125,9 +121,11 @@ export function SupplierBillsPage() {
                     <TableRow key={bill.id}>
                       <TableCell>{bill.billNumber}</TableCell>
                       <TableCell>{new Date(bill.billDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{bill.supplier?.supplierName ?? '-'}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {bill.purchaseOrderId ?? '-'}
+                      <TableCell>{bill.supplier?.supplierName ?? '—'}</TableCell>
+                      <TableCell>
+                        {displayDocumentNumber(
+                          bill.purchaseOrder?.poNumber ?? bill.purchaseOrderId,
+                        )}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={bill.status} />

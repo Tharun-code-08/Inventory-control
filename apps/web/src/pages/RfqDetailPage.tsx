@@ -55,6 +55,7 @@ import {
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { formatSupplierReference } from '@/lib/document-display';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -282,7 +283,7 @@ export function RfqDetailPage() {
       {
         header: 'Suppliers',
         value: ({ rfq: current }) =>
-          csvList(current.suppliers.map((entry) => entry.supplier?.supplierName ?? entry.supplierId)),
+          csvList(current.suppliers.map((entry) => formatSupplierReference(entry.supplier))),
       },
       { header: 'Item Code', value: ({ item }) => item.product?.productCode ?? '' },
       {
@@ -607,7 +608,7 @@ export function RfqDetailPage() {
                       key={s.supplierId}
                       className="flex min-h-[2.75rem] items-center rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm font-medium text-slate-800"
                     >
-                      {s.supplier?.supplierName ?? s.supplierId}
+                      {formatSupplierReference(s.supplier)}
                     </li>
                   ))}
                 </ul>

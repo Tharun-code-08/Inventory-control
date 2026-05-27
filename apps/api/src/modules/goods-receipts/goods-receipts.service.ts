@@ -157,10 +157,9 @@ export class GoodsReceiptsService {
         await this.validateAgainstPurchaseOrder(tx, null, dto.purchaseOrderId, normalizedItems);
       }
 
-      const grNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: dto.shopId,
         docType: 'GR',
-        basePrefix: 'GR',
         date: grDate,
       });
 

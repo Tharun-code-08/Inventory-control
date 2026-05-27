@@ -1,0 +1,336 @@
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Pencil, Save, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { PageHeader } from '@/components/shared/page-header';
+import { useShops } from '@/hooks/use-shops';
+import {
+  useDocumentSeries,
+  useUpdateDocumentSeries,
+  type DocumentSeriesRestart,
+  type DocumentSeriesRow,
+  type DocumentSeriesUpdateRow,
+} from '@/hooks/use-document-series';
+import { getApiErrorMessage } from '@/lib/api-error';
+
+const RESTART_LABELS: Record<DocumentSeriesRestart, string> = {
+  NONE: 'None',
+  MONTHLY: 'Monthly',
+  YEARLY: 'Yearly',
+};
+
+const COMPANY_SCOPE = '__company__';
+
+type EditableRow = DocumentSeriesUpdateRow & {
+  moduleLabel: string;
+  preview: string;
+  currentSequence: number | null;
+  isOverride: boolean;
+  shopScoped: boolean;
+};
+
+function toEditableRows(rows: DocumentSeriesRow[]): EditableRow[] {
+  return rows.map((row) => ({
+    docType: row.docType,
+    moduleLabel: row.moduleLabel,
+    prefix: row.prefix,
+    startingNumber: row.startingNumber,
+    padWidth: row.padWidth,
+    restartPeriod: row.restartPeriod,
+    shopScoped: row.shopScoped,
+    enabled: row.enabled,
+    useCategoryPrefix: row.useCategoryPrefix,
+    preview: row.preview,
+    currentSequence: row.currentSequence,
+    isOverride: row.isOverride,
+  }));
+}
+
+function buildPreview(row: EditableRow, shopNumber: string): string {
+  const basePrefix = (row.prefix ?? '').toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'DOC';
+  const prefix = row.shopScoped
+    ? `${basePrefix}-${shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'HQ001'}`
+    : basePrefix;
+  const padded = String(row.startingNumber ?? 1).padStart(row.padWidth ?? 5, '0');
+  if (row.restartPeriod === 'NONE') return `${prefix}-${padded}`;
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const bucket = row.restartPeriod === 'YEARLY' ? `${y}` : `${y}${m}`;
+  return `${prefix}-${bucket}-${padded}`;
+}
+
+export function TransactionNumberSeriesSection() {
+  const { data: shops = [] } = useShops();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scopeShopId = searchParams.get('shopId') || COMPANY_SCOPE;
+  const selectedShopId = scopeShopId === COMPANY_SCOPE ? null : scopeShopId;
+  const previewShopNumber =
+    shops.find((shop) => shop.id === selectedShopId)?.shopNumber ??
+    shops[0]?.shopNumber ??
+    'HQ001';
+
+  const { data: rows = [], isLoading, refetch } = useDocumentSeries(selectedShopId);
+  const updateSeries = useUpdateDocumentSeries(selectedShopId);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<EditableRow[]>([]);
+
+  const effectiveRows = useMemo(
+    () => (editing ? draft : toEditableRows(rows)),
+    [draft, editing, rows],
+  );
+
+  const onScopeChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'customization');
+    next.set('section', 'transaction-number-series');
+    if (value === COMPANY_SCOPE) next.delete('shopId');
+    else next.set('shopId', value);
+    setSearchParams(next, { replace: true });
+    setEditing(false);
+  };
+
+  const startEdit = () => {
+    setDraft(toEditableRows(rows));
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setDraft([]);
+    setEditing(false);
+  };
+
+  const save = async () => {
+    try {
+      const payload: DocumentSeriesUpdateRow[] = draft.map((row) => ({
+        docType: row.docType,
+        prefix: row.prefix,
+        startingNumber: row.startingNumber,
+        padWidth: row.padWidth,
+        restartPeriod: row.restartPeriod,
+        shopScoped: row.shopScoped,
+        enabled: row.enabled,
+        useCategoryPrefix: row.useCategoryPrefix,
+      }));
+      await updateSeries.mutateAsync(payload);
+      toast.success('Transaction number series updated');
+      setEditing(false);
+      setDraft([]);
+      await refetch();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to update transaction number series'));
+    }
+  };
+
+  const updateDraftRow = (docType: string, patch: Partial<EditableRow>) => {
+    setDraft((current) =>
+      current.map((row) => (row.docType === docType ? { ...row, ...patch } : row)),
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <PageHeader
+              title="Transaction Number Series"
+              description="Customize prefixes, starting numbers, and restart policy for each module."
+            />
+            <div className="flex items-center gap-2">
+              {!editing ? (
+                <Button size="sm" variant="outline" onClick={startEdit} disabled={isLoading}>
+                  <Pencil className="mr-1 h-4 w-4" />
+                  Edit
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={cancelEdit}>
+                    <X className="mr-1 h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={save} disabled={updateSeries.isPending}>
+                    <Save className="mr-1 h-4 w-4" />
+                    Save
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {!selectedShopId && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Update the transaction number series for the new financial year. These company defaults
+          apply to all plants unless a plant override exists.
+        </div>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Scope</CardTitle>
+        </CardHeader>
+        <CardContent className="max-w-md">
+          <Label htmlFor="series-scope">Apply settings to</Label>
+          <Select value={scopeShopId} onValueChange={onScopeChange}>
+            <SelectTrigger id="series-scope" className="mt-2">
+              <SelectValue placeholder="Select scope" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={COMPANY_SCOPE}>Company default</SelectItem>
+              {shops.map((shop) => (
+                <SelectItem key={shop.id} value={shop.id}>
+                  {shop.shopNumber} — {shop.shopName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Default Series</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Module</TableHead>
+                <TableHead>Prefix</TableHead>
+                <TableHead>Starting Number</TableHead>
+                <TableHead>Restart Numbering</TableHead>
+                <TableHead>Current Seq</TableHead>
+                <TableHead>Preview</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    Loading series…
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading &&
+                effectiveRows.map((row) => (
+                  <TableRow key={row.docType}>
+                    <TableCell>
+                      <div className="font-medium">{row.moduleLabel}</div>
+                      {selectedShopId && row.isOverride && (
+                        <div className="text-xs text-muted-foreground">Plant override</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editing ? (
+                        <Input
+                          value={row.prefix}
+                          onChange={(e) => updateDraftRow(row.docType, { prefix: e.target.value })}
+                          className="h-8 w-28"
+                        />
+                      ) : (
+                        row.prefix || '—'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editing ? (
+                        <Input
+                          type="number"
+                          min={1}
+                          value={row.startingNumber}
+                          onChange={(e) =>
+                            updateDraftRow(row.docType, {
+                              startingNumber: Number(e.target.value) || 1,
+                            })
+                          }
+                          className="h-8 w-24"
+                        />
+                      ) : (
+                        String(row.startingNumber).padStart(row.padWidth ?? 5, '0')
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editing ? (
+                        <Select
+                          value={row.restartPeriod}
+                          onValueChange={(value: DocumentSeriesRestart) =>
+                            updateDraftRow(row.docType, { restartPeriod: value })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">None</SelectItem>
+                            <SelectItem value="MONTHLY">Monthly</SelectItem>
+                            <SelectItem value="YEARLY">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        RESTART_LABELS[row.restartPeriod ?? 'MONTHLY']
+                      )}
+                    </TableCell>
+                    <TableCell>{row.currentSequence ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {editing ? buildPreview(row, previewShopNumber) : row.preview}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {!isLoading && effectiveRows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    No series configured yet.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {editing && effectiveRows.some((row) => row.docType === 'PRD') && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Products</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-medium">Use category prefix</div>
+              <div className="text-sm text-muted-foreground">
+                When enabled, product codes follow category prefixes like ELE001. When disabled,
+                products use the configured PRD series.
+              </div>
+            </div>
+            <Switch
+              checked={draft.find((row) => row.docType === 'PRD')?.useCategoryPrefix ?? true}
+              onCheckedChange={(checked) =>
+                updateDraftRow('PRD', { useCategoryPrefix: checked })
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

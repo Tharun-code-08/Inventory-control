@@ -449,6 +449,8 @@ const csvColumns: CsvColumn<Supplier>[] = [
   { header: 'Contact', value: (s) => s.contactPerson },
   { header: 'Email', value: (s) => s.email },
   { header: 'Phone', value: (s) => s.phone },
+  { header: 'GSTIN', value: (s) => s.taxId },
+  { header: 'PAN', value: (s) => s.vatNumber },
   { header: 'Rating', value: (s) => s.rating },
   { header: 'Status', value: (s) => (s.isActive ? 'Active' : 'Inactive') },
 ];
@@ -739,6 +741,12 @@ export function SuppliersPage() {
                             '—'
                           )}
                         </TableCell>
+                        <TableCell className="font-mono text-xs text-slate-700">
+                          {s.taxId || '—'}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-slate-700">
+                          {s.vatNumber || '—'}
+                        </TableCell>
                         <TableCell>
                           <StarRating value={s.rating} />
                         </TableCell>
@@ -881,6 +889,8 @@ export function SuppliersPage() {
                   ['Contact', viewSupplier.contactPerson],
                   ['Email', viewSupplier.email],
                   ['Phone', viewSupplier.phone],
+                  ['GSTIN', viewSupplier.taxId],
+                  ['PAN', viewSupplier.vatNumber],
                   ['Payment terms', viewSupplier.paymentTerms],
                   ['Address', [viewSupplier.street, viewSupplier.city, viewSupplier.country].filter(Boolean).join(', ')],
                 ].map(([label, val]) => (

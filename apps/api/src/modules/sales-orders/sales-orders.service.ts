@@ -143,10 +143,9 @@ export class SalesOrdersService {
     const { lines, total, totalDiscount, totalTax } = this.computeLineTotals(dto.items);
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      const soNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const soNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId,
         docType: 'SO',
-        basePrefix: 'SO',
         date: orderDate,
       });
 

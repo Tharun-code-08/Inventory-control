@@ -19,6 +19,7 @@ import {
   Send,
   Cookie,
   DatabaseBackup,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -77,6 +78,7 @@ import { CookiePreferencesTab } from '@/components/settings/CookiePreferencesTab
 import { SettingsMfaCard } from '@/components/settings/SettingsMfaCard';
 import { SettingsRolesTab } from '@/components/settings/SettingsRolesTab';
 import { SettingsBackupTab } from '@/components/settings/SettingsBackupTab';
+import { SettingsCustomizationTab } from '@/components/settings/SettingsCustomizationTab';
 import { useSubscription } from '@/hooks/use-subscription';
 import { backupsAllowed } from '@/lib/plans';
 import {
@@ -1192,6 +1194,7 @@ export function SettingsPage() {
       allowed.add('users');
       allowed.add('categories');
       allowed.add('roles');
+      allowed.add('customization');
     }
     if (requested && allowed.has(requested)) return requested;
     return 'profile';
@@ -1211,7 +1214,14 @@ export function SettingsPage() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(tab) => setSearchParams({ tab }, { replace: true })}
+          onValueChange={(tab) => {
+            const next = new URLSearchParams(searchParams);
+            next.set('tab', tab);
+            if (tab === 'customization' && !next.get('section')) {
+              next.set('section', 'transaction-number-series');
+            }
+            setSearchParams(next, { replace: true });
+          }}
           className="space-y-4"
         >
           <TabsList className="h-auto w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-2">
@@ -1249,6 +1259,12 @@ export function SettingsPage() {
               <TabsTrigger value="roles" className="gap-1.5">
                 <Shield className="h-3.5 w-3.5" />
                 Roles & Permissions
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="customization" className="gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Customization
               </TabsTrigger>
             )}
           </TabsList>
@@ -1290,6 +1306,12 @@ export function SettingsPage() {
           {isAdmin && (
             <TabsContent value="roles">
               <SettingsRolesTab />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="customization">
+              <SettingsCustomizationTab />
             </TabsContent>
           )}
         </Tabs>

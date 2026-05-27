@@ -16,6 +16,7 @@ export type SupplierBill = {
   shopId: string;
   supplierId: string;
   supplier?: { id: string; supplierCode?: string; supplierName: string };
+  purchaseOrder?: { poNumber: string } | null;
 };
 
 export type SupplierBillFilters = {

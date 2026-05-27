@@ -99,10 +99,9 @@ export class GoodsIssuesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const giNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const giNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: params.shopId,
         docType: 'GI',
-        basePrefix: 'GI',
         date: giDate,
       });
 

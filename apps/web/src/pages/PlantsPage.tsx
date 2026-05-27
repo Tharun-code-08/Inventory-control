@@ -17,6 +17,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Sheet,
@@ -54,6 +61,8 @@ type PlantFormState = {
 };
 
 type LocationDraft = { code: string; name: string; description: string };
+
+const CREATE_NEW_STORAGE_CODE = '__create_new__';
 
 const emptyForm = (): PlantFormState => ({
   shopNumber: '',
@@ -110,6 +119,7 @@ type PlantFormFieldsProps = {
   storageLocations: LocationDraft[];
   setStorageLocations: React.Dispatch<React.SetStateAction<LocationDraft[]>>;
   showStorageLocations: boolean;
+  existingStorageCodes: string[];
   firstFieldRef?: React.RefObject<HTMLInputElement | null>;
 };
 
@@ -119,6 +129,7 @@ function PlantFormFields({
   storageLocations,
   setStorageLocations,
   showStorageLocations,
+  existingStorageCodes,
   firstFieldRef,
 }: PlantFormFieldsProps) {
   return (
@@ -180,17 +191,57 @@ function PlantFormFields({
               Add Location
             </Button>
           </div>
-          {storageLocations.map((location, index) => (
+          {storageLocations.map((location, index) => {
+            const normalizedCode = location.code.trim().toUpperCase();
+            const matchesExisting = existingStorageCodes.includes(normalizedCode);
+            const selectValue =
+              !normalizedCode || !matchesExisting ? CREATE_NEW_STORAGE_CODE : normalizedCode;
+
+            return (
             <div key={index} className="grid gap-3 lg:grid-cols-3">
-              <Input
-                placeholder="Code"
-                value={location.code}
-                onChange={(e) =>
-                  setStorageLocations((prev) =>
-                    prev.map((row, i) => (i === index ? { ...row, code: e.target.value } : row)),
-                  )
-                }
-              />
+              <div className="space-y-2">
+                <Select
+                  value={selectValue}
+                  onValueChange={(value) => {
+                    if (value === CREATE_NEW_STORAGE_CODE) {
+                      setStorageLocations((prev) =>
+                        prev.map((row, i) => (i === index ? { ...row, code: '' } : row)),
+                      );
+                      return;
+                    }
+                    setStorageLocations((prev) =>
+                      prev.map((row, i) =>
+                        i === index ? { ...row, code: value, name: row.name || value } : row,
+                      ),
+                    );
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Storage code" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingStorageCodes.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {code}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CREATE_NEW_STORAGE_CODE}>Create new…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectValue === CREATE_NEW_STORAGE_CODE && (
+                  <Input
+                    placeholder="New code"
+                    value={location.code}
+                    onChange={(e) =>
+                      setStorageLocations((prev) =>
+                        prev.map((row, i) =>
+                          i === index ? { ...row, code: e.target.value.toUpperCase() } : row,
+                        ),
+                      )
+                    }
+                  />
+                )}
+              </div>
               <Input
                 placeholder="Name"
                 value={location.name}
@@ -224,7 +275,8 @@ function PlantFormFields({
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -348,6 +400,12 @@ function PlantsListView() {
     }
     return map;
   }, [allLocations]);
+
+  const existingStorageCodes = useMemo(
+    () =>
+      [...new Set(allLocations.map((loc) => loc.code.trim().toUpperCase()).filter(Boolean))].sort(),
+    [allLocations],
+  );
 
   const stats = useMemo(() => {
     const total = plants.length;
@@ -517,6 +575,7 @@ function PlantsListView() {
               storageLocations={storageLocations}
               setStorageLocations={setStorageLocations}
               showStorageLocations={false}
+              existingStorageCodes={existingStorageCodes}
               firstFieldRef={firstFieldRef}
             />
             {editingPlant && !editingPlant.isActive && (
@@ -615,6 +674,12 @@ function PlantsCreateView() {
   const navigate = useNavigate();
   const createPlant = useCreateShop();
   const createStorageLocation = useCreateStorageLocation();
+  const { data: allLocations = [] } = useStorageLocations();
+  const existingStorageCodes = useMemo(
+    () =>
+      [...new Set(allLocations.map((loc) => loc.code.trim().toUpperCase()).filter(Boolean))].sort(),
+    [allLocations],
+  );
   const [form, setForm] = useState(emptyForm());
   const [storageLocations, setStorageLocations] = useState<LocationDraft[]>([
     { code: '', name: '', description: '' },
@@ -689,6 +754,7 @@ function PlantsCreateView() {
             storageLocations={storageLocations}
             setStorageLocations={setStorageLocations}
             showStorageLocations
+            existingStorageCodes={existingStorageCodes}
             firstFieldRef={firstFieldRef}
           />
           <Button

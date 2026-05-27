@@ -132,6 +132,17 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
   }
 
   push('settings', 'Settings', 'Preferences', '/settings', 'System', Settings, ['profile']);
+  if (hasPerm(user, 'user:manage') || user?.role === 'OWNER' || user?.role === 'ADMIN') {
+    push(
+      'transaction-number-series',
+      'Transaction Number Series',
+      'Customize document prefixes',
+      '/settings?tab=customization&section=transaction-number-series',
+      'System',
+      Settings,
+      ['series', 'prefix', 'number', 'customization'],
+    );
+  }
   push('help', 'Help & Support', 'Guides and workflows', '/help', 'System', HelpCircle, [
     'faq',
     'guide',

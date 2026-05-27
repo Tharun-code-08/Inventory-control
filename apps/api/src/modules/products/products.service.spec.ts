@@ -151,7 +151,13 @@ describe('ProductsService bulk workflow', () => {
 
     const stock = { postMovement: jest.fn() };
     const subscriptions = { assertSkuLimit: jest.fn().mockResolvedValue(undefined) };
-    const service = new ProductsService(prisma as never, stock as never, subscriptions as never);
+    const service = new ProductsService(
+      prisma as never,
+      stock as never,
+      subscriptions as never,
+      {} as never,
+      {} as never,
+    );
 
     const result = await service.bulkUpsert(makeUser(), {
       validateOnly: true,
@@ -205,7 +211,13 @@ describe('ProductsService bulk workflow', () => {
 
     const stock = { postMovement: jest.fn().mockResolvedValue(undefined) };
     const subscriptions = { assertSkuLimit: jest.fn().mockResolvedValue(undefined) };
-    const service = new ProductsService(prisma as never, stock as never, subscriptions as never);
+    const service = new ProductsService(
+      prisma as never,
+      stock as never,
+      subscriptions as never,
+      {} as never,
+      {} as never,
+    );
 
     const result = await service.bulkUpsert(makeUser(), {
       validateOnly: false,
@@ -248,7 +260,13 @@ describe('ProductsService bulk workflow', () => {
     const prisma = makePrisma();
     const stock = { postMovement: jest.fn() };
     const subscriptions = { assertSkuLimit: jest.fn() };
-    const service = new ProductsService(prisma as never, stock as never, subscriptions as never);
+    const service = new ProductsService(
+      prisma as never,
+      stock as never,
+      subscriptions as never,
+      {} as never,
+      {} as never,
+    );
 
     jest.spyOn(service, 'get').mockResolvedValue(
       makeProduct({ plants: [] }) as never,

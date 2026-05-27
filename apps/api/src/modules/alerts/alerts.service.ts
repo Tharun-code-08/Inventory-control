@@ -140,19 +140,88 @@ export class AlertsService {
     );
     if (already) return already;
 
-    const events: Array<{ alertType: AlertType; title: string; message: string; shopId: string }> = [];
+    const events: Array<{
+      alertType: AlertType;
+      title: string;
+      message: string;
+      shopId: string;
+      referenceType?: string;
+      referenceId?: string;
+    }> = [];
 
-    const lowStock = await this.prisma.stockSummary.findMany({
-      where: { currentStock: { lt: 1 } },
-      include: { product: true },
-      take: 200,
+    const lowStockRows = await this.prisma.$queryRaw<
+      Array<{
+        shop_id: string;
+        product_id: string;
+        product_code: string;
+        description: string;
+        current_stock: string;
+        min_stock_level: string;
+      }>
+    >`
+      SELECT pp.shop_id,
+             p.id AS product_id,
+             p.product_code,
+             p.description,
+             COALESCE(s.current_stock, 0)::text AS current_stock,
+             pp.min_stock_level::text AS min_stock_level
+      FROM product_plants pp
+      INNER JOIN products p ON p.id = pp.product_id
+      LEFT JOIN stock_summary s
+        ON s.shop_id = pp.shop_id
+       AND s.product_id = pp.product_id
+      WHERE pp.is_active = true
+        AND COALESCE(s.current_stock, 0) < pp.min_stock_level
+      LIMIT 200
+    `;
+
+    const activeLowStockKeys = new Set(
+      lowStockRows.map((row) => `${row.shop_id}:${row.product_id}`),
+    );
+
+    const openLowStockAlerts = await this.prisma.alertEvent.findMany({
+      where: {
+        alertType: AlertType.LOW_STOCK,
+        resolvedAt: null,
+        referenceType: 'PRODUCT',
+      },
+      select: { id: true, shopId: true, referenceId: true },
+      take: 500,
     });
-    for (const row of lowStock) {
+
+    const openLowStockKeys = new Set(
+      openLowStockAlerts
+        .filter((alert) => alert.shopId && alert.referenceId)
+        .map((alert) => `${alert.shopId}:${alert.referenceId}`),
+    );
+
+    const staleAlertIds = openLowStockAlerts
+      .filter((alert) => {
+        if (!alert.shopId || !alert.referenceId) return false;
+        return !activeLowStockKeys.has(`${alert.shopId}:${alert.referenceId}`);
+      })
+      .map((alert) => alert.id);
+
+    if (staleAlertIds.length > 0) {
+      await this.prisma.alertEvent.updateMany({
+        where: { id: { in: staleAlertIds } },
+        data: { resolvedAt: new Date(), isRead: true },
+      });
+    }
+
+    for (const row of lowStockRows) {
+      const key = `${row.shop_id}:${row.product_id}`;
+      if (openLowStockKeys.has(key)) continue;
+
+      const currentStock = Number(row.current_stock ?? '0');
+      const minStock = Number(row.min_stock_level ?? '0');
       events.push({
         alertType: AlertType.LOW_STOCK,
-        title: `Low stock: ${row.product.productCode}`,
-        message: `${row.product.description} is below minimum stock level.`,
-        shopId: row.shopId,
+        title: `Low stock: ${row.product_code}`,
+        message: `${row.description} is below minimum stock level (${currentStock} / ${minStock}).`,
+        shopId: row.shop_id,
+        referenceType: 'PRODUCT',
+        referenceId: row.product_id,
       });
     }
 
@@ -198,6 +267,8 @@ export class AlertsService {
           title: evt.title,
           message: evt.message,
           shopId: evt.shopId,
+          referenceType: evt.referenceType ?? null,
+          referenceId: evt.referenceId ?? null,
           severity: 'HIGH',
         })),
         skipDuplicates: false,

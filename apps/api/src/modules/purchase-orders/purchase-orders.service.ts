@@ -212,7 +212,11 @@ export class PurchaseOrdersService {
   private withLifecycle(
     po: {
       status: PurchaseOrderStatus;
-      items: Array<{ productId: string; orderQty: Prisma.Decimal | number }>;
+      items: Array<{
+        productId: string;
+        orderQty: Prisma.Decimal | number;
+        product?: { productCode?: string | null } | null;
+      }>;
       goodsReceipts?: Array<{ status: string; items?: Array<{ productId: string; quantity: Prisma.Decimal | number }> }>;
       supplierReturns?: Array<{ status: string; items?: Array<{ productId: string; quantity: Prisma.Decimal | number }> }>;
     },
@@ -250,6 +254,7 @@ export class PurchaseOrdersService {
       const remainingQty = ordered.sub(receivedQty);
       return {
         productId: line.productId,
+        productCode: line.product?.productCode ?? null,
         orderedQty: ordered,
         receivedQty,
         remainingQty: remainingQty.lt(0) ? new Prisma.Decimal(0) : remainingQty,
@@ -301,6 +306,7 @@ export class PurchaseOrdersService {
       (po as {
         receiptProgress?: Array<{
           productId: string;
+          productCode?: string | null;
           orderedQty: Prisma.Decimal;
           receivedQty: Prisma.Decimal;
           remainingQty: Prisma.Decimal;
@@ -351,6 +357,7 @@ export class PurchaseOrdersService {
       })),
       receiptProgress: receiptProgress.map((row) => ({
         productId: row.productId,
+        productCode: row.productCode ?? undefined,
         orderedQty: Number(row.orderedQty),
         receivedQty: Number(row.receivedQty),
         remainingQty: Number(row.remainingQty),
@@ -465,10 +472,9 @@ export class PurchaseOrdersService {
       }
       const poNumber =
         manualNumber ||
-        (await this.numbers.nextShopScopedNumber(tx, {
+        (await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId: dto.shopId,
           docType: 'PO',
-          basePrefix: 'PO',
           date: poDate,
         }));
 

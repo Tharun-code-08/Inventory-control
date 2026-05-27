@@ -126,10 +126,9 @@ export class SalesQuotationsService {
     const { lines, total } = this.computeLines(dto.items);
 
     return this.prisma.$transaction(async (tx) => {
-      const quoteNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const quoteNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId,
         docType: 'SQT',
-        basePrefix: 'QT',
         date: quoteDate,
       });
 
@@ -316,10 +315,9 @@ export class SalesQuotationsService {
     const orderDate = new Date();
 
     return this.prisma.$transaction(async (tx) => {
-      const soNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const soNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: row.shopId,
         docType: 'SO',
-        basePrefix: 'SO',
         date: orderDate,
       });
 

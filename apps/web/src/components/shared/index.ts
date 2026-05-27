@@ -8,3 +8,4 @@ export { DataTablePagination } from './data-table-pagination';
 export { EmptyState } from './empty-state';
 export { LoadingSkeleton } from './loading-skeleton';
 export { StatusBadge } from './status-badge';
+export { DocumentReferenceSelect } from './document-reference-select';

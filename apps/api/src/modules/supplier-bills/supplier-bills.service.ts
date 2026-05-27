@@ -70,6 +70,7 @@ export class SupplierBillsService {
         shopId: true,
         supplierId: true,
         supplier: { select: { id: true, supplierCode: true, supplierName: true } },
+        purchaseOrder: { select: { poNumber: true } },
       },
     });
     const { items, meta } = buildMeta(rows, take);

@@ -65,10 +65,9 @@ export class CustomersService {
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const customerCode =
         dto.customerCode?.trim() ||
-        (await this.numbers.nextShopScopedNumber(tx, {
+        (await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId,
           docType: 'CUS',
-          basePrefix: 'CUS',
           date: new Date(),
         }));
 

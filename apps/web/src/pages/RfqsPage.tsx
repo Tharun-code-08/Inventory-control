@@ -64,6 +64,7 @@ import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { csvDate, csvList, exportModuleCsv } from '@/lib/module-csv';
+import { formatSupplierReference } from '@/lib/document-display';
 
 type RfqTab = 'all' | 'draft' | 'sent' | 'responses' | 'completed';
 
@@ -250,7 +251,7 @@ export function RfqsPage() {
       {
         header: 'Suppliers',
         value: (rfq) =>
-          csvList(rfq.suppliers.map((entry) => entry.supplier?.supplierName ?? entry.supplierId)),
+          csvList(rfq.suppliers.map((entry) => formatSupplierReference(entry.supplier))),
       },
       { header: 'Items', value: (rfq) => rfq.items.length },
       { header: 'Quotations', value: (rfq) => quotesByRfq.get(rfq.id) ?? 0 },

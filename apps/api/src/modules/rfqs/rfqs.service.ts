@@ -52,11 +52,9 @@ export class RfqsService {
         throw new BadRequestException('Invalid shopId');
       }
 
-      const prefixSafeShop = shop.shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      const rfqNumber = await this.numbers.nextNumber(tx, {
+      const rfqNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId,
         docType: 'RFQ',
-        prefix: `RFQ-${prefixSafeShop}`,
         date: rfqDate,
       });
 

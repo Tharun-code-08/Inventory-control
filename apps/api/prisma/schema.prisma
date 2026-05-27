@@ -140,6 +140,7 @@ model Company {
   backupJobs           BackupJob[]
   backupArtifacts      BackupArtifact[]
   restoreJobs          RestoreJob[]
+  documentSeriesConfigs DocumentSeriesConfig[]
 
   @@map("companies")
 }
@@ -205,6 +206,7 @@ model Shop {
   supplierPayments   SupplierPayment[]
   stockTransfersFrom StockTransferHeader[] @relation("StockTransferFromShop")
   stockTransfersTo   StockTransferHeader[] @relation("StockTransferToShop")
+  documentSeriesConfigs DocumentSeriesConfig[]
 
   @@map("shops")
 }
@@ -1045,6 +1047,38 @@ model SystemSetting {
   updatedById String?  @map("updated_by") @db.Uuid
 
   @@map("system_settings")
+}
+
+enum DocumentSeriesRestart {
+  NONE
+  MONTHLY
+  YEARLY
+}
+
+model DocumentSeriesConfig {
+  id                  String                @id @default(uuid()) @db.Uuid
+  companyId           String                @map("company_id") @db.Uuid
+  shopId              String?               @map("shop_id") @db.Uuid
+  docType             String                @map("doc_type")
+  moduleLabel         String                @map("module_label")
+  prefix              String
+  startingNumber      Int                   @default(1) @map("starting_number")
+  padWidth            Int                   @default(5) @map("pad_width")
+  restartPeriod       DocumentSeriesRestart @default(MONTHLY) @map("restart_period")
+  shopScoped          Boolean               @default(true) @map("shop_scoped")
+  enabled             Boolean               @default(true)
+  useCategoryPrefix   Boolean               @default(true) @map("use_category_prefix")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?               @map("created_by") @db.Uuid
+  updatedById         String?               @map("updated_by") @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shop    Shop?   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, docType])
+  @@index([companyId, shopId, docType])
+  @@map("document_series_config")
 }
 
 enum SalesOrderStatus {

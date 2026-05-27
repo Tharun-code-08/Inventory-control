@@ -3,7 +3,7 @@ import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader } from '@/components/shared/page-header';
+import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { useCustomers } from '@/hooks/use-customers';
 import { useCreateInvoice, useInvoices } from '@/hooks/use-invoices';
 import { useSalesOrders } from '@/hooks/use-sales-orders';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
+import { formatCustomerOption, formatSalesOrderOption } from '@/lib/document-display';
 
 export function InvoicesPage() {
   const { data: invoices = [] } = useInvoices();
@@ -67,12 +68,44 @@ export function InvoicesPage() {
         <Card>
           <CardHeader><CardTitle>Create Invoice</CardTitle></CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Customer ID</Label><Input list="customer-list" value={form.customerId} onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))} /><datalist id="customer-list">{customers.map((c) => <option key={c.id} value={c.id}>{c.customerName}</option>)}</datalist></div>
-            <div className="space-y-2"><Label>Sales Order ID (optional)</Label><Input list="sales-order-list" value={form.salesOrderId} onChange={(e) => setForm((p) => ({ ...p, salesOrderId: e.target.value }))} /><datalist id="sales-order-list">{salesOrders.map((so) => <option key={so.id} value={so.id}>{so.soNumber}</option>)}</datalist></div>
-            <div className="space-y-2"><Label>Total Value</Label><Input type="number" min="0" value={form.totalValue} onChange={(e) => setForm((p) => ({ ...p, totalValue: e.target.value }))} /></div>
-            <div className="space-y-2"><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>Remarks</Label><Input value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} /></div>
-            <div className="md:col-span-2"><Button onClick={onCreate}>Create Invoice</Button></div>
+            <div className="space-y-2">
+              <Label>Customer</Label>
+              <DocumentReferenceSelect
+                items={customers}
+                value={form.customerId}
+                onValueChange={(customerId) => setForm((p) => ({ ...p, customerId }))}
+                getValue={(customer) => customer.id}
+                getLabel={(customer) => formatCustomerOption(customer)}
+                placeholder="Select customer"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Sales Order (optional)</Label>
+              <DocumentReferenceSelect
+                items={salesOrders}
+                value={form.salesOrderId}
+                onValueChange={(salesOrderId) => setForm((p) => ({ ...p, salesOrderId }))}
+                getValue={(order) => order.id}
+                getLabel={(order) => formatSalesOrderOption(order)}
+                placeholder="Select sales order"
+                noneLabel="No sales order"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Total Value</Label>
+              <Input type="number" min="0" value={form.totalValue} onChange={(e) => setForm((p) => ({ ...p, totalValue: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Remarks</Label>
+              <Input value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+            </div>
+            <div className="md:col-span-2">
+              <Button onClick={onCreate}>Create Invoice</Button>
+            </div>
           </CardContent>
         </Card>
 

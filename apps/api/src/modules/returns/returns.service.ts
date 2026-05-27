@@ -155,10 +155,9 @@ export class ReturnsService {
     });
 
     return this.prisma.$transaction(async (tx) => {
-      const number = await this.numbers.nextNumber(tx, {
+      const number = await this.numbers.nextConfiguredNumber(tx, {
         shopId,
         docType: 'CRT',
-        prefix: 'CRT',
         date: returnDate,
       });
       const created = await tx.customerReturn.create({
@@ -474,10 +473,9 @@ export class ReturnsService {
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const draft = await this.resolveSupplierDraftData(tx, user, dto);
-      const number = await this.numbers.nextNumber(tx, {
+      const number = await this.numbers.nextConfiguredNumber(tx, {
         shopId: draft.goodsReceipt.shopId,
         docType: 'SRT',
-        prefix: 'RMO',
         date: returnDate,
       });
 

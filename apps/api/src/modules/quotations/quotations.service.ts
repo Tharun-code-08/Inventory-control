@@ -164,10 +164,9 @@ export class QuotationsService {
     return this.prisma.$transaction(async (tx) => {
       let contract = await tx.contractHeader.findFirst({ where: { quotationId: quote.id } });
       if (!contract) {
-        const contractNumber = await this.numbers.nextShopScopedNumber(tx, {
+        const contractNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId: quote.shopId,
           docType: 'CT',
-          basePrefix: 'CT',
           date: new Date(),
         });
         contract = await tx.contractHeader.create({
@@ -204,10 +203,9 @@ export class QuotationsService {
         new Prisma.Decimal(0),
       );
 
-      const poNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const poNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: quote.shopId,
         docType: 'PO',
-        basePrefix: 'PO',
         date: new Date(),
       });
       const purchaseOrder = await tx.purchaseOrderHeader.create({
@@ -238,10 +236,9 @@ export class QuotationsService {
         },
       });
 
-      const grNumber = await this.numbers.nextShopScopedNumber(tx, {
+      const grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: quote.shopId,
         docType: 'GR',
-        basePrefix: 'GR',
         date: new Date(),
       });
       const goodsReceiptDraft = await tx.goodsReceiptHeader.create({

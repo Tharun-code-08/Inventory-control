@@ -39,6 +39,7 @@ export type PurchaseOrder = {
   lifecycleStatus?: PurchaseOrderLifecycleStatus;
   receiptProgress?: Array<{
     productId: string;
+    productCode?: string;
     orderedQty: number;
     receivedQty: number;
     remainingQty: number;

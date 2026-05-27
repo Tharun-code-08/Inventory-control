@@ -5,6 +5,8 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
+import { DocumentNumberService } from '../stock/document-number.service';
+import { DocumentSeriesService } from '../document-series/document-series.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
 import { BulkProductUpsertDto, BulkProductUpsertRowDto } from './dto/bulk-product-upsert.dto';
@@ -41,6 +43,8 @@ export class ProductsService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly subscriptions: SubscriptionService,
+    private readonly numbers: DocumentNumberService,
+    private readonly series: DocumentSeriesService,
   ) {}
 
   /**
@@ -141,6 +145,24 @@ export class ProductsService {
     const fallback = `${prefix}${Date.now().toString().slice(-6)}`;
     reservedCodes.add(fallback);
     return fallback;
+  }
+
+  private async resolveGeneratedProductCode(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    shopId: string,
+    category: string,
+    reservedCodes: Set<string>,
+  ) {
+    const config = await this.series.resolveEffectiveConfigInTx(tx, companyId, shopId, 'PRD');
+    if (config.useCategoryPrefix) {
+      return this.nextGeneratedProductCode(tx, category, reservedCodes);
+    }
+    return this.numbers.nextConfiguredShopScopedNumber(tx, {
+      shopId,
+      docType: 'PRD',
+      date: new Date(),
+    });
   }
 
   private async buildStockBalanceMap(
@@ -977,7 +999,10 @@ export class ProductsService {
     }
 
     const incomingCode = row.productCode?.trim().toUpperCase();
-    const productCode = incomingCode ?? (await this.nextGeneratedProductCode(tx, row.category, reservedCodes));
+    const companyId = requireCompanyId(user);
+    const productCode =
+      incomingCode ??
+      (await this.resolveGeneratedProductCode(tx, companyId, shop.id, row.category, reservedCodes));
     const existing = incomingCode ? productByCode.get(incomingCode) : undefined;
     const action: 'create' | 'update' = existing ? 'update' : 'create';
     const rowLocations = (locationsByShop.get(shop.id) ?? []).filter((location) => location.isActive);

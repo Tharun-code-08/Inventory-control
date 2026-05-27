@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DocumentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionService } from '../billing/subscription.service';
+import { DocumentNumberService } from '../stock/document-number.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope } from '../../common/utils/shop-scope';
 import { CreateContractDto, CreateContractItemDto } from './dto/create-contract.dto';
@@ -12,6 +13,7 @@ export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionService,
+    private readonly numbers: DocumentNumberService,
   ) {}
 
   async list(user: RequestUser) {
@@ -31,38 +33,44 @@ export class ContractsService {
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
     await this.subscriptions.assertFeatureForShop(shopId, 'contracts');
-    const count = await this.prisma.contractHeader.count({ where: { shopId } });
-    const contractNumber = `CT-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
-    return this.prisma.contractHeader.create({
-      data: {
-        contractNumber,
+    const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const contractNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId,
-        supplierId: dto.supplierId,
-        rfqId: dto.rfqId ?? null,
-        title: dto.title,
-        paymentTerms: dto.paymentTerms ?? null,
-        startDate: dto.startDate ? new Date(dto.startDate) : new Date(),
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
-        notes: dto.notes ?? null,
-        status: DocumentStatus.DRAFT,
-        createdById: user.id,
-        items: {
-          create: (dto.items ?? []).map((item: CreateContractItemDto) => ({
-            productId: item.productId ?? null,
-            description: item.description ?? null,
-            quantity: new Prisma.Decimal(item.quantity ?? 0),
-            uom: item.uom ?? 'UNIT',
-            unitPrice: new Prisma.Decimal(item.unitPrice ?? 0),
-            lineValue: new Prisma.Decimal((item.quantity ?? 0) * (item.unitPrice ?? 0)),
-            createdById: user.id,
-          })),
+        docType: 'CT',
+        date: startDate,
+      });
+      return tx.contractHeader.create({
+        data: {
+          contractNumber,
+          shopId,
+          supplierId: dto.supplierId,
+          rfqId: dto.rfqId ?? null,
+          title: dto.title,
+          paymentTerms: dto.paymentTerms ?? null,
+          startDate,
+          endDate: dto.endDate ? new Date(dto.endDate) : null,
+          notes: dto.notes ?? null,
+          status: DocumentStatus.DRAFT,
+          createdById: user.id,
+          items: {
+            create: (dto.items ?? []).map((item: CreateContractItemDto) => ({
+              productId: item.productId ?? null,
+              description: item.description ?? null,
+              quantity: new Prisma.Decimal(item.quantity ?? 0),
+              uom: item.uom ?? 'UNIT',
+              unitPrice: new Prisma.Decimal(item.unitPrice ?? 0),
+              lineValue: new Prisma.Decimal((item.quantity ?? 0) * (item.unitPrice ?? 0)),
+              createdById: user.id,
+            })),
+          },
         },
-      },
-      include: {
-        supplier: true,
-        rfq: true,
-        items: { include: { product: true } },
-      },
+        include: {
+          supplier: true,
+          rfq: true,
+          items: { include: { product: true } },
+        },
+      });
     });
   }
 
