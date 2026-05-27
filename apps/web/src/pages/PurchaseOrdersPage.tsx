@@ -419,7 +419,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [supplierBills, detailPO?.id],
   );
 
-  const productsQuery = useProducts({ isActive: true, limit: 200, page: 1 });
   const { data: rfqs = [] } = useRfqs();
   const rfqMap = useMemo(() => new Map(rfqs.map((r) => [r.id, r])), [rfqs]);
   const { data: contracts = [] } = useContracts();
@@ -433,15 +432,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     email: '',
     phone: '',
   });
-  const products = useMemo(() => {
-    const raw = productsQuery.data;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw as Product[];
-    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: Product[] }).rows;
-    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: Product[] }).data;
-    return [];
-  }, [productsQuery.data]);
-
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
@@ -472,6 +462,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const manualNumberEnabled = form.watch('useManualPoNumber');
   const resolvedDeliveryPlantId =
     selectedDeliveryPlantId || shopId || (shops.length === 1 ? shops[0]?.id : '') || '';
+  const productsQuery = useProducts({
+    shopId: resolvedDeliveryPlantId || shopId || undefined,
+    isActive: true,
+    limit: 200,
+    page: 1,
+  });
+  const products = useMemo(
+    () => productsQuery.data?.items ?? [],
+    [productsQuery.data],
+  );
   const { data: storageLocations = [] } = useStorageLocations(resolvedDeliveryPlantId || undefined);
   const resolvedStorageLocationId =
     selectedStorageLocationId ||
