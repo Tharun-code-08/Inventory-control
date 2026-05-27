@@ -206,6 +206,7 @@ export class MailService implements OnModuleInit {
   async sendMail(args: {
     to: string;
     cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     text: string;
     html: string;
@@ -225,7 +226,7 @@ export class MailService implements OnModuleInit {
       replyTo,
       to: args.to,
       cc: args.cc,
-      bcc: bcc || undefined,
+      bcc: (args.bcc ?? bcc) || undefined,
       subject: args.subject,
       text: args.text,
       html: args.html,
@@ -284,6 +285,10 @@ export class MailService implements OnModuleInit {
     rfqTitle: string;
     deadline?: Date | null;
     recipients: RfqInviteRecipient[];
+    shopId?: string | null;
+    prepareInvite?: (content: RfqInviteEmailContent) =>
+      | { enabled: false }
+      | { enabled: true; subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<RfqInviteDeliverySummary> {
     if (!this.isConfigured()) {
       return {
@@ -343,12 +348,26 @@ export class MailService implements OnModuleInit {
         supplierName: recipient.supplierName,
       });
 
+      const prepared = args.prepareInvite?.(content);
+      if (prepared && !prepared.enabled) {
+        results.push({
+          supplierId: recipient.supplierId,
+          supplierName: recipient.supplierName,
+          email,
+          status: 'skipped',
+          error: 'Email template disabled',
+        });
+        continue;
+      }
+
       try {
         const delivery = await this.sendMail({
           to: email,
-          subject: rfqInviteSubject(content),
-          text: rfqInviteText(content),
-          html: rfqInviteHtml(content),
+          subject: prepared?.enabled ? prepared.subject : rfqInviteSubject(content),
+          text: prepared?.enabled ? prepared.text : rfqInviteText(content),
+          html: prepared?.enabled ? prepared.html : rfqInviteHtml(content),
+          cc: prepared?.enabled ? prepared.cc : undefined,
+          bcc: prepared?.enabled ? prepared.bcc : undefined,
         });
         results.push({
           supplierId: recipient.supplierId,
@@ -434,6 +453,7 @@ export class MailService implements OnModuleInit {
   async sendSalesQuotationToCustomer(args: {
     to: string;
     content: SalesQuotationEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
     if (!this.isConfigured()) {
       throw new Error(
@@ -442,9 +462,11 @@ export class MailService implements OnModuleInit {
     }
     return this.sendMail({
       to: args.to,
-      subject: salesQuotationSubject(args.content),
-      text: salesQuotationText(args.content),
-      html: salesQuotationHtml(args.content),
+      subject: args.overrides?.subject ?? salesQuotationSubject(args.content),
+      text: args.overrides?.text ?? salesQuotationText(args.content),
+      html: args.overrides?.html ?? salesQuotationHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
     });
   }
@@ -453,6 +475,7 @@ export class MailService implements OnModuleInit {
     to: string;
     content: PurchaseOrderEmailContent;
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
     if (!this.isConfigured()) {
       throw new Error(
@@ -461,9 +484,11 @@ export class MailService implements OnModuleInit {
     }
     return this.sendMail({
       to: args.to,
-      subject: purchaseOrderSubject(args.content),
-      text: purchaseOrderText(args.content),
-      html: purchaseOrderHtml(args.content),
+      subject: args.overrides?.subject ?? purchaseOrderSubject(args.content),
+      text: args.overrides?.text ?? purchaseOrderText(args.content),
+      html: args.overrides?.html ?? purchaseOrderHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
       attachments: args.attachments,
     });
@@ -474,6 +499,7 @@ export class MailService implements OnModuleInit {
     cc?: string | string[];
     content: ReturnNoticeEmailContent;
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
     if (!this.isConfigured()) {
       throw new Error(
@@ -482,10 +508,11 @@ export class MailService implements OnModuleInit {
     }
     return this.sendMail({
       to: args.to,
-      cc: args.cc,
-      subject: returnNoticeSubject(args.content),
-      text: returnNoticeText(args.content),
-      html: returnNoticeHtml(args.content),
+      cc: args.overrides?.cc ?? args.cc,
+      subject: args.overrides?.subject ?? returnNoticeSubject(args.content),
+      text: args.overrides?.text ?? returnNoticeText(args.content),
+      html: args.overrides?.html ?? returnNoticeHtml(args.content),
+      bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
       attachments: args.attachments,
     });
@@ -574,6 +601,54 @@ export class MailService implements OnModuleInit {
       text: passwordResetLinkText(content),
       html: passwordResetLinkHtml(content),
       fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendInvoiceCreated(args: {
+    to: string;
+    content: import('./transactional-email.templates').InvoiceCreatedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+  }): Promise<EmailDeliveryResult> {
+    const {
+      invoiceCreatedHtml,
+      invoiceCreatedSubject,
+      invoiceCreatedText,
+    } = await import('./transactional-email.templates');
+    if (!this.isConfigured()) {
+      throw new Error('SMTP is not configured');
+    }
+    return this.sendMail({
+      to: args.to,
+      subject: args.overrides?.subject ?? invoiceCreatedSubject(args.content),
+      text: args.overrides?.text ?? invoiceCreatedText(args.content),
+      html: args.overrides?.html ?? invoiceCreatedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+    });
+  }
+
+  async sendPaymentReceived(args: {
+    to: string;
+    content: import('./transactional-email.templates').PaymentReceivedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+  }): Promise<EmailDeliveryResult> {
+    const {
+      paymentReceivedHtml,
+      paymentReceivedSubject,
+      paymentReceivedText,
+    } = await import('./transactional-email.templates');
+    if (!this.isConfigured()) {
+      throw new Error('SMTP is not configured');
+    }
+    return this.sendMail({
+      to: args.to,
+      subject: args.overrides?.subject ?? paymentReceivedSubject(args.content),
+      text: args.overrides?.text ?? paymentReceivedText(args.content),
+      html: args.overrides?.html ?? paymentReceivedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
     });
   }
 

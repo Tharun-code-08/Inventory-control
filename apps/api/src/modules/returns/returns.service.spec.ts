@@ -169,6 +169,7 @@ function makeService() {
     mail,
     config,
     returnImages,
+    { prepareTemplateForShop: jest.fn() } as any,
   );
 
   return { service, prisma, tx, stock, costing, numbers, audit, mail, returnImages };

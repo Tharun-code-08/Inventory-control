@@ -46,8 +46,25 @@ const subscriptions = () =>
   }) as any;
 
 function makePaymentsService(prisma: any, audit = makeAudit(), numbers = makeNumbers()) {
-  return new PaymentsService(prisma, audit as any, numbers as any, subscriptions());
+  return new PaymentsService(
+    prisma,
+    audit as any,
+    numbers as any,
+    subscriptions(),
+    emailNotifications(),
+    mail(),
+  );
 }
+
+const emailNotifications = () =>
+  ({
+    prepareTemplateForShop: jest.fn(),
+  }) as any;
+const mail = () =>
+  ({
+    isConfigured: jest.fn().mockReturnValue(false),
+    sendPaymentReceived: jest.fn(),
+  }) as any;
 
 const shopUser: RequestUser = {
   id: 'user-shop',

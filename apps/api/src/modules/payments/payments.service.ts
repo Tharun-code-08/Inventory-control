@@ -10,6 +10,10 @@ import { getIdempotentResult, setIdempotentResult } from '../../common/utils/ide
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { paymentReceivedDefaults } from '../email-notifications/email-notifications.outbound';
+import type { PaymentReceivedEmailContent } from '../../common/mail/transactional-email.templates';
+import { MailService } from '../../common/mail/mail.service';
 
 @Injectable()
 export class PaymentsService {
@@ -18,6 +22,8 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly numbers: DocumentNumberService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async list(
@@ -129,7 +135,7 @@ export class PaymentsService {
           remarks: dto.remarks ?? null,
           createdById: user.id,
         },
-        include: { invoice: true, shop: true },
+        include: { invoice: { include: { customer: true } }, shop: true },
       });
 
       await this.audit.log(
@@ -157,6 +163,62 @@ export class PaymentsService {
       );
 
       return payment;
+    }).then(async (payment) => {
+      await this.sendPaymentReceivedEmail(payment).catch(() => undefined);
+      return payment;
+    });
+  }
+
+  private async sendPaymentReceivedEmail(payment: {
+    receiptNumber: string;
+    amount: Prisma.Decimal;
+    shopId: string;
+    invoice: {
+      invoiceNumber: string;
+      totalValue: Prisma.Decimal;
+      paidValue: Prisma.Decimal;
+      customer?: { customerName: string; email: string | null } | null;
+    };
+  }) {
+    const recipient = payment.invoice.customer?.email?.trim();
+    if (!recipient) return;
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: payment.shopId },
+      select: { company: { select: { companyName: true } } },
+    });
+
+    const formatMoney = (value: Prisma.Decimal | number) =>
+      new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+
+    const balance = Number(payment.invoice.totalValue) - Number(payment.invoice.paidValue);
+    const content: PaymentReceivedEmailContent = {
+      customerName: payment.invoice.customer?.customerName ?? 'Customer',
+      invoiceNumber: payment.invoice.invoiceNumber,
+      receiptNumber: payment.receiptNumber,
+      amountPaid: formatMoney(payment.amount),
+      balanceDue: formatMoney(Math.max(balance, 0)),
+      paymentType: balance <= 0 ? 'Full' : 'Partial',
+      companyName: shop?.company?.companyName ?? 'Softdigit Consulting',
+    };
+
+    const defaults = paymentReceivedDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      payment.shopId,
+      'payment_received',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) return;
+
+    await this.mail.sendPaymentReceived({
+      to: recipient,
+      content,
+      overrides: prepared,
     });
   }
 }

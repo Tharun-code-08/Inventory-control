@@ -1,4 +1,7 @@
-import { CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
+import { CostingMethod, DocumentStatus, Prisma, RoleName, TransactionType } from '@prisma/client';
+import type { RequestUser } from '../../common/types/request-user';
+import { DocumentAlreadyPostedException } from '../../common/exceptions/domain.exceptions';
 import { GoodsReceiptsService } from './goods-receipts.service';
 
 function makeService() {
@@ -25,7 +28,9 @@ function makeService() {
   const audit = { log: jest.fn() } as any;
   const costing = { recordInflow: jest.fn() } as any;
 
-  const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing);
+  const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing, {
+    sendInternalAlert: jest.fn(),
+  } as any);
   return { service, prisma, tx, stock, audit, costing };
 }
 
@@ -95,11 +100,6 @@ describe('GoodsReceiptsService', () => {
     expect(audit.log).toHaveBeenCalledTimes(1);
   });
 });
-import { BadRequestException } from '@nestjs/common';
-import { DocumentStatus, Prisma, RoleName } from '@prisma/client';
-import type { RequestUser } from '../../common/types/request-user';
-import { DocumentAlreadyPostedException } from '../../common/exceptions/domain.exceptions';
-import { GoodsReceiptsService } from './goods-receipts.service';
 
 const adminUser: RequestUser = {
   id: 'user-admin',
@@ -158,6 +158,8 @@ const costingFactory = () =>
       .fn()
       .mockResolvedValue({ totalCost: new Prisma.Decimal(0), unitCost: new Prisma.Decimal(0) }),
   }) as any;
+const emailNotificationsFactory = () =>
+  ({ sendInternalAlert: jest.fn() }) as any;
 
 describe('GoodsReceiptsService.create', () => {
   it('rejects future grDate', async () => {
@@ -168,6 +170,7 @@ describe('GoodsReceiptsService.create', () => {
       numbersFactory(),
       auditFactory(),
       costingFactory(),
+      emailNotificationsFactory(),
     );
     const future = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await expect(
@@ -188,6 +191,7 @@ describe('GoodsReceiptsService.create', () => {
       numbersFactory(),
       auditFactory(),
       costingFactory(),
+      emailNotificationsFactory(),
     );
     await expect(
       service.create(adminUser, {
@@ -218,6 +222,7 @@ describe('GoodsReceiptsService.post', () => {
       numbersFactory(),
       auditFactory(),
       costingFactory(),
+      emailNotificationsFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -254,6 +259,7 @@ describe('GoodsReceiptsService.post', () => {
       numbersFactory(),
       auditFactory(),
       costingFactory(),
+      emailNotificationsFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -311,6 +317,7 @@ describe('GoodsReceiptsService.post', () => {
       numbersFactory(),
       auditSvc,
       costingFactory(),
+      emailNotificationsFactory(),
     );
 
     await service.post(adminUser, 'gr-1');
@@ -367,6 +374,7 @@ describe('GoodsReceiptsService.post', () => {
       numbersFactory(),
       auditFactory(),
       costingFactory(),
+      emailNotificationsFactory(),
     );
     await service.post(adminUser, 'gr-1');
 

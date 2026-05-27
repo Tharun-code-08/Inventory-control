@@ -2,13 +2,21 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionNumberSeriesSection } from '@/components/settings/TransactionNumberSeriesSection';
+import { EmailNotificationsSection } from '@/components/settings/EmailNotificationsSection';
+
+const CUSTOMIZATION_SECTIONS = ['transaction-number-series', 'email-notifications'] as const;
+type CustomizationSection = (typeof CUSTOMIZATION_SECTIONS)[number];
+
+function isCustomizationSection(value: string | null): value is CustomizationSection {
+  return CUSTOMIZATION_SECTIONS.includes(value as CustomizationSection);
+}
 
 export function SettingsCustomizationTab() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const section = useMemo(() => {
     const requested = searchParams.get('section');
-    return requested === 'transaction-number-series' ? requested : 'transaction-number-series';
+    return isCustomizationSection(requested) ? requested : 'transaction-number-series';
   }, [searchParams]);
 
   return (
@@ -24,9 +32,13 @@ export function SettingsCustomizationTab() {
     >
       <TabsList>
         <TabsTrigger value="transaction-number-series">Transaction Number Series</TabsTrigger>
+        <TabsTrigger value="email-notifications">Email Notifications</TabsTrigger>
       </TabsList>
       <TabsContent value="transaction-number-series">
         <TransactionNumberSeriesSection />
+      </TabsContent>
+      <TabsContent value="email-notifications">
+        <EmailNotificationsSection />
       </TabsContent>
     </Tabs>
   );

@@ -7,8 +7,12 @@ import { asMoney, assertNonNegativeMoney, roundMoney } from '../../common/utils/
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
+import { MailService } from '../../common/mail/mail.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { invoiceCreatedDefaults } from '../email-notifications/email-notifications.outbound';
+import type { InvoiceCreatedEmailContent } from '../../common/mail/transactional-email.templates';
 
 export type InvoiceListQuery = {
   shop_id?: string;
@@ -27,6 +31,8 @@ export class InvoicesService {
     private readonly audit: AuditService,
     private readonly numbers: DocumentNumberService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async list(user: RequestUser, query: InvoiceListQuery = {}) {
@@ -156,6 +162,70 @@ export class InvoicesService {
       );
 
       return invoice;
+    }).then(async (invoice) => {
+      await this.sendInvoiceCreatedEmail(invoice).catch(() => undefined);
+      return invoice;
+    });
+  }
+
+  private async sendInvoiceCreatedEmail(
+    invoice: {
+      id: string;
+      shopId: string;
+      invoiceNumber: string;
+      invoiceDate: Date;
+      dueDate: Date | null;
+      totalValue: Prisma.Decimal;
+      customer: { customerName: string; email: string | null };
+    },
+  ) {
+    const recipient = invoice.customer.email?.trim();
+    if (!recipient) return;
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: invoice.shopId },
+      select: { shopName: true, company: { select: { companyName: true } } },
+    });
+
+    const formatMoney = (value: Prisma.Decimal | number) =>
+      new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+
+    const content: InvoiceCreatedEmailContent = {
+      customerName: invoice.customer.customerName,
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: invoice.invoiceDate.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      dueDate: invoice.dueDate
+        ? invoice.dueDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })
+        : '—',
+      totalAmount: formatMoney(invoice.totalValue),
+      companyName: shop?.company?.companyName ?? 'Softdigit Consulting',
+    };
+
+    const defaults = invoiceCreatedDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      invoice.shopId,
+      'invoice_created',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) return;
+
+    await this.mail.sendInvoiceCreated({
+      to: recipient,
+      content,
+      overrides: prepared,
     });
   }
 

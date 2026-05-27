@@ -26,6 +26,8 @@ import { SubscriptionService } from '../billing/subscription.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { userInviteDefaults } from '../email-notifications/email-notifications.outbound';
 
 @Injectable()
 export class UsersService {
@@ -35,6 +37,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   private bcryptRounds() {
@@ -286,11 +289,23 @@ export class UsersService {
     };
 
     try {
+      const defaults = userInviteDefaults(mailContent);
+      const prepared = await this.emailNotifications.prepareTemplateForShop(
+        invitation.shopId,
+        'user_invite',
+        { subject: defaults.subject, text: defaults.text, html: defaults.html },
+        defaults.context,
+      );
+      if (!prepared.enabled) {
+        throw new BadRequestException('User invitation emails are disabled in settings.');
+      }
       await this.mail.sendMail({
         to: email,
-        subject: userInviteSubject(companyName),
-        text: userInviteText(mailContent),
-        html: userInviteHtml(mailContent),
+        subject: prepared.subject,
+        text: prepared.text,
+        html: prepared.html,
+        cc: prepared.cc,
+        bcc: prepared.bcc,
       });
     } catch (err) {
       throw new ServiceUnavailableException(

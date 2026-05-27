@@ -14,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { UpdateGoodsReceiptDto } from './dto/update-goods-receipt.dto';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 
 @Injectable()
 export class GoodsReceiptsService {
@@ -23,6 +24,7 @@ export class GoodsReceiptsService {
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
     private readonly costing: CostingService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   private async validateAgainstPurchaseOrder(
@@ -373,6 +375,14 @@ export class GoodsReceiptsService {
         },
         tx,
       );
+      return posted;
+    }).then(async (posted) => {
+      await this.emailNotifications.sendInternalAlert({
+        shopId: posted.shopId,
+        alertKey: 'goodsReceiptPosted',
+        title: `Goods receipt posted: ${posted.grNumber}`,
+        message: `${posted.supplierName} — ${posted.shop?.shopName ?? posted.shopId}`,
+      }).catch(() => undefined);
       return posted;
     });
   }

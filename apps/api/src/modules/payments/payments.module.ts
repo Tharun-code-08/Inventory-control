@@ -3,9 +3,10 @@ import { StockModule } from '../stock/stock.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { BillingModule } from '../billing/billing.module';
+import { EmailNotificationsModule } from '../email-notifications/email-notifications.module';
 
 @Module({
-  imports: [StockModule, BillingModule],
+  imports: [StockModule, BillingModule, EmailNotificationsModule],
   controllers: [PaymentsController],
   providers: [PaymentsService],
   exports: [PaymentsService],

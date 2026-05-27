@@ -8,6 +8,8 @@ import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
 import { UpdateRfqDto } from './dto/update-rfq.dto';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { SubscriptionService } from '../billing/subscription.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { rfqInviteDefaults } from '../email-notifications/email-notifications.outbound';
 
 @Injectable()
 export class RfqsService {
@@ -16,6 +18,7 @@ export class RfqsService {
     private readonly numbers: DocumentNumberService,
     private readonly mail: MailService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   async list(user: RequestUser) {
@@ -188,12 +191,23 @@ export class RfqsService {
       );
     }
 
+    const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
       rfqId: existing.id,
       rfqNumber: existing.rfqNumber,
       rfqTitle: existing.title,
       deadline: existing.deadline,
       recipients: this.inviteRecipients(suppliers),
+      shopId: existing.shopId,
+      prepareInvite: (content) => {
+        const defaults = rfqInviteDefaults(content);
+        return this.emailNotifications.prepareTemplate(
+          config,
+          'rfq_invite',
+          { subject: defaults.subject, text: defaults.text, html: defaults.html },
+          defaults.context,
+        );
+      },
     });
 
     this.assertEmailDelivery(emailDelivery);
@@ -237,12 +251,23 @@ export class RfqsService {
       throw new BadRequestException('This RFQ has no suppliers');
     }
 
+    const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
       rfqId: existing.id,
       rfqNumber: existing.rfqNumber,
       rfqTitle: existing.title,
       deadline: existing.deadline,
       recipients: this.inviteRecipients(suppliers),
+      shopId: existing.shopId,
+      prepareInvite: (content) => {
+        const defaults = rfqInviteDefaults(content);
+        return this.emailNotifications.prepareTemplate(
+          config,
+          'rfq_invite',
+          { subject: defaults.subject, text: defaults.text, html: defaults.html },
+          defaults.context,
+        );
+      },
     });
 
     this.assertEmailDelivery(emailDelivery);

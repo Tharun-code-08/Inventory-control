@@ -14,6 +14,8 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { AuditService } from '../audit/audit.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { RfqsService } from '../rfqs/rfqs.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { purchaseOrderDefaults } from '../email-notifications/email-notifications.outbound';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { assertFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -53,6 +55,7 @@ export class PurchaseOrdersService {
     private readonly subscriptions: SubscriptionService,
     private readonly mail: MailService,
     private readonly rfqs: RfqsService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   private idempotencyScope(user: RequestUser): string {
@@ -774,10 +777,22 @@ export class PurchaseOrdersService {
       );
     }
 
+    const defaults = purchaseOrderDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      po.shopId,
+      'purchase_order_supplier',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Purchase order email notifications are disabled in settings.');
+    }
+
     await this.mail.sendPurchaseOrderToSupplier({
       to: email,
       content,
       attachments,
+      overrides: prepared,
     });
     return {
       sent: true,

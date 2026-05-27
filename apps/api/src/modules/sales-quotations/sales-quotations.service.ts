@@ -12,6 +12,8 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateSalesQuotationDto } from './dto/create-sales-quotation.dto';
 import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { salesQuotationDefaults } from '../email-notifications/email-notifications.outbound';
 
 @Injectable()
 export class SalesQuotationsService {
@@ -21,6 +23,7 @@ export class SalesQuotationsService {
     private readonly mail: MailService,
     private readonly config: ConfigService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   private computeLines(items: CreateSalesQuotationDto['items']) {
@@ -70,9 +73,21 @@ export class SalesQuotationsService {
       isRevision: options.isRevision ?? false,
     });
 
+    const defaults = salesQuotationDefaults(emailContent);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      row.shopId,
+      'sales_quotation_customer',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Sales quotation email notifications are disabled in settings.');
+    }
+
     return this.mail.sendSalesQuotationToCustomer({
       to: customerEmail,
       content: emailContent,
+      overrides: prepared,
     });
   }
 

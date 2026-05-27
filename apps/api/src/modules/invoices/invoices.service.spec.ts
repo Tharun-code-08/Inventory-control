@@ -34,8 +34,25 @@ function makePrisma(tx: any) {
   } as any;
 }
 
+const emailNotifications = () =>
+  ({
+    prepareTemplateForShop: jest.fn(),
+  }) as any;
+const mail = () =>
+  ({
+    isConfigured: jest.fn().mockReturnValue(false),
+    sendInvoiceCreated: jest.fn(),
+  }) as any;
+
 function makeInvoicesService(prisma: any, audit = auditFactory(), numbers = numbersFactory()) {
-  return new InvoicesService(prisma, audit, numbers, subscriptions());
+  return new InvoicesService(
+    prisma,
+    audit,
+    numbers,
+    subscriptions(),
+    emailNotifications(),
+    mail(),
+  );
 }
 
 const auditFactory = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;

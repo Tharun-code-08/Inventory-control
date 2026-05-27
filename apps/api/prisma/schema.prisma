@@ -1049,6 +1049,18 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+model EmailDeliveryLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  templateId String   @map("template_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  recipient  String
+  sentAt     DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  @@unique([templateId, entityType, entityId, recipient], map: "email_delivery_log_template_entity_recipient_key")
+  @@map("email_delivery_log")
+}
+
 enum DocumentSeriesRestart {
   NONE
   MONTHLY

@@ -1,11 +1,12 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { AlertType, PurchaseOrderStatus } from '@prisma/client';
+import { AlertType, DocumentStatus, InvoiceStatus, PurchaseOrderStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 
 const CONFIG_KEY_PREFIX = 'notifications_matrix_config_v1';
 
@@ -76,6 +77,7 @@ export class AlertsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly notifications: NotificationsService | null = null,
+    @Optional() private readonly emailNotifications: EmailNotificationsService | null = null,
   ) {}
 
   private configKey(shopId?: string | null) {
@@ -225,6 +227,46 @@ export class AlertsService {
       });
     }
 
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const deadlineUpper = new Date(todayStart);
+    deadlineUpper.setUTCDate(deadlineUpper.getUTCDate() + 2);
+
+    const openRfqDeadlineAlerts = await this.prisma.alertEvent.findMany({
+      where: {
+        alertType: AlertType.RFQ_DEADLINE,
+        resolvedAt: null,
+        referenceType: 'RFQ',
+      },
+      select: { shopId: true, referenceId: true },
+      take: 500,
+    });
+    const openRfqDeadlineKeys = new Set(
+      openRfqDeadlineAlerts
+        .filter((alert) => alert.shopId && alert.referenceId)
+        .map((alert) => `${alert.shopId}:${alert.referenceId}`),
+    );
+
+    const approachingRfqs = await this.prisma.rfqHeader.findMany({
+      where: {
+        status: DocumentStatus.POSTED,
+        deadline: { gte: todayStart, lt: deadlineUpper },
+      },
+      take: 200,
+    });
+    for (const row of approachingRfqs) {
+      const key = `${row.shopId}:${row.id}`;
+      if (openRfqDeadlineKeys.has(key)) continue;
+      events.push({
+        alertType: AlertType.RFQ_DEADLINE,
+        title: `RFQ deadline approaching: ${row.rfqNumber}`,
+        message: `RFQ "${row.title}" response deadline is within 24 hours.`,
+        shopId: row.shopId,
+        referenceType: 'RFQ',
+        referenceId: row.id,
+      });
+    }
+
     const expiringContracts = await this.prisma.contractHeader.findMany({
       where: {
         endDate: {
@@ -290,6 +332,53 @@ export class AlertsService {
             }),
           ),
         );
+      }
+      if (this.emailNotifications) {
+        await Promise.all(
+          created.map(async (row) => {
+            if (row.alertType === AlertType.LOW_STOCK) {
+              await this.emailNotifications!.sendInternalAlert({
+                shopId: row.shopId,
+                alertKey: 'lowStock',
+                title: row.title,
+                message: row.message,
+              }).catch(() => undefined);
+            }
+            if (row.alertType === AlertType.RFQ_DEADLINE) {
+              await this.emailNotifications!.sendInternalAlert({
+                shopId: row.shopId,
+                alertKey: 'rfqDeadline',
+                title: row.title,
+                message: row.message,
+              }).catch(() => undefined);
+            }
+          }),
+        );
+      }
+    }
+
+    if (this.emailNotifications) {
+      const overdueInvoices = await this.prisma.invoiceHeader.findMany({
+        where: {
+          status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID] },
+          dueDate: { lt: todayStart },
+        },
+        take: 200,
+      });
+      for (const invoice of overdueInvoices) {
+        const balance = Number(invoice.totalValue) - Number(invoice.paidValue);
+        if (balance <= 0) continue;
+        await this.emailNotifications.sendInternalAlert({
+          shopId: invoice.shopId,
+          alertKey: 'invoiceOverdue',
+          title: `Invoice overdue: ${invoice.invoiceNumber}`,
+          message: `Invoice ${invoice.invoiceNumber} is past due with an open balance of ${balance.toFixed(2)}.`,
+          dedupe: {
+            templateId: 'internal_invoice_overdue',
+            entityType: 'invoice',
+            entityId: invoice.id,
+          },
+        }).catch(() => undefined);
       }
     }
 

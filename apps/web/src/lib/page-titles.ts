@@ -20,6 +20,7 @@ const SETTINGS_TAB_LABELS: Record<string, string> = {
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
   'transaction-number-series': 'Transaction Number Series',
+  'email-notifications': 'Email Notifications',
 };
 
 const ROUTE_TITLES: Record<string, RouteTitleMeta> = {

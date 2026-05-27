@@ -31,6 +31,8 @@ import {
 } from './dto/create-supplier-return.dto';
 import { UpdateSupplierReturnDto } from './dto/update-supplier-return.dto';
 import { UploadSupplierReturnImageDto } from './dto/upload-supplier-return-image.dto';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { returnNoticeDefaults } from '../email-notifications/email-notifications.outbound';
 
 const supplierReturnInclude = Prisma.validator<Prisma.SupplierReturnInclude>()({
   shop: {
@@ -128,6 +130,7 @@ export class ReturnsService {
     private readonly mail: MailService,
     private readonly config: ConfigService,
     private readonly returnImages: ReturnImageStorageService,
+    private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
   // -- Customer returns -----------------------------------------------------
@@ -705,11 +708,22 @@ export class ReturnsService {
     );
 
     const content = this.buildSupplierReturnEmailContent(ret, acknowledgementUrl);
+    const defaults = returnNoticeDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      ret.shopId,
+      'supplier_return_notice',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Supplier return email notifications are disabled in settings.');
+    }
     const delivery = await this.mail.sendSupplierReturnNotice({
       to: supplierEmail,
       cc: ret.internalCcEmail?.trim() || undefined,
       content,
       attachments,
+      overrides: prepared,
     });
 
     return this.prisma.$transaction(async (tx) => {

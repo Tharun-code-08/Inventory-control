@@ -9,6 +9,7 @@ describe('PurchaseOrdersService withLifecycle', () => {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
   );
 
   const withLifecycle = (po: {

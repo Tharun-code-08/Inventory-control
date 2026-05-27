@@ -142,6 +142,15 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
       Settings,
       ['series', 'prefix', 'number', 'customization'],
     );
+    push(
+      'email-notifications',
+      'Email Notifications',
+      'Customize email templates and alerts',
+      '/settings?tab=customization&section=email-notifications',
+      'System',
+      Settings,
+      ['email', 'smtp', 'notifications', 'customization'],
+    );
   }
   push('help', 'Help & Support', 'Guides and workflows', '/help', 'System', HelpCircle, [
     'faq',

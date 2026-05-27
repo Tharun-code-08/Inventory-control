@@ -53,6 +53,7 @@ import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { DocumentSeriesModule } from './modules/document-series/document-series.module';
+import { EmailNotificationsModule } from './modules/email-notifications/email-notifications.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -164,6 +165,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     BackupModule,
     WarehouseModule,
     DocumentSeriesModule,
+    EmailNotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

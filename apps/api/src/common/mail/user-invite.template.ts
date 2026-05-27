@@ -18,7 +18,7 @@ export function userInviteText(content: UserInviteEmailContent): string {
     `Hello${content.inviteeName ? ` ${content.inviteeName}` : ''},`,
     '',
     `${content.inviterName} invited you to join ${content.companyName} on Retail IMS.`,
-    `Role: ${content.roleName}${content.shopName ? ` — ${content.shopName}` : ''}`,
+    `Role: ${content.roleName}${content.shopName ? ` ? ${content.shopName}` : ''}`,
     '',
     `Accept your invitation: ${content.inviteUrl}`,
     '',
@@ -55,7 +55,7 @@ export function userInviteHtml(content: UserInviteEmailContent): string {
                 ${content.inviterName} invited you to join <strong>${content.companyName}</strong> on Retail IMS.
               </p>
               <p style="margin:0 0 12px;font-size:14px;color:#1e293b;line-height:1.6;">
-                Role: <strong>${content.roleName}</strong>${content.shopName ? ` — ${content.shopName}` : ''}<br/>
+                Role: <strong>${content.roleName}</strong>${content.shopName ? ` ? ${content.shopName}` : ''}<br/>
                 Link expires in ${content.expiresHours} hours.
               </p>
               <p style="margin:16px 0;">
