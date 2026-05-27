@@ -3,8 +3,10 @@ import { promises as dns } from 'dns';
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailSenderStatus, EmailSenderType, RoleName } from '@prisma/client';
@@ -30,6 +32,7 @@ import type { CreateEmailSenderDto, UpdateEmailSenderDto } from './dto/email-sen
 export class EmailSenderService {
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => MailService))
     private readonly mail: MailService,
     private readonly config: ConfigService,
   ) {}
