@@ -54,6 +54,7 @@ import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { DocumentSeriesModule } from './modules/document-series/document-series.module';
 import { EmailNotificationsModule } from './modules/email-notifications/email-notifications.module';
+import { EmailSendersModule } from './modules/email-senders/email-senders.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -166,6 +167,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     WarehouseModule,
     DocumentSeriesModule,
     EmailNotificationsModule,
+    EmailSendersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -84,7 +84,12 @@ export class SalesQuotationsService {
       throw new BadRequestException('Sales quotation email notifications are disabled in settings.');
     }
 
+    if (!row.shop.companyId) {
+      throw new BadRequestException('Shop is not linked to a company');
+    }
+
     return this.mail.sendSalesQuotationToCustomer({
+      companyId: row.shop.companyId,
       to: customerEmail,
       content: emailContent,
       overrides: prepared,
@@ -119,7 +124,7 @@ export class SalesQuotationsService {
       where: { id },
       include: {
         customer: true,
-        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        shop: { select: { id: true, shopName: true, shopNumber: true, companyId: true } },
         items: { include: { product: true } },
         salesOrder: { select: { id: true, soNumber: true, status: true } },
       },
@@ -212,7 +217,7 @@ export class SalesQuotationsService {
         },
         include: {
           customer: true,
-          shop: { select: { id: true, shopName: true, shopNumber: true } },
+          shop: { select: { id: true, shopName: true, shopNumber: true, companyId: true } },
           items: { include: { product: true } },
         },
       });
@@ -240,7 +245,7 @@ export class SalesQuotationsService {
       },
       include: {
         customer: true,
-        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        shop: { select: { id: true, shopName: true, shopNumber: true, companyId: true } },
         items: { include: { product: true } },
       },
     });
@@ -271,7 +276,7 @@ export class SalesQuotationsService {
       },
       include: {
         customer: true,
-        shop: { select: { id: true, shopName: true, shopNumber: true } },
+        shop: { select: { id: true, shopName: true, shopNumber: true, companyId: true } },
         items: { include: { product: true } },
       },
     });

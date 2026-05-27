@@ -56,7 +56,7 @@ export class PaymentReminderProcessor extends WorkerHost {
         },
         include: {
           customer: { select: { customerName: true, email: true } },
-          shop: { select: { shopName: true, company: { select: { companyName: true } } } },
+          shop: { select: { shopName: true, companyId: true, company: { select: { companyName: true } } } },
         },
         take: 200,
       });
@@ -119,7 +119,9 @@ export class PaymentReminderProcessor extends WorkerHost {
 
         if (!prepared.enabled) continue;
 
-        await this.mail.sendMail({
+        if (!invoice.shop?.companyId) continue;
+
+        await this.mail.sendTenantMail(invoice.shop.companyId, {
           to: recipient,
           subject: prepared.subject,
           text: prepared.text,

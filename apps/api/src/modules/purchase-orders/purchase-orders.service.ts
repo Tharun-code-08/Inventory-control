@@ -789,6 +789,7 @@ export class PurchaseOrdersService {
     }
 
     await this.mail.sendPurchaseOrderToSupplier({
+      companyId: shopRow.companyId,
       to: email,
       content,
       attachments,

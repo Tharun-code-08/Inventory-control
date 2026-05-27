@@ -184,7 +184,7 @@ export class InvoicesService {
 
     const shop = await this.prisma.shop.findUnique({
       where: { id: invoice.shopId },
-      select: { shopName: true, company: { select: { companyName: true } } },
+      select: { shopName: true, companyId: true, company: { select: { companyName: true } } },
     });
 
     const formatMoney = (value: Prisma.Decimal | number) =>
@@ -222,7 +222,10 @@ export class InvoicesService {
     );
     if (!prepared.enabled) return;
 
+    if (!shop?.companyId) return;
+
     await this.mail.sendInvoiceCreated({
+      companyId: shop.companyId,
       to: recipient,
       content,
       overrides: prepared,

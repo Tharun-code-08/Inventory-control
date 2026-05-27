@@ -185,7 +185,7 @@ export class PaymentsService {
 
     const shop = await this.prisma.shop.findUnique({
       where: { id: payment.shopId },
-      select: { company: { select: { companyName: true } } },
+      select: { companyId: true, company: { select: { companyName: true } } },
     });
 
     const formatMoney = (value: Prisma.Decimal | number) =>
@@ -215,7 +215,10 @@ export class PaymentsService {
     );
     if (!prepared.enabled) return;
 
+    if (!shop?.companyId) return;
+
     await this.mail.sendPaymentReceived({
+      companyId: shop.companyId,
       to: recipient,
       content,
       overrides: prepared,

@@ -116,6 +116,17 @@ enum AuthChallengePurpose {
   LOGIN_MFA_VERIFY
 }
 
+enum EmailSenderType {
+  CUSTOM_DOMAIN
+  PUBLIC_DOMAIN
+}
+
+enum EmailSenderStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
 model Company {
   id                 String             @id @default(uuid()) @db.Uuid
   companyCode        String             @unique @map("company_code")
@@ -141,6 +152,8 @@ model Company {
   backupArtifacts      BackupArtifact[]
   restoreJobs          RestoreJob[]
   documentSeriesConfigs DocumentSeriesConfig[]
+  emailSenderDomains    EmailSenderDomain[]
+  emailSenderIdentities EmailSenderIdentity[]
 
   @@map("companies")
 }
@@ -1059,6 +1072,63 @@ model EmailDeliveryLog {
 
   @@unique([templateId, entityType, entityId, recipient], map: "email_delivery_log_template_entity_recipient_key")
   @@map("email_delivery_log")
+}
+
+model EmailSenderDomain {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String            @map("company_id") @db.Uuid
+  domain        String
+  dkimSelector  String            @map("dkim_selector")
+  dkimHost      String            @map("dkim_host")
+  dkimValue     String            @map("dkim_value")
+  status        EmailSenderStatus @default(PENDING)
+  verifiedAt    DateTime?         @map("verified_at") @db.Timestamptz(6)
+  lastCheckedAt DateTime?         @map("last_checked_at") @db.Timestamptz(6)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  senders EmailSenderIdentity[]
+
+  @@unique([companyId, domain])
+  @@map("email_sender_domains")
+}
+
+model EmailSenderIdentity {
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  domainId    String?           @map("domain_id") @db.Uuid
+  displayName String            @map("display_name")
+  email       String
+  senderType  EmailSenderType   @map("sender_type")
+  isPrimary   Boolean           @default(false) @map("is_primary")
+  status      EmailSenderStatus @default(PENDING)
+  verifiedAt  DateTime?         @map("verified_at") @db.Timestamptz(6)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company        Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  domain         EmailSenderDomain?        @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  verifications  EmailSenderVerification[]
+
+  @@unique([companyId, email])
+  @@index([companyId, isPrimary])
+  @@map("email_sender_identities")
+}
+
+model EmailSenderVerification {
+  id           String    @id @default(uuid()) @db.Uuid
+  senderId     String    @map("sender_id") @db.Uuid
+  otpHash      String    @map("otp_hash")
+  attemptCount Int       @default(0) @map("attempt_count")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt   DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sender EmailSenderIdentity @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, expiresAt])
+  @@map("email_sender_verifications")
 }
 
 enum DocumentSeriesRestart {

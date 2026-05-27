@@ -191,8 +191,13 @@ export class RfqsService {
       );
     }
 
+    if (!existing.shop.companyId) {
+      throw new BadRequestException('Shop is not linked to a company');
+    }
+
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
+      companyId: existing.shop.companyId,
       rfqId: existing.id,
       rfqNumber: existing.rfqNumber,
       rfqTitle: existing.title,
@@ -251,8 +256,13 @@ export class RfqsService {
       throw new BadRequestException('This RFQ has no suppliers');
     }
 
+    if (!existing.shop.companyId) {
+      throw new BadRequestException('Shop is not linked to a company');
+    }
+
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
+      companyId: existing.shop.companyId,
       rfqId: existing.id,
       rfqNumber: existing.rfqNumber,
       rfqTitle: existing.title,

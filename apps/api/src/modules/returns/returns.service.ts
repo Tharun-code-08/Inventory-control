@@ -41,6 +41,7 @@ const supplierReturnInclude = Prisma.validator<Prisma.SupplierReturnInclude>()({
       shopName: true,
       shopNumber: true,
       email: true,
+      companyId: true,
       company: { select: { companyName: true } },
     },
   },
@@ -718,7 +719,11 @@ export class ReturnsService {
     if (!prepared.enabled) {
       throw new BadRequestException('Supplier return email notifications are disabled in settings.');
     }
+    if (!ret.shop.companyId) {
+      throw new BadRequestException('Shop is not linked to a company');
+    }
     const delivery = await this.mail.sendSupplierReturnNotice({
+      companyId: ret.shop.companyId,
       to: supplierEmail,
       cc: ret.internalCcEmail?.trim() || undefined,
       content,

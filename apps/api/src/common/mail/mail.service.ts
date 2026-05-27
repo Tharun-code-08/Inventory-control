@@ -1,7 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { EmailSenderService } from '../../modules/email-senders/email-sender.service';
+import { NO_VERIFIED_SENDER_MESSAGE } from '../../modules/email-senders/email-sender.constants';
 import {
   buildPasswordResetUrl,
   buildSupplierDeleteConfirmUrl,
@@ -92,7 +94,12 @@ export class MailService implements OnModuleInit {
   private transporter: Transporter | null = null;
   private transporterKey = '';
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional()
+    @Inject(forwardRef(() => EmailSenderService))
+    private readonly emailSenders: EmailSenderService | null = null,
+  ) {}
 
   onModuleInit(): void {
     const host = this.smtpHost();
@@ -211,11 +218,13 @@ export class MailService implements OnModuleInit {
     text: string;
     html: string;
     fromName?: string;
+    fromEmail?: string;
+    replyTo?: string;
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
     const transport = await this.getTransporter();
-    const from = this.getFromAddress();
-    const replyTo = this.getReplyToAddress();
+    const from = args.fromEmail ?? this.getFromAddress();
+    const replyTo = args.replyTo ?? this.getReplyToAddress();
     const bcc = this.getBccAddress();
     const authUser = this.smtpUser();
     const displayName = args.fromName ?? 'Softdigit Consulting';
@@ -249,6 +258,49 @@ export class MailService implements OnModuleInit {
     return { messageId, to: args.to, from, replyTo, bcc };
   }
 
+  async sendPlatformMail(args: {
+    to: string;
+    cc?: string | string[];
+    bcc?: string | string[];
+    subject: string;
+    text: string;
+    html: string;
+    fromName?: string;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    return this.sendMail({
+      ...args,
+      fromName: args.fromName ?? 'Softdigit Consulting',
+      fromEmail: this.getFromAddress(),
+      replyTo: this.getReplyToAddress(),
+    });
+  }
+
+  async sendTenantMail(
+    companyId: string,
+    args: {
+      to: string;
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject: string;
+      text: string;
+      html: string;
+      fromName?: string;
+      attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    },
+  ): Promise<EmailDeliveryResult> {
+    if (!this.emailSenders) {
+      throw new Error(NO_VERIFIED_SENDER_MESSAGE);
+    }
+    const sender = await this.emailSenders.resolveTenantSender(companyId);
+    return this.sendMail({
+      ...args,
+      fromName: args.fromName ?? sender.fromName,
+      fromEmail: sender.fromEmail,
+      replyTo: sender.replyTo,
+    });
+  }
+
   rfqPortalAccessCode(rfqId: string): string {
     return rfqId.replace(/-/g, '').slice(0, 8).toUpperCase();
   }
@@ -280,6 +332,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendRfqInvites(args: {
+    companyId: string;
     rfqId: string;
     rfqNumber: string;
     rfqTitle: string;
@@ -361,7 +414,7 @@ export class MailService implements OnModuleInit {
       }
 
       try {
-        const delivery = await this.sendMail({
+        const delivery = await this.sendTenantMail(args.companyId, {
           to: email,
           subject: prepared?.enabled ? prepared.subject : rfqInviteSubject(content),
           text: prepared?.enabled ? prepared.text : rfqInviteText(content),
@@ -451,6 +504,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendSalesQuotationToCustomer(args: {
+    companyId: string;
     to: string;
     content: SalesQuotationEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
@@ -460,7 +514,7 @@ export class MailService implements OnModuleInit {
         'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
       );
     }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? salesQuotationSubject(args.content),
       text: args.overrides?.text ?? salesQuotationText(args.content),
@@ -472,6 +526,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendPurchaseOrderToSupplier(args: {
+    companyId: string;
     to: string;
     content: PurchaseOrderEmailContent;
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
@@ -482,7 +537,7 @@ export class MailService implements OnModuleInit {
         'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
       );
     }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? purchaseOrderSubject(args.content),
       text: args.overrides?.text ?? purchaseOrderText(args.content),
@@ -495,6 +550,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendSupplierReturnNotice(args: {
+    companyId: string;
     to: string;
     cc?: string | string[];
     content: ReturnNoticeEmailContent;
@@ -506,7 +562,7 @@ export class MailService implements OnModuleInit {
         'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
       );
     }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
       cc: args.overrides?.cc ?? args.cc,
       subject: args.overrides?.subject ?? returnNoticeSubject(args.content),
@@ -539,7 +595,7 @@ export class MailService implements OnModuleInit {
       expiresMinutes: args.expiresMinutes,
     };
 
-    return this.sendMail({
+    return this.sendPlatformMail({
       to: args.to,
       subject: signupOtpSubject(args.companyName),
       text: signupOtpText(content),
@@ -567,7 +623,7 @@ export class MailService implements OnModuleInit {
       expiresMinutes: args.expiresMinutes,
     };
 
-    return this.sendMail({
+    return this.sendPlatformMail({
       to: args.to,
       subject: passwordResetOtpSubject(),
       text: passwordResetOtpText(content),
@@ -595,7 +651,7 @@ export class MailService implements OnModuleInit {
       expiresMinutes: args.expiresMinutes,
     };
 
-    return this.sendMail({
+    return this.sendPlatformMail({
       to: args.to,
       subject: passwordResetLinkSubject(),
       text: passwordResetLinkText(content),
@@ -605,6 +661,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendInvoiceCreated(args: {
+    companyId: string;
     to: string;
     content: import('./transactional-email.templates').InvoiceCreatedEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
@@ -617,7 +674,7 @@ export class MailService implements OnModuleInit {
     if (!this.isConfigured()) {
       throw new Error('SMTP is not configured');
     }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? invoiceCreatedSubject(args.content),
       text: args.overrides?.text ?? invoiceCreatedText(args.content),
@@ -629,6 +686,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendPaymentReceived(args: {
+    companyId: string;
     to: string;
     content: import('./transactional-email.templates').PaymentReceivedEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
@@ -641,7 +699,7 @@ export class MailService implements OnModuleInit {
     if (!this.isConfigured()) {
       throw new Error('SMTP is not configured');
     }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? paymentReceivedSubject(args.content),
       text: args.overrides?.text ?? paymentReceivedText(args.content),
@@ -674,7 +732,7 @@ export class MailService implements OnModuleInit {
       contractCount: args.contractCount,
       purchaseOrderCount: args.purchaseOrderCount,
     };
-    await this.sendMail({
+    await this.sendPlatformMail({
       to: args.adminEmail,
       subject: supplierDeletionSubject(args.supplierName),
       text: supplierDeletionText(content),

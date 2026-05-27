@@ -400,6 +400,16 @@ export class EmailNotificationsService {
     const recipients = await this.resolveInternalRecipients(args.shopId, alertConfig.recipients);
     if (recipients.length === 0) return { sent: 0, skipped: 'No recipients' };
 
+    let companyId: string | null = null;
+    if (args.shopId) {
+      const shop = await this.prisma.shop.findUnique({
+        where: { id: args.shopId },
+        select: { companyId: true },
+      });
+      companyId = shop?.companyId ?? null;
+    }
+    if (!companyId) return { sent: 0, skipped: 'No company context' };
+
     const { internalAlertHtml, internalAlertSubject, internalAlertText } = await import(
       '../../common/mail/transactional-email.templates'
     );
@@ -418,11 +428,12 @@ export class EmailNotificationsService {
         });
         if (alreadySent) continue;
       }
-      await this.mail.sendMail({
+      await this.mail.sendTenantMail(companyId, {
         to,
         subject: internalAlertSubject(content),
         text: internalAlertText(content),
         html: internalAlertHtml(content),
+        fromName: content.companyName,
       });
       if (args.dedupe) {
         await this.logDelivery({

@@ -27,6 +27,7 @@ import {
 } from '@/hooks/use-email-notifications';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { cn } from '@/lib/cn';
+import { SenderEmailPreferencesPanel } from '@/components/settings/SenderEmailPreferencesPanel';
 
 const COMPANY_SCOPE = '__company__';
 
@@ -356,50 +357,7 @@ export function EmailNotificationsSection() {
         </Card>
 
         <div className="space-y-4">
-          {view.kind === 'sender' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Sender Email Preferences</CardTitle>
-                <CardDescription>
-                  SMTP sender details are configured via environment variables. Domain authentication is managed at
-                  your DNS provider.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!sender.configured ? (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-                    <p className="font-medium text-destructive">SMTP not configured</p>
-                    <p className="mt-1 text-muted-foreground">
-                      Set MAIL_HOST, MAIL_USER, MAIL_PASS, and MAIL_FROM in the API environment before emails can be
-                      sent.
-                    </p>
-                  </div>
-                ) : null}
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label>From address</Label>
-                    <Input value={sender.from} readOnly />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Reply-to</Label>
-                    <Input value={sender.replyTo} readOnly />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>BCC</Label>
-                    <Input value={sender.bcc || '—'} readOnly />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>SMTP status</Label>
-                    <Input value={sender.configured ? 'Configured' : 'Not configured'} readOnly />
-                  </div>
-                </div>
-                <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
-                  <p className="font-medium">Domain authentication</p>
-                  <p className="mt-1 text-muted-foreground">{sender.guidance}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
+          {view.kind === 'sender' ? <SenderEmailPreferencesPanel /> : null}
 
           {view.kind === 'reminders' ? (
             <Card>

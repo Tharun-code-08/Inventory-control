@@ -299,13 +299,18 @@ export class UsersService {
       if (!prepared.enabled) {
         throw new BadRequestException('User invitation emails are disabled in settings.');
       }
-      await this.mail.sendMail({
+      const companyId = invitation.shop?.companyId ?? actor.companyId;
+      if (!companyId) {
+        throw new BadRequestException('Invitation is not linked to a company');
+      }
+      await this.mail.sendTenantMail(companyId, {
         to: email,
         subject: prepared.subject,
         text: prepared.text,
         html: prepared.html,
         cc: prepared.cc,
         bcc: prepared.bcc,
+        fromName: companyName,
       });
     } catch (err) {
       throw new ServiceUnavailableException(
