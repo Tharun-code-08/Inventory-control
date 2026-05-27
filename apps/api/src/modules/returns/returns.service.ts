@@ -33,6 +33,7 @@ import { UpdateSupplierReturnDto } from './dto/update-supplier-return.dto';
 import { UploadSupplierReturnImageDto } from './dto/upload-supplier-return-image.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { returnNoticeDefaults } from '../email-notifications/email-notifications.outbound';
+import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
 
 const supplierReturnInclude = Prisma.validator<Prisma.SupplierReturnInclude>()({
   shop: {
@@ -722,12 +723,29 @@ export class ReturnsService {
     if (!ret.shop.companyId) {
       throw new BadRequestException('Shop is not linked to a company');
     }
+
+    const pdfAttachment = await tryRenderDocumentPdfAttachment(
+      {
+        title: 'Supplier Return Notice',
+        documentNumber: content.returnNumber,
+        partyLabel: 'Supplier',
+        partyName: content.supplierName,
+        companyName: content.companyName,
+        summaryLines: [
+          { label: 'Return Number', value: content.returnNumber },
+          { label: 'GR Number', value: content.grNumber },
+        ],
+      },
+      'return',
+    );
+    const allAttachments = [...(pdfAttachment ?? []), ...attachments];
+
     const delivery = await this.mail.sendSupplierReturnNotice({
       companyId: ret.shop.companyId,
       to: supplierEmail,
       cc: ret.internalCcEmail?.trim() || undefined,
       content,
-      attachments,
+      attachments: allAttachments,
       overrides: prepared,
     });
 

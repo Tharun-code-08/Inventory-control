@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import {
+  ConfigureSenderSmtpDto,
   CreateEmailSenderDto,
   UpdateEmailSenderDto,
   VerifySenderOtpDto,
@@ -61,5 +62,28 @@ export class EmailSenderController {
     @Body() dto: VerifySenderOtpDto,
   ) {
     return this.emailSenders.verifySenderOtp(user, id, dto.otpCode);
+  }
+
+  @Put(':id/smtp')
+  configureSmtp(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: ConfigureSenderSmtpDto,
+  ) {
+    return this.emailSenders.configureSenderSmtp(user, id, dto);
+  }
+
+  @Post(':id/smtp/test')
+  testSmtp(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: ConfigureSenderSmtpDto,
+  ) {
+    return this.emailSenders.testSenderSmtp(user, id, dto);
+  }
+
+  @Post(':id/smtp/verify-saved')
+  verifySavedSmtp(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.emailSenders.testSenderSmtp(user, id);
   }
 }

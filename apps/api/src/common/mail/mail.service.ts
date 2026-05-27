@@ -4,6 +4,7 @@ import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { EmailSenderService } from '../../modules/email-senders/email-sender.service';
 import { NO_VERIFIED_SENDER_MESSAGE } from '../../modules/email-senders/email-sender.constants';
+import type { SenderSmtpConfig } from '../../modules/email-senders/email-sender.constants';
 import {
   buildPasswordResetUrl,
   buildSupplierDeleteConfirmUrl,
@@ -93,6 +94,8 @@ export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter | null = null;
   private transporterKey = '';
+  private readonly senderTransports = new Map<string, Transporter>();
+  private readonly senderTransportKeys = new Map<string, string>();
 
   constructor(
     private readonly config: ConfigService,
@@ -159,14 +162,43 @@ export class MailService implements OnModuleInit {
     return this.env('MAIL_BCC');
   }
 
-  private smtpSettingsKey(): string {
-    return [
-      this.smtpHost(),
-      this.env('SMTP_PORT'),
-      this.env('SMTP_SECURE'),
-      this.env('SMTP_USER'),
-      this.env('SMTP_PASS'),
-    ].join('|');
+  private smtpSettingsKey(settings: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user?: string;
+    pass?: string;
+  }): string {
+    return [settings.host, settings.port, settings.secure, settings.user, settings.pass].join('|');
+  }
+
+  private async getSenderTransport(senderId: string, smtp: SenderSmtpConfig): Promise<Transporter> {
+    const key = this.smtpSettingsKey({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      user: smtp.user,
+      pass: smtp.password,
+    });
+    const cachedKey = this.senderTransportKeys.get(senderId);
+    const cached = this.senderTransports.get(senderId);
+    if (cached && cachedKey === key) {
+      return cached;
+    }
+
+    const transport = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      requireTLS: !smtp.secure && smtp.port === 587,
+      auth: { user: smtp.user, pass: smtp.password },
+      tls: { minVersion: 'TLSv1.2', servername: smtp.host },
+    });
+    await transport.verify();
+    this.senderTransports.set(senderId, transport);
+    this.senderTransportKeys.set(senderId, key);
+    this.logger.log(`Sender SMTP ready (${smtp.host}:${smtp.port}, sender=${senderId})`);
+    return transport;
   }
 
   private async getTransporter(): Promise<Transporter> {
@@ -177,11 +209,6 @@ export class MailService implements OnModuleInit {
       );
     }
 
-    const key = this.smtpSettingsKey();
-    if (this.transporter && this.transporterKey === key) {
-      return this.transporter;
-    }
-
     const zoho = this.isZohoHost(host);
     const port = Number(this.env('SMTP_PORT') ?? (zoho ? 465 : 587));
     const secureExplicit = this.env('SMTP_SECURE');
@@ -189,6 +216,17 @@ export class MailService implements OnModuleInit {
       secureExplicit === 'true' || (secureExplicit !== 'false' && port === 465);
     const user = this.env('SMTP_USER');
     const pass = this.env('SMTP_PASS');
+
+    const key = this.smtpSettingsKey({
+      host,
+      port,
+      secure,
+      user,
+      pass,
+    });
+    if (this.transporter && this.transporterKey === key) {
+      return this.transporter;
+    }
 
     if (zoho && user && !user.includes('@')) {
       this.logger.warn('Zoho SMTP_USER should be the full email address (e.g. office@softdigitconsulting.com)');
@@ -221,12 +259,14 @@ export class MailService implements OnModuleInit {
     fromEmail?: string;
     replyTo?: string;
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    transport?: Transporter;
+    envelopeFrom?: string;
   }): Promise<EmailDeliveryResult> {
-    const transport = await this.getTransporter();
+    const transport = args.transport ?? (await this.getTransporter());
     const from = args.fromEmail ?? this.getFromAddress();
     const replyTo = args.replyTo ?? this.getReplyToAddress();
     const bcc = this.getBccAddress();
-    const authUser = this.smtpUser();
+    const authUser = args.envelopeFrom ?? this.smtpUser();
     const displayName = args.fromName ?? 'Softdigit Consulting';
 
     const useEnvelopeFrom = authUser && authUser.toLowerCase() === from.toLowerCase();
@@ -276,6 +316,32 @@ export class MailService implements OnModuleInit {
     });
   }
 
+  async sendViaSmtp(
+    smtp: SenderSmtpConfig,
+    args: {
+      to: string;
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject: string;
+      text: string;
+      html: string;
+      fromName?: string;
+      fromEmail: string;
+      replyTo?: string;
+      attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+      senderId?: string;
+    },
+  ): Promise<EmailDeliveryResult> {
+    const cacheKey = args.senderId ?? smtp.user;
+    const transport = await this.getSenderTransport(cacheKey, smtp);
+    return this.sendMail({
+      ...args,
+      transport,
+      envelopeFrom: smtp.user,
+      replyTo: args.replyTo ?? args.fromEmail,
+    });
+  }
+
   async sendTenantMail(
     companyId: string,
     args: {
@@ -293,8 +359,9 @@ export class MailService implements OnModuleInit {
       throw new Error(NO_VERIFIED_SENDER_MESSAGE);
     }
     const sender = await this.emailSenders.resolveTenantSender(companyId);
-    return this.sendMail({
+    return this.sendViaSmtp(sender.smtp, {
       ...args,
+      senderId: sender.senderId,
       fromName: args.fromName ?? sender.fromName,
       fromEmail: sender.fromEmail,
       replyTo: sender.replyTo,
@@ -342,8 +409,9 @@ export class MailService implements OnModuleInit {
     prepareInvite?: (content: RfqInviteEmailContent) =>
       | { enabled: false }
       | { enabled: true; subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<RfqInviteDeliverySummary> {
-    if (!this.isConfigured()) {
+    if (!this.emailSenders) {
       return {
         configured: false,
         sent: 0,
@@ -354,17 +422,17 @@ export class MailService implements OnModuleInit {
           supplierName: r.supplierName,
           email: r.email,
           status: 'skipped',
-          error: 'SMTP not configured',
+          error: NO_VERIFIED_SENDER_MESSAGE,
         })),
       };
     }
 
     try {
-      await this.getTransporter();
+      await this.emailSenders.resolveTenantSender(args.companyId);
     } catch (err) {
       const message = (err as Error).message;
       return {
-        configured: true,
+        configured: false,
         sent: 0,
         failed: args.recipients.length,
         skipped: 0,
@@ -376,6 +444,12 @@ export class MailService implements OnModuleInit {
           error: message,
         })),
       };
+    }
+
+    try {
+      await this.getTransporter().catch(() => undefined);
+    } catch {
+      // tenant SMTP is resolved per send
     }
 
     const results: RfqInviteEmailResult[] = [];
@@ -421,6 +495,7 @@ export class MailService implements OnModuleInit {
           html: prepared?.enabled ? prepared.html : rfqInviteHtml(content),
           cc: prepared?.enabled ? prepared.cc : undefined,
           bcc: prepared?.enabled ? prepared.bcc : undefined,
+          attachments: args.attachments,
         });
         results.push({
           supplierId: recipient.supplierId,
@@ -508,12 +583,8 @@ export class MailService implements OnModuleInit {
     to: string;
     content: SalesQuotationEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
-    if (!this.isConfigured()) {
-      throw new Error(
-        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
-      );
-    }
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? salesQuotationSubject(args.content),
@@ -522,6 +593,7 @@ export class MailService implements OnModuleInit {
       cc: args.overrides?.cc,
       bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 
@@ -532,11 +604,6 @@ export class MailService implements OnModuleInit {
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
-    if (!this.isConfigured()) {
-      throw new Error(
-        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
-      );
-    }
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? purchaseOrderSubject(args.content),
@@ -557,11 +624,6 @@ export class MailService implements OnModuleInit {
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
-    if (!this.isConfigured()) {
-      throw new Error(
-        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
-      );
-    }
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       cc: args.overrides?.cc ?? args.cc,
@@ -665,15 +727,13 @@ export class MailService implements OnModuleInit {
     to: string;
     content: import('./transactional-email.templates').InvoiceCreatedEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
     const {
       invoiceCreatedHtml,
       invoiceCreatedSubject,
       invoiceCreatedText,
     } = await import('./transactional-email.templates');
-    if (!this.isConfigured()) {
-      throw new Error('SMTP is not configured');
-    }
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? invoiceCreatedSubject(args.content),
@@ -682,6 +742,7 @@ export class MailService implements OnModuleInit {
       cc: args.overrides?.cc,
       bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 
@@ -690,15 +751,13 @@ export class MailService implements OnModuleInit {
     to: string;
     content: import('./transactional-email.templates').PaymentReceivedEmailContent;
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
     const {
       paymentReceivedHtml,
       paymentReceivedSubject,
       paymentReceivedText,
     } = await import('./transactional-email.templates');
-    if (!this.isConfigured()) {
-      throw new Error('SMTP is not configured');
-    }
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? paymentReceivedSubject(args.content),
@@ -707,6 +766,7 @@ export class MailService implements OnModuleInit {
       cc: args.overrides?.cc,
       bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 

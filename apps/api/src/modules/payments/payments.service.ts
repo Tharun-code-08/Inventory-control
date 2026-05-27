@@ -14,6 +14,7 @@ import { EmailNotificationsService } from '../email-notifications/email-notifica
 import { paymentReceivedDefaults } from '../email-notifications/email-notifications.outbound';
 import type { PaymentReceivedEmailContent } from '../../common/mail/transactional-email.templates';
 import { MailService } from '../../common/mail/mail.service';
+import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
 
 @Injectable()
 export class PaymentsService {
@@ -217,11 +218,29 @@ export class PaymentsService {
 
     if (!shop?.companyId) return;
 
+    const attachments = await tryRenderDocumentPdfAttachment(
+      {
+        title: 'Payment Receipt',
+        documentNumber: content.receiptNumber,
+        partyLabel: 'Customer',
+        partyName: content.customerName,
+        companyName: content.companyName,
+        summaryLines: [
+          { label: 'Invoice', value: content.invoiceNumber },
+          { label: 'Amount Paid', value: content.amountPaid },
+          { label: 'Balance Due', value: content.balanceDue },
+          { label: 'Payment Type', value: content.paymentType },
+        ],
+      },
+      'payment',
+    );
+
     await this.mail.sendPaymentReceived({
       companyId: shop.companyId,
       to: recipient,
       content,
       overrides: prepared,
+      attachments,
     });
   }
 }

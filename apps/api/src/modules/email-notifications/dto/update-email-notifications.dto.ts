@@ -4,9 +4,12 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { EMAIL_TEMPLATE_IDS, type EmailTemplateId } from '../email-notifications.constants';
@@ -48,6 +51,41 @@ export class EmailInternalAlertConfigDto {
   recipients!: string[];
 }
 
+export class EmailRemindersDto {
+  @IsOptional()
+  @IsBoolean()
+  paymentReminderEnabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(365, { each: true })
+  paymentReminderDaysBefore?: number[];
+}
+
+export class EmailInternalAlertsDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmailInternalAlertConfigDto)
+  lowStock?: EmailInternalAlertConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmailInternalAlertConfigDto)
+  rfqDeadline?: EmailInternalAlertConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmailInternalAlertConfigDto)
+  invoiceOverdue?: EmailInternalAlertConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmailInternalAlertConfigDto)
+  goodsReceiptPosted?: EmailInternalAlertConfigDto;
+}
+
 export class UpdateEmailNotificationsDto {
   @IsOptional()
   @IsString()
@@ -59,21 +97,13 @@ export class UpdateEmailNotificationsDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => Object)
-  reminders?: {
-    paymentReminderEnabled?: boolean;
-    paymentReminderDaysBefore?: number[];
-  };
+  @Type(() => EmailRemindersDto)
+  reminders?: EmailRemindersDto;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => Object)
-  internalAlerts?: {
-    lowStock?: EmailInternalAlertConfigDto;
-    rfqDeadline?: EmailInternalAlertConfigDto;
-    invoiceOverdue?: EmailInternalAlertConfigDto;
-    goodsReceiptPosted?: EmailInternalAlertConfigDto;
-  };
+  @Type(() => EmailInternalAlertsDto)
+  internalAlerts?: EmailInternalAlertsDto;
 }
 
 export class PreviewEmailTemplateDto {

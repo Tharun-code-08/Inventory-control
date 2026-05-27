@@ -10,6 +10,7 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { rfqInviteDefaults } from '../email-notifications/email-notifications.outbound';
+import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
 
 @Injectable()
 export class RfqsService {
@@ -185,15 +186,37 @@ export class RfqsService {
       throw new BadRequestException('Add at least one supplier before sending the RFQ');
     }
 
-    if (!this.mail.isConfigured()) {
-      throw new BadRequestException(
-        'Email is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env, then restart the API.',
-      );
-    }
-
     if (!existing.shop.companyId) {
       throw new BadRequestException('Shop is not linked to a company');
     }
+
+    const companyName = existing.shop.shopName;
+    const attachments = await tryRenderDocumentPdfAttachment(
+      {
+        title: 'Request for Quotation',
+        documentNumber: existing.rfqNumber,
+        documentDate: existing.deadline
+          ? existing.deadline.toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : undefined,
+        partyLabel: 'RFQ Title',
+        partyName: existing.title,
+        companyName,
+        summaryLines: [
+          { label: 'RFQ Number', value: existing.rfqNumber },
+          { label: 'Deadline', value: existing.deadline?.toLocaleDateString('en-GB') ?? '—' },
+        ],
+        tableHeaders: ['Product', 'Qty'],
+        tableRows: (existing.items ?? []).map((item) => [
+          String(item.product?.description ?? item.productId ?? ''),
+          String(item.quantity ?? ''),
+        ]),
+      },
+      'rfq',
+    );
 
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
@@ -204,6 +227,7 @@ export class RfqsService {
       deadline: existing.deadline,
       recipients: this.inviteRecipients(suppliers),
       shopId: existing.shopId,
+      attachments,
       prepareInvite: (content) => {
         const defaults = rfqInviteDefaults(content);
         return this.emailNotifications.prepareTemplate(

@@ -497,6 +497,27 @@ export function EmailNotificationsSection() {
                       <p className="text-xs font-semibold uppercase text-muted-foreground">Subject</p>
                       <p className="text-sm">{preview.subject}</p>
                     </div>
+                    {[
+                      'purchase_order_supplier',
+                      'rfq_invite',
+                      'sales_quotation_customer',
+                      'supplier_return_notice',
+                      'invoice_created',
+                      'payment_received',
+                    ].includes(selectedDefinition.id) ? (
+                      <p className="text-xs text-muted-foreground">
+                        A PDF of this document is attached automatically when the email is sent.
+                      </p>
+                    ) : null}
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">Email preview</p>
+                      <iframe
+                        title="Email HTML preview"
+                        sandbox=""
+                        srcDoc={preview.html}
+                        className="mt-2 h-[420px] w-full rounded-md border bg-white"
+                      />
+                    </div>
                     <div>
                       <p className="text-xs font-semibold uppercase text-muted-foreground">Plain text</p>
                       <pre className="whitespace-pre-wrap text-sm">{preview.text}</pre>

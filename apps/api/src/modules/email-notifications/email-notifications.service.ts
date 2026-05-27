@@ -239,6 +239,7 @@ export class EmailNotificationsService {
         bodyHtml: overrides.bodyHtml,
       },
       context,
+      templateId: dto.templateId,
     });
   }
 
@@ -278,6 +279,7 @@ export class EmailNotificationsService {
         bodyHtml: template.bodyHtml,
       },
       context,
+      templateId,
     });
     return {
       enabled: true,

@@ -17,6 +17,7 @@ describe('EmailSenderService.resolveTenantSender', () => {
   const mail = {
     isConfigured: jest.fn().mockReturnValue(true),
     sendPlatformMail: jest.fn(),
+    sendViaSmtp: jest.fn(),
   } as any;
 
   const prisma = {
@@ -35,7 +36,8 @@ describe('EmailSenderService.resolveTenantSender', () => {
 
   const service = new EmailSenderService(prisma, mail, config);
 
-  it('uses relay headers for verified public-domain primary sender', async () => {
+  it('uses tenant SMTP for verified primary sender with configured SMTP', async () => {
+    process.env.SMTP_CREDENTIALS_KEY = 'test-key-for-unit-tests-only';
     prisma.emailSenderIdentity.findFirst.mockResolvedValue({
       id: 's1',
       email: 'user@gmail.com',
@@ -43,27 +45,21 @@ describe('EmailSenderService.resolveTenantSender', () => {
       senderType: EmailSenderType.PUBLIC_DOMAIN,
       status: EmailSenderStatus.VERIFIED,
       isPrimary: true,
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 587,
+      smtpSecure: false,
+      smtpUser: 'user@gmail.com',
+      smtpPasswordEnc: require('../../common/crypto/secret-cipher').encryptSecret(
+        'app-password',
+        'test-key-for-unit-tests-only',
+      ),
+      smtpLastVerifiedAt: new Date(),
     });
 
     const resolved = await service.resolveTenantSender('company-1');
-    expect(resolved.mode).toBe('tenant_relay');
-    expect(resolved.fromEmail).toBe('office@softdigitconsulting.com');
+    expect(resolved.mode).toBe('tenant_smtp');
+    expect(resolved.fromEmail).toBe('user@gmail.com');
     expect(resolved.replyTo).toBe('user@gmail.com');
-  });
-
-  it('uses direct from for verified custom-domain primary sender', async () => {
-    prisma.emailSenderIdentity.findFirst.mockResolvedValue({
-      id: 's2',
-      email: 'office@softdigitconsulting.com',
-      displayName: 'Office',
-      senderType: EmailSenderType.CUSTOM_DOMAIN,
-      status: EmailSenderStatus.VERIFIED,
-      isPrimary: true,
-    });
-
-    const resolved = await service.resolveTenantSender('company-1');
-    expect(resolved.mode).toBe('tenant_direct');
-    expect(resolved.fromEmail).toBe('office@softdigitconsulting.com');
-    expect(resolved.replyTo).toBe('office@softdigitconsulting.com');
+    expect(resolved.smtp.host).toBe('smtp.gmail.com');
   });
 });

@@ -1104,6 +1104,13 @@ model EmailSenderIdentity {
   isPrimary   Boolean           @default(false) @map("is_primary")
   status      EmailSenderStatus @default(PENDING)
   verifiedAt  DateTime?         @map("verified_at") @db.Timestamptz(6)
+  smtpHost        String?   @map("smtp_host")
+  smtpPort        Int?      @map("smtp_port")
+  smtpSecure      Boolean?  @map("smtp_secure")
+  smtpUser        String?   @map("smtp_user")
+  smtpPasswordEnc String?   @map("smtp_password_enc")
+  smtpConfiguredAt   DateTime? @map("smtp_configured_at") @db.Timestamptz(6)
+  smtpLastVerifiedAt DateTime? @map("smtp_last_verified_at") @db.Timestamptz(6)
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 

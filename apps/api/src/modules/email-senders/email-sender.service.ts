@@ -16,6 +16,11 @@ import {
   senderVerificationOtpSubject,
   senderVerificationOtpText,
 } from '../../common/mail/sender-verification-otp.template';
+import {
+  decryptSecret,
+  encryptSecret,
+  getSmtpCredentialsKey,
+} from '../../common/crypto/secret-cipher';
 import type { RequestUser } from '../../common/types/request-user';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -25,8 +30,13 @@ import {
   SENDER_OTP_EXPIRY_MINUTES,
   SENDER_OTP_MAX_ATTEMPTS,
   type ResolvedTenantSender,
+  type SenderSmtpConfig,
 } from './email-sender.constants';
-import type { CreateEmailSenderDto, UpdateEmailSenderDto } from './dto/email-sender.dto';
+import type {
+  ConfigureSenderSmtpDto,
+  CreateEmailSenderDto,
+  UpdateEmailSenderDto,
+} from './dto/email-sender.dto';
 
 @Injectable()
 export class EmailSenderService {
@@ -160,7 +170,7 @@ export class EmailSenderService {
         replyTo,
         bcc,
         guidance:
-          'Platform emails (signup, password reset) are sent from this mailbox. Tenant business emails use verified senders below.',
+          'Platform emails (signup, password reset) use this mailbox. Business emails send from your verified primary sender via its own SMTP settings.',
       },
       companyName: company?.companyName ?? 'Company',
       customDomains: domains.map((domain) => ({
@@ -188,7 +198,10 @@ export class EmailSenderService {
     status: EmailSenderStatus;
     verifiedAt: Date | null;
     domainId: string | null;
+    smtpHost?: string | null;
+    smtpLastVerifiedAt?: Date | null;
   }) {
+    const smtpConfigured = Boolean(sender.smtpHost && sender.smtpLastVerifiedAt);
     return {
       id: sender.id,
       displayName: sender.displayName,
@@ -198,7 +211,57 @@ export class EmailSenderService {
       status: sender.status,
       verifiedAt: sender.verifiedAt,
       domainId: sender.domainId,
+      smtpConfigured,
+      smtpLastVerifiedAt: sender.smtpLastVerifiedAt ?? null,
+      smtpRequired: sender.status === EmailSenderStatus.VERIFIED && !smtpConfigured,
+      isPublicDomain: isPublicEmailDomain(parseEmailDomain(sender.email)),
     };
+  }
+
+  private decryptSmtpPassword(encrypted: string | null | undefined): string | null {
+    if (!encrypted) return null;
+    try {
+      return decryptSecret(encrypted, getSmtpCredentialsKey());
+    } catch {
+      return null;
+    }
+  }
+
+  private buildSmtpConfig(sender: {
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpSecure: boolean | null;
+    smtpUser: string | null;
+    smtpPasswordEnc: string | null;
+  }): SenderSmtpConfig | null {
+    const password = this.decryptSmtpPassword(sender.smtpPasswordEnc);
+    if (!sender.smtpHost || !sender.smtpPort || !sender.smtpUser || !password) return null;
+    return {
+      host: sender.smtpHost,
+      port: sender.smtpPort,
+      secure: sender.smtpSecure ?? false,
+      user: sender.smtpUser,
+      password,
+    };
+  }
+
+  private assertSenderSmtpReady(sender: {
+    status: EmailSenderStatus;
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpSecure: boolean | null;
+    smtpUser: string | null;
+    smtpPasswordEnc: string | null;
+    smtpLastVerifiedAt: Date | null;
+  }) {
+    if (sender.status !== EmailSenderStatus.VERIFIED) {
+      throw new BadRequestException('Verify this sender before configuring SMTP.');
+    }
+    if (!this.buildSmtpConfig(sender) || !sender.smtpLastVerifiedAt) {
+      throw new BadRequestException(
+        'Configure and test SMTP for this sender in Settings > Email Notifications > Sender Email.',
+      );
+    }
   }
 
   async createSender(user: RequestUser, dto: CreateEmailSenderDto) {
@@ -257,6 +320,10 @@ export class EmailSenderService {
       where: { id: senderId, companyId },
     });
     if (!sender) throw new NotFoundException('Sender not found');
+
+    if (dto.isPrimary) {
+      this.assertSenderSmtpReady(sender);
+    }
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.isPrimary) {
@@ -390,7 +457,7 @@ export class EmailSenderService {
       throw new BadRequestException('OTP verification applies only to public-domain senders');
     }
     if (!this.mail.isConfigured()) {
-      throw new BadRequestException('SMTP is not configured');
+      throw new BadRequestException('Platform SMTP is not configured for verification emails.');
     }
 
     const otpCode = String(randomInt(100000, 999999));
@@ -477,6 +544,94 @@ export class EmailSenderService {
     });
   }
 
+  async configureSenderSmtp(user: RequestUser, senderId: string, dto: ConfigureSenderSmtpDto) {
+    const companyId = this.companyId(user);
+    const sender = await this.prisma.emailSenderIdentity.findFirst({
+      where: { id: senderId, companyId },
+    });
+    if (!sender) throw new NotFoundException('Sender not found');
+    if (sender.status !== EmailSenderStatus.VERIFIED) {
+      throw new BadRequestException('Verify this sender before configuring SMTP.');
+    }
+
+    const now = new Date();
+    const encrypted = encryptSecret(dto.password, getSmtpCredentialsKey());
+    const updated = await this.prisma.emailSenderIdentity.update({
+      where: { id: senderId },
+      data: {
+        smtpHost: dto.host.trim(),
+        smtpPort: dto.port,
+        smtpSecure: dto.secure,
+        smtpUser: dto.user.trim(),
+        smtpPasswordEnc: encrypted,
+        smtpConfiguredAt: now,
+      },
+    });
+
+    return this.toSenderDto(updated);
+  }
+
+  async testSenderSmtp(user: RequestUser, senderId: string, dto?: ConfigureSenderSmtpDto) {
+    const companyId = this.companyId(user);
+    const sender = await this.prisma.emailSenderIdentity.findFirst({
+      where: { id: senderId, companyId },
+    });
+    if (!sender) throw new NotFoundException('Sender not found');
+    if (sender.status !== EmailSenderStatus.VERIFIED) {
+      throw new BadRequestException('Verify this sender before testing SMTP.');
+    }
+
+    let smtp: SenderSmtpConfig;
+    if (dto) {
+      smtp = {
+        host: dto.host.trim(),
+        port: dto.port,
+        secure: dto.secure,
+        user: dto.user.trim(),
+        password: dto.password,
+      };
+    } else {
+      const built = this.buildSmtpConfig(sender);
+      if (!built) {
+        throw new BadRequestException('Save SMTP settings before running a test.');
+      }
+      smtp = built;
+    }
+
+    await this.mail.sendViaSmtp(smtp, {
+      to: sender.email,
+      subject: 'Retail IMS — sender SMTP test',
+      text: `This confirms SMTP for ${sender.email} is working.`,
+      html: `<p>This confirms SMTP for <strong>${sender.email}</strong> is working.</p>`,
+      fromName: sender.displayName,
+      fromEmail: sender.email,
+    });
+
+    const now = new Date();
+    if (dto) {
+      const encrypted = encryptSecret(dto.password, getSmtpCredentialsKey());
+      await this.prisma.emailSenderIdentity.update({
+        where: { id: senderId },
+        data: {
+          smtpHost: dto.host.trim(),
+          smtpPort: dto.port,
+          smtpSecure: dto.secure,
+          smtpUser: dto.user.trim(),
+          smtpPasswordEnc: encrypted,
+          smtpConfiguredAt: now,
+          smtpLastVerifiedAt: now,
+        },
+      });
+    } else {
+      await this.prisma.emailSenderIdentity.update({
+        where: { id: senderId },
+        data: { smtpLastVerifiedAt: now },
+      });
+    }
+
+    return { ok: true, testedAt: now, to: sender.email };
+  }
+
   async resolveTenantSender(companyId: string): Promise<ResolvedTenantSender> {
     const sender = await this.prisma.emailSenderIdentity.findFirst({
       where: {
@@ -491,26 +646,23 @@ export class EmailSenderService {
       );
     }
 
-    const platformFrom = this.platformFromEmail();
-
-    if (sender.senderType === EmailSenderType.PUBLIC_DOMAIN) {
-      return {
-        fromEmail: platformFrom,
-        fromName: sender.displayName,
-        replyTo: sender.email,
-        mode: 'tenant_relay',
-        senderEmail: sender.email,
-        displayName: sender.displayName,
-      };
+    this.assertSenderSmtpReady(sender);
+    const smtp = this.buildSmtpConfig(sender);
+    if (!smtp) {
+      throw new BadRequestException(
+        'Configure and test SMTP for your primary sender in Settings > Email Notifications.',
+      );
     }
 
     return {
+      senderId: sender.id,
       fromEmail: sender.email,
       fromName: sender.displayName,
       replyTo: sender.email,
-      mode: 'tenant_direct',
+      mode: 'tenant_smtp',
       senderEmail: sender.email,
       displayName: sender.displayName,
+      smtp,
     };
   }
 

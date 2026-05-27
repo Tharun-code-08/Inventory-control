@@ -14,6 +14,7 @@ import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
 import { SubscriptionService } from '../billing/subscription.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { salesQuotationDefaults } from '../email-notifications/email-notifications.outbound';
+import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
 
 @Injectable()
 export class SalesQuotationsService {
@@ -88,11 +89,37 @@ export class SalesQuotationsService {
       throw new BadRequestException('Shop is not linked to a company');
     }
 
+    const attachments = await tryRenderDocumentPdfAttachment(
+      {
+        title: 'Sales Quotation',
+        documentNumber: row.quoteNumber,
+        documentDate: emailContent.quoteDate,
+        partyLabel: 'Customer',
+        partyName: emailContent.customerName,
+        companyName: emailContent.companyName,
+        summaryLines: [
+          { label: 'Quote Date', value: emailContent.quoteDate },
+          { label: 'Valid Until', value: emailContent.validUntil ?? '—' },
+          { label: 'Total', value: emailContent.totalValue },
+        ],
+        tableHeaders: ['Code', 'Description', 'Qty', 'Rate', 'Value'],
+        tableRows: emailContent.lines.map((line) => [
+          line.code,
+          line.description,
+          line.quantity,
+          line.unitPrice,
+          line.lineValue,
+        ]),
+      },
+      'quotation',
+    );
+
     return this.mail.sendSalesQuotationToCustomer({
       companyId: row.shop.companyId,
       to: customerEmail,
       content: emailContent,
       overrides: prepared,
+      attachments,
     });
   }
 

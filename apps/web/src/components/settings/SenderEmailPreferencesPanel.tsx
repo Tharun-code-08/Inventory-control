@@ -20,10 +20,12 @@ import {
   useEmailSenders,
   useFetchDomainDkim,
   useSendSenderVerification,
+  useTestSenderSmtp,
   useUpdateEmailSender,
   useValidateEmailDomain,
   useVerifySenderOtp,
   type EmailSenderRow,
+  type ConfigureSenderSmtpPayload,
 } from '@/hooks/use-email-senders';
 import { getApiErrorMessage } from '@/lib/api-error';
 
@@ -51,6 +53,7 @@ export function SenderEmailPreferencesPanel() {
   const fetchDkim = useFetchDomainDkim();
   const sendVerification = useSendSenderVerification();
   const verifyOtp = useVerifySenderOtp();
+  const testSmtp = useTestSenderSmtp();
 
   const [newSenderOpen, setNewSenderOpen] = useState(false);
   const [displayName, setDisplayName] = useState('');
@@ -69,9 +72,60 @@ export function SenderEmailPreferencesPanel() {
   const [editSender, setEditSender] = useState<EmailSenderRow | null>(null);
   const [editName, setEditName] = useState('');
 
+  const [smtpOpen, setSmtpOpen] = useState(false);
+  const [smtpSender, setSmtpSender] = useState<EmailSenderRow | null>(null);
+  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+
   if (isLoading || !data) {
     return <div className="text-sm text-muted-foreground">Loading sender preferences…</div>;
   }
+
+  const primaryPublicGmail = [...data.publicSenders, ...data.customDomains.flatMap((d) => d.senders)].find(
+    (sender) => sender.isPrimary && sender.isPublicDomain && sender.email.endsWith('@gmail.com'),
+  );
+
+  const openSmtpModal = (sender: EmailSenderRow) => {
+    setSmtpSender(sender);
+    setSmtpUser(sender.email);
+    setSmtpHost(sender.email.includes('@gmail.') ? 'smtp.gmail.com' : 'smtp.zoho.com');
+    setSmtpPort('587');
+    setSmtpSecure(false);
+    setSmtpPassword('');
+    setSmtpOpen(true);
+  };
+
+  const smtpPayload = (): ConfigureSenderSmtpPayload => ({
+    host: smtpHost.trim(),
+    port: Number(smtpPort),
+    secure: smtpSecure,
+    user: smtpUser.trim(),
+    password: smtpPassword,
+  });
+
+  const submitSmtpTest = async () => {
+    if (!smtpSender) return;
+    try {
+      await testSmtp.mutateAsync({ senderId: smtpSender.id, ...smtpPayload() });
+      toast.success('SMTP test email sent and settings saved');
+      setSmtpOpen(false);
+      await refetch();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'SMTP test failed'));
+    }
+  };
+
+  const renderSmtpAction = (sender: EmailSenderRow) => {
+    if (sender.status !== 'VERIFIED') return null;
+    return (
+      <Button size="sm" variant={sender.smtpRequired ? 'default' : 'outline'} onClick={() => openSmtpModal(sender)}>
+        {sender.smtpConfigured ? 'Update SMTP' : 'Configure SMTP'}
+      </Button>
+    );
+  };
 
   const openDnsModal = async (domain: string) => {
     try {
@@ -157,8 +211,10 @@ export function SenderEmailPreferencesPanel() {
     if (!otpSender) return;
     try {
       await verifyOtp.mutateAsync({ senderId: otpSender.id, otpCode: otpCode.trim() });
-      toast.success('Sender verified');
+      toast.success('Sender verified — configure SMTP next');
       setOtpOpen(false);
+      const verified = { ...otpSender, status: 'VERIFIED' as const };
+      openSmtpModal(verified);
       await refetch();
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Verification failed'));
@@ -172,7 +228,7 @@ export function SenderEmailPreferencesPanel() {
           <div>
             <CardTitle>Sender Email Preferences</CardTitle>
             <CardDescription>
-              Platform emails use {data.platform.from}. Tenant business emails use your verified senders below.
+              Platform emails use {data.platform.from}. Business emails send from your verified primary sender mailbox.
             </CardDescription>
           </div>
           <Button size="sm" onClick={() => setNewSenderOpen(true)}>
@@ -200,8 +256,17 @@ export function SenderEmailPreferencesPanel() {
             </div>
           </div>
 
+          {primaryPublicGmail ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <p className="font-medium">Gmail daily sending limit</p>
+              <p className="mt-1">
+                Your primary sender uses Gmail. Free Gmail accounts are limited to about 500 emails per day. Enable Google
+                2-Step Verification before creating an App Password for SMTP.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-3">
-            <p className="text-sm font-semibold">Unauthenticated domains</p>
             {data.customDomains.length === 0 ? (
               <p className="text-sm text-muted-foreground">No custom-domain senders yet.</p>
             ) : (
@@ -236,7 +301,8 @@ export function SenderEmailPreferencesPanel() {
                           <span className="text-muted-foreground">{sender.email}</span>
                           {statusBadge(sender.status)}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {renderSmtpAction(sender)}
                           {!sender.isPrimary ? (
                             <Button size="sm" variant="ghost" onClick={() => makePrimary(sender)}>
                               Set primary
@@ -268,8 +334,8 @@ export function SenderEmailPreferencesPanel() {
           <div className="space-y-3">
             <p className="text-sm font-semibold">Public domains</p>
             <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-              Public emails (Gmail, Outlook, etc.) are verified by OTP sent from {data.platform.from}. Business emails
-              relay through the platform mailbox with Reply-To set to your verified address.
+              Public emails (Gmail, Outlook, etc.) are verified by OTP from {data.platform.from}. After verification,
+              configure SMTP (Gmail App Password requires 2-Step Verification) so business emails send from your address.
             </div>
             {data.publicSenders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No public-domain senders yet.</p>
@@ -306,7 +372,8 @@ export function SenderEmailPreferencesPanel() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {renderSmtpAction(sender)}
                             {!sender.isPrimary ? (
                               <Button size="sm" variant="ghost" onClick={() => makePrimary(sender)}>
                                 Set primary
@@ -416,7 +483,7 @@ export function SenderEmailPreferencesPanel() {
           <DialogHeader>
             <DialogTitle>Verify {otpSender?.email}</DialogTitle>
             <DialogDescription>
-              Enter the 6-digit code sent from {data.platform.from}.
+              Enter the 6-digit code sent from {data.platform.from}. Then configure SMTP to send business emails.
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -431,6 +498,49 @@ export function SenderEmailPreferencesPanel() {
             </Button>
             <Button onClick={submitOtp} disabled={verifyOtp.isPending || otpCode.length !== 6}>
               Verify
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={smtpOpen} onOpenChange={setSmtpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure SMTP — {smtpSender?.email}</DialogTitle>
+            <DialogDescription>
+              For Gmail, enable 2-Step Verification, create an App Password, and use smtp.gmail.com:587. A test email is
+              sent to your mailbox when you save.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1 md:col-span-2">
+              <Label>SMTP host</Label>
+              <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" />
+            </div>
+            <div className="space-y-1">
+              <Label>Port</Label>
+              <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" />
+            </div>
+            <div className="space-y-1">
+              <Label>Username</Label>
+              <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label>App password</Label>
+              <Input
+                type="password"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+                placeholder="Gmail App Password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSmtpOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitSmtpTest} disabled={testSmtp.isPending || !smtpPassword.trim()}>
+              Test &amp; save
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,13 +22,41 @@ export const SENDER_OTP_MAX_ATTEMPTS = 5;
 export const NO_VERIFIED_SENDER_MESSAGE =
   'Configure and verify a sender email in Settings > Customization > Email Notifications.';
 
+export type SenderSmtpConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+};
+
+export const GMAIL_SMTP_PRESET: Omit<SenderSmtpConfig, 'user' | 'password'> = {
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+};
+
+export const OUTLOOK_SMTP_PRESET: Omit<SenderSmtpConfig, 'user' | 'password'> = {
+  host: 'smtp-mail.outlook.com',
+  port: 587,
+  secure: false,
+};
+
+export const ZOHO_SMTP_PRESET: Omit<SenderSmtpConfig, 'user' | 'password'> = {
+  host: 'smtp.zoho.com',
+  port: 587,
+  secure: false,
+};
+
 export type ResolvedTenantSender = {
+  senderId: string;
   fromEmail: string;
   fromName: string;
   replyTo: string;
-  mode: 'tenant_direct' | 'tenant_relay';
+  mode: 'tenant_smtp';
   senderEmail: string;
   displayName: string;
+  smtp: SenderSmtpConfig;
 };
 
 export function parseEmailDomain(email: string): string {
@@ -43,4 +71,9 @@ export function isPublicEmailDomain(domain: string): boolean {
 
 export function normalizeSenderEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+export function isGmailDomain(email: string): boolean {
+  const domain = parseEmailDomain(email);
+  return domain === 'gmail.com' || domain === 'googlemail.com';
 }

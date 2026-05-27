@@ -701,7 +701,10 @@ export class PurchaseOrdersService {
     );
   }
 
-  private buildPoEmailContent(po: ReturnType<PurchaseOrdersService['serialize']> & { shop?: { shopName?: string } }): PurchaseOrderEmailContent {
+  private buildPoEmailContent(
+    po: ReturnType<PurchaseOrdersService['serialize']> & { shop?: { shopName?: string } },
+    companyName: string,
+  ): PurchaseOrderEmailContent {
     const poDate = po.poDate ? new Date(po.poDate) : new Date();
     const lines =
       po.items?.map((line) => ({
@@ -727,7 +730,7 @@ export class PurchaseOrdersService {
       shopName: po.shop?.shopName ?? '',
       remarks: po.remarks ?? null,
       totalValue,
-      companyName: 'Softdigit Consulting',
+      companyName,
       lines,
     };
   }
@@ -736,7 +739,7 @@ export class PurchaseOrdersService {
     const po = await this.get(user, id);
     const shopRow = await this.prisma.shop.findUnique({
       where: { id: po.shopId },
-      select: { companyId: true },
+      select: { companyId: true, company: { select: { companyName: true } } },
     });
     if (!shopRow?.companyId) {
       throw new BadRequestException('Shop not linked to a company');
@@ -758,7 +761,7 @@ export class PurchaseOrdersService {
       );
     }
 
-    const content = this.buildPoEmailContent(po);
+    const content = this.buildPoEmailContent(po, shopRow.company?.companyName ?? 'Company');
     const pdfFilename = purchaseOrderPdfFilename(po.poNumber);
     let attachments: Array<{ filename: string; content: Buffer }> | undefined;
     try {
@@ -769,12 +772,6 @@ export class PurchaseOrdersService {
     } catch (err) {
       const message = (err as Error).message ?? 'PDF generation failed';
       this.logger.warn(`PO PDF attachment skipped for ${po.poNumber}: ${message}`);
-    }
-
-    if (!this.mail.isConfigured()) {
-      throw new BadRequestException(
-        'Email is not configured on the server (SMTP_HOST / SMTP_USER / SMTP_PASS). Contact your administrator.',
-      );
     }
 
     const defaults = purchaseOrderDefaults(content);

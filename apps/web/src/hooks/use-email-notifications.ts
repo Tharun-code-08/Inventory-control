@@ -66,13 +66,30 @@ export function useEmailNotifications(shopId?: string) {
   });
 }
 
+export type EmailNotificationsSavePayload = Pick<
+  EmailNotificationsConfig,
+  'version' | 'templates' | 'reminders' | 'internalAlerts'
+>;
+
+export function toEmailNotificationsSavePayload(
+  config: EmailNotificationsConfig,
+): EmailNotificationsSavePayload {
+  return {
+    version: config.version,
+    templates: config.templates,
+    reminders: config.reminders,
+    internalAlerts: config.internalAlerts,
+  };
+}
+
 export function useUpdateEmailNotifications(shopId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: EmailNotificationsConfig) => {
+    mutationFn: async (payload: EmailNotificationsConfig | EmailNotificationsSavePayload) => {
+      const body = 'isOverride' in payload ? toEmailNotificationsSavePayload(payload) : payload;
       const res = shopId
-        ? await api.put(`/settings/email-notifications/shops/${shopId}`, payload)
-        : await api.put('/settings/email-notifications', payload);
+        ? await api.put(`/settings/email-notifications/shops/${shopId}`, body)
+        : await api.put('/settings/email-notifications', body);
       return (res.data?.data ?? res.data) as EmailNotificationsResponse;
     },
     onSuccess: () => {

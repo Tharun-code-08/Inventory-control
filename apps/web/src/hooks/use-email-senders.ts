@@ -12,6 +12,10 @@ export type EmailSenderRow = {
   status: EmailSenderStatus;
   verifiedAt: string | null;
   domainId: string | null;
+  smtpConfigured?: boolean;
+  smtpLastVerifiedAt?: string | null;
+  smtpRequired?: boolean;
+  isPublicDomain?: boolean;
 };
 
 export type EmailSenderDomainRow = {
@@ -125,6 +129,38 @@ export function useVerifySenderOtp() {
         otpCode: payload.otpCode,
       });
       return (res.data?.data ?? res.data) as EmailSenderRow;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export type ConfigureSenderSmtpPayload = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+};
+
+export function useConfigureSenderSmtp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { senderId: string } & ConfigureSenderSmtpPayload) => {
+      const { senderId, ...body } = payload;
+      const res = await api.put(`/settings/email-notifications/senders/${senderId}/smtp`, body);
+      return (res.data?.data ?? res.data) as EmailSenderRow;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useTestSenderSmtp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { senderId: string } & ConfigureSenderSmtpPayload) => {
+      const { senderId, ...body } = payload;
+      const res = await api.post(`/settings/email-notifications/senders/${senderId}/smtp/test`, body);
+      return res.data?.data ?? res.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
