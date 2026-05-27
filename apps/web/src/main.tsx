@@ -7,6 +7,7 @@ import { AppRoutes } from './routes/AppRoutes';
 import './index.css';
 import { api, applyAccessToken } from './api/client';
 import { GoogleAnalyticsManager } from './components/analytics/GoogleAnalyticsManager';
+import { DocumentTitleManager } from './components/DocumentTitleManager';
 import { CookieConsentManager } from './components/cookies/CookieConsentManager';
 import { initializeSessionFromAuthResponse } from './lib/session';
 import { useAuthStore } from './store/authStore';
@@ -53,6 +54,7 @@ function mountApp() {
     <React.StrictMode>
       <QueryClientProvider client={qc}>
         <BrowserRouter>
+          <DocumentTitleManager />
           <AppRoutes />
           <GoogleAnalyticsManager />
           <CookieConsentManager />

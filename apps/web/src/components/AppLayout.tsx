@@ -17,46 +17,7 @@ import { AppFooter } from '@/components/AppFooter';
 import { OrganisationIdBadge } from '@/components/OrganisationIdBadge';
 import { TrialUpgradeBanner } from '@/components/TrialUpgradeBanner';
 import { useSubscription } from '@/hooks/use-subscription';
-
-const pageTitles: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/companies': 'Companies',
-  '/plants': 'Plants',
-  '/storage-locations': 'Storage Locations',
-  '/suppliers': 'Suppliers',
-  '/rfqs': 'RFQs',
-  '/quotations': 'Sales Quotations',
-  '/contracts': 'Contracts',
-  '/customers': 'Customers',
-  '/supplier-portal': 'Supplier Portal',
-  '/sales': 'Sales Orders',
-  '/invoices': 'Invoices',
-  '/payments': 'Payments',
-  '/notifications': 'Notifications',
-  '/warehouse': 'Warehouse',
-  '/supplier-bills': 'Supplier Bills',
-  '/supplier-payments': 'Supplier Payments',
-  '/stock-transfers': 'Stock Transfers',
-  '/stock-transfers/new': 'New Stock Transfer',
-  '/products': 'Products',
-  '/goods-receipts': 'Goods Receipt',
-  '/goods-issues': 'Goods Issues',
-  '/goods-issues/new': 'Create Goods Issue',
-  '/purchase-orders': 'Purchase Orders',
-  '/reports': 'Reports',
-  '/settings': 'Settings',
-  '/upgrade': 'Upgrade',
-  '/profile': 'Profile',
-  '/help': 'Help & Support',
-};
-
-function resolveTitle(pathname: string): string {
-  if (pageTitles[pathname]) return pageTitles[pathname];
-  for (const [path, title] of Object.entries(pageTitles)) {
-    if (pathname === path || pathname.startsWith(`${path}/`)) return title;
-  }
-  return 'Dashboard';
-}
+import { resolvePageTitle } from '@/lib/page-titles';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -104,7 +65,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
   const { data: subscription } = useSubscription(Boolean(user));
 
-  const pageTitle = active ?? resolveTitle(location.pathname);
+  const pageTitle = active ?? resolvePageTitle(location.pathname);
 
   useEffect(() => {
     function close(e: MouseEvent) {

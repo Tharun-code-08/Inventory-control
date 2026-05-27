@@ -25,6 +25,7 @@ import {
   useFulfillSalesOrder,
 } from '@/hooks/use-sales-orders';
 import { useCreateInvoice } from '@/hooks/use-invoices';
+import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import {
@@ -76,6 +77,7 @@ export function SalesOrderDetailPage() {
   const orderId = id ?? '';
 
   const { data: order, isLoading, isError } = useSalesOrder(orderId);
+  useDocumentTitleOverride(order?.soNumber);
   const confirmOrder = useConfirmSalesOrder();
   const fulfillOrder = useFulfillSalesOrder();
   const createInvoice = useCreateInvoice();

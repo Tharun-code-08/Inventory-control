@@ -56,6 +56,7 @@ import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { formatSupplierReference } from '@/lib/document-display';
+import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -223,6 +224,7 @@ export function RfqDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: rfq, isLoading, isError } = useRfq(id);
+  useDocumentTitleOverride(rfq?.rfqNumber);
   const { data: quotations = [] } = useQuotations(id);
   const { data: contracts = [] } = useContracts();
   const acceptQuote = useAcceptAutoLinkQuotation();
