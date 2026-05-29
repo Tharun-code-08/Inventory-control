@@ -18,13 +18,15 @@ export class ShopsService {
   /** Attach orphaned plants (missing company) to the creator's organisation. */
   private async repairOrphanShops(user: RequestUser) {
     if (!user.companyId) return;
+    const companyUsers = await this.prisma.user.findMany({
+      where: { shop: { companyId: user.companyId } },
+      select: { id: true },
+    });
+    const creatorIds = [...new Set([user.id, ...companyUsers.map((row) => row.id)])];
     await this.prisma.shop.updateMany({
       where: {
         companyId: null,
-        OR: [
-          { createdById: user.id },
-          { createdBy: { shop: { companyId: user.companyId } } },
-        ],
+        createdById: { in: creatorIds },
       },
       data: { companyId: user.companyId },
     });
@@ -66,8 +68,8 @@ export class ShopsService {
       const [productPlants, receiptItems, transfersFrom, transfersTo] = await Promise.all([
         this.prisma.productPlant.count({ where: { storageLocationId: location.id } }),
         this.prisma.goodsReceiptItem.count({ where: { storageLocationId: location.id } }),
-        this.prisma.stockTransferHeader.count({ where: { fromLocationId: location.id } }),
-        this.prisma.stockTransferHeader.count({ where: { toLocationId: location.id } }),
+        this.prisma.stockTransferHeader.count({ where: { fromStorageLocationId: location.id } }),
+        this.prisma.stockTransferHeader.count({ where: { toStorageLocationId: location.id } }),
       ]);
       if (productPlants + receiptItems + transfersFrom + transfersTo === 0) {
         await this.prisma.storageLocation.delete({ where: { id: location.id } });

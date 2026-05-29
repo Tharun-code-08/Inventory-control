@@ -24,8 +24,8 @@ async function purgeStorageLocations(shopId) {
     const [productPlants, receiptItems, transfersFrom, transfersTo] = await Promise.all([
       prisma.productPlant.count({ where: { storageLocationId: location.id } }),
       prisma.goodsReceiptItem.count({ where: { storageLocationId: location.id } }),
-      prisma.stockTransferHeader.count({ where: { fromLocationId: location.id } }),
-      prisma.stockTransferHeader.count({ where: { toLocationId: location.id } }),
+      prisma.stockTransferHeader.count({ where: { fromStorageLocationId: location.id } }),
+      prisma.stockTransferHeader.count({ where: { toStorageLocationId: location.id } }),
     ]);
     if (productPlants + receiptItems + transfersFrom + transfersTo > 0) {
       throw new Error(

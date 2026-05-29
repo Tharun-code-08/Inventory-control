@@ -21,13 +21,7 @@ export function tenantCompanyShopWhere(actor: RequestUser): Prisma.ShopWhereInpu
   return {
     OR: [
       { companyId: actor.companyId },
-      {
-        companyId: null,
-        OR: [
-          { createdById: actor.id },
-          { createdBy: { shop: { companyId: actor.companyId } } },
-        ],
-      },
+      { companyId: null, createdById: actor.id },
     ],
   };
 }
@@ -193,15 +187,7 @@ export function storageLocationListWhere(
     return {
       OR: [
         { shop: { companyId } },
-        {
-          shop: {
-            companyId: null,
-            OR: [
-              { createdById: actor.id },
-              { createdBy: { shop: { companyId } } },
-            ],
-          },
-        },
+        { shop: { companyId: null, createdById: actor.id } },
       ],
     };
   }
