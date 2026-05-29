@@ -67,6 +67,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return 'A customer with this code already exists for the selected shop';
     }
 
+    if (normalized.includes('code') && normalized.includes('shop_id')) {
+      return 'A storage location with this code already exists for the selected plant';
+    }
+
     if (normalized.includes('return_number')) {
       return 'A return with this number already exists';
     }

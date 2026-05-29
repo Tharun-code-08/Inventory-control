@@ -53,7 +53,7 @@ export function useShops() {
   return useQuery({
     queryKey: shopKeys.lists(tenant),
     queryFn: async () => {
-      const res = await api.get('/shops');
+      const res = await api.get('/shops', { params: { take: 100 } });
       const payload = res.data.data;
       if (Array.isArray(payload)) return payload as Shop[];
       if (Array.isArray(payload?.data)) return payload.data as Shop[];

@@ -19,6 +19,13 @@ import {
   useUpdateStorageLocation,
 } from '@/hooks/use-storage-locations';
 import { cn } from '@/lib/cn';
+import { getApiErrorMessage } from '@/lib/api-error';
+
+const LOCATION_CODE_PATTERN = /^[A-Z0-9_-]{2,30}$/;
+
+function normalizeLocationCode(value: string): string {
+  return value.trim().toUpperCase();
+}
 
 type StorageLocationForm = {
   code: string;
@@ -66,7 +73,20 @@ function StorageLocationFormFields({
       </div>
       <div className="space-y-2">
         <Label>Code *</Label>
-        <Input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+        <Input
+          value={form.code}
+          placeholder="SL-01"
+          onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+          onBlur={() =>
+            setForm((p) => ({
+              ...p,
+              code: p.code ? normalizeLocationCode(p.code) : p.code,
+            }))
+          }
+        />
+        <p className="text-xs text-slate-500">
+          Unique within each plant. The same code can exist on different plants.
+        </p>
       </div>
       <div className="space-y-2">
         <Label>Name *</Label>
@@ -88,6 +108,7 @@ function StorageLocationsCreateView() {
   const { data: shops = [] } = useShops();
   const createLocation = useCreateStorageLocation();
   const [shopId, setShopId] = useState('');
+  const { data: plantLocations = [] } = useStorageLocations(shopId || undefined);
   const [form, setForm] = useState(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,12 +117,24 @@ function StorageLocationsCreateView() {
       toast.error('Select a plant before adding a storage location');
       return;
     }
-    if (!form.code.trim()) {
+    const code = normalizeLocationCode(form.code);
+    if (!code) {
       toast.error('Code is required');
+      return;
+    }
+    if (!LOCATION_CODE_PATTERN.test(code)) {
+      toast.error('Code must be 2–30 characters using letters, numbers, hyphens, or underscores only');
       return;
     }
     if (!form.name.trim()) {
       toast.error('Name is required');
+      return;
+    }
+    const duplicate = plantLocations.some(
+      (location) => normalizeLocationCode(location.code) === code,
+    );
+    if (duplicate) {
+      toast.error(`Code "${code}" already exists for this plant. Choose a different code.`);
       return;
     }
 
@@ -109,7 +142,7 @@ function StorageLocationsCreateView() {
     try {
       await createLocation.mutateAsync({
         shopId,
-        code: form.code.trim(),
+        code,
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         isActive: true,
@@ -117,10 +150,7 @@ function StorageLocationsCreateView() {
       toast.success('Storage location added');
       navigate('/storage-locations');
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to add storage location';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Failed to add storage location'));
     } finally {
       setIsSubmitting(false);
     }
@@ -167,10 +197,7 @@ function StorageLocationsListView() {
       await deactivateLocation.mutateAsync(id);
       toast.success('Storage location deactivated');
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to deactivate location';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Failed to deactivate location'));
     }
   };
 
@@ -179,12 +206,11 @@ function StorageLocationsListView() {
       await updateLocation.mutateAsync({ id, isActive: true });
       toast.success('Storage location activated');
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to activate location';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Failed to activate location'));
     }
   };
+
+  const shopNameById = new Map(shops.map((shop) => [shop.id, shop.shopName]));
 
   return (
     <div className="space-y-6">
@@ -218,6 +244,7 @@ function StorageLocationsListView() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Plant</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
@@ -228,11 +255,12 @@ function StorageLocationsListView() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>No locations found.</TableCell>
+                  <TableCell colSpan={6}>No locations found.</TableCell>
                 </TableRow>
               ) : (
                 rows.map((r) => (
                   <TableRow key={r.id}>
+                    <TableCell>{r.shop?.shopName ?? shopNameById.get(r.shopId) ?? '—'}</TableCell>
                     <TableCell>{r.code}</TableCell>
                     <TableCell>{r.name}</TableCell>
                     <TableCell>{r.description || '-'}</TableCell>

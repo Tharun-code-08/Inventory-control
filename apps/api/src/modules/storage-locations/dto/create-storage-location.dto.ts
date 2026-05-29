@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 export class CreateStorageLocationDto {
   @ApiProperty()
@@ -7,8 +8,11 @@ export class CreateStorageLocationDto {
   shopId!: string;
 
   @ApiProperty()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsString()
-  @MaxLength(30)
+  @Matches(/^[A-Z0-9_-]{2,30}$/, {
+    message: 'Location code must be 2–30 characters using letters, numbers, hyphens, or underscores only',
+  })
   code!: string;
 
   @ApiProperty()

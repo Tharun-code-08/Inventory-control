@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     let tenantShopIds: string[] = [];
     if (companyId) {
       const shops = await this.prisma.shop.findMany({
-        where: { companyId, isActive: true },
+        where: { companyId },
         select: { id: true },
       });
       tenantShopIds = shops.map((shop) => shop.id);

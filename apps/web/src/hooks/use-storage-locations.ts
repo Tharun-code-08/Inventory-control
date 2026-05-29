@@ -9,6 +9,11 @@ export type StorageLocation = {
   name: string;
   description?: string | null;
   isActive: boolean;
+  shop?: {
+    id: string;
+    shopNumber?: string;
+    shopName?: string;
+  } | null;
 };
 
 const keys = {

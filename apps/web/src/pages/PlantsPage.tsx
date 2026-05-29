@@ -740,12 +740,24 @@ function PlantsCreateView() {
       return;
     }
 
-    const validLocations = storageLocations.filter((row) => row.code.trim() && row.name.trim());
+    const validLocations = storageLocations
+      .filter((row) => row.code.trim() && row.name.trim())
+      .map((row) => ({
+        ...row,
+        code: row.code.trim().toUpperCase(),
+        name: row.name.trim(),
+        description: row.description.trim(),
+      }));
     const hasInvalidLocation = storageLocations.some(
       (row) => (row.code.trim() && !row.name.trim()) || (!row.code.trim() && row.name.trim()),
     );
     if (hasInvalidLocation) {
       toast.error('Each storage location must include both code and name');
+      return;
+    }
+    const locationCodes = validLocations.map((row) => row.code);
+    if (new Set(locationCodes).size !== locationCodes.length) {
+      toast.error('Each storage location code must be unique within this plant');
       return;
     }
 

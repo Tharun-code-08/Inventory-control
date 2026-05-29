@@ -95,6 +95,7 @@ export class ShopsService {
   }
 
   async create(user: RequestUser, dto: CreateShopDto) {
+    await this.repairOrphanShops(user);
     const companyId = dto.companyId ?? user.companyId ?? undefined;
     if (companyId) {
       await this.subscriptions.assertWarehouseLimit(companyId);

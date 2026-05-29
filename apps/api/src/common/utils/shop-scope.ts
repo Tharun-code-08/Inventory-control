@@ -2,16 +2,39 @@ import { ForbiddenException } from '@nestjs/common';
 import { Prisma, RoleName } from '@prisma/client';
 import type { RequestUser } from '../types/request-user';
 
+const SHOP_SCOPED_ROLES = new Set<RoleName>([
+  RoleName.SHOP_USER,
+  RoleName.WAREHOUSE_STAFF,
+  RoleName.EMPLOYEE,
+  RoleName.SALES,
+  RoleName.VIEWER,
+  RoleName.VENDOR,
+]);
+
+function isShopScopedRole(role: RoleName): boolean {
+  return SHOP_SCOPED_ROLES.has(role);
+}
+
+/** Organisation-wide plant visibility for tenant admins (Owner, Admin, etc.). */
+export function tenantCompanyShopWhere(actor: RequestUser): Prisma.ShopWhereInput | null {
+  if (!actor.companyId || isShopScopedRole(actor.role)) return null;
+  return {
+    OR: [
+      { companyId: actor.companyId },
+      {
+        companyId: null,
+        OR: [
+          { createdById: actor.id },
+          { createdBy: { shop: { companyId: actor.companyId } } },
+        ],
+      },
+    ],
+  };
+}
+
 export function assertShopScope(user: RequestUser, shopId: string | null | undefined) {
   if (!shopId) return;
-  if (
-    user.role === RoleName.SHOP_USER ||
-    user.role === RoleName.WAREHOUSE_STAFF ||
-    user.role === RoleName.EMPLOYEE ||
-    user.role === RoleName.SALES ||
-    user.role === RoleName.VIEWER ||
-    user.role === RoleName.VENDOR
-  ) {
+  if (isShopScopedRole(user.role)) {
     if (!user.shopId || user.shopId !== shopId) {
       throw new ForbiddenException('Shop scope mismatch');
     }
@@ -38,14 +61,7 @@ export function assertShopScope(user: RequestUser, shopId: string | null | undef
 
 /** Default plant filter: shop users and tenant admins are scoped; platform admins are not. */
 export function defaultShopFilter(user: RequestUser): string | undefined {
-  if (
-    user.role === RoleName.SHOP_USER ||
-    user.role === RoleName.WAREHOUSE_STAFF ||
-    user.role === RoleName.EMPLOYEE ||
-    user.role === RoleName.SALES ||
-    user.role === RoleName.VIEWER ||
-    user.role === RoleName.VENDOR
-  ) {
+  if (isShopScopedRole(user.role)) {
     return user.shopId ?? undefined;
   }
   if (user.companyId && user.shopId) {
@@ -144,23 +160,12 @@ export function assertUserInTenant(actor: RequestUser, targetShopId: string | nu
 
 /** Plants visible to the signed-in user. */
 export function shopListWhere(actor: RequestUser): Prisma.ShopWhereInput {
+  const companyScope = tenantCompanyShopWhere(actor);
+  if (companyScope) return companyScope;
+
   const tenantShops = shopIdsForUser(actor);
   if (tenantShops && tenantShops.length > 0) {
     return { id: { in: tenantShops } };
-  }
-  if (actor.companyId) {
-    return {
-      OR: [
-        { companyId: actor.companyId },
-        {
-          companyId: null,
-          OR: [
-            { createdById: actor.id },
-            { createdBy: { shop: { companyId: actor.companyId } } },
-          ],
-        },
-      ],
-    };
   }
   if (actor.shopId) {
     return { id: actor.shopId };
@@ -185,7 +190,20 @@ export function storageLocationListWhere(
   }
 
   if (companyId) {
-    return { shop: { companyId } };
+    return {
+      OR: [
+        { shop: { companyId } },
+        {
+          shop: {
+            companyId: null,
+            OR: [
+              { createdById: actor.id },
+              { createdBy: { shop: { companyId } } },
+            ],
+          },
+        },
+      ],
+    };
   }
 
   const tenantShops = shopIdsForUser(actor);
