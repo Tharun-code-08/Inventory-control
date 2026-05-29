@@ -13,6 +13,8 @@ import {
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared/page-header';
+import { EmptyState, LoadingSkeleton, SearchInput } from '@/components/shared';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -234,7 +236,7 @@ function orderToForm(order: SalesOrder): OrderFormState {
   };
 }
 
-export function SalesPage() {
+export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
@@ -247,6 +249,7 @@ export function SalesPage() {
   const deleteOrder = useDeleteSalesOrder();
   const [tab, setTab] = useState<SoTab>('all');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [customerFilter, setCustomerFilter] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -267,6 +270,12 @@ export function SalesPage() {
   const products = useMemo(() => extractProductRows(productsQuery.data), [productsQuery.data]);
 
   const { data: editingOrder } = useSalesOrder(editingId ?? '', !!editingId);
+
+  useEffect(() => {
+    if (!createOnly) return;
+    resetForm();
+    setEditingId(null);
+  }, [createOnly]);
 
   useEffect(() => {
     const editOrderId = (location.state as { editOrderId?: string } | null)?.editOrderId;
@@ -296,7 +305,7 @@ export function SalesPage() {
   }, [quotations, form.customerId]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return salesOrders.filter((row) => {
       if (tab === 'draft' && row.status !== 'DRAFT') return false;
       if (tab === 'confirmed' && row.status !== 'CONFIRMED') return false;
@@ -306,14 +315,16 @@ export function SalesPage() {
       const customer = row.customer?.customerName?.toLowerCase() ?? '';
       return row.soNumber.toLowerCase().includes(q) || customer.includes(q);
     });
-  }, [salesOrders, tab, search, customerFilter]);
+  }, [salesOrders, tab, debouncedSearch, customerFilter]);
+
+  const isSearchPending = search !== debouncedSearch || (isLoading && search.trim().length > 0);
 
   const resetForm = () => setForm(emptyForm());
 
   const openCreate = () => {
     resetForm();
     setEditingId(null);
-    setCreateOpen(true);
+    navigate('/sales/new');
   };
 
   const openEdit = (order: SalesOrder) => {
@@ -410,13 +421,20 @@ export function SalesPage() {
       if (editingId) {
         await updateOrder.mutateAsync({ id: editingId, ...payload });
         toast.success('Sales order updated');
+        setCreateOpen(false);
+        setEditingId(null);
+        resetForm();
       } else {
         await createOrder.mutateAsync(payload);
         toast.success('Sales order created');
+        if (createOnly) {
+          navigate('/sales');
+        } else {
+          setCreateOpen(false);
+          setEditingId(null);
+          resetForm();
+        }
       }
-      setCreateOpen(false);
-      setEditingId(null);
-      resetForm();
     } catch (err: unknown) {
       toast.error(
         getApiErrorMessage(err, editingId ? 'Failed to update sales order' : 'Failed to create sales order'),
@@ -437,19 +455,43 @@ export function SalesPage() {
 
   const sheetMode = editingId ? 'edit' : 'create';
 
+  const closeCreateSheet = () => {
+    if (createOnly) {
+      navigate('/sales');
+      return;
+    }
+    setCreateOpen(false);
+    setEditingId(null);
+    resetForm();
+  };
+
   return (
     <AppLayout active="Sales">
-      <div className="space-y-6">
-        <PageHeader title="Sales Orders" description="Manage customer orders">
-          <Button variant="outline" onClick={handleExportSalesOrders}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create SO
-          </Button>
+      <div className={cn('space-y-6', createOnly && 'create-page-shell p-4 sm:p-6')}>
+        <PageHeader
+          title={createOnly ? 'Create Sales Order' : 'Sales Orders'}
+          description={createOnly ? 'Fill in order details and line items' : 'Manage customer orders'}
+        >
+          {createOnly ? (
+            <Button variant="outline" onClick={() => navigate('/sales')} className="w-full sm:w-auto">
+              Back
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleExportSalesOrders}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create SO
+              </Button>
+            </>
+          )}
         </PageHeader>
+
+        {!createOnly && (
+          <>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <KpiCard
@@ -503,11 +545,19 @@ export function SalesPage() {
                   </TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
+                  <SearchInput
                     placeholder="Search by SO number or customer…"
-                    className="h-9 w-full min-w-[200px] text-sm sm:max-w-xs"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={setSearch}
+                    isSearching={isSearchPending}
+                    showNoResults={
+                      !isLoading &&
+                      !isSearchPending &&
+                      search.trim().length > 0 &&
+                      filtered.length === 0
+                    }
+                    noResultsMessage="No sales orders match your search."
+                    className="w-full min-w-[200px] sm:max-w-xs"
                   />
                   <Select value={customerFilter} onValueChange={setCustomerFilter}>
                     <SelectTrigger className="h-9 w-full sm:w-[180px]">
@@ -527,6 +577,29 @@ export function SalesPage() {
 
               <TabsContent value={tab} className="mt-0">
                 <div className="overflow-x-auto rounded-lg border">
+                  {isLoading ? (
+                    <div className="p-4">
+                      <LoadingSkeleton rows={6} cols={7} />
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <EmptyState
+                      icon={Truck}
+                      title={search.trim() || tab !== 'all' || customerFilter !== 'all' ? 'No sales orders in this view' : 'No sales orders yet'}
+                      description={
+                        search.trim() || tab !== 'all' || customerFilter !== 'all'
+                          ? 'Try another search, customer filter, or tab.'
+                          : 'Create your first sales order to start fulfilling customer demand.'
+                      }
+                      action={
+                        !search.trim() && tab === 'all' && customerFilter === 'all' ? (
+                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            New Sales Order
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  ) : (
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/80">
@@ -554,20 +627,7 @@ export function SalesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="py-10 text-center text-slate-500">
-                            Loading sales orders…
-                          </TableCell>
-                        </TableRow>
-                      ) : filtered.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="py-10 text-center text-slate-500">
-                            No sales orders in this view.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filtered.map((so) => (
+                      {filtered.map((so) => (
                           <TableRow key={so.id} className="hover:bg-slate-50/50">
                             <TableCell>
                               <button
@@ -627,29 +687,38 @@ export function SalesPage() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
+                        ))}
                     </TableBody>
                   </Table>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
 
       {/* Create / Edit */}
       <Sheet
-        open={createOpen}
+        open={createOnly ? true : createOpen}
         onOpenChange={(open) => {
-          setCreateOpen(open);
+          if (!createOnly) {
+            setCreateOpen(open);
+          }
           if (!open) {
-            setEditingId(null);
-            resetForm();
+            closeCreateSheet();
           }
         }}
       >
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetContent
+          side="right"
+          className={cn(
+            'w-full overflow-y-auto',
+            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'sm:max-w-2xl',
+          )}
+        >
           <SheetHeader>
             <SheetTitle>{sheetMode === 'edit' ? 'Edit Sales Order' : 'Create Sales Order'}</SheetTitle>
             <SheetDescription>Order details and line items</SheetDescription>
@@ -885,15 +954,7 @@ export function SalesPage() {
             </section>
 
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setCreateOpen(false);
-                  setEditingId(null);
-                  resetForm();
-                }}
-              >
+              <Button variant="outline" className="flex-1" onClick={closeCreateSheet}>
                 Cancel
               </Button>
               <Button

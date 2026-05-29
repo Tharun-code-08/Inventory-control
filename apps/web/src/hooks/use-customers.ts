@@ -42,6 +42,37 @@ export function useCreateCustomer() {
       const res = await api.post('/customers', payload);
       return res.data.data as Customer;
     },
+    onMutate: async (payload) => {
+      await qc.cancelQueries({ queryKey: keys.all });
+      const tempId = `optimistic-${Date.now()}`;
+      const optimistic: Customer = {
+        id: tempId,
+        customerCode: '…',
+        customerName: payload.customerName ?? '',
+        email: payload.email ?? null,
+        phone: payload.phone ?? null,
+        taxId: payload.taxId ?? null,
+        pan: payload.pan ?? null,
+        street: payload.street ?? null,
+        city: payload.city ?? null,
+        state: payload.state ?? null,
+        postalCode: payload.postalCode ?? null,
+        country: payload.country ?? null,
+        shopId: payload.shopId,
+        isActive: true,
+      };
+      const snapshots = qc.getQueriesData<Customer[]>({ queryKey: keys.all });
+      snapshots.forEach(([queryKey, data]) => {
+        if (!Array.isArray(data)) return;
+        qc.setQueryData(queryKey, [...data, optimistic]);
+      });
+      return { snapshots, tempId };
+    },
+    onError: (_err, _payload, context) => {
+      context?.snapshots?.forEach(([queryKey, data]) => {
+        qc.setQueryData(queryKey, data);
+      });
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }

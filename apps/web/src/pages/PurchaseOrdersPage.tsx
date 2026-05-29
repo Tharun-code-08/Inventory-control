@@ -23,7 +23,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, AnimatedTableBody, P2PFlowTimeline, CreatePageLayout, type P2PStep } from '@/components/shared';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -463,9 +463,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const resolvedDeliveryPlantId =
     selectedDeliveryPlantId || shopId || (shops.length === 1 ? shops[0]?.id : '') || '';
   const productsQuery = useProducts({
+    companyCatalog: true,
     shopId: resolvedDeliveryPlantId || shopId || undefined,
     isActive: true,
-    limit: 200,
+    limit: 100,
     page: 1,
   });
   const products = useMemo(
@@ -654,7 +655,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       ...defaultPoLogisticsFields(user?.name),
       items: [defaultPoLineItem()],
     });
-    setSheetOpen(true);
     setSourceType('DIRECT');
     setSourceRfqId('');
     setSourceContractId('');
@@ -662,6 +662,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   useEffect(() => {
     const rfqPrefill = (location.state as PoPrefillState | null)?.rfqPrefill;
+    if (rfqPrefill && location.pathname !== '/purchase-orders/new') {
+      navigate('/purchase-orders/new', { state: location.state, replace: true });
+      return;
+    }
     if (!rfqPrefill) return;
     if (!productMap || productMap.size === 0) return;
     if (prefillAppliedRef.current) return;
@@ -703,7 +707,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       ...defaultPoLogisticsFields(user?.name),
       items,
     });
-    setSheetOpen(true);
     setSourceType('RFQ');
     setSourceRfqId(rfqPrefill.rfqId ?? '');
     setSourceContractId('');
@@ -781,7 +784,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         },
       ],
     });
-    setSheetOpen(true);
     setSourceType('DIRECT');
     setSourceRfqId('');
     setSourceContractId('');
@@ -1016,6 +1018,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         try {
           result = await createMut.mutateAsync({ ...createBase, sendToSupplier: true });
           toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
+          if (createOnly) {
+            navigate('/purchase-orders');
+            return;
+          }
           setSheetOpen(false);
           form.reset();
           setDetailId(result.id);
@@ -1048,6 +1054,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         }
       } else {
         toast.success(`Purchase order ${result.poNumber} saved as draft`);
+      }
+      if (createOnly) {
+        navigate('/purchase-orders');
+        return;
       }
       setSheetOpen(false);
       form.reset();
@@ -1172,33 +1182,816 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     ];
   }
 
+
+  const purchaseOrderForm = (
+<form
+      onSubmit={submitDraft}
+      className={cn(createOnly ? 'space-y-6' : 'mt-6 space-y-6')}
+    >
+      {!editingPO && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1">
+            <Label className="text-xs">PO Type</Label>
+            <Select value={sourceType} onValueChange={(v: 'DIRECT' | 'RFQ' | 'CONTRACT') => setSourceType(v)}>
+              <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue /></SelectTrigger>
+              <SelectContent className={PO_SELECT_CONTENT}>
+                <SelectItem value="DIRECT">Direct PO</SelectItem>
+                <SelectItem value="RFQ">From RFQ</SelectItem>
+                <SelectItem value="CONTRACT">From Contract</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {sourceType === 'RFQ' && (
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-xs">RFQ</Label>
+              <Select
+                value={sourceRfqId || undefined}
+                onValueChange={(id) => {
+                  setSourceRfqId(id);
+                  const rfq = rfqMap.get(id);
+                  if (!rfq) return;
+                  const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
+                  if (plantId) {
+                    form.setValue('deliveryPlantId', plantId);
+                    if (!user?.shopId) setSelectedShopId(plantId);
+                    const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
+                    form.setValue('storageLocationId', '');
+                    applyDeliveryAddressFromPlant(plantId);
+                  }
+                  form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
+                  const remainingLines =
+                    rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
+                  if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
+                    form.setValue('items', [defaultPoLineItem()]);
+                    toast.error('All RFQ lines are already allocated to purchase orders');
+                    return;
+                  }
+                  const itemMap = new Map((rfq.items ?? []).map((it) => [it.id, it]));
+                  const nextItems: POFormValues['items'] = remainingLines.flatMap((line) => {
+                    const rfqItem = itemMap.get(line.rfqItemId);
+                    const productId = rfqItem?.productId ?? rfqItem?.product?.id ?? '';
+                    if (!productId) return [];
+                    return [
+                      {
+                        productId,
+                        rfqItemId: line.rfqItemId,
+                        currentStock: 0,
+                        minStock: 0,
+                        suggestedQty: Number(line.remainingQty ?? 0),
+                        orderQty: Number(line.remainingQty ?? 0),
+                        rate: Number(rfqItem?.product?.purchasePrice ?? 0),
+                        taxPercent: '',
+                      },
+                    ];
+                  });
+                  form.setValue('items', nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
+                }}
+              >
+                <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
+                <SelectContent className={PO_SELECT_CONTENT}>
+                  {rfqs.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.rfqNumber} - {r.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {sourceRfqId && selectedRfq?.fulfillment && (
+                <p className="text-[11px] text-muted-foreground">
+                  RFQ progress: {selectedRfq.fulfillment.linesFullyOrdered}/{selectedRfq.fulfillment.totalLines} lines ordered ·
+                  POs {selectedRfq.fulfillment.posCreated}/{selectedRfq.fulfillment.maxPos} (remaining {selectedRfq.fulfillment.posRemaining})
+                </p>
+              )}
+            </div>
+          )}
+          {sourceType === 'CONTRACT' && (
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-xs">Contract</Label>
+              <Select
+                value={sourceContractId}
+                onValueChange={(id) => {
+                  setSourceContractId(id);
+                  const contract = contracts.find((c) => c.id === id);
+                  if (!contract) return;
+                  form.setValue('supplier', contract.supplier?.supplierName ?? '');
+                  form.setValue(
+                    'items',
+                    ((contract as { items?: Array<{ productId?: string; quantity?: number; unitPrice?: number }> }).items ?? []).map(
+                      (it) => ({
+                        productId: it.productId ?? '',
+                        currentStock: 0,
+                        minStock: 0,
+                        suggestedQty: Number(it.quantity ?? 0),
+                        orderQty: Number(it.quantity ?? 0),
+                        rate: Number(it.unitPrice ?? 0),
+                      }),
+                    ),
+                  );
+                }}
+              >
+                <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select Contract" /></SelectTrigger>
+                <SelectContent className={PO_SELECT_CONTENT}>
+                  {contracts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.contractNumber} - {c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Order details + delivery */}
+      <div className="space-y-2 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+        <Label className="text-sm font-semibold">Order Details & Delivery</Label>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Delivery Plant *</Label>
+            <Controller
+              control={form.control}
+              name="deliveryPlantId"
+              render={({ field }) => (
+                <Select
+                  value={field.value || undefined}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    if (!user?.shopId) setSelectedShopId(value);
+                    form.setValue('storageLocationId', '');
+                    applyDeliveryAddressFromPlant(value);
+                  }}
+                  disabled={deliveryPlantLocked}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      PO_SELECT_TRIGGER,
+                      deliveryPlantLocked && 'opacity-80',
+                      form.formState.errors.deliveryPlantId && 'border-destructive',
+                    )}
+                  >
+                    <SelectValue placeholder="Select plant" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT} position="popper">
+                    {shops.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.shopName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.deliveryPlantId && (
+              <p className="text-[10px] text-destructive">
+                {form.formState.errors.deliveryPlantId.message}
+              </p>
+            )}
+            {deliveryPlantLocked && shops.length <= 1 && (
+              <p className="text-[10px] text-muted-foreground">Only one plant is available for your organisation.</p>
+            )}
+            {deliveryPlantLocked && shops.length > 1 && isShopScopedRole(user?.role) && (
+              <p className="text-[10px] text-muted-foreground">Locked to your assigned plant.</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Storage Location (optional)</Label>
+            <Controller
+              control={form.control}
+              name="storageLocationId"
+              render={({ field }) => (
+                <Select
+                  value={field.value || undefined}
+                  onValueChange={(locId) => {
+                    field.onChange(locId);
+                    applyDeliveryAddressFromPlant();
+                  }}
+                  disabled={!selectedDeliveryPlantId}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      PO_SELECT_TRIGGER,
+                      form.formState.errors.storageLocationId && 'border-destructive',
+                    )}
+                  >
+                    <SelectValue placeholder="Select storage" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT} position="popper">
+                    {storageLocations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.storageLocationId && (
+              <p className="text-[10px] text-destructive">
+                {form.formState.errors.storageLocationId.message}
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="supplier" className="text-xs">Supplier *</Label>
+            <Controller
+              control={form.control}
+              name="supplier"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => {
+                    if (v === CREATE_SUPPLIER_OPTION) {
+                      setSupplierDialogOpen(true);
+                      return;
+                    }
+                    field.onChange(v);
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      PO_SELECT_TRIGGER,
+                      form.formState.errors.supplier && 'border-destructive',
+                    )}
+                  >
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    <SelectItem value={CREATE_SUPPLIER_OPTION} className="font-medium text-indigo-700">
+                      + Create new supplier
+                    </SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.supplierName}>
+                        {s.supplierName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.supplier && (
+              <p className="text-[10px] text-destructive">{form.formState.errors.supplier.message}</p>
+            )}
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
+            <Input
+              id="poDate"
+              type="date"
+              min={tomorrowDateString()}
+              className="h-8 text-xs"
+              {...form.register('poDate')}
+            />
+            {form.formState.errors.poDate && (
+              <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Payment Terms</Label>
+            <Controller
+              control={form.control}
+              name="paymentTerms"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className={PO_SELECT_TRIGGER}>
+                    <SelectValue placeholder="Payment terms" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    <SelectItem value="Immediate">Immediate</SelectItem>
+                    <SelectItem value="Net 15">Net 15</SelectItem>
+                    <SelectItem value="Net 30">Net 30</SelectItem>
+                    <SelectItem value="Net 45">Net 45</SelectItem>
+                    <SelectItem value="Net 60">Net 60</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Requested By</Label>
+            <Input
+              className="h-8 text-xs"
+              placeholder="Name"
+              {...form.register('requisitioner')}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Department</Label>
+            <Controller
+              control={form.control}
+              name="department"
+              render={({ field }) => (
+                <Select value={field.value || undefined} onValueChange={field.onChange}>
+                  <SelectTrigger className={PO_SELECT_TRIGGER}>
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    {DEPARTMENT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Priority</Label>
+            <Controller
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className={PO_SELECT_TRIGGER}>
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2 lg:col-span-4">
+            <Label className="text-xs">PO numbering</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={!!manualNumberEnabled}
+                onChange={(e) =>
+                  form.setValue('useManualPoNumber', e.target.checked, { shouldDirty: true })
+                }
+              />
+              <span className="text-xs">Enter PO number manually</span>
+              <Input
+                className="h-8 text-xs sm:w-64"
+                placeholder="PO-0001"
+                disabled={!manualNumberEnabled}
+                {...form.register('poNumberManual')}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">Leave unchecked to auto-generate.</p>
+          </div>
+          <div className="space-y-1 sm:col-span-2 lg:col-span-4">
+            <Label className="text-xs">Delivery address</Label>
+            <p className="text-[10px] text-muted-foreground">
+              From selected plant
+              {shops.find((s) => s.id === resolvedDeliveryPlantId)?.shopName
+                ? `: ${shops.find((s) => s.id === resolvedDeliveryPlantId)!.shopName}`
+                : ''}
+            </p>
+            <Input
+              readOnly
+              className="h-8 cursor-default bg-muted/80 text-xs"
+              {...form.register('deliveryAddress')}
+            />
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Supplier</DialogTitle>
+            <DialogDescription>Add a supplier and use it on this purchase order.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Supplier Name *</Label>
+              <Input
+                className="h-8 text-sm"
+                value={quickSupplier.supplierName}
+                onChange={(e) =>
+                  setQuickSupplier((p) => ({ ...p, supplierName: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Contact Person</Label>
+              <Input
+                className="h-8 text-sm"
+                value={quickSupplier.contactPerson}
+                onChange={(e) =>
+                  setQuickSupplier((p) => ({ ...p, contactPerson: e.target.value }))
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Email</Label>
+                <Input
+                  className="h-8 text-sm"
+                  type="email"
+                  value={quickSupplier.email}
+                  onChange={(e) => setQuickSupplier((p) => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone</Label>
+                <Input
+                  className="h-8 text-sm"
+                  value={quickSupplier.phone}
+                  onChange={(e) => setQuickSupplier((p) => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setSupplierDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={createSupplier.isPending}
+              onClick={handleQuickSupplierCreate}
+            >
+              {createSupplier.isPending ? 'Saving…' : 'Create & Select'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PoLogisticsTaxFields form={form} />
+
+      <div className="space-y-2">
+        <Label htmlFor="remarks">Remarks</Label>
+        <Textarea
+          id="remarks"
+          rows={2}
+          placeholder="Optional notes…"
+          {...form.register('remarks')}
+        />
+      </div>
+
+      <Separator />
+
+      {/* Items */}
+      <div>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Label className="text-base">Line Items</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => append(defaultPoLineItem())}
+            disabled={!canAddLineItems}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-3 w-3" /> Add Item
+          </Button>
+        </div>
+        {!canAddLineItems && (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            Select a delivery plant first to add line items.
+          </div>
+        )}
+
+        {form.formState.errors.items?.root && (
+          <p className="mb-2 text-xs text-destructive">{form.formState.errors.items.root.message}</p>
+        )}
+
+        {/* Items table */}
+        <div className="overflow-x-auto rounded-md border">
+          <Table className="table-fixed w-full min-w-[760px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[22%]">Product</TableHead>
+                <TableHead className="w-[8%] text-right">Stock</TableHead>
+                <TableHead className="w-[18%]">Description</TableHead>
+                <TableHead className="w-[10%] text-right">Order Qty</TableHead>
+                <TableHead className="w-[8%]">UOM</TableHead>
+                <TableHead className="w-[11%] text-right">Rate</TableHead>
+                <TableHead className="w-[8%] text-right">Tax %</TableHead>
+                <TableHead className="w-[12%] text-right">Gross Line Total</TableHead>
+                <TableHead className="w-[7%]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fields.map((field, idx) => {
+                const row = watchedItems[idx] ?? {};
+                const product = productMap.get(row.productId ?? '');
+                const isNonTaxable = product?.taxPreference === 'NON_TAXABLE';
+                const line = computePoLineAmounts({
+                  ...row,
+                  taxPercent: effectivePoLineTaxPercent(
+                    row.productId ?? '',
+                    row.taxPercent,
+                    productMap,
+                  ),
+                });
+
+                return (
+                  <TableRow key={field.id}>
+                    {/* Product select */}
+                    <TableCell className="overflow-hidden">
+                      <Controller
+                        control={form.control}
+                        name={`items.${idx}.productId`}
+                        render={({ field: f }) => (
+                          <Select
+                            value={f.value || '__none__'}
+                            onValueChange={(v) => {
+                              if (v === '__none__') {
+                                f.onChange('');
+                                form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                                return;
+                              }
+                              f.onChange(v);
+                              handleProductChange(idx, v);
+                            }}
+                          >
+                            <SelectTrigger className={cn('h-8 w-full max-w-full text-xs', PO_SELECT_TRIGGER)}>
+                              <SelectValue placeholder="Product (optional)…" className="truncate" />
+                            </SelectTrigger>
+                            <SelectContent className={PO_SELECT_CONTENT}>
+                              <SelectItem value="__none__">— Service / no product —</SelectItem>
+                              <div className="p-2">
+                                <Input
+                                  placeholder="Search products..."
+                                  value={productSearch}
+                                  onChange={(e) => setProductSearch(e.target.value)}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  className="mb-2"
+                                />
+                              </div>
+                              {filteredProducts.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  <span className="font-medium">{p.productCode}</span>
+                                  <span className="ml-1 text-muted-foreground">- {p.description}</span>
+                                </SelectItem>
+                              ))}
+                              {filteredProducts.length === 0 && (
+                                <p className="px-2 py-4 text-center text-sm text-muted-foreground">No products found</p>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {form.formState.errors.items?.[idx]?.productId && (
+                        <p className="mt-0.5 text-[10px] text-destructive">
+                          {form.formState.errors.items[idx]?.productId?.message}
+                        </p>
+                      )}
+                    </TableCell>
+
+                    {/* Current Stock (read-only) */}
+                    <TableCell className="text-right">
+                      <Input
+                        readOnly
+                        tabIndex={-1}
+                        className="h-8 w-full bg-muted text-right text-xs"
+                        value={String(numPo(row.currentStock))}
+                      />
+                    </TableCell>
+
+                    {/* Description (editable) */}
+                    <TableCell>
+                      <div className="space-y-1">
+                        <Input
+                          className="h-8 w-full text-xs"
+                          placeholder={product?.description ?? 'Description (required if no product)'}
+                          {...form.register(`items.${idx}.lineDescription`)}
+                          onChange={(e) => {
+                            form.setValue(`items.${idx}.lineDescription`, e.target.value, {
+                              shouldDirty: true,
+                            });
+                            const next = e.target.value.trim();
+                            const productId = form.getValues(`items.${idx}.productId`);
+                            if (!productId?.trim() && next) {
+                              form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const next = e.target.value?.trim();
+                            const productId = form.getValues(`items.${idx}.productId`);
+                            if (!productId?.trim() && next) {
+                              form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                            }
+                          }}
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          Category: {row.lineCategory || product?.category || '—'}
+                        </p>
+                      </div>
+                    </TableCell>
+
+                    {/* Order Qty (editable) */}
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        className="h-8 w-full text-right text-xs"
+                        {...form.register(`items.${idx}.orderQty`, {
+                          onChange: () => form.trigger(`items.${idx}.orderQty`),
+                        })}
+                      />
+                      {form.formState.errors.items?.[idx]?.orderQty && (
+                        <p className="mt-0.5 text-[10px] text-destructive">
+                          {form.formState.errors.items[idx]?.orderQty?.message}
+                        </p>
+                      )}
+                    </TableCell>
+
+                    {/* UOM (from product) */}
+                    <TableCell>
+                      <Input
+                        readOnly
+                        tabIndex={-1}
+                        className="h-8 w-full truncate bg-muted text-xs"
+                        value={product?.uom ?? ''}
+                        placeholder="—"
+                      />
+                    </TableCell>
+
+                    {/* Rate (editable) */}
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        className="h-8 w-full text-right text-xs"
+                        {...form.register(`items.${idx}.rate`, {
+                          onChange: () => form.trigger(`items.${idx}.rate`),
+                        })}
+                      />
+                    </TableCell>
+
+                    {/* Tax % (per line) */}
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        className="h-8 w-full text-right text-xs"
+                        placeholder={isNonTaxable ? 'Fixed at 0' : '0'}
+                        value={
+                          isNonTaxable
+                            ? 0
+                            : row.taxPercent === undefined || row.taxPercent === null
+                              ? ''
+                              : row.taxPercent
+                        }
+                        disabled={isNonTaxable}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          form.setValue(
+                            `items.${idx}.taxPercent`,
+                            nextValue === '' ? '' : Number(nextValue),
+                            {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            },
+                          );
+                        }}
+                      />
+                    </TableCell>
+
+                    {/* Line Value (qty × rate + tax) */}
+                    <TableCell className="text-right text-sm font-medium tabular-nums">
+                      {numPo(row.orderQty) > 0 && numPo(row.rate) > 0 ? (
+                        formatCurrency(line.lineTotal)
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+
+                    {/* Remove */}
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => fields.length > 1 && remove(idx)}
+                        disabled={fields.length <= 1}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
+                  Subtotal (Excl. GST)
+                </TableCell>
+                <TableCell className="text-right text-sm tabular-nums">
+                  {formatCurrency(lineTotals.subtotal)}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
+                  GST / Tax
+                </TableCell>
+                <TableCell className="text-right text-sm tabular-nums">
+                  {formatCurrency(lineTotals.taxTotal)}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={7} className="text-right font-semibold">
+                  Gross Amount
+                </TableCell>
+                <TableCell className="text-right font-bold tabular-nums">
+                  {formatCurrency(lineTotals.grandTotal)}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setSheetOpen(false);
+            if (location.pathname === '/purchase-orders/new') {
+              navigate('/purchase-orders');
+            }
+          }}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={createMut.isPending || sendMut.isPending || !canMutatePo}>
+          <ShoppingCart className="h-4 w-4" />
+          {createMut.isPending ? 'Saving...' : 'Save as Draft'}
+        </Button>
+        <Button
+          type="button"
+          onClick={submitSend}
+          disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
+        >
+          <Send className="mr-2 h-4 w-4" />
+          {sendMut.isPending ? 'Sending...' : 'Save & Send'}
+        </Button>
+      </div>
+    </form>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout>
+        <CreatePageLayout
+          title="Create Purchase Order"
+          description="Fill in details to create a new purchase order"
+          backTo="/purchase-orders"
+        >
+          {purchaseOrderForm}
+        </CreatePageLayout>
+        <ConfirmDialog
+          open={!!confirmState}
+          onOpenChange={(open) => !open && setConfirmState(null)}
+          title="Confirm Purchase Order"
+          description={`Confirm ${confirmState?.poNumber ?? 'this order'}? This will lock the PO for receiving.`}
+          confirmLabel="Confirm"
+          onConfirm={() => confirmState && handleConfirm(confirmState.id)}
+          loading={confirmMut.isPending}
+        />
+        <ConfirmDialog
+          open={!!cancelDialog}
+          onOpenChange={(open) => !open && setCancelDialog(null)}
+          title="Cancel Purchase Order"
+          description={`Are you sure you want to cancel ${cancelDialog?.poNumber ?? 'this order'}? This cannot be undone.`}
+          confirmLabel="Cancel Order"
+          variant="destructive"
+          onConfirm={handleCancelPo}
+          loading={cancelMut.isPending}
+        />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
-      <div className={createOnly ? 'create-page-shell p-4 sm:p-6' : ''}>
+      <div>
         <PageHeader
-          title={createOnly ? 'Create Purchase Order' : 'Purchase Orders'}
-          description={createOnly ? 'Fill in details to create a new purchase order' : 'Manage purchase order documents'}
+          title="Purchase Orders"
+          description="Manage purchase order documents"
         >
-          {createOnly ? (
-            <Button variant="outline" onClick={() => navigate('/purchase-orders')} className="w-full sm:w-auto">
-              Back
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleExportPoList} className="w-full sm:w-auto">
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
-                <Plus className="h-4 w-4" />
-                Create PO
-              </Button>
-            </>
-          )}
+          <Button variant="outline" onClick={handleExportPoList} className="w-full sm:w-auto">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
+            <Plus className="h-4 w-4" />
+            Create PO
+          </Button>
         </PageHeader>
 
-      {!createOnly && (
-        <>
           {/* Toolbar */}
           <Card className="surface-1 mb-3 p-3">
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -1304,7 +2097,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   <TableHead className="w-10 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <AnimatedTableBody pageKey={page}>
                 {filteredPoList.map((po) => (
                   <TableRow key={po.id} className="hover:bg-slate-50/80">
                     <TableCell className="max-w-[200px] truncate font-medium font-mono text-[11px]">
@@ -1414,7 +2207,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
+              </AnimatedTableBody>
             </Table>
             <Separator />
             <DataTablePagination
@@ -1429,788 +2222,28 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           </>
         )}
           </Card>
-        </>
-      )}
+      </div>
 
-      {/* ---- CREATE / EDIT SHEET ---- */}
+      {/* ---- EDIT SHEET ---- */}
       <Sheet
-        open={createOnly ? true : sheetOpen}
+        open={sheetOpen}
         onOpenChange={(open) => {
-          if (!createOnly) {
-            setSheetOpen(open);
-          }
+          setSheetOpen(open);
           if (!open) {
-            navigate('/purchase-orders');
+            setEditingPO(null);
           }
         }}
       >
-        <SheetContent side="right" className={cn("w-full overflow-y-auto", createOnly ? "border-l-0 sm:w-full sm:max-w-none" : "border-l sm:max-w-3xl")}>
+        <SheetContent side="right" className="w-full overflow-y-auto border-l sm:max-w-3xl">
           <SheetHeader>
-            <SheetTitle>{editingPO ? 'Edit Purchase Order' : 'New Purchase Order'}</SheetTitle>
+            <SheetTitle>Edit Purchase Order</SheetTitle>
             <SheetDescription>
-              {editingPO ? `Editing ${editingPO.poNumber}` : 'Create a new purchase order'}
+              {editingPO ? `Editing ${editingPO.poNumber}` : 'Update purchase order'}
             </SheetDescription>
           </SheetHeader>
-
-          <form
-            onSubmit={submitDraft}
-            className="mt-6 space-y-6"
-          >
-            {!editingPO && (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">PO Type</Label>
-                  <Select value={sourceType} onValueChange={(v: 'DIRECT' | 'RFQ' | 'CONTRACT') => setSourceType(v)}>
-                    <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue /></SelectTrigger>
-                    <SelectContent className={PO_SELECT_CONTENT}>
-                      <SelectItem value="DIRECT">Direct PO</SelectItem>
-                      <SelectItem value="RFQ">From RFQ</SelectItem>
-                      <SelectItem value="CONTRACT">From Contract</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {sourceType === 'RFQ' && (
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs">RFQ</Label>
-                    <Select
-                      value={sourceRfqId || undefined}
-                      onValueChange={(id) => {
-                        setSourceRfqId(id);
-                        const rfq = rfqMap.get(id);
-                        if (!rfq) return;
-                        const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
-                        if (plantId) {
-                          form.setValue('deliveryPlantId', plantId);
-                          if (!user?.shopId) setSelectedShopId(plantId);
-                          const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
-                          form.setValue('storageLocationId', '');
-                          applyDeliveryAddressFromPlant(plantId);
-                        }
-                        form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
-                        const remainingLines =
-                          rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
-                        if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
-                          form.setValue('items', [defaultPoLineItem()]);
-                          toast.error('All RFQ lines are already allocated to purchase orders');
-                          return;
-                        }
-                        const itemMap = new Map((rfq.items ?? []).map((it) => [it.id, it]));
-                        const nextItems: POFormValues['items'] = remainingLines.flatMap((line) => {
-                          const rfqItem = itemMap.get(line.rfqItemId);
-                          const productId = rfqItem?.productId ?? rfqItem?.product?.id ?? '';
-                          if (!productId) return [];
-                          return [
-                            {
-                              productId,
-                              rfqItemId: line.rfqItemId,
-                              currentStock: 0,
-                              minStock: 0,
-                              suggestedQty: Number(line.remainingQty ?? 0),
-                              orderQty: Number(line.remainingQty ?? 0),
-                              rate: Number(rfqItem?.product?.purchasePrice ?? 0),
-                              taxPercent: '',
-                            },
-                          ];
-                        });
-                        form.setValue('items', nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
-                      }}
-                    >
-                      <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
-                      <SelectContent className={PO_SELECT_CONTENT}>
-                        {rfqs.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>{r.rfqNumber} - {r.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {sourceRfqId && selectedRfq?.fulfillment && (
-                      <p className="text-[11px] text-muted-foreground">
-                        RFQ progress: {selectedRfq.fulfillment.linesFullyOrdered}/{selectedRfq.fulfillment.totalLines} lines ordered ·
-                        POs {selectedRfq.fulfillment.posCreated}/{selectedRfq.fulfillment.maxPos} (remaining {selectedRfq.fulfillment.posRemaining})
-                      </p>
-                    )}
-                  </div>
-                )}
-                {sourceType === 'CONTRACT' && (
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs">Contract</Label>
-                    <Select
-                      value={sourceContractId}
-                      onValueChange={(id) => {
-                        setSourceContractId(id);
-                        const contract = contracts.find((c) => c.id === id);
-                        if (!contract) return;
-                        form.setValue('supplier', contract.supplier?.supplierName ?? '');
-                        form.setValue(
-                          'items',
-                          ((contract as { items?: Array<{ productId?: string; quantity?: number; unitPrice?: number }> }).items ?? []).map(
-                            (it) => ({
-                              productId: it.productId ?? '',
-                              currentStock: 0,
-                              minStock: 0,
-                              suggestedQty: Number(it.quantity ?? 0),
-                              orderQty: Number(it.quantity ?? 0),
-                              rate: Number(it.unitPrice ?? 0),
-                            }),
-                          ),
-                        );
-                      }}
-                    >
-                      <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select Contract" /></SelectTrigger>
-                      <SelectContent className={PO_SELECT_CONTENT}>
-                        {contracts.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.contractNumber} - {c.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Order details + delivery */}
-            <div className="space-y-2 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
-              <Label className="text-sm font-semibold">Order Details & Delivery</Label>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Delivery Plant *</Label>
-                  <Controller
-                    control={form.control}
-                    name="deliveryPlantId"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          if (!user?.shopId) setSelectedShopId(value);
-                          form.setValue('storageLocationId', '');
-                          applyDeliveryAddressFromPlant(value);
-                        }}
-                        disabled={deliveryPlantLocked}
-                      >
-                        <SelectTrigger
-                          className={cn(
-                            PO_SELECT_TRIGGER,
-                            deliveryPlantLocked && 'opacity-80',
-                            form.formState.errors.deliveryPlantId && 'border-destructive',
-                          )}
-                        >
-                          <SelectValue placeholder="Select plant" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
-                          {shops.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.shopName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.deliveryPlantId && (
-                    <p className="text-[10px] text-destructive">
-                      {form.formState.errors.deliveryPlantId.message}
-                    </p>
-                  )}
-                  {deliveryPlantLocked && shops.length <= 1 && (
-                    <p className="text-[10px] text-muted-foreground">Only one plant is available for your organisation.</p>
-                  )}
-                  {deliveryPlantLocked && shops.length > 1 && isShopScopedRole(user?.role) && (
-                    <p className="text-[10px] text-muted-foreground">Locked to your assigned plant.</p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Storage Location (optional)</Label>
-                  <Controller
-                    control={form.control}
-                    name="storageLocationId"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={(locId) => {
-                          field.onChange(locId);
-                          applyDeliveryAddressFromPlant();
-                        }}
-                        disabled={!selectedDeliveryPlantId}
-                      >
-                        <SelectTrigger
-                          className={cn(
-                            PO_SELECT_TRIGGER,
-                            form.formState.errors.storageLocationId && 'border-destructive',
-                          )}
-                        >
-                          <SelectValue placeholder="Select storage" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT} position="popper">
-                          {storageLocations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id}>
-                              {loc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.storageLocationId && (
-                    <p className="text-[10px] text-destructive">
-                      {form.formState.errors.storageLocationId.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="supplier" className="text-xs">Supplier *</Label>
-                  <Controller
-                    control={form.control}
-                    name="supplier"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v) => {
-                          if (v === CREATE_SUPPLIER_OPTION) {
-                            setSupplierDialogOpen(true);
-                            return;
-                          }
-                          field.onChange(v);
-                        }}
-                      >
-                        <SelectTrigger
-                          className={cn(
-                            PO_SELECT_TRIGGER,
-                            form.formState.errors.supplier && 'border-destructive',
-                          )}
-                        >
-                          <SelectValue placeholder="Select supplier" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT}>
-                          <SelectItem value={CREATE_SUPPLIER_OPTION} className="font-medium text-indigo-700">
-                            + Create new supplier
-                          </SelectItem>
-                          {suppliers.map((s) => (
-                            <SelectItem key={s.id} value={s.supplierName}>
-                              {s.supplierName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.supplier && (
-                    <p className="text-[10px] text-destructive">{form.formState.errors.supplier.message}</p>
-                  )}
-                </div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1">
-                  <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
-                  <Input
-                    id="poDate"
-                    type="date"
-                    min={tomorrowDateString()}
-                    className="h-8 text-xs"
-                    {...form.register('poDate')}
-                  />
-                  {form.formState.errors.poDate && (
-                    <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Payment Terms</Label>
-                  <Controller
-                    control={form.control}
-                    name="paymentTerms"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
-                          <SelectValue placeholder="Payment terms" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT}>
-                          <SelectItem value="Immediate">Immediate</SelectItem>
-                          <SelectItem value="Net 15">Net 15</SelectItem>
-                          <SelectItem value="Net 30">Net 30</SelectItem>
-                          <SelectItem value="Net 45">Net 45</SelectItem>
-                          <SelectItem value="Net 60">Net 60</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Requested By</Label>
-                  <Input
-                    className="h-8 text-xs"
-                    placeholder="Name"
-                    {...form.register('requisitioner')}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Department</Label>
-                  <Controller
-                    control={form.control}
-                    name="department"
-                    render={({ field }) => (
-                      <Select value={field.value || undefined} onValueChange={field.onChange}>
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
-                          <SelectValue placeholder="Department" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT}>
-                          {DEPARTMENT_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Priority</Label>
-                  <Controller
-                    control={form.control}
-                    name="priority"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className={PO_SELECT_TRIGGER}>
-                          <SelectValue placeholder="Priority" />
-                        </SelectTrigger>
-                        <SelectContent className={PO_SELECT_CONTENT}>
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-                  <Label className="text-xs">PO numbering</Label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={!!manualNumberEnabled}
-                      onChange={(e) =>
-                        form.setValue('useManualPoNumber', e.target.checked, { shouldDirty: true })
-                      }
-                    />
-                    <span className="text-xs">Enter PO number manually</span>
-                    <Input
-                      className="h-8 text-xs sm:w-64"
-                      placeholder="PO-0001"
-                      disabled={!manualNumberEnabled}
-                      {...form.register('poNumberManual')}
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Leave unchecked to auto-generate.</p>
-                </div>
-                <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-                  <Label className="text-xs">Delivery address</Label>
-                  <p className="text-[10px] text-muted-foreground">
-                    From selected plant
-                    {shops.find((s) => s.id === resolvedDeliveryPlantId)?.shopName
-                      ? `: ${shops.find((s) => s.id === resolvedDeliveryPlantId)!.shopName}`
-                      : ''}
-                  </p>
-                  <Input
-                    readOnly
-                    className="h-8 cursor-default bg-muted/80 text-xs"
-                    {...form.register('deliveryAddress')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create Supplier</DialogTitle>
-                  <DialogDescription>Add a supplier and use it on this purchase order.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-3 py-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Supplier Name *</Label>
-                    <Input
-                      className="h-8 text-sm"
-                      value={quickSupplier.supplierName}
-                      onChange={(e) =>
-                        setQuickSupplier((p) => ({ ...p, supplierName: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Contact Person</Label>
-                    <Input
-                      className="h-8 text-sm"
-                      value={quickSupplier.contactPerson}
-                      onChange={(e) =>
-                        setQuickSupplier((p) => ({ ...p, contactPerson: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Email</Label>
-                      <Input
-                        className="h-8 text-sm"
-                        type="email"
-                        value={quickSupplier.email}
-                        onChange={(e) => setQuickSupplier((p) => ({ ...p, email: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Phone</Label>
-                      <Input
-                        className="h-8 text-sm"
-                        value={quickSupplier.phone}
-                        onChange={(e) => setQuickSupplier((p) => ({ ...p, phone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setSupplierDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={createSupplier.isPending}
-                    onClick={handleQuickSupplierCreate}
-                  >
-                    {createSupplier.isPending ? 'Saving…' : 'Create & Select'}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <PoLogisticsTaxFields form={form} />
-
-            <div className="space-y-2">
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea
-                id="remarks"
-                rows={2}
-                placeholder="Optional notes…"
-                {...form.register('remarks')}
-              />
-            </div>
-
-            <Separator />
-
-            {/* Items */}
-            <div>
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Label className="text-base">Line Items</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append(defaultPoLineItem())}
-                  disabled={!canAddLineItems}
-                  className="w-full sm:w-auto"
-                >
-                  <Plus className="h-3 w-3" /> Add Item
-                </Button>
-              </div>
-              {!canAddLineItems && (
-                <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                  Select a delivery plant first to add line items.
-                </div>
-              )}
-
-              {form.formState.errors.items?.root && (
-                <p className="mb-2 text-xs text-destructive">{form.formState.errors.items.root.message}</p>
-              )}
-
-              {/* Items table */}
-              <div className="overflow-x-auto rounded-md border">
-                <Table className="table-fixed w-full min-w-[760px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[22%]">Product</TableHead>
-                      <TableHead className="w-[8%] text-right">Stock</TableHead>
-                      <TableHead className="w-[18%]">Description</TableHead>
-                      <TableHead className="w-[10%] text-right">Order Qty</TableHead>
-                      <TableHead className="w-[8%]">UOM</TableHead>
-                      <TableHead className="w-[11%] text-right">Rate</TableHead>
-                      <TableHead className="w-[8%] text-right">Tax %</TableHead>
-                      <TableHead className="w-[12%] text-right">Gross Line Total</TableHead>
-                      <TableHead className="w-[7%]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {fields.map((field, idx) => {
-                      const row = watchedItems[idx] ?? {};
-                      const product = productMap.get(row.productId ?? '');
-                      const isNonTaxable = product?.taxPreference === 'NON_TAXABLE';
-                      const line = computePoLineAmounts({
-                        ...row,
-                        taxPercent: effectivePoLineTaxPercent(
-                          row.productId ?? '',
-                          row.taxPercent,
-                          productMap,
-                        ),
-                      });
-
-                      return (
-                        <TableRow key={field.id}>
-                          {/* Product select */}
-                          <TableCell className="overflow-hidden">
-                            <Controller
-                              control={form.control}
-                              name={`items.${idx}.productId`}
-                              render={({ field: f }) => (
-                                <Select
-                                  value={f.value || '__none__'}
-                                  onValueChange={(v) => {
-                                    if (v === '__none__') {
-                                      f.onChange('');
-                                      form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
-                                      return;
-                                    }
-                                    f.onChange(v);
-                                    handleProductChange(idx, v);
-                                  }}
-                                >
-                                  <SelectTrigger className={cn('h-8 w-full max-w-full text-xs', PO_SELECT_TRIGGER)}>
-                                    <SelectValue placeholder="Product (optional)…" className="truncate" />
-                                  </SelectTrigger>
-                                  <SelectContent className={PO_SELECT_CONTENT}>
-                                    <SelectItem value="__none__">— Service / no product —</SelectItem>
-                                    <div className="p-2">
-                                      <Input
-                                        placeholder="Search products..."
-                                        value={productSearch}
-                                        onChange={(e) => setProductSearch(e.target.value)}
-                                        onKeyDown={(e) => e.stopPropagation()}
-                                        className="mb-2"
-                                      />
-                                    </div>
-                                    {filteredProducts.map((p) => (
-                                      <SelectItem key={p.id} value={p.id}>
-                                        <span className="font-medium">{p.productCode}</span>
-                                        <span className="ml-1 text-muted-foreground">- {p.description}</span>
-                                      </SelectItem>
-                                    ))}
-                                    {filteredProducts.length === 0 && (
-                                      <p className="px-2 py-4 text-center text-sm text-muted-foreground">No products found</p>
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                            {form.formState.errors.items?.[idx]?.productId && (
-                              <p className="mt-0.5 text-[10px] text-destructive">
-                                {form.formState.errors.items[idx]?.productId?.message}
-                              </p>
-                            )}
-                          </TableCell>
-
-                          {/* Current Stock (read-only) */}
-                          <TableCell className="text-right">
-                            <Input
-                              readOnly
-                              tabIndex={-1}
-                              className="h-8 w-full bg-muted text-right text-xs"
-                              value={String(numPo(row.currentStock))}
-                            />
-                          </TableCell>
-
-                          {/* Description (editable) */}
-                          <TableCell>
-                            <div className="space-y-1">
-                              <Input
-                                className="h-8 w-full text-xs"
-                                placeholder={product?.description ?? 'Description (required if no product)'}
-                                {...form.register(`items.${idx}.lineDescription`)}
-                                onChange={(e) => {
-                                  form.setValue(`items.${idx}.lineDescription`, e.target.value, {
-                                    shouldDirty: true,
-                                  });
-                                  const next = e.target.value.trim();
-                                  const productId = form.getValues(`items.${idx}.productId`);
-                                  if (!productId?.trim() && next) {
-                                    form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const next = e.target.value?.trim();
-                                  const productId = form.getValues(`items.${idx}.productId`);
-                                  if (!productId?.trim() && next) {
-                                    form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
-                                  }
-                                }}
-                              />
-                              <p className="text-[10px] text-muted-foreground">
-                                Category: {row.lineCategory || product?.category || '—'}
-                              </p>
-                            </div>
-                          </TableCell>
-
-                          {/* Order Qty (editable) */}
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min={1}
-                              step={1}
-                              className="h-8 w-full text-right text-xs"
-                              {...form.register(`items.${idx}.orderQty`, {
-                                onChange: () => form.trigger(`items.${idx}.orderQty`),
-                              })}
-                            />
-                            {form.formState.errors.items?.[idx]?.orderQty && (
-                              <p className="mt-0.5 text-[10px] text-destructive">
-                                {form.formState.errors.items[idx]?.orderQty?.message}
-                              </p>
-                            )}
-                          </TableCell>
-
-                          {/* UOM (from product) */}
-                          <TableCell>
-                            <Input
-                              readOnly
-                              tabIndex={-1}
-                              className="h-8 w-full truncate bg-muted text-xs"
-                              value={product?.uom ?? ''}
-                              placeholder="—"
-                            />
-                          </TableCell>
-
-                          {/* Rate (editable) */}
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              className="h-8 w-full text-right text-xs"
-                              {...form.register(`items.${idx}.rate`, {
-                                onChange: () => form.trigger(`items.${idx}.rate`),
-                              })}
-                            />
-                          </TableCell>
-
-                          {/* Tax % (per line) */}
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={0.01}
-                              className="h-8 w-full text-right text-xs"
-                              placeholder={isNonTaxable ? 'Fixed at 0' : '0'}
-                              value={
-                                isNonTaxable
-                                  ? 0
-                                  : row.taxPercent === undefined || row.taxPercent === null
-                                    ? ''
-                                    : row.taxPercent
-                              }
-                              disabled={isNonTaxable}
-                              onChange={(event) => {
-                                const nextValue = event.target.value;
-                                form.setValue(
-                                  `items.${idx}.taxPercent`,
-                                  nextValue === '' ? '' : Number(nextValue),
-                                  {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  },
-                                );
-                              }}
-                            />
-                          </TableCell>
-
-                          {/* Line Value (qty × rate + tax) */}
-                          <TableCell className="text-right text-sm font-medium tabular-nums">
-                            {numPo(row.orderQty) > 0 && numPo(row.rate) > 0 ? (
-                              formatCurrency(line.lineTotal)
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Remove */}
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => fields.length > 1 && remove(idx)}
-                              disabled={fields.length <= 1}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
-                        Subtotal (Excl. GST)
-                      </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
-                        {formatCurrency(lineTotals.subtotal)}
-                      </TableCell>
-                      <TableCell />
-                    </TableRow>
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-right text-xs text-muted-foreground">
-                        GST / Tax
-                      </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
-                        {formatCurrency(lineTotals.taxTotal)}
-                      </TableCell>
-                      <TableCell />
-                    </TableRow>
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-right font-semibold">
-                        Gross Amount
-                      </TableCell>
-                      <TableCell className="text-right font-bold tabular-nums">
-                        {formatCurrency(lineTotals.grandTotal)}
-                      </TableCell>
-                      <TableCell />
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setSheetOpen(false);
-                  if (location.pathname === '/purchase-orders/new') {
-                    navigate('/purchase-orders');
-                  }
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createMut.isPending || sendMut.isPending || !canMutatePo}>
-                <ShoppingCart className="h-4 w-4" />
-                {createMut.isPending ? 'Saving...' : 'Save as Draft'}
-              </Button>
-              <Button
-                type="button"
-                onClick={submitSend}
-                disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                {sendMut.isPending ? 'Sending...' : 'Save & Send'}
-              </Button>
-            </div>
-          </form>
+          {purchaseOrderForm}
         </SheetContent>
       </Sheet>
-      </div>
 
       {/* ---- DETAIL DIALOG ---- */}
       <Dialog open={!!detailId} onOpenChange={(open) => !open && setDetailId(null)}>

@@ -14,11 +14,17 @@ function makeService() {
     shop: {
       findUnique: jest.fn(),
     },
+    storageLocation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 'shop-1', isActive: true }),
+    },
   } as any;
 
   const prisma = {
     goodsReceiptHeader: {
       findUnique: jest.fn(),
+    },
+    storageLocation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 'shop-1', isActive: true }),
     },
     $transaction: jest.fn(async (work: (client: typeof tx) => Promise<unknown>) => work(tx)),
   } as any;
@@ -29,7 +35,7 @@ function makeService() {
   const costing = { recordInflow: jest.fn() } as any;
 
   const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing, {
-    sendInternalAlert: jest.fn(),
+    sendInternalAlert: jest.fn().mockResolvedValue(undefined),
   } as any);
   return { service, prisma, tx, stock, audit, costing };
 }
@@ -58,6 +64,8 @@ describe('GoodsReceiptsService', () => {
           lineValue: new Prisma.Decimal(300),
           batchNumber: null,
           serialNumber: null,
+          storageLocationId: 'loc-1',
+          expiryDate: new Date('2027-12-31'),
         },
       ],
     });
@@ -121,6 +129,9 @@ function buildTx(overrides: Record<string, any> = {}) {
       findUniqueOrThrow: jest.fn(),
     },
     goodsReceiptItem: { deleteMany: jest.fn() },
+    storageLocation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 's1', isActive: true }),
+    },
     // CostingService inflow path queries the shop's costingMethod inside the
     // same transaction; default to AVERAGE so legacy tests don't need to know.
     shop: { findUnique: jest.fn().mockResolvedValue({ costingMethod: 'AVERAGE' }) },
@@ -143,6 +154,9 @@ function makePrisma(tx: any) {
     goodsReceiptHeader: {
       findUnique: jest.fn(),
     },
+    storageLocation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 's1', isActive: true }),
+    },
   } as any;
 }
 
@@ -159,7 +173,7 @@ const costingFactory = () =>
       .mockResolvedValue({ totalCost: new Prisma.Decimal(0), unitCost: new Prisma.Decimal(0) }),
   }) as any;
 const emailNotificationsFactory = () =>
-  ({ sendInternalAlert: jest.fn() }) as any;
+  ({ sendInternalAlert: jest.fn().mockResolvedValue(undefined) }) as any;
 
 describe('GoodsReceiptsService.create', () => {
   it('rejects future grDate', async () => {
@@ -202,6 +216,26 @@ describe('GoodsReceiptsService.create', () => {
       } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rejects missing storage location on create', async () => {
+    const tx = buildTx();
+    const service = new GoodsReceiptsService(
+      makePrisma(tx),
+      stockFactory(),
+      numbersFactory(),
+      auditFactory(),
+      costingFactory(),
+      emailNotificationsFactory(),
+    );
+    await expect(
+      service.create(adminUser, {
+        shopId: 's1',
+        grDate: '2026-04-01',
+        supplierName: 'ACME',
+        items: [{ productId: 'p1', quantity: 1, uom: 'PCS', purchaseRate: 10 }],
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });
 
 describe('GoodsReceiptsService.post', () => {
@@ -231,7 +265,15 @@ describe('GoodsReceiptsService.post', () => {
 
   it('rejects when concurrent post wins (updateMany affects 0 rows)', async () => {
     const items = [
-      { id: 'l1', productId: 'p1', quantity: new Prisma.Decimal(1), purchaseRate: new Prisma.Decimal(10), lineValue: new Prisma.Decimal(10) },
+      {
+        id: 'l1',
+        productId: 'p1',
+        quantity: new Prisma.Decimal(1),
+        purchaseRate: new Prisma.Decimal(10),
+        lineValue: new Prisma.Decimal(10),
+        storageLocationId: 'loc-1',
+        expiryDate: new Date('2027-12-31'),
+      },
     ];
     const tx = buildTx();
     tx.goodsReceiptHeader.findUnique.mockResolvedValue({
@@ -274,6 +316,8 @@ describe('GoodsReceiptsService.post', () => {
         quantity: new Prisma.Decimal(2),
         purchaseRate: new Prisma.Decimal(10),
         lineValue: new Prisma.Decimal(20),
+        storageLocationId: 'loc-1',
+        expiryDate: new Date('2027-12-31'),
       },
       {
         id: 'l2',
@@ -281,6 +325,8 @@ describe('GoodsReceiptsService.post', () => {
         quantity: new Prisma.Decimal(1),
         purchaseRate: new Prisma.Decimal(15),
         lineValue: new Prisma.Decimal(15),
+        storageLocationId: 'loc-1',
+        expiryDate: new Date('2027-12-31'),
       },
     ];
     const tx = buildTx();
@@ -332,7 +378,15 @@ describe('GoodsReceiptsService.post', () => {
 
   it('takes a per-PO advisory lock when validating against purchase order', async () => {
     const items = [
-      { id: 'l1', productId: 'p1', quantity: new Prisma.Decimal(1), purchaseRate: new Prisma.Decimal(10), lineValue: new Prisma.Decimal(10) },
+      {
+        id: 'l1',
+        productId: 'p1',
+        quantity: new Prisma.Decimal(1),
+        purchaseRate: new Prisma.Decimal(10),
+        lineValue: new Prisma.Decimal(10),
+        storageLocationId: 'loc-1',
+        expiryDate: new Date('2027-12-31'),
+      },
     ];
     const tx = buildTx();
     tx.goodsReceiptHeader.findUnique.mockResolvedValue({

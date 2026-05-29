@@ -66,4 +66,18 @@ export class ListProductsDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, list all company products (any plant assignment). shop_id still scopes stock display when provided.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (value === 'true' || value === '1') return true;
+    if (value === 'false' || value === '0') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  company_catalog?: boolean;
 }

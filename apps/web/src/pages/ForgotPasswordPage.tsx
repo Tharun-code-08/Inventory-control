@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, KeyRound, Link2, Mail } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { Reveal } from '@/components/motion';
 import { TurnstileField } from '@/components/TurnstileField';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -116,6 +117,7 @@ export function ForgotPasswordPage() {
           </div>
         </section>
 
+        <Reveal>
         <Card className="border-slate-200 shadow-xl">
           <CardHeader>
             <CardTitle>Forgot password</CardTitle>
@@ -226,6 +228,7 @@ export function ForgotPasswordPage() {
             </p>
           </CardContent>
         </Card>
+        </Reveal>
       </main>
     </div>
   );

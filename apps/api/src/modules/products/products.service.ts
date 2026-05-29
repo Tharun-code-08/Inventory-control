@@ -262,6 +262,7 @@ export class ProductsService {
       search?: string;
       page?: number;
       limit?: number;
+      company_catalog?: boolean;
     },
   ) {
     const limit = clampTake(query.limit);
@@ -271,8 +272,9 @@ export class ProductsService {
     const shopId = query.shop_id;
     if (query.shop_id) assertShopScope(user, query.shop_id);
     const tenantShopIds = shopIdsForUser(user);
-    const plantScope =
-      shopId != null
+    const plantScope = query.company_catalog
+      ? { shop: { companyId } }
+      : shopId != null
         ? { shopId }
         : tenantShopIds && tenantShopIds.length > 0
           ? { shopId: { in: tenantShopIds } }

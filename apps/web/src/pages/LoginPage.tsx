@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/api/client';
 import { AuthStepIndicator } from '@/components/auth/AuthStepIndicator';
+import { Reveal } from '@/components/motion';
 import { OtpCodeInput } from '@/components/auth/OtpCodeInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -197,9 +198,9 @@ export function LoginPage() {
             </div>
           </section>
 
-          <section className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
-            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-indigo-100 blur-2xl" />
-            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" />
+          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
+            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-indigo-100 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
 
@@ -377,7 +378,7 @@ export function LoginPage() {
                 </Button>
               </form>
             )}
-          </section>
+          </Reveal>
         </div>
       </div>
     </div>

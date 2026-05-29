@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Command, CornerDownLeft } from 'lucide-react';
+import { Command, CornerDownLeft, Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { buildNavCommands, filterNavCommands, type NavCommand } from '@/lib/app-navigation';
 import { useAuthStore } from '@/store/authStore';
@@ -108,13 +108,13 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
     >
       <button
         type="button"
-        className="absolute inset-0 bg-slate-950/50 backdrop-blur-[3px] dark:bg-black/65"
+        className="motion-spotlight-backdrop absolute inset-0 bg-slate-950/50 backdrop-blur-[3px] dark:bg-black/65"
         aria-label="Close jump menu"
         onClick={() => onOpenChange(false)}
       />
 
       <div
-        className="relative flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-indigo-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-indigo-500/30 dark:bg-slate-900 dark:shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="motion-spotlight-panel relative flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-indigo-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-indigo-500/30 dark:bg-slate-900 dark:shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         onKeyDown={onKeyDown}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-violet-500" />
@@ -163,52 +163,70 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
 
           <div className="min-w-0 flex-1 overflow-y-auto p-2">
             {visible.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-                No matches for &ldquo;{query}&rdquo;
-              </p>
+              <div className="motion-fade-up flex flex-col items-center px-4 py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                  <Search className="h-6 w-6 text-slate-400" aria-hidden="true" />
+                </div>
+                {query.trim() ? (
+                  <>
+                    <p className="mt-4 text-sm font-medium text-slate-700 dark:text-slate-200">
+                      No matches for &ldquo;{query}&rdquo;
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Try &ldquo;products&rdquo;, &ldquo;invoice&rdquo;, or &ldquo;dashboard&rdquo;
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                    Type to search pages and quick actions
+                  </p>
+                )}
+              </div>
             ) : (
-              visible.map((cmd, index) => {
-                const Icon = cmd.icon;
-                const selected = index === highlightIndex;
-                return (
-                  <button
-                    key={cmd.id}
-                    type="button"
-                    onMouseEnter={() => setHighlightIndex(index)}
-                    onClick={() => go(cmd)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition',
-                      selected
-                        ? 'selection-active'
-                        : 'hover:bg-[#eef2ff] dark:hover:bg-indigo-950/25',
-                    )}
-                  >
-                    <span
+              <div key={query || 'all'} className="motion-fade-up space-y-0.5">
+                {visible.map((cmd, index) => {
+                  const Icon = cmd.icon;
+                  const selected = index === highlightIndex;
+                  return (
+                    <button
+                      key={cmd.id}
+                      type="button"
+                      onMouseEnter={() => setHighlightIndex(index)}
+                      onClick={() => go(cmd)}
                       className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+                        'flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition duration-200',
                         selected
-                          ? 'border-indigo-300 bg-white selection-active-icon dark:border-indigo-500/50 dark:bg-slate-900'
-                          : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
+                          ? 'selection-active'
+                          : 'hover:bg-[#eef2ff] dark:hover:bg-indigo-950/25',
                       )}
                     >
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {cmd.label}
+                      <span
+                        className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+                          selected
+                            ? 'border-indigo-300 bg-white selection-active-icon dark:border-indigo-500/50 dark:bg-slate-900'
+                            : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
                       </span>
-                      <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                        {cmd.hint}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {cmd.label}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                          {cmd.hint}
+                        </span>
                       </span>
-                    </span>
-                    {selected && (
-                      <span className="hidden items-center gap-1 text-[10px] text-indigo-600 sm:flex dark:text-indigo-300">
-                        open <CornerDownLeft className="h-3 w-3" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })
+                      {selected ? (
+                        <span className="hidden items-center gap-1 text-[10px] text-indigo-600 sm:flex dark:text-indigo-300">
+                          open <CornerDownLeft className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

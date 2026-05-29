@@ -9,25 +9,38 @@ const variants: Record<string, string> = {
   FULLY_RECEIVED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
   PARTIALLY_RECEIVED: 'border border-sky-200 bg-sky-50 text-sky-800',
   SENT: 'border border-sky-200 bg-sky-50 text-sky-800',
+  PAID: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
+  PENDING: 'border border-amber-300 bg-amber-100 text-amber-800',
+  OPEN: 'border border-sky-200 bg-sky-50 text-sky-800',
+  CLOSED: 'border border-slate-300 bg-slate-100 text-slate-600',
+  APPROVED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
   INACTIVE: 'border border-slate-300 bg-slate-100 text-slate-600',
   DEACTIVE: 'border border-rose-300 bg-rose-100 text-rose-800',
   DEACTIVATED: 'border border-rose-300 bg-rose-100 text-rose-800',
   CANCELLED: 'border border-slate-300 bg-slate-100 text-slate-700',
 };
 
+function formatStatusLabel(status: string): string {
+  return status.replaceAll('_', ' ');
+}
+
 export function StatusBadge({ status, compact }: { status: string; compact?: boolean }) {
   const key = status?.toUpperCase?.() ?? status;
   const cls = variants[key] ?? 'border border-slate-200 bg-slate-50 text-slate-700';
+  const label = formatStatusLabel(status);
+
   return (
     <span
+      key={label}
       className={cn(
-        'rounded-full font-semibold tracking-wide',
+        'motion-badge-crossfade inline-flex items-center rounded-full font-semibold tracking-wide',
         compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
         cls,
       )}
       data-testid="status-badge"
+      aria-label={`Status: ${label}`}
     >
-      {status.replaceAll('_', ' ')}
+      {label}
     </span>
   );
 }

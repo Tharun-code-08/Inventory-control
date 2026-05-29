@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
+import { CreatePageLayout, DocumentReferenceSelect, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,30 +15,46 @@ import { useCreateInvoice, useInvoices } from '@/hooks/use-invoices';
 import { useSalesOrders } from '@/hooks/use-sales-orders';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { formatCustomerOption, formatSalesOrderOption } from '@/lib/document-display';
+import { getApiErrorMessage } from '@/lib/api-error';
 
-export function InvoicesPage() {
+const emptyForm = () => ({
+  customerId: '',
+  salesOrderId: '',
+  totalValue: '0',
+  dueDate: '',
+  remarks: '',
+});
+
+export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
+  const navigate = useNavigate();
   const { data: invoices = [] } = useInvoices();
   const { data: customers = [] } = useCustomers();
   const { data: salesOrders = [] } = useSalesOrders();
   const createInvoice = useCreateInvoice();
-  const [form, setForm] = useState({
-    customerId: '',
-    salesOrderId: '',
-    totalValue: '0',
-    dueDate: '',
-    remarks: '',
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const onCreate = async () => {
-    if (!form.customerId) return;
-    await createInvoice.mutateAsync({
-      customerId: form.customerId,
-      salesOrderId: form.salesOrderId || undefined,
-      totalValue: Number(form.totalValue),
-      dueDate: form.dueDate || undefined,
-      remarks: form.remarks || undefined,
-    });
-    setForm({ customerId: '', salesOrderId: '', totalValue: '0', dueDate: '', remarks: '' });
+    if (!form.customerId) {
+      toast.error('Select a customer');
+      return;
+    }
+    try {
+      await createInvoice.mutateAsync({
+        customerId: form.customerId,
+        salesOrderId: form.salesOrderId || undefined,
+        totalValue: Number(form.totalValue),
+        dueDate: form.dueDate || undefined,
+        remarks: form.remarks || undefined,
+      });
+      toast.success('Invoice created');
+      if (createOnly) {
+        navigate('/invoices');
+      } else {
+        setForm(emptyForm());
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to create invoice'));
+    }
   };
 
   const handleExportInvoices = () => {
@@ -56,6 +73,79 @@ export function InvoicesPage() {
     else toast.error('No invoices to export');
   };
 
+  const createForm = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Invoice Details</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Customer</Label>
+          <DocumentReferenceSelect
+            items={customers}
+            value={form.customerId}
+            onValueChange={(customerId) => setForm((p) => ({ ...p, customerId }))}
+            getValue={(customer) => customer.id}
+            getLabel={(customer) => formatCustomerOption(customer)}
+            placeholder="Select customer"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Sales Order (optional)</Label>
+          <DocumentReferenceSelect
+            items={salesOrders}
+            value={form.salesOrderId}
+            onValueChange={(salesOrderId) => setForm((p) => ({ ...p, salesOrderId }))}
+            getValue={(order) => order.id}
+            getLabel={(order) => formatSalesOrderOption(order)}
+            placeholder="Select sales order"
+            noneLabel="No sales order"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Total Value</Label>
+          <Input
+            type="number"
+            min="0"
+            value={form.totalValue}
+            onChange={(e) => setForm((p) => ({ ...p, totalValue: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Due Date</Label>
+          <Input
+            type="date"
+            value={form.dueDate}
+            onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label>Remarks</Label>
+          <Input value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+        </div>
+        <div className="md:col-span-2">
+          <Button onClick={onCreate} disabled={createInvoice.isPending}>
+            {createInvoice.isPending ? 'Creating…' : 'Create Invoice'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Invoices">
+        <CreatePageLayout
+          title="Create Invoice"
+          description="Manual and sales-order-based customer invoicing."
+          backTo="/invoices"
+        >
+          {createForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="Invoices">
       <div className="space-y-6">
@@ -64,50 +154,11 @@ export function InvoicesPage() {
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/invoices/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Invoice
+          </Button>
         </PageHeader>
-        <Card>
-          <CardHeader><CardTitle>Create Invoice</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <DocumentReferenceSelect
-                items={customers}
-                value={form.customerId}
-                onValueChange={(customerId) => setForm((p) => ({ ...p, customerId }))}
-                getValue={(customer) => customer.id}
-                getLabel={(customer) => formatCustomerOption(customer)}
-                placeholder="Select customer"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Sales Order (optional)</Label>
-              <DocumentReferenceSelect
-                items={salesOrders}
-                value={form.salesOrderId}
-                onValueChange={(salesOrderId) => setForm((p) => ({ ...p, salesOrderId }))}
-                getValue={(order) => order.id}
-                getLabel={(order) => formatSalesOrderOption(order)}
-                placeholder="Select sales order"
-                noneLabel="No sales order"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Total Value</Label>
-              <Input type="number" min="0" value={form.totalValue} onChange={(e) => setForm((p) => ({ ...p, totalValue: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Remarks</Label>
-              <Input value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
-            </div>
-            <div className="md:col-span-2">
-              <Button onClick={onCreate}>Create Invoice</Button>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
@@ -133,4 +184,3 @@ export function InvoicesPage() {
     </AppLayout>
   );
 }
-

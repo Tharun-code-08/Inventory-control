@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { isOrgAdminUser } from '@/lib/roles';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PageFallback } from '@/components/shared/page-fallback';
 import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { useSubscription } from '@/hooks/use-subscription';
@@ -109,16 +109,8 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PageFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="space-y-3 w-64">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-      </div>
-    </div>
-  );
+function PageFallbackRoute() {
+  return <PageFallback />;
 }
 
 export function AppRoutes() {
@@ -126,7 +118,7 @@ export function AppRoutes() {
   const { data: subscription } = useSubscription(Boolean(user));
   return (
     <AppErrorBoundary>
-      <Suspense fallback={<PageFallback />}>
+      <Suspense fallback={<PageFallbackRoute />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -149,11 +141,24 @@ export function AppRoutes() {
             }
           />
           <Route path="/products" element={<Protected><ProductsPage /></Protected>} />
+          <Route path="/products/new" element={<Protected><ProductsPage createOnly /></Protected>} />
           <Route path="/companies" element={<Protected><CompaniesPage /></Protected>} />
           <Route path="/companies/new" element={<Protected><CompaniesPage createOnly /></Protected>} />
           <Route path="/plants" element={<Protected><PlantsPage /></Protected>} />
           <Route path="/storage-locations" element={<Protected><StorageLocationsPage /></Protected>} />
+          <Route path="/storage-locations/new" element={<Protected><StorageLocationsPage createOnly /></Protected>} />
           <Route path="/suppliers" element={<Protected><SuppliersPage /></Protected>} />
+          <Route path="/suppliers/new" element={<Protected><SuppliersPage createOnly /></Protected>} />
+          <Route
+            path="/rfqs/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="rfqs">
+                  <RfqsPage createOnly />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
           <Route
             path="/rfqs"
             element={
@@ -185,11 +190,31 @@ export function AppRoutes() {
             }
           />
           <Route
+            path="/quotations/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="salesQuotations">
+                  <QuotationsPage createOnly />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
             path="/quotations"
             element={
               <Protected>
                 <TrialFeatureGate subscription={subscription} feature="salesQuotations">
                   <QuotationsPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/contracts/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="contracts">
+                  <ContractsPage createOnly />
                 </TrialFeatureGate>
               </Protected>
             }
@@ -205,6 +230,7 @@ export function AppRoutes() {
             }
           />
           <Route path="/customers" element={<Protected><CustomersPage /></Protected>} />
+          <Route path="/customers/new" element={<Protected><CustomersPage createOnly /></Protected>} />
           <Route
             path="/supplier-portal"
             element={
@@ -221,6 +247,16 @@ export function AppRoutes() {
               <Protected>
                 <TrialFeatureGate subscription={subscription} feature="supplierPortal">
                   <SupplierPortalPage />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/sales/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="salesOrders">
+                  <SalesPage createOnly />
                 </TrialFeatureGate>
               </Protected>
             }
@@ -246,12 +282,30 @@ export function AppRoutes() {
             }
           />
           <Route
+            path="/invoices/new"
+            element={
+              <Protected>
+                <TrialFeatureGate subscription={subscription} feature="invoices">
+                  <InvoicesPage createOnly />
+                </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
             path="/invoices"
             element={
               <Protected>
                 <TrialFeatureGate subscription={subscription} feature="invoices">
                   <InvoicesPage />
                 </TrialFeatureGate>
+              </Protected>
+            }
+          />
+          <Route
+            path="/returns/new"
+            element={
+              <Protected>
+                <ReturnsPage createOnly />
               </Protected>
             }
           />

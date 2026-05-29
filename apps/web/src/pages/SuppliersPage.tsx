@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   Building2,
@@ -14,9 +15,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader, SearchInput, ConfirmDialog } from '@/components/shared';
+import { PageHeader, SearchInput, ConfirmDialog, CreatePageLayout, LoadingSkeleton, EmptyState } from '@/components/shared';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useSuccessPulse } from '@/hooks/use-success-pulse';
+import { showActionSuccess } from '@/lib/action-feedback';
+import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -455,17 +460,81 @@ const csvColumns: CsvColumn<Supplier>[] = [
   { header: 'Status', value: (s) => (s.isActive ? 'Active' : 'Inactive') },
 ];
 
-export function SuppliersPage() {
-  const { data: allSuppliers = [], isLoading } = useSuppliers();
+function SuppliersCreateView() {
+  const navigate = useNavigate();
   const { data: companies = [] } = useCompanies();
   const createSupplier = useCreateSupplier();
+  const { pulseClass, triggerPulse } = useSuccessPulse();
+  const [createForm, setCreateForm] = useState(emptyForm);
+
+  const validateForm = (form: SupplierFormState) => {
+    if (!form.supplierName.trim()) {
+      toast.error('Supplier name is required');
+      return false;
+    }
+    if (!form.contactPerson.trim() || !form.email.trim() || !form.phone.trim()) {
+      toast.error('Contact person, email, and phone are required');
+      return false;
+    }
+    return true;
+  };
+
+  const onCreate = async () => {
+    if (!validateForm(createForm)) return;
+    try {
+      await createSupplier.mutateAsync(formToPayload(createForm));
+      triggerPulse();
+      showActionSuccess({ message: 'Supplier created successfully' });
+      navigate('/suppliers');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message ?? 'Failed to create supplier';
+      toast.error(msg);
+    }
+  };
+
+  return (
+    <CreatePageLayout
+      title="Add Supplier"
+      description="Register a new supplier with contact and payment details"
+      backTo="/suppliers"
+    >
+      <Card className={cn(pulseClass)}>
+        <CardHeader>
+          <CardTitle>Supplier details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <SupplierFormFields
+            form={createForm}
+            setForm={setCreateForm}
+            companies={companies}
+            codeHint="Leave blank to auto-generate (e.g. SUP-0001)"
+          />
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700"
+            onClick={onCreate}
+            loading={createSupplier.isPending}
+            loadingLabel="Creating…"
+          >
+            Create Supplier
+          </Button>
+        </CardContent>
+      </Card>
+    </CreatePageLayout>
+  );
+}
+
+function SuppliersListView() {
+  const navigate = useNavigate();
+  const { data: allSuppliers = [], isLoading } = useSuppliers();
+  const { data: companies = [] } = useCompanies();
   const updateSupplier = useUpdateSupplier();
   const requestDeletion = useRequestSupplierDeletion();
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState(emptyForm);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
@@ -485,7 +554,7 @@ export function SuppliersPage() {
   }, [allSuppliers]);
 
   const filteredSuppliers = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = debouncedSearch.trim().toLowerCase();
     return allSuppliers.filter((s) => {
       if (statusFilter === 'active' && !s.isActive) return false;
       if (statusFilter === 'inactive' && s.isActive) return false;
@@ -502,7 +571,9 @@ export function SuppliersPage() {
         .toLowerCase();
       return hay.includes(term);
     });
-  }, [allSuppliers, search, statusFilter]);
+  }, [allSuppliers, debouncedSearch, statusFilter]);
+
+  const isSearchPending = search !== debouncedSearch;
 
   const validateForm = (form: SupplierFormState) => {
     if (!form.supplierName.trim()) {
@@ -514,21 +585,6 @@ export function SuppliersPage() {
       return false;
     }
     return true;
-  };
-
-  const onCreate = async () => {
-    if (!validateForm(createForm)) return;
-    try {
-      await createSupplier.mutateAsync(formToPayload(createForm));
-      setCreateForm(emptyForm());
-      setCreateOpen(false);
-      toast.success('Supplier created successfully');
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Failed to create supplier';
-      toast.error(msg);
-    }
   };
 
   const openEdit = (supplier: Supplier) => {
@@ -581,7 +637,7 @@ export function SuppliersPage() {
   };
 
   return (
-    <AppLayout active="Suppliers">
+    <>
       <div className="space-y-6">
         <PageHeader
           title="Suppliers"
@@ -594,10 +650,7 @@ export function SuppliersPage() {
           <Button
             size="sm"
             className="bg-indigo-600 shadow-md hover:bg-indigo-700"
-            onClick={() => {
-              setCreateForm(emptyForm());
-              setCreateOpen(true);
-            }}
+            onClick={() => navigate('/suppliers/new')}
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Supplier
@@ -632,6 +685,14 @@ export function SuppliersPage() {
                 placeholder="Search by name, code or contact…"
                 value={search}
                 onChange={setSearch}
+                isSearching={isSearchPending || isLoading}
+                showNoResults={
+                  !isLoading &&
+                  !isSearchPending &&
+                  search.trim().length > 0 &&
+                  filteredSuppliers.length === 0
+                }
+                noResultsMessage="No suppliers match your search."
                 className="max-w-md flex-1"
               />
               <div className="flex items-center gap-2 sm:w-44">
@@ -653,6 +714,29 @@ export function SuppliersPage() {
             </div>
 
             <div className="overflow-x-auto rounded-lg border">
+              {isLoading ? (
+                <div className="p-4">
+                  <LoadingSkeleton rows={8} cols={10} />
+                </div>
+              ) : filteredSuppliers.length === 0 ? (
+                <EmptyState
+                  icon={Truck}
+                  title={search.trim() || statusFilter !== 'all' ? 'No suppliers match your filters' : 'No suppliers yet'}
+                  description={
+                    search.trim() || statusFilter !== 'all'
+                      ? 'Try a different search term or status filter.'
+                      : 'Onboard your first vendor to start procurement.'
+                  }
+                  action={
+                    !search.trim() && statusFilter === 'all' ? (
+                      <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/suppliers/new')}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Supplier
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80">
@@ -689,20 +773,7 @@ export function SuppliersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
-                        Loading suppliers…
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredSuppliers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
-                        No suppliers match your filters.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredSuppliers.map((s) => (
+                  {filteredSuppliers.map((s) => (
                       <TableRow key={s.id} className="hover:bg-slate-50/50">
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -794,43 +865,14 @@ export function SuppliersPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    ))}
                 </TableBody>
               </Table>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
-
-      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>Add supplier</SheetTitle>
-            <SheetDescription>Register a new supplier with contact and payment details.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-5">
-            <SupplierFormFields
-              form={createForm}
-              setForm={setCreateForm}
-              companies={companies}
-              codeHint="Leave blank to auto-generate (e.g. SUP-0001)"
-            />
-            <div className="flex gap-3 border-t pt-4">
-              <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                onClick={onCreate}
-                disabled={createSupplier.isPending}
-              >
-                {createSupplier.isPending ? 'Saving…' : 'Create supplier'}
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
@@ -949,6 +991,14 @@ export function SuppliersPage() {
         onConfirm={onRequestDeletion}
         loading={requestDeletion.isPending}
       />
+    </>
+  );
+}
+
+export function SuppliersPage({ createOnly = false }: { createOnly?: boolean }) {
+  return (
+    <AppLayout active="Suppliers">
+      {createOnly ? <SuppliersCreateView /> : <SuppliersListView />}
     </AppLayout>
   );
 }

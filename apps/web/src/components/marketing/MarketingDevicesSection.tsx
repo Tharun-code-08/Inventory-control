@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MARKETING_DEVICES } from '@/lib/marketing-content';
 import { cn } from '@/lib/cn';
+import { Reveal } from '@/components/motion';
 import { MarketingImagePlaceholder } from './MarketingImagePlaceholder';
 
 export function MarketingDevicesSection() {
@@ -10,15 +11,15 @@ export function MarketingDevicesSection() {
   return (
     <section className="bg-white py-16 sm:py-20" aria-labelledby="devices-heading">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
+        <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{MARKETING_DEVICES.eyebrow}</p>
           <h2 id="devices-heading" className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             {MARKETING_DEVICES.title}
           </h2>
           <p className="mt-4 text-lg text-slate-600">{MARKETING_DEVICES.body}</p>
-        </div>
+        </Reveal>
 
-        <div className="mt-8 flex justify-center">
+        <Reveal delay={80} className="mt-8 flex justify-center">
           <div role="tablist" aria-label="Device views" className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
             {MARKETING_DEVICES.tabs.map((tab) => (
               <button
@@ -38,9 +39,9 @@ export function MarketingDevicesSection() {
               </button>
             ))}
           </div>
-        </div>
+        </Reveal>
 
-        <div className="mt-10">
+        <Reveal delay={120} className="mt-10">
           {MARKETING_DEVICES.tabs.map((tab) => (
             <div
               key={tab.id}
@@ -51,7 +52,9 @@ export function MarketingDevicesSection() {
               className="mx-auto max-w-4xl"
             >
               {activeId === tab.id ? (
-                <MarketingImagePlaceholder slot={tab.imageSlot} className="w-full" />
+                <div key={activeId} className="motion-fade-up">
+                  <MarketingImagePlaceholder slot={tab.imageSlot} className="w-full" />
+                </div>
               ) : null}
             </div>
           ))}
@@ -60,7 +63,7 @@ export function MarketingDevicesSection() {
               Showing {activeTab.label} view
             </div>
           ) : null}
-        </div>
+        </Reveal>
       </div>
     </section>
   );

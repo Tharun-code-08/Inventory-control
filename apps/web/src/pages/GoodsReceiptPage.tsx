@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -84,7 +84,7 @@ import {
 import { AppLayout } from '@/components/AppLayout';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
-import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { CreatePageLayout, P2PFlowTimeline, type P2PStep } from '@/components/shared';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { displayDocumentNumber } from '@/lib/document-display';
 
@@ -185,7 +185,6 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const user = useAuthStore((s) => s.user);
   const shopId = user?.shopId ?? '';
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   const fromPoId = searchParams.get('fromPo') ?? '';
   const poQuery = usePurchaseOrder(fromPoId);
@@ -335,8 +334,17 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
               }))
           : [{ ...emptyItem, storageLocationId: defaultStorageLocationId }],
     });
-    setSheetOpen(true);
   };
+
+  const createRouteInitializedRef = useRef(false);
+
+  useEffect(() => {
+    if (!createOnly || editingGR) return;
+    if (fromPoId && poQuery.isLoading) return;
+    if (createRouteInitializedRef.current && !fromPoId) return;
+    createRouteInitializedRef.current = true;
+    openCreate();
+  }, [createOnly, editingGR, fromPoId, poQuery.isLoading, poQuery.data, defaultStorageLocationId]);
 
   useEffect(() => {
     if (editingGR) return;
@@ -559,37 +567,312 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
 
   const isMutating = createGR.isPending || updateGR.isPending;
 
-  return (
-    <AppLayout active="Goods Receipts">
-      <div className={cn('space-y-5', createOnly && 'create-page-shell p-4 sm:p-6')}>
-        {/* Page Header */}
+  const goodsReceiptForm = (
+<form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className={cn(createOnly ? 'space-y-5' : 'mt-6 space-y-5')}
+    >
+      {/* Header fields */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-2 sm:col-span-2">
+    <Label htmlFor="purchaseOrderId">Purchase Order</Label>
+    <Controller
+      control={form.control}
+      name="purchaseOrderId"
+      render={({ field }) => (
+        <Select value={field.value || ''} onValueChange={field.onChange}>
+          <SelectTrigger id="purchaseOrderId">
+            <SelectValue placeholder="Select PO (Confirmed / Partially Received)" />
+          </SelectTrigger>
+          <SelectContent>
+            {eligiblePoList.map((po) => (
+              <SelectItem key={po.id} value={po.id}>
+                {po.poNumber} - {po.supplier}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    />
+        </div>
+        <div className="space-y-2">
+    <Label htmlFor="supplierName">Supplier Name *</Label>
+    <Input
+      id="supplierName"
+      {...form.register('supplierName')}
+      placeholder="Supplier name"
+    />
+    {form.formState.errors.supplierName && (
+      <p className="text-xs text-destructive">
+        {form.formState.errors.supplierName.message}
+      </p>
+    )}
+        </div>
+        <div className="space-y-2 sm:col-span-1">
+    <Label htmlFor="grDate">GR Date *</Label>
+    <Input
+      id="grDate"
+      type="date"
+      {...form.register('grDate')}
+    />
+    {form.formState.errors.grDate && (
+      <p className="text-xs text-destructive">
+        {form.formState.errors.grDate.message}
+      </p>
+    )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+    <Label htmlFor="supplierRef">Supplier Ref</Label>
+    <Input
+      id="supplierRef"
+      {...form.register('supplierRef')}
+      placeholder="Invoice/PO reference"
+    />
+        </div>
+        <div className="space-y-2">
+    <Label htmlFor="remarks">Remarks</Label>
+    <Textarea
+      id="remarks"
+      {...form.register('remarks')}
+      placeholder="Optional notes"
+      rows={1}
+    />
+        </div>
+      </div>
+
+      {/* Items table */}
+      <div className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{createOnly ? 'Create Goods Receipt' : 'Goods Receipts'}</h1>
-            <p className="text-sm text-slate-500">
-              {createOnly ? 'Fill in details to create a new goods receipt' : 'Record incoming stock from suppliers'}
-            </p>
-          </div>
-          {createOnly ? (
-            <Button variant="outline" onClick={() => navigate('/goods-receipts')} className="w-full sm:w-auto">
-              Back
-            </Button>
-          ) : (
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-              <Button variant="outline" onClick={handleExportReceiptList} className="w-full sm:w-auto">
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
-                <Plus className="h-4 w-4" />
-                New Receipt
-              </Button>
-            </div>
-          )}
+    <Label className="text-base">Line Items *</Label>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => append({ ...emptyItem })}
+      className="w-full sm:w-auto"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Add Row
+    </Button>
         </div>
 
-        {!createOnly && (
-          <>
+        {form.formState.errors.items?.message && (
+    <p className="text-xs text-destructive">
+      {form.formState.errors.items.message}
+    </p>
+        )}
+
+        <div className="rounded-lg border">
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-muted/50 hover:bg-muted/50">
+          <TableHead className="font-semibold w-[210px]">Product</TableHead>
+          <TableHead className="font-semibold text-right w-[100px]">Received Quantity</TableHead>
+          <TableHead className="font-semibold w-[70px]">UOM</TableHead>
+          <TableHead className="font-semibold w-[120px]">Expiry</TableHead>
+          <TableHead className="font-semibold w-[150px]">Storage</TableHead>
+          <TableHead className="font-semibold w-[120px]">Batch</TableHead>
+          <TableHead className="font-semibold w-[120px]">Serial</TableHead>
+          <TableHead className="font-semibold text-right w-[90px]">Value</TableHead>
+          <TableHead className="w-[40px]" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {fields.map((field, index) => (
+          <TableRow key={field.id}>
+            <TableCell className="p-1.5">
+              <Controller
+                control={form.control}
+                name={`items.${index}.productId`}
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value}
+                    onValueChange={(v) => onProductSelect(index, v)}
+                  >
+                    <SelectTrigger
+                      className={cn(
+                        'h-8 text-xs',
+                        form.formState.errors.items?.[index]?.productId &&
+                          'border-destructive',
+                      )}
+                    >
+                      <SelectValue placeholder="Select product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productList.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="font-mono text-[10px] mr-1.5">
+                            {p.productCode}
+                          </span>
+                          {p.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Input
+                type="number"
+                min="1"
+                className={cn(
+                  'h-8 text-xs text-right',
+                  form.formState.errors.items?.[index]?.quantity &&
+                    'border-destructive',
+                )}
+                {...form.register(`items.${index}.quantity`)}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Input
+                className="h-8 text-xs bg-muted/50"
+                readOnly
+                {...form.register(`items.${index}.uom`)}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Input
+                type="date"
+                className={cn(
+                  'h-8 text-xs',
+                  form.formState.errors.items?.[index]?.expiryDate && 'border-destructive',
+                )}
+                {...form.register(`items.${index}.expiryDate`)}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Controller
+                control={form.control}
+                name={`items.${index}.storageLocationId`}
+                render={({ field: f }) => (
+                  <Select value={f.value} onValueChange={f.onChange}>
+                    <SelectTrigger
+                      className={cn(
+                        'h-8 text-xs',
+                        form.formState.errors.items?.[index]?.storageLocationId &&
+                          'border-destructive',
+                      )}
+                    >
+                      <SelectValue placeholder="Location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {storageLocations
+                        .filter((loc) => loc.isActive)
+                        .map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            {loc.name || loc.code}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Input
+                className="h-8 text-xs"
+                placeholder="Batch no."
+                {...form.register(`items.${index}.batchNumber`)}
+              />
+            </TableCell>
+            <TableCell className="p-1.5">
+              <Input
+                className="h-8 text-xs"
+                placeholder="Serial no."
+                {...form.register(`items.${index}.serialNumber`)}
+              />
+            </TableCell>
+            <TableCell className="p-1.5 text-right tabular-nums text-sm font-medium">
+              {lineValues[index]?.toFixed(2) ?? '0.00'}
+            </TableCell>
+            <TableCell className="p-1.5">
+              {fields.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => remove(index)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+        </div>
+
+        {/* Total */}
+        <div className="flex justify-start sm:justify-end">
+    <div className="rounded-lg border bg-muted/50 px-5 py-3 text-right">
+      <span className="text-sm text-muted-foreground mr-4">
+        Total Value
+      </span>
+      <span className="text-lg font-bold tabular-nums">
+        {totalValue.toFixed(2)}
+      </span>
+    </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+        <Button
+    type="button"
+    variant="outline"
+    className="flex-1"
+    onClick={() => { if (createOnly) navigate('/goods-receipts'); else setSheetOpen(false); }}
+        >
+    Cancel
+        </Button>
+        <Button type="submit" className="flex-1" disabled={isMutating}>
+    {isMutating && <Loader2 className="h-4 w-4 animate-spin" />}
+    {editingGR ? 'Update Receipt' : 'Save as Draft'}
+        </Button>
+      </div>
+    </form>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Goods Receipts">
+        <CreatePageLayout
+          title="Create Goods Receipt"
+          description="Fill in the details to record incoming stock"
+          backTo="/goods-receipts"
+        >
+          {goodsReceiptForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout active="Goods Receipts">
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Goods Receipts</h1>
+            <p className="text-sm text-slate-500">Record incoming stock from suppliers</p>
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" onClick={handleExportReceiptList} className="w-full sm:w-auto">
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
+              <Plus className="h-4 w-4" />
+              New Receipt
+            </Button>
+          </div>
+        </div>
+
         {/* Toolbar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px] sm:max-w-sm">
@@ -668,7 +951,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                   : 'Get started by creating your first receipt'}
               </p>
               {!debouncedSearch && statusFilter === 'all' && (
-                <Button size="sm" className="premium-button mt-4 border-0 text-white" onClick={openCreate}>
+                <Button size="sm" className="premium-button mt-4 border-0 text-white" onClick={() => navigate('/goods-receipts/new')}>
                   <Plus className="h-4 w-4" />
                   New Receipt
                 </Button>
@@ -805,8 +1088,6 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
             </>
           )}
         </div>
-          </>
-        )}
       </div>
 
       {/* GR Detail Dialog */}
@@ -955,306 +1236,16 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
         </DialogContent>
       </Dialog>
 
-      {/* GR Form Sheet */}
-      <Sheet
-        open={createOnly ? true : sheetOpen}
-        onOpenChange={(open) => {
-          if (!createOnly) {
-            setSheetOpen(open);
-            return;
-          }
-          if (!open && location.pathname === '/goods-receipts/new') {
-            navigate('/goods-receipts');
-          }
-        }}
-      >
-        <SheetContent
-          side="right"
-          className={cn(
-            'w-full overflow-y-auto',
-            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'border-l sm:max-w-2xl',
-          )}
-        >
+      {/* GR edit sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto border-l sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle>
-              {editingGR ? 'Edit Goods Receipt' : 'New Goods Receipt'}
-            </SheetTitle>
+            <SheetTitle>Edit Goods Receipt</SheetTitle>
             <SheetDescription>
-              {editingGR
-                ? `Editing ${editingGR.grNumber}`
-                : 'Fill in the details to record incoming stock'}
+              {editingGR ? `Editing ${editingGR.grNumber}` : 'Update goods receipt details'}
             </SheetDescription>
           </SheetHeader>
-
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="mt-6 space-y-5"
-          >
-            {/* Header fields */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="purchaseOrderId">Purchase Order</Label>
-                <Controller
-                  control={form.control}
-                  name="purchaseOrderId"
-                  render={({ field }) => (
-                    <Select value={field.value || ''} onValueChange={field.onChange}>
-                      <SelectTrigger id="purchaseOrderId">
-                        <SelectValue placeholder="Select PO (Confirmed / Partially Received)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eligiblePoList.map((po) => (
-                          <SelectItem key={po.id} value={po.id}>
-                            {po.poNumber} - {po.supplier}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="supplierName">Supplier Name *</Label>
-                <Input
-                  id="supplierName"
-                  {...form.register('supplierName')}
-                  placeholder="Supplier name"
-                />
-                {form.formState.errors.supplierName && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.supplierName.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2 sm:col-span-1">
-                <Label htmlFor="grDate">GR Date *</Label>
-                <Input
-                  id="grDate"
-                  type="date"
-                  {...form.register('grDate')}
-                />
-                {form.formState.errors.grDate && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.grDate.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="supplierRef">Supplier Ref</Label>
-                <Input
-                  id="supplierRef"
-                  {...form.register('supplierRef')}
-                  placeholder="Invoice/PO reference"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="remarks">Remarks</Label>
-                <Textarea
-                  id="remarks"
-                  {...form.register('remarks')}
-                  placeholder="Optional notes"
-                  rows={1}
-                />
-              </div>
-            </div>
-
-            {/* Items table */}
-            <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Label className="text-base">Line Items *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ ...emptyItem })}
-                  className="w-full sm:w-auto"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Row
-                </Button>
-              </div>
-
-              {form.formState.errors.items?.message && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.items.message}
-                </p>
-              )}
-
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableHead className="font-semibold w-[210px]">Product</TableHead>
-                      <TableHead className="font-semibold text-right w-[100px]">Received Quantity</TableHead>
-                      <TableHead className="font-semibold w-[70px]">UOM</TableHead>
-                      <TableHead className="font-semibold w-[120px]">Expiry</TableHead>
-                      <TableHead className="font-semibold w-[150px]">Storage</TableHead>
-                      <TableHead className="font-semibold w-[120px]">Batch</TableHead>
-                      <TableHead className="font-semibold w-[120px]">Serial</TableHead>
-                      <TableHead className="font-semibold text-right w-[90px]">Value</TableHead>
-                      <TableHead className="w-[40px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {fields.map((field, index) => (
-                      <TableRow key={field.id}>
-                        <TableCell className="p-1.5">
-                          <Controller
-                            control={form.control}
-                            name={`items.${index}.productId`}
-                            render={({ field: f }) => (
-                              <Select
-                                value={f.value}
-                                onValueChange={(v) => onProductSelect(index, v)}
-                              >
-                                <SelectTrigger
-                                  className={cn(
-                                    'h-8 text-xs',
-                                    form.formState.errors.items?.[index]?.productId &&
-                                      'border-destructive',
-                                  )}
-                                >
-                                  <SelectValue placeholder="Select product" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {productList.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      <span className="font-mono text-[10px] mr-1.5">
-                                        {p.productCode}
-                                      </span>
-                                      {p.description}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Input
-                            type="number"
-                            min="1"
-                            className={cn(
-                              'h-8 text-xs text-right',
-                              form.formState.errors.items?.[index]?.quantity &&
-                                'border-destructive',
-                            )}
-                            {...form.register(`items.${index}.quantity`)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Input
-                            className="h-8 text-xs bg-muted/50"
-                            readOnly
-                            {...form.register(`items.${index}.uom`)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Input
-                            type="date"
-                            className={cn(
-                              'h-8 text-xs',
-                              form.formState.errors.items?.[index]?.expiryDate && 'border-destructive',
-                            )}
-                            {...form.register(`items.${index}.expiryDate`)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Controller
-                            control={form.control}
-                            name={`items.${index}.storageLocationId`}
-                            render={({ field: f }) => (
-                              <Select value={f.value} onValueChange={f.onChange}>
-                                <SelectTrigger
-                                  className={cn(
-                                    'h-8 text-xs',
-                                    form.formState.errors.items?.[index]?.storageLocationId &&
-                                      'border-destructive',
-                                  )}
-                                >
-                                  <SelectValue placeholder="Location" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {storageLocations
-                                    .filter((loc) => loc.isActive)
-                                    .map((loc) => (
-                                      <SelectItem key={loc.id} value={loc.id}>
-                                        {loc.name || loc.code}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Input
-                            className="h-8 text-xs"
-                            placeholder="Batch no."
-                            {...form.register(`items.${index}.batchNumber`)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          <Input
-                            className="h-8 text-xs"
-                            placeholder="Serial no."
-                            {...form.register(`items.${index}.serialNumber`)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-1.5 text-right tabular-nums text-sm font-medium">
-                          {lineValues[index]?.toFixed(2) ?? '0.00'}
-                        </TableCell>
-                        <TableCell className="p-1.5">
-                          {fields.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => remove(index)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Total */}
-              <div className="flex justify-start sm:justify-end">
-                <div className="rounded-lg border bg-muted/50 px-5 py-3 text-right">
-                  <span className="text-sm text-muted-foreground mr-4">
-                    Total Value
-                  </span>
-                  <span className="text-lg font-bold tabular-nums">
-                    {totalValue.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setSheetOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isMutating}>
-                {isMutating && <Loader2 className="h-4 w-4 animate-spin" />}
-                {editingGR ? 'Update Receipt' : 'Save as Draft'}
-              </Button>
-            </div>
-          </form>
+          {goodsReceiptForm}
         </SheetContent>
       </Sheet>
 

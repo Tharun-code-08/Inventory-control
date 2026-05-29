@@ -4,7 +4,7 @@ import { DocumentSeriesService } from './document-series.service';
 describe('DocumentSeriesService', () => {
   const service = new DocumentSeriesService({} as never);
 
-  it('builds monthly preview for shop-scoped modules', () => {
+  it('builds flat preview for purchase orders', () => {
     const preview = service.buildPreview(
       {
         docType: 'PO',
@@ -12,8 +12,8 @@ describe('DocumentSeriesService', () => {
         prefix: 'PO',
         startingNumber: 2,
         padWidth: 5,
-        restartPeriod: DocumentSeriesRestart.MONTHLY,
-        shopScoped: true,
+        restartPeriod: DocumentSeriesRestart.NONE,
+        shopScoped: false,
         enabled: true,
         useCategoryPrefix: false,
         isOverride: false,
@@ -21,7 +21,7 @@ describe('DocumentSeriesService', () => {
       'HQ001',
       new Date('2026-05-15T00:00:00.000Z'),
     );
-    expect(preview).toBe('PO-HQ001-202605-00002');
+    expect(preview).toBe('PO-00002');
   });
 
   it('builds flat preview when restart is none', () => {
@@ -60,8 +60,8 @@ describe('DocumentSeriesService', () => {
               prefix: 'PO',
               startingNumber: 1,
               padWidth: 5,
-              restartPeriod: DocumentSeriesRestart.MONTHLY,
-              shopScoped: true,
+              restartPeriod: DocumentSeriesRestart.NONE,
+              shopScoped: false,
               enabled: true,
               useCategoryPrefix: false,
             });
@@ -71,8 +71,8 @@ describe('DocumentSeriesService', () => {
               prefix: 'PUR',
               startingNumber: 10,
               padWidth: 5,
-              restartPeriod: DocumentSeriesRestart.MONTHLY,
-              shopScoped: true,
+              restartPeriod: DocumentSeriesRestart.NONE,
+              shopScoped: false,
               enabled: true,
               useCategoryPrefix: false,
             });

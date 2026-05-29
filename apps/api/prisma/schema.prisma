@@ -1153,8 +1153,8 @@ model DocumentSeriesConfig {
   prefix              String
   startingNumber      Int                   @default(1) @map("starting_number")
   padWidth            Int                   @default(5) @map("pad_width")
-  restartPeriod       DocumentSeriesRestart @default(MONTHLY) @map("restart_period")
-  shopScoped          Boolean               @default(true) @map("shop_scoped")
+  restartPeriod       DocumentSeriesRestart @default(NONE) @map("restart_period")
+  shopScoped          Boolean               @default(false) @map("shop_scoped")
   enabled             Boolean               @default(true)
   useCategoryPrefix   Boolean               @default(true) @map("use_category_prefix")
   createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)

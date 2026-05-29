@@ -124,6 +124,45 @@ export function useCreateSupplier() {
       const res = await api.post('/suppliers', payload);
       return normalizeSupplier(res.data.data);
     },
+    onMutate: async (payload) => {
+      await qc.cancelQueries({ queryKey: keys.all });
+      const tempId = `optimistic-${Date.now()}`;
+      const optimistic = normalizeSupplier({
+        id: tempId,
+        supplierCode: payload.supplierCode ?? '…',
+        supplierName: payload.supplierName,
+        companyId: payload.companyId ?? null,
+        taxId: payload.taxId ?? null,
+        vatNumber: payload.vatNumber ?? null,
+        contactPerson: payload.contactPerson ?? null,
+        email: payload.email ?? null,
+        phone: payload.phone ?? null,
+        street: payload.street ?? null,
+        city: payload.city ?? null,
+        state: payload.state ?? null,
+        postalCode: payload.postalCode ?? null,
+        country: payload.country ?? null,
+        paymentTerms: payload.paymentTerms ?? null,
+        bankName: payload.bankName ?? null,
+        accountNumber: payload.accountNumber ?? null,
+        routingNumber: payload.routingNumber ?? null,
+        iban: payload.iban ?? null,
+        rating: payload.rating ?? 3,
+        categories: payload.categories ?? [],
+        isActive: payload.isActive !== false,
+      });
+      const snapshots = qc.getQueriesData<Supplier[]>({ queryKey: keys.all });
+      snapshots.forEach(([queryKey, data]) => {
+        if (!Array.isArray(data)) return;
+        qc.setQueryData(queryKey, [...data, optimistic]);
+      });
+      return { snapshots, tempId };
+    },
+    onError: (_err, _payload, context) => {
+      context?.snapshots?.forEach(([queryKey, data]) => {
+        qc.setQueryData(queryKey, data);
+      });
+    },
     onSuccess: (created) => {
       appendSupplierToListCache(qc, created, '');
       void qc.invalidateQueries({ queryKey: keys.all });

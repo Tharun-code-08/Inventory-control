@@ -27,17 +27,10 @@ import { useShops } from '@/hooks/use-shops';
 import {
   useDocumentSeries,
   useUpdateDocumentSeries,
-  type DocumentSeriesRestart,
   type DocumentSeriesRow,
   type DocumentSeriesUpdateRow,
 } from '@/hooks/use-document-series';
 import { getApiErrorMessage } from '@/lib/api-error';
-
-const RESTART_LABELS: Record<DocumentSeriesRestart, string> = {
-  NONE: 'None',
-  MONTHLY: 'Monthly',
-  YEARLY: 'Yearly',
-};
 
 const COMPANY_SCOPE = '__company__';
 
@@ -66,18 +59,10 @@ function toEditableRows(rows: DocumentSeriesRow[]): EditableRow[] {
   }));
 }
 
-function buildPreview(row: EditableRow, shopNumber: string): string {
-  const basePrefix = (row.prefix ?? '').toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'DOC';
-  const prefix = row.shopScoped
-    ? `${basePrefix}-${shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'HQ001'}`
-    : basePrefix;
+function buildPreview(row: EditableRow): string {
+  const prefix = (row.prefix ?? '').toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'DOC';
   const padded = String(row.startingNumber ?? 1).padStart(row.padWidth ?? 5, '0');
-  if (row.restartPeriod === 'NONE') return `${prefix}-${padded}`;
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const bucket = row.restartPeriod === 'YEARLY' ? `${y}` : `${y}${m}`;
-  return `${prefix}-${bucket}-${padded}`;
+  return `${prefix}-${padded}`;
 }
 
 export function TransactionNumberSeriesSection() {
@@ -85,10 +70,6 @@ export function TransactionNumberSeriesSection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const scopeShopId = searchParams.get('shopId') || COMPANY_SCOPE;
   const selectedShopId = scopeShopId === COMPANY_SCOPE ? null : scopeShopId;
-  const previewShopNumber =
-    shops.find((shop) => shop.id === selectedShopId)?.shopNumber ??
-    shops[0]?.shopNumber ??
-    'HQ001';
 
   const { data: rows = [], isLoading, refetch } = useDocumentSeries(selectedShopId);
   const updateSeries = useUpdateDocumentSeries(selectedShopId);
@@ -155,7 +136,7 @@ export function TransactionNumberSeriesSection() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <PageHeader
               title="Transaction Number Series"
-              description="Customize prefixes, starting numbers, and restart policy for each module."
+              description="Customize prefixes and starting numbers for each module. Numbers use the format PREFIX-00001."
             />
             <div className="flex items-center gap-2">
               {!editing ? (
@@ -182,8 +163,8 @@ export function TransactionNumberSeriesSection() {
 
       {!selectedShopId && (
         <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Update the transaction number series for the new financial year. These company defaults
-          apply to all plants unless a plant override exists.
+          Company defaults apply to all plants unless a plant override exists. Each plant keeps its
+          own sequence counter.
         </div>
       )}
 
@@ -220,7 +201,6 @@ export function TransactionNumberSeriesSection() {
                 <TableHead>Module</TableHead>
                 <TableHead>Prefix</TableHead>
                 <TableHead>Starting Number</TableHead>
-                <TableHead>Restart Numbering</TableHead>
                 <TableHead>Current Seq</TableHead>
                 <TableHead>Preview</TableHead>
               </TableRow>
@@ -228,7 +208,7 @@ export function TransactionNumberSeriesSection() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={5} className="text-muted-foreground">
                     Loading series…
                   </TableCell>
                 </TableRow>
@@ -270,36 +250,15 @@ export function TransactionNumberSeriesSection() {
                         String(row.startingNumber).padStart(row.padWidth ?? 5, '0')
                       )}
                     </TableCell>
-                    <TableCell>
-                      {editing ? (
-                        <Select
-                          value={row.restartPeriod}
-                          onValueChange={(value: DocumentSeriesRestart) =>
-                            updateDraftRow(row.docType, { restartPeriod: value })
-                          }
-                        >
-                          <SelectTrigger className="h-8 w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="NONE">None</SelectItem>
-                            <SelectItem value="MONTHLY">Monthly</SelectItem>
-                            <SelectItem value="YEARLY">Yearly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        RESTART_LABELS[row.restartPeriod ?? 'MONTHLY']
-                      )}
-                    </TableCell>
                     <TableCell>{row.currentSequence ?? '—'}</TableCell>
                     <TableCell className="font-mono text-xs">
-                      {editing ? buildPreview(row, previewShopNumber) : row.preview}
+                      {editing ? buildPreview(row) : row.preview}
                     </TableCell>
                   </TableRow>
                 ))}
               {!isLoading && effectiveRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={5} className="text-muted-foreground">
                     No series configured yet.
                   </TableCell>
                 </TableRow>

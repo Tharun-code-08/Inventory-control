@@ -315,8 +315,8 @@ export class DocumentSeriesService {
       prefix: row.prefix ? this.sanitizePrefix(row.prefix) : moduleDef.defaultPrefix,
       startingNumber: row.startingNumber ?? moduleDef.defaultStartingNumber,
       padWidth: row.padWidth ?? moduleDef.defaultPadWidth,
-      restartPeriod: row.restartPeriod ?? moduleDef.defaultRestartPeriod,
-      shopScoped: row.shopScoped ?? moduleDef.shopScoped,
+      restartPeriod: DocumentSeriesRestart.NONE,
+      shopScoped: false,
       enabled: row.enabled ?? true,
       useCategoryPrefix: row.useCategoryPrefix ?? moduleDef.defaultUseCategoryPrefix ?? false,
     };

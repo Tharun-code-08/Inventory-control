@@ -18,6 +18,7 @@ import { OrganisationIdBadge } from '@/components/OrganisationIdBadge';
 import { TrialUpgradeBanner } from '@/components/TrialUpgradeBanner';
 import { useSubscription } from '@/hooks/use-subscription';
 import { resolvePageTitle } from '@/lib/page-titles';
+import { PageTransition, RouteProgressBar } from '@/components/motion';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -57,6 +58,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const [showLogoutSplash, setShowLogoutSplash] = useState(false);
   const [logoutFadeOut, setLogoutFadeOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [routeProgress, setRouteProgress] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const alertsQuery = useAlerts();
@@ -87,6 +89,12 @@ export function AppLayout({ children, active }: AppLayoutProps) {
       setMobileSidebarOpen(false);
     }
   }, [isMobile, location.pathname]);
+
+  useEffect(() => {
+    setRouteProgress(true);
+    const timer = window.setTimeout(() => setRouteProgress(false), 450);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -332,9 +340,10 @@ export function AppLayout({ children, active }: AppLayoutProps) {
         </header>
 
         <main className="flex min-w-0 flex-1 flex-col p-4 sm:p-6">
+          <RouteProgressBar active={routeProgress} />
           <div className="mx-auto w-full max-w-[1400px] flex-1">
             <TrialUpgradeBanner subscription={subscription} />
-            {children}
+            <PageTransition routeKey={location.pathname}>{children}</PageTransition>
           </div>
           <AppFooter />
         </main>

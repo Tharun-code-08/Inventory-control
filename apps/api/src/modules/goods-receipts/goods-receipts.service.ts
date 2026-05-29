@@ -27,6 +27,20 @@ export class GoodsReceiptsService {
     private readonly emailNotifications: EmailNotificationsService,
   ) {}
 
+  private async assertStorageLocationsForShop(
+    shopId: string,
+    items: Array<{ storageLocationId: string }>,
+  ) {
+    for (const line of items) {
+      const location = await this.prisma.storageLocation.findFirst({
+        where: { id: line.storageLocationId, shopId, isActive: true },
+      });
+      if (!location) {
+        throw new BadRequestException('Invalid storage location for this plant');
+      }
+    }
+  }
+
   private async validateAgainstPurchaseOrder(
     tx: Prisma.TransactionClient,
     headerId: string | null,
@@ -148,7 +162,11 @@ export class GoodsReceiptsService {
     assertNotFuture(grDate);
     for (const line of dto.items) {
       if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
+      if (!line.storageLocationId) {
+        throw new BadRequestException('Storage location is required on each line');
+      }
     }
+    await this.assertStorageLocationsForShop(dto.shopId, dto.items);
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const normalizedItems = dto.items.map((i) => ({
@@ -216,13 +234,20 @@ export class GoodsReceiptsService {
 
     const grDate = dto.grDate ? new Date(dto.grDate) : existing.grDate;
     assertNotFuture(grDate);
+    const resolvedShopId = dto.shopId ?? existing.shopId;
+    if (dto.items) {
+      for (const line of dto.items) {
+        if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
+        if (!line.storageLocationId) {
+          throw new BadRequestException('Storage location is required on each line');
+        }
+      }
+      await this.assertStorageLocationsForShop(resolvedShopId, dto.items);
+    }
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       if (dto.items) {
         await tx.goodsReceiptItem.deleteMany({ where: { grHeaderId: id } });
-        for (const line of dto.items) {
-          if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
-        }
       }
 
       return tx.goodsReceiptHeader.update({

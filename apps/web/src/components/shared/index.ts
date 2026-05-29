@@ -1,3 +1,4 @@
+export { CreatePageLayout } from './create-page-layout';
 export { PageHeader } from './page-header';
 export { KpiCard, type KpiCardProps } from './kpi-card';
 export { SearchInput } from './search-input';
@@ -5,7 +6,10 @@ export { P2PFlowTimeline, type P2PStep } from './p2p-flow-timeline';
 export { ColumnFilter } from './column-filter';
 export { ConfirmDialog } from './confirm-dialog';
 export { DataTablePagination } from './data-table-pagination';
+export { AnimatedTableBody } from './animated-table-body';
 export { EmptyState } from './empty-state';
 export { LoadingSkeleton } from './loading-skeleton';
+export { FormErrorBanner } from './form-error-banner';
+export { PageFallback } from './page-fallback';
 export { StatusBadge } from './status-badge';
 export { DocumentReferenceSelect } from './document-reference-select';

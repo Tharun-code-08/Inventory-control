@@ -75,7 +75,6 @@ import {
 } from '@/components/ui/sheet';
 import {
   Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -100,7 +99,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader, SearchInput } from '@/components/shared';
+import { CreatePageLayout, PageHeader, SearchInput, LoadingSkeleton, EmptyState, AnimatedTableBody } from '@/components/shared';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useSuccessPulse } from '@/hooks/use-success-pulse';
+import { showActionSuccess } from '@/lib/action-feedback';
 import { Card, CardContent } from '@/components/ui/card';
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
 
@@ -614,7 +616,7 @@ function PlantAssignmentRow({
   );
 }
 
-export function ProductsPage() {
+export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const isAdmin = isAdminUser(user);
@@ -629,6 +631,7 @@ export function ProductsPage() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -648,17 +651,19 @@ export function ProductsPage() {
   const [importDryRun, setImportDryRun] = useState(false);
   const [lastImportReport, setLastImportReport] = useState<BulkProductImportResult | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const { pulseClass, triggerPulse } = useSuccessPulse();
 
   const filters: ProductFilters = {
     page,
     limit: PAGE_SIZE,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
     shopId: listShopId,
   };
 
   const { data, isLoading, isError } = useProducts(filters);
+  const isSearchPending = search !== debouncedSearch || (isLoading && search.trim().length > 0);
   const statsQuery = useProducts({
     page: 1,
     limit: STATS_FETCH_LIMIT,
@@ -842,7 +847,7 @@ export function ProductsPage() {
     return () => window.clearTimeout(timer);
   }, [hsnLookupRaw]);
 
-  const gstHsnQuery = useGstHsnSearch(hsnLookupDebounced, sheetOpen);
+  const gstHsnQuery = useGstHsnSearch(hsnLookupDebounced, sheetOpen || createOnly);
 
   const refreshHsnSuggestion = useCallback(() => {
     const gstTop = gstHsnQuery.data?.[0];
@@ -928,7 +933,7 @@ export function ProductsPage() {
     toast.success(`Category "${entry.name}" created`);
   }
 
-  const openCreate = () => {
+  const resetCreateForm = () => {
     setEditingProduct(null);
     // Admins must explicitly pick a plant; auto-selecting the first shop often
     // assigns the wrong plant so the product never appears under the intended filter.
@@ -943,8 +948,22 @@ export function ProductsPage() {
       ],
     });
     setSkuNumber('');
-    setSheetOpen(true);
   };
+
+  const openCreate = () => {
+    if (createOnly) {
+      resetCreateForm();
+      return;
+    }
+    navigate('/products/new');
+  };
+
+  useEffect(() => {
+    if (createOnly) {
+      resetCreateForm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset once on create page mount
+  }, [createOnly]);
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
@@ -1034,6 +1053,7 @@ export function ProductsPage() {
           ...payload,
         });
         toast.success('Product updated successfully');
+        setSheetOpen(false);
       } else {
         const payload = mapProductFormToPayload({
           values,
@@ -1050,9 +1070,10 @@ export function ProductsPage() {
         );
         const plantName =
           shopList.find((s) => s.id === created.plants[0]?.shopId)?.shopName ?? 'selected plant';
-        toast.success(
-          `Product ${created.productCode} created for ${plantName}. It appears in the list below.`,
-        );
+        triggerPulse();
+        showActionSuccess({
+          message: `Product ${created.productCode} created for ${plantName}. It appears in the list below.`,
+        });
         setPage(1);
         setSearch('');
         setCategoryFilter('all');
@@ -1060,8 +1081,12 @@ export function ProductsPage() {
         if (!isShopOnlyUser(user)) {
           setListShopFilter('all');
         }
+        if (createOnly) {
+          navigate('/products');
+        } else {
+          setSheetOpen(false);
+        }
       }
-      setSheetOpen(false);
       form.reset(defaultValues);
       setEditingProduct(null);
     } catch (err: unknown) {
@@ -1368,6 +1393,562 @@ export function ProductsPage() {
     toast.success('Import results exported');
   };
 
+  function renderProductForm(onCancel: () => void) {
+    return (
+<form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6">
+  {/* 1. Product Information */}
+  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+    <h3 className="text-sm font-semibold text-slate-900">Product Information</h3>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label htmlFor="description">Product Name *</Label>
+        <Input
+          id="description"
+          {...form.register('description')}
+          placeholder="e.g. Stainless Steel Bolt M8"
+        />
+        {form.formState.errors.description && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.description.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="category">Category *</Label>
+        <Controller
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <Select
+              value={field.value}
+              onValueChange={(v) => {
+                if (v === CREATE_CATEGORY_OPTION) {
+                  setCategoryDialogOpen(true);
+                  return;
+                }
+                field.onChange(v);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  value={CREATE_CATEGORY_OPTION}
+                  className="font-medium text-indigo-700"
+                >
+                  + Create new category
+                </SelectItem>
+                {categoryConfig.map((c) => (
+                  <SelectItem key={c.code} value={c.name}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {form.formState.errors.category && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.category.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="productCode">SKU</Label>
+        {editingProduct ? (
+          <Input id="productCode" {...form.register('productCode')} disabled />
+        ) : (
+          <div className="grid grid-cols-[110px_1fr] gap-2">
+            <Input value={currentPrefix} disabled />
+            <Input
+              id="productCode"
+              inputMode="numeric"
+              placeholder="Leave blank to auto-generate"
+              value={skuNumber}
+              onChange={(e) => setSkuNumber(e.target.value.replace(/\D/g, ''))}
+            />
+          </div>
+        )}
+        {!editingProduct && (
+          <p className="text-xs text-muted-foreground">
+            Prefix comes from category. Enter digits or leave the number blank to auto-generate the next SKU.
+          </p>
+        )}
+        {form.formState.errors.productCode && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.productCode.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="hsnCode">HSN Code</Label>
+        <Input
+          id="hsnCode"
+          inputMode="numeric"
+          maxLength={8}
+          {...form.register('hsnCode')}
+          placeholder="e.g. 84314900"
+        />
+        {form.formState.errors.hsnCode && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.hsnCode.message}
+          </p>
+        )}
+        {gstHsnQuery.isFetching && hsnLookupDebounced.length >= 3 ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Searching GST portal…
+          </p>
+        ) : null}
+        {gstHsnQuery.isError && hsnLookupDebounced.length >= 3 ? (
+          <p className="text-xs text-amber-700">
+            GST portal search unavailable — using local suggestions or enter HSN manually.
+          </p>
+        ) : null}
+        {(gstHsnQuery.data?.length ?? 0) > 0 ? (
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium text-slate-600">
+              GST portal ({gstHsnQuery.data!.length} result
+              {gstHsnQuery.data!.length === 1 ? '' : 's'})
+            </p>
+          <ul className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white text-xs shadow-sm">
+            {gstHsnQuery.data!.map((row) => (
+              <li key={row.code} className="border-b border-slate-100 last:border-0">
+                <button
+                  type="button"
+                  className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-indigo-50 sm:flex-row sm:items-center sm:gap-2"
+                  onClick={() => applyHsnCode(row.code)}
+                >
+                  <span className="font-mono font-semibold text-indigo-900">{row.code}</span>
+                  <span className="text-slate-600">{row.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          </div>
+        ) : null}
+        {hsnSuggestion && watchedHsnCode?.trim() !== hsnSuggestion.code ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs text-indigo-900">
+            <span>
+              Suggested:{' '}
+              <span className="font-mono font-semibold">{hsnSuggestion.code}</span>
+              <span className="text-indigo-700"> — {hsnSuggestion.description}</span>
+              <span className="ml-1 text-indigo-600">
+                ({hsnSuggestionSourceLabel(hsnSuggestion.source)})
+              </span>
+            </span>
+            <Button type="button" variant="outline" size="sm" className="h-7" onClick={applyHsnSuggestion}>
+              Use this HSN
+            </Button>
+          </div>
+        ) : null}
+        <p className="text-[11px] text-muted-foreground">
+          GST portal results are indicative — verify on the{' '}
+          <a
+            href="https://services.gst.gov.in/services/searchhsn"
+            target="_blank"
+            rel="noreferrer"
+            className="text-indigo-600 underline"
+          >
+            GST HSN search
+          </a>{' '}
+          before invoicing.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="materialGroup">Material Group</Label>
+        <Input
+          id="materialGroup"
+          {...form.register('materialGroup')}
+          placeholder="e.g. Stainless Steel"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="brand">Brand</Label>
+        <Input
+          id="brand"
+          {...form.register('brand')}
+          placeholder="e.g. Bosch"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="uom">Unit of Measure *</Label>
+        <Controller
+          control={form.control}
+          name="uom"
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {UOM_OPTIONS.map((u) => (
+                  <SelectItem key={u.value} value={u.value}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {form.formState.errors.uom && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.uom.message}
+          </p>
+        )}
+      </div>
+    </div>
+  </section>
+
+  {/* 2. Pricing */}
+  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+    <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label htmlFor="sellingPrice">Selling Price *</Label>
+        <Input
+          id="sellingPrice"
+          type="number"
+          step="0.01"
+          min="0"
+          {...form.register('sellingPrice')}
+        />
+        {form.formState.errors.sellingPrice && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.sellingPrice.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="purchasePrice">Cost Price *</Label>
+        <Input
+          id="purchasePrice"
+          type="number"
+          step="0.01"
+          min="0"
+          {...form.register('purchasePrice')}
+        />
+        {form.formState.errors.purchasePrice && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.purchasePrice.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="taxPreference">Tax Preference *</Label>
+        <Controller
+          control={form.control}
+          name="taxPreference"
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger id="taxPreference">
+                <SelectValue placeholder="Select tax preference" />
+              </SelectTrigger>
+              <SelectContent>
+                {TAX_PREFERENCE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {form.formState.errors.taxPreference && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.taxPreference.message}
+          </p>
+        )}
+      </div>
+    </div>
+  </section>
+
+  {/* 3. Technical Details */}
+  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+    <h3 className="text-sm font-semibold text-slate-900">Technical Details</h3>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label htmlFor="drawingReference">Drawing Reference</Label>
+        <Input
+          id="drawingReference"
+          {...form.register('drawingReference')}
+          placeholder="e.g. DRW-2024-001"
+        />
+      </div>
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label htmlFor="isActive" className="cursor-pointer">
+            Active Status
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Inactive products won't appear in transactions
+          </p>
+        </div>
+        <Controller
+          control={form.control}
+          name="isActive"
+          render={({ field }) => (
+            <Switch
+              id="isActive"
+              checked={field.value}
+              onCheckedChange={field.onChange}
+            />
+          )}
+        />
+      </div>
+    </div>
+  </section>
+
+  {/* 4. Plant & Storage Location Assignment */}
+  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-semibold text-slate-900">
+        Plant & Storage Location Assignment
+      </h3>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={allPlantsAssigned}
+        onClick={() => plantsArray.append(emptyPlant)}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add Plant
+      </Button>
+    </div>
+    <p className="text-xs text-muted-foreground">
+      Select the plant this product belongs to (required). The product only
+      shows on the Products list for shops it is assigned to. Add storage
+      location and thresholds. Toggle{' '}
+      <span className="font-medium text-slate-700">Active</span> to
+      deactivate an assignment (kept in history but blocked from new
+      transactions). Use the trash icon to delete it permanently —
+      assignments with prior transactions are deactivated automatically.
+    </p>
+    <div className="space-y-3">
+      {plantsArray.fields.map((field, index) => (
+        <PlantAssignmentRow
+          key={field.id}
+          control={form.control}
+          index={index}
+          shopOptions={shopList}
+          takenShopIds={takenShopIds}
+          onRemove={() => requestPlantRemoval(index)}
+          removable={plantsArray.fields.length > 1}
+          errors={form.formState.errors.plants?.[index] as never}
+        />
+      ))}
+    </div>
+    {form.formState.errors.plants &&
+      typeof form.formState.errors.plants.message === 'string' && (
+        <p className="text-xs text-destructive">
+          {form.formState.errors.plants.message}
+        </p>
+      )}
+    {shopList.length > 0 && plantsArray.fields.length === 0 && (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          if (!createOnly) setSheetOpen(false);
+          navigate('/storage-locations');
+        }}
+      >
+        Manage Storage Locations
+      </Button>
+    )}
+  </section>
+
+  {/* 5. Specifications */}
+  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-semibold text-slate-900">Specifications</h3>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => specsArray.append({ label: '', value: '' })}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add Spec
+      </Button>
+    </div>
+    {specsArray.fields.length === 0 ? (
+      <p className="text-xs text-muted-foreground">
+        Optional. Use this to capture {`{label, value}`} attributes (e.g. Material, Finish).
+      </p>
+    ) : (
+      <div className="space-y-2">
+        {specsArray.fields.map((field, index) => (
+          <div
+            key={field.id}
+            className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 sm:grid-cols-[1fr_2fr_auto]"
+          >
+            <Input
+              placeholder="Label (e.g. Material)"
+              {...form.register(`specifications.${index}.label`)}
+            />
+            <Input
+              placeholder="Value (e.g. Stainless Steel)"
+              {...form.register(`specifications.${index}.value`)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              onClick={() => specsArray.remove(index)}
+              aria-label="Remove spec"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
+
+  <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+    <Button
+      type="button"
+      variant="outline"
+      className="flex-1"
+      onClick={onCancel}
+    >
+      Cancel
+    </Button>
+    <Button type="submit" className="flex-1" disabled={isMutating}>
+      {isMutating && <Loader2 className="h-4 w-4 animate-spin" />}
+      {editingProduct ? 'Update Product' : 'Create Product'}
+    </Button>
+  </div>
+</form>
+    );
+  }
+
+  function renderFormDialogs() {
+    return (
+      <>
+        <Dialog
+          open={categoryDialogOpen}
+          onOpenChange={(open) => {
+            setCategoryDialogOpen(open);
+            if (!open) setQuickCategory({ name: '', description: '', defaultHsnCode: '' });
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Category</DialogTitle>
+              <DialogDescription>
+                Add a category and use it on this product. SKU prefix is assigned automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Category Name *</Label>
+                <Input
+                  className="h-9"
+                  value={quickCategory.name}
+                  onChange={(e) => setQuickCategory((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Fasteners"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Description (optional)</Label>
+                <Input
+                  className="h-9"
+                  value={quickCategory.description}
+                  onChange={(e) =>
+                    setQuickCategory((p) => ({ ...p, description: e.target.value }))
+                  }
+                  placeholder="Short note for this category"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Default HSN Code (optional)</Label>
+                <Input
+                  className="h-9 font-mono"
+                  inputMode="numeric"
+                  maxLength={8}
+                  value={quickCategory.defaultHsnCode}
+                  onChange={(e) =>
+                    setQuickCategory((p) => ({
+                      ...p,
+                      defaultHsnCode: e.target.value.replace(/\D/g, ''),
+                    }))
+                  }
+                  placeholder="e.g. 84072900"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  New products in this category can use this HSN automatically.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleQuickCategoryCreate}>
+                Create & Select
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog
+          open={!!pendingPlantRemoval}
+          onOpenChange={(open) => !open && setPendingPlantRemoval(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete plant assignment</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remove{' '}
+                <span className="font-medium text-foreground">
+                  {pendingPlantShopName}
+                </span>{' '}
+                from this product? Plants without prior transaction history are
+                deleted permanently. Plants with history are deactivated instead
+                (preserved in stock ledgers and reports). To merely pause a plant
+                without losing its setup, use the{' '}
+                <span className="font-medium text-foreground">Active</span> toggle
+                on the row.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className={cn(
+                  'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+                )}
+                onClick={confirmPlantRemoval}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Products">
+        <CreatePageLayout
+          title="Add Product"
+          description="Fill in the details below to create a new product"
+          backTo="/products"
+        >
+          {renderProductForm(() => navigate('/products'))}
+        </CreatePageLayout>
+        {renderFormDialogs()}
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="Products">
       <div className="space-y-6">
@@ -1479,7 +2060,7 @@ export function ProductsPage() {
           />
         </div>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className={cn('border-slate-200/90 shadow-sm', pulseClass)}>
           <CardContent className="space-y-4 p-4 pt-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <SearchInput
@@ -1489,6 +2070,15 @@ export function ProductsPage() {
                   setSearch(v);
                   setPage(1);
                 }}
+                isSearching={isSearchPending}
+                showNoResults={
+                  !isLoading &&
+                  !isSearchPending &&
+                  search.trim().length > 0 &&
+                  items.length === 0 &&
+                  !isError
+                }
+                noResultsMessage="No products match your search."
                 className="max-w-md"
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1553,10 +2143,8 @@ export function ProductsPage() {
 
             <div className="overflow-x-auto rounded-lg border">
               {isLoading ? (
-                <div className="space-y-3 p-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
+                <div className="p-4">
+                  <LoadingSkeleton rows={8} cols={8} />
                 </div>
               ) : isError ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1572,21 +2160,27 @@ export function ProductsPage() {
                   </Button>
                 </div>
               ) : items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Package className="mb-3 h-12 w-12 text-muted-foreground/50" />
-                  <p className="text-sm font-medium text-muted-foreground">No products found</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {search || categoryFilter !== 'all' || statusFilter !== 'all'
-                      ? 'Try adjusting your filters'
-                      : 'Get started by adding your first product'}
-                  </p>
-                  {!search && categoryFilter === 'all' && statusFilter === 'all' && (
-                    <Button size="sm" className="mt-4 bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Product
-                    </Button>
-                  )}
-                </div>
+                <EmptyState
+                  icon={Package}
+                  title={
+                    search || categoryFilter !== 'all' || statusFilter !== 'all'
+                      ? 'No products match your filters'
+                      : 'No products yet'
+                  }
+                  description={
+                    search || categoryFilter !== 'all' || statusFilter !== 'all'
+                      ? 'Try adjusting your search or filters.'
+                      : 'Get started by adding your first product to the catalog.'
+                  }
+                  action={
+                    !search && categoryFilter === 'all' && statusFilter === 'all' ? (
+                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Product
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : (
                 <Table>
                   <TableHeader>
@@ -1606,7 +2200,7 @@ export function ProductsPage() {
                       <TableHead className="text-right text-xs font-semibold uppercase tracking-wide">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <AnimatedTableBody pageKey={page}>
                     {items.map((product) => {
                       const stockValue = resolveProductStock(product, listShopId);
                       const minStockValue = resolveMinStock(product, listShopId);
@@ -1677,7 +2271,7 @@ export function ProductsPage() {
                         </TableRow>
                       );
                     })}
-                  </TableBody>
+                  </AnimatedTableBody>
                 </Table>
               )}
             </div>
@@ -1851,519 +2445,29 @@ export function ProductsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Product Form Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      {/* Product Form Sheet — edit only */}
+      <Sheet
+        open={sheetOpen && !!editingProduct}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditingProduct(null);
+        }}
+      >
         <SheetContent
           side="right"
-          className="w-full overflow-y-auto border-l-0 sm:w-full sm:max-w-3xl"
+          className="w-full overflow-y-auto border-l sm:max-w-3xl"
         >
           <SheetHeader>
-            <SheetTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</SheetTitle>
+            <SheetTitle>Edit Product</SheetTitle>
             <SheetDescription>
-              {editingProduct
-                ? `Update details for ${editingProduct.productCode}`
-                : 'Fill in the details below to create a new product'}
+              Update details for {editingProduct?.productCode}
             </SheetDescription>
           </SheetHeader>
-
-          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6">
-            {/* 1. Product Information */}
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Product Information</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="description">Product Name *</Label>
-                  <Input
-                    id="description"
-                    {...form.register('description')}
-                    placeholder="e.g. Stainless Steel Bolt M8"
-                  />
-                  {form.formState.errors.description && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.description.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Controller
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v) => {
-                          if (v === CREATE_CATEGORY_OPTION) {
-                            setCategoryDialogOpen(true);
-                            return;
-                          }
-                          field.onChange(v);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            value={CREATE_CATEGORY_OPTION}
-                            className="font-medium text-indigo-700"
-                          >
-                            + Create new category
-                          </SelectItem>
-                          {categoryConfig.map((c) => (
-                            <SelectItem key={c.code} value={c.name}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.category && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.category.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="productCode">SKU</Label>
-                  {editingProduct ? (
-                    <Input id="productCode" {...form.register('productCode')} disabled />
-                  ) : (
-                    <div className="grid grid-cols-[110px_1fr] gap-2">
-                      <Input value={currentPrefix} disabled />
-                      <Input
-                        id="productCode"
-                        inputMode="numeric"
-                        placeholder="Leave blank to auto-generate"
-                        value={skuNumber}
-                        onChange={(e) => setSkuNumber(e.target.value.replace(/\D/g, ''))}
-                      />
-                    </div>
-                  )}
-                  {!editingProduct && (
-                    <p className="text-xs text-muted-foreground">
-                      Prefix comes from category. Enter digits or leave the number blank to auto-generate the next SKU.
-                    </p>
-                  )}
-                  {form.formState.errors.productCode && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.productCode.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="hsnCode">HSN Code</Label>
-                  <Input
-                    id="hsnCode"
-                    inputMode="numeric"
-                    maxLength={8}
-                    {...form.register('hsnCode')}
-                    placeholder="e.g. 84314900"
-                  />
-                  {form.formState.errors.hsnCode && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.hsnCode.message}
-                    </p>
-                  )}
-                  {gstHsnQuery.isFetching && hsnLookupDebounced.length >= 3 ? (
-                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Searching GST portal…
-                    </p>
-                  ) : null}
-                  {gstHsnQuery.isError && hsnLookupDebounced.length >= 3 ? (
-                    <p className="text-xs text-amber-700">
-                      GST portal search unavailable — using local suggestions or enter HSN manually.
-                    </p>
-                  ) : null}
-                  {(gstHsnQuery.data?.length ?? 0) > 0 ? (
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-slate-600">
-                        GST portal ({gstHsnQuery.data!.length} result
-                        {gstHsnQuery.data!.length === 1 ? '' : 's'})
-                      </p>
-                    <ul className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white text-xs shadow-sm">
-                      {gstHsnQuery.data!.map((row) => (
-                        <li key={row.code} className="border-b border-slate-100 last:border-0">
-                          <button
-                            type="button"
-                            className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-indigo-50 sm:flex-row sm:items-center sm:gap-2"
-                            onClick={() => applyHsnCode(row.code)}
-                          >
-                            <span className="font-mono font-semibold text-indigo-900">{row.code}</span>
-                            <span className="text-slate-600">{row.description}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    </div>
-                  ) : null}
-                  {hsnSuggestion && watchedHsnCode?.trim() !== hsnSuggestion.code ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs text-indigo-900">
-                      <span>
-                        Suggested:{' '}
-                        <span className="font-mono font-semibold">{hsnSuggestion.code}</span>
-                        <span className="text-indigo-700"> — {hsnSuggestion.description}</span>
-                        <span className="ml-1 text-indigo-600">
-                          ({hsnSuggestionSourceLabel(hsnSuggestion.source)})
-                        </span>
-                      </span>
-                      <Button type="button" variant="outline" size="sm" className="h-7" onClick={applyHsnSuggestion}>
-                        Use this HSN
-                      </Button>
-                    </div>
-                  ) : null}
-                  <p className="text-[11px] text-muted-foreground">
-                    GST portal results are indicative — verify on the{' '}
-                    <a
-                      href="https://services.gst.gov.in/services/searchhsn"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-indigo-600 underline"
-                    >
-                      GST HSN search
-                    </a>{' '}
-                    before invoicing.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="materialGroup">Material Group</Label>
-                  <Input
-                    id="materialGroup"
-                    {...form.register('materialGroup')}
-                    placeholder="e.g. Stainless Steel"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="brand">Brand</Label>
-                  <Input
-                    id="brand"
-                    {...form.register('brand')}
-                    placeholder="e.g. Bosch"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="uom">Unit of Measure *</Label>
-                  <Controller
-                    control={form.control}
-                    name="uom"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {UOM_OPTIONS.map((u) => (
-                            <SelectItem key={u.value} value={u.value}>
-                              {u.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.uom && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.uom.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {/* 2. Pricing */}
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Selling Price *</Label>
-                  <Input
-                    id="sellingPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...form.register('sellingPrice')}
-                  />
-                  {form.formState.errors.sellingPrice && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.sellingPrice.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="purchasePrice">Cost Price *</Label>
-                  <Input
-                    id="purchasePrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...form.register('purchasePrice')}
-                  />
-                  {form.formState.errors.purchasePrice && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.purchasePrice.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="taxPreference">Tax Preference *</Label>
-                  <Controller
-                    control={form.control}
-                    name="taxPreference"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger id="taxPreference">
-                          <SelectValue placeholder="Select tax preference" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TAX_PREFERENCE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.taxPreference && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.taxPreference.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {/* 3. Technical Details */}
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Technical Details</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="drawingReference">Drawing Reference</Label>
-                  <Input
-                    id="drawingReference"
-                    {...form.register('drawingReference')}
-                    placeholder="e.g. DRW-2024-001"
-                  />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label htmlFor="isActive" className="cursor-pointer">
-                      Active Status
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Inactive products won't appear in transactions
-                    </p>
-                  </div>
-                  <Controller
-                    control={form.control}
-                    name="isActive"
-                    render={({ field }) => (
-                      <Switch
-                        id="isActive"
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    )}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* 4. Plant & Storage Location Assignment */}
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Plant & Storage Location Assignment
-                </h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={allPlantsAssigned}
-                  onClick={() => plantsArray.append(emptyPlant)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Plant
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Select the plant this product belongs to (required). The product only
-                shows on the Products list for shops it is assigned to. Add storage
-                location and thresholds. Toggle{' '}
-                <span className="font-medium text-slate-700">Active</span> to
-                deactivate an assignment (kept in history but blocked from new
-                transactions). Use the trash icon to delete it permanently —
-                assignments with prior transactions are deactivated automatically.
-              </p>
-              <div className="space-y-3">
-                {plantsArray.fields.map((field, index) => (
-                  <PlantAssignmentRow
-                    key={field.id}
-                    control={form.control}
-                    index={index}
-                    shopOptions={shopList}
-                    takenShopIds={takenShopIds}
-                    onRemove={() => requestPlantRemoval(index)}
-                    removable={plantsArray.fields.length > 1}
-                    errors={form.formState.errors.plants?.[index] as never}
-                  />
-                ))}
-              </div>
-              {form.formState.errors.plants &&
-                typeof form.formState.errors.plants.message === 'string' && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.plants.message}
-                  </p>
-                )}
-              {shopList.length > 0 && plantsArray.fields.length === 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSheetOpen(false);
-                    navigate('/storage-locations');
-                  }}
-                >
-                  Manage Storage Locations
-                </Button>
-              )}
-            </section>
-
-            {/* 5. Specifications */}
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">Specifications</h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => specsArray.append({ label: '', value: '' })}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Spec
-                </Button>
-              </div>
-              {specsArray.fields.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Optional. Use this to capture {`{label, value}`} attributes (e.g. Material, Finish).
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {specsArray.fields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 sm:grid-cols-[1fr_2fr_auto]"
-                    >
-                      <Input
-                        placeholder="Label (e.g. Material)"
-                        {...form.register(`specifications.${index}.label`)}
-                      />
-                      <Input
-                        placeholder="Value (e.g. Stainless Steel)"
-                        {...form.register(`specifications.${index}.value`)}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => specsArray.remove(index)}
-                        aria-label="Remove spec"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setSheetOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isMutating}>
-                {isMutating && <Loader2 className="h-4 w-4 animate-spin" />}
-                {editingProduct ? 'Update Product' : 'Create Product'}
-              </Button>
-            </div>
-          </form>
+          {renderProductForm(() => setSheetOpen(false))}
         </SheetContent>
       </Sheet>
 
-      <Dialog
-        open={categoryDialogOpen}
-        onOpenChange={(open) => {
-          setCategoryDialogOpen(open);
-          if (!open) setQuickCategory({ name: '', description: '', defaultHsnCode: '' });
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create Category</DialogTitle>
-            <DialogDescription>
-              Add a category and use it on this product. SKU prefix is assigned automatically.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Category Name *</Label>
-              <Input
-                className="h-9"
-                value={quickCategory.name}
-                onChange={(e) => setQuickCategory((p) => ({ ...p, name: e.target.value }))}
-                placeholder="e.g. Fasteners"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Description (optional)</Label>
-              <Input
-                className="h-9"
-                value={quickCategory.description}
-                onChange={(e) =>
-                  setQuickCategory((p) => ({ ...p, description: e.target.value }))
-                }
-                placeholder="Short note for this category"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Default HSN Code (optional)</Label>
-              <Input
-                className="h-9 font-mono"
-                inputMode="numeric"
-                maxLength={8}
-                value={quickCategory.defaultHsnCode}
-                onChange={(e) =>
-                  setQuickCategory((p) => ({
-                    ...p,
-                    defaultHsnCode: e.target.value.replace(/\D/g, ''),
-                  }))
-                }
-                placeholder="e.g. 84072900"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                New products in this category can use this HSN automatically.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleQuickCategoryCreate}>
-              Create & Select
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {renderFormDialogs()}
 
       <AlertDialog
         open={!!deleteTarget}
@@ -2426,41 +2530,6 @@ export function ProductsPage() {
               onClick={handleDeleteProduct}
             >
               {deleteProduct.isPending ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Plant assignment removal confirmation */}
-      <AlertDialog
-        open={!!pendingPlantRemoval}
-        onOpenChange={(open) => !open && setPendingPlantRemoval(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete plant assignment</AlertDialogTitle>
-            <AlertDialogDescription>
-              Remove{' '}
-              <span className="font-medium text-foreground">
-                {pendingPlantShopName}
-              </span>{' '}
-              from this product? Plants without prior transaction history are
-              deleted permanently. Plants with history are deactivated instead
-              (preserved in stock ledgers and reports). To merely pause a plant
-              without losing its setup, use the{' '}
-              <span className="font-medium text-foreground">Active</span> toggle
-              on the row.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={cn(
-                'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-              )}
-              onClick={confirmPlantRemoval}
-            >
-              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

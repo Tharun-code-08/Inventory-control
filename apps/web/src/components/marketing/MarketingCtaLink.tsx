@@ -11,7 +11,7 @@ type MarketingCtaLinkProps = {
 export function MarketingCtaLink({ cta, variant = 'primary', className }: MarketingCtaLinkProps) {
   const isInternal = cta.href.startsWith('/') && !cta.href.startsWith('//');
   const base = cn(
-    'inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
+    'motion-marketing-cta inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
     variant === 'primary' && 'bg-slate-900 text-white hover:bg-slate-800',
     variant === 'secondary' && 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
     variant === 'ghost' && 'text-indigo-600 hover:text-indigo-700 hover:underline',

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader } from '@/components/shared/page-header';
+import { CreatePageLayout, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,7 +53,18 @@ function firstItem(contract: Contract) {
   };
 }
 
-export function ContractsPage() {
+const emptyCreateForm = () => ({
+  shopId: '',
+  supplierId: '',
+  title: '',
+  startDate: '',
+  endDate: '',
+  quantity: '1',
+  unitPrice: '0',
+});
+
+export function ContractsPage({ createOnly = false }: { createOnly?: boolean }) {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { data: shops = [] } = useShops();
   const { data: suppliers = [] } = useSuppliers();
@@ -60,15 +72,7 @@ export function ContractsPage() {
   const createContract = useCreateContract();
   const activateContract = useActivateContract();
   const updateContract = useUpdateContract();
-  const [form, setForm] = useState({
-    shopId: '',
-    supplierId: '',
-    title: '',
-    startDate: '',
-    endDate: '',
-    quantity: '1',
-    unitPrice: '0',
-  });
+  const [form, setForm] = useState(emptyCreateForm);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
   const [editForm, setEditForm] = useState({
@@ -133,15 +137,19 @@ export function ContractsPage() {
         ],
       });
       toast.success('Contract created successfully');
-      setForm({
-        shopId: user?.shopId ? form.shopId : resolvedShopId,
-        supplierId: '',
-        title: '',
-        startDate: '',
-        endDate: '',
-        quantity: '1',
-        unitPrice: '0',
-      });
+      if (createOnly) {
+        navigate('/contracts');
+      } else {
+        setForm({
+          shopId: user?.shopId ? form.shopId : resolvedShopId,
+          supplierId: '',
+          title: '',
+          startDate: '',
+          endDate: '',
+          quantity: '1',
+          unitPrice: '0',
+        });
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
@@ -212,103 +220,125 @@ export function ContractsPage() {
 
   const editShopId = user?.shopId ?? editForm.shopId ?? shops[0]?.id ?? '';
 
+  const createForm = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Contract Details</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        {!user?.shopId && (
+          <div className="space-y-2 md:col-span-2">
+            <Label>Plant *</Label>
+            <Select
+              value={form.shopId || resolvedShopId}
+              onValueChange={(value) => setForm((p) => ({ ...p, shopId: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select plant" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((shop) => (
+                  <SelectItem key={shop.id} value={shop.id}>
+                    {shop.shopName} ({shop.shopNumber})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>Supplier *</Label>
+          <Select
+            value={form.supplierId}
+            onValueChange={(value) => setForm((p) => ({ ...p, supplierId: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select supplier" />
+            </SelectTrigger>
+            <SelectContent>
+              {suppliers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.supplierName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Title *</Label>
+          <Input
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Start Date</Label>
+          <Input
+            type="date"
+            value={form.startDate}
+            onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>End Date</Label>
+          <Input
+            type="date"
+            value={form.endDate}
+            onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Quantity *</Label>
+          <Input
+            type="number"
+            min="0.0001"
+            step="any"
+            value={form.quantity}
+            onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Unit Price *</Label>
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            value={form.unitPrice}
+            onChange={(e) => setForm((p) => ({ ...p, unitPrice: e.target.value }))}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <Button onClick={onCreate} disabled={createContract.isPending}>
+            {createContract.isPending ? 'Saving...' : 'Create Contract'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Contracts">
+        <CreatePageLayout
+          title="Create Contract"
+          description="Create and activate supplier contracts."
+          backTo="/contracts"
+        >
+          {createForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="Contracts">
       <div className="space-y-6">
-        <PageHeader title="Contracts" description="Create and activate supplier contracts." />
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Contract</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            {!user?.shopId && (
-              <div className="space-y-2 md:col-span-2">
-                <Label>Plant *</Label>
-                <Select
-                  value={form.shopId || resolvedShopId}
-                  onValueChange={(value) => setForm((p) => ({ ...p, shopId: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select plant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shops.map((shop) => (
-                      <SelectItem key={shop.id} value={shop.id}>
-                        {shop.shopName} ({shop.shopNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Supplier *</Label>
-              <Select
-                value={form.supplierId}
-                onValueChange={(value) => setForm((p) => ({ ...p, supplierId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.supplierName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                value={form.endDate}
-                onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Quantity *</Label>
-              <Input
-                type="number"
-                min="0.0001"
-                step="any"
-                value={form.quantity}
-                onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Unit Price *</Label>
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={form.unitPrice}
-                onChange={(e) => setForm((p) => ({ ...p, unitPrice: e.target.value }))}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <Button onClick={onCreate} disabled={createContract.isPending}>
-                {createContract.isPending ? 'Saving...' : 'Create Contract'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <PageHeader title="Contracts" description="Create and activate supplier contracts.">
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/contracts/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Contract
+          </Button>
+        </PageHeader>
         <Card>
           <CardHeader>
             <CardTitle>Contract List</CardTitle>

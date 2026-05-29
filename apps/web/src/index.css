@@ -33,6 +33,15 @@
     --status-warning: 38 92% 50%;
     --status-danger: 0 84% 60%;
     --status-info: 213 93% 60%;
+
+    /* Motion tokens */
+    --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --motion-duration-fast: 200ms;
+    --motion-duration-normal: 300ms;
+    --motion-duration-slow: 400ms;
+    --motion-duration-mobile-fast: 150ms;
+    --motion-duration-mobile: 220ms;
   }
 
   .dark {
@@ -273,6 +282,370 @@
     animation-duration: 28s;
   }
 
+  .dashboard-normal .glass-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
+  }
+  .dark .dashboard-normal .glass-panel {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 8px 20px rgb(0 0 0 / 0.25);
+  }
+
+  /* —— Motion system (Sprint 1+) —— */
+  @keyframes motion-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes motion-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes motion-page-enter {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes motion-error-banner-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes motion-field-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20%,
+    60% {
+      transform: translateX(-4px);
+    }
+    40%,
+    80% {
+      transform: translateX(4px);
+    }
+  }
+
+  @keyframes motion-toast-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes motion-toast-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-4px);
+    }
+    75% {
+      transform: translateX(4px);
+    }
+  }
+
+  @keyframes motion-route-progress {
+    0% {
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+    50% {
+      transform: scaleX(0.65);
+      transform-origin: left;
+    }
+    100% {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+  }
+
+  @keyframes motion-toast-progress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  .motion-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.12) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: motion-shimmer 1.4s var(--motion-ease-in-out) infinite;
+  }
+
+  .motion-page-enter {
+    animation: motion-page-enter var(--motion-duration-normal) var(--motion-ease-out) both;
+  }
+
+  .motion-fade-up {
+    animation: motion-fade-up var(--motion-duration-slow) var(--motion-ease-out) both;
+  }
+
+  .motion-page > * {
+    animation: motion-fade-up var(--motion-duration-slow) var(--motion-ease-out) both;
+  }
+  .motion-page > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .motion-page > *:nth-child(2) {
+    animation-delay: 50ms;
+  }
+  .motion-page > *:nth-child(3) {
+    animation-delay: 100ms;
+  }
+  .motion-page > *:nth-child(4) {
+    animation-delay: 150ms;
+  }
+  .motion-page > *:nth-child(5) {
+    animation-delay: 200ms;
+  }
+  .motion-page > *:nth-child(n + 6) {
+    animation-delay: 240ms;
+  }
+
+  .motion-error-banner {
+    animation: motion-error-banner-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  }
+
+  .motion-field-error {
+    border-color: hsl(var(--destructive)) !important;
+    animation: motion-field-shake 320ms var(--motion-ease-in-out);
+  }
+
+  .motion-route-progress-bar {
+    animation: motion-route-progress 800ms var(--motion-ease-out) forwards;
+  }
+
+  .motion-nav-indicator {
+    transition:
+      transform var(--motion-duration-fast) var(--motion-ease-out),
+      height var(--motion-duration-fast) var(--motion-ease-out),
+      opacity var(--motion-duration-fast) var(--motion-ease-out);
+  }
+
+  .motion-card-lift {
+    transition:
+      transform var(--motion-duration-fast) var(--motion-ease-out),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+  }
+
+  .motion-card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgb(15 23 42 / 0.1);
+  }
+
+  @keyframes motion-badge-crossfade {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .motion-badge-crossfade {
+    animation: motion-badge-crossfade 250ms var(--motion-ease-out) both;
+  }
+
+  @keyframes motion-spotlight-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .motion-spotlight-backdrop {
+    animation: motion-page-enter var(--motion-duration-fast) var(--motion-ease-out) both;
+  }
+
+  .motion-spotlight-panel {
+    animation: motion-spotlight-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  }
+
+  .table-sticky-scrolled thead {
+    box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
+  }
+
+  .table-row-interactive:hover {
+    transform: translateY(-1px);
+  }
+
+  .table-interactive tbody tr:hover td {
+    background-color: hsl(var(--muted) / 0.35);
+  }
+
+  @keyframes motion-reveal-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .motion-reveal {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .motion-reveal-visible {
+    animation: motion-reveal-in 600ms var(--motion-ease-out) both;
+    animation-delay: var(--motion-reveal-delay, 0ms);
+  }
+
+  .motion-marketing-cta {
+    transition:
+      transform var(--motion-duration-fast) var(--motion-ease-out),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-out),
+      background-color var(--motion-duration-fast) var(--motion-ease-out),
+      color var(--motion-duration-fast) var(--motion-ease-out);
+  }
+
+  .motion-marketing-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgb(15 23 42 / 0.14);
+  }
+
+  .motion-marketing-cta:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  @keyframes motion-success-check-circle {
+    from {
+      stroke-dashoffset: 63;
+      opacity: 0.4;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+
+  @keyframes motion-success-check-path {
+    from {
+      stroke-dashoffset: 14;
+      opacity: 0;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+
+  .motion-success-checkmark-circle {
+    stroke-dasharray: 63;
+    stroke-dashoffset: 63;
+    animation: motion-success-check-circle 420ms var(--motion-ease-out) forwards;
+  }
+
+  .motion-success-checkmark-path {
+    stroke-dasharray: 14;
+    stroke-dashoffset: 14;
+    animation: motion-success-check-path 320ms var(--motion-ease-out) 220ms forwards;
+  }
+
+  .motion-success-checkmark {
+    overflow: visible;
+  }
+
+  @keyframes motion-success-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgb(16 185 129 / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+    }
+  }
+
+  .motion-success-pulse {
+    animation: motion-success-pulse 700ms var(--motion-ease-out);
+  }
+
+  @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+    .motion-marketing-parallax {
+      transition: transform 80ms linear;
+    }
+  }
+
+  [data-sonner-toast].motion-toast-enter {
+    animation: motion-toast-slide-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  }
+
+  [data-sonner-toast].motion-toast-error {
+    animation:
+      motion-toast-slide-in var(--motion-duration-fast) var(--motion-ease-out) both,
+      motion-toast-shake 320ms var(--motion-ease-in-out) 180ms;
+  }
+
+  [data-sonner-toast][data-type='success'] {
+    border-left: 3px solid hsl(var(--status-success));
+  }
+
+  [data-sonner-toast][data-type='error'] {
+    border-left: 3px solid hsl(var(--destructive));
+  }
+
+  [data-sonner-toast] .motion-toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    transform-origin: left;
+    background: hsl(var(--primary) / 0.55);
+    animation: motion-toast-progress var(--toast-duration, 4000ms) linear forwards;
+  }
+
+  [data-sonner-toast][data-type='error'] .motion-toast-progress {
+    background: hsl(var(--destructive) / 0.55);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .marketing-marquee {
       display: none;
@@ -283,17 +656,54 @@
     .marketing-marquee-track {
       animation: none;
     }
-  }
-
-  .dashboard-normal .glass-panel {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
-  }
-  .dark .dashboard-normal .glass-panel {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    box-shadow: 0 8px 20px rgb(0 0 0 / 0.25);
+    .motion-shimmer {
+      animation: none;
+      background: hsl(var(--muted));
+    }
+    .motion-page-enter,
+    .motion-page > *,
+    .motion-fade-up,
+    .motion-error-banner,
+    .motion-field-error,
+    [data-sonner-toast].motion-toast-enter,
+    [data-sonner-toast].motion-toast-error,
+    .motion-route-progress-bar {
+      animation: none !important;
+      transition: none !important;
+    }
+    .motion-nav-indicator {
+      transition: none;
+    }
+    .motion-card-lift:hover {
+      transform: none;
+    }
+    .table-row-interactive:hover {
+      transform: none;
+    }
+    .motion-badge-crossfade,
+    .motion-spotlight-panel,
+    .motion-spotlight-backdrop,
+    .motion-reveal-visible,
+    .motion-success-checkmark-circle,
+    .motion-success-checkmark-path,
+    .motion-success-pulse {
+      animation: none !important;
+    }
+    .motion-reveal {
+      opacity: 1;
+      transform: none;
+    }
+    .motion-marketing-cta:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .motion-marketing-parallax {
+      transform: none !important;
+      transition: none !important;
+    }
+    [data-sonner-toast] .motion-toast-progress {
+      display: none;
+    }
   }
 }
 

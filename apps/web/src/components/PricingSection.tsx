@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
+import { Reveal } from '@/components/motion';
 import {
   PLAN_CATALOG,
   UPGRADE_HIGHLIGHTS,
@@ -93,7 +94,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
       className={lightSurface ? 'border-y border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50' : 'bg-white'}
     >
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
-        <div className="text-center">
+        <Reveal className="text-center">
           <h2
             className={
               lightSurface ? 'text-3xl font-semibold text-slate-900 sm:text-4xl' : 'text-3xl font-semibold text-slate-900 sm:text-4xl'
@@ -141,10 +142,10 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               </span>
             </button>
           </div>
-        </div>
+        </Reveal>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {(['trial', 'pro', 'plus'] as PlanId[]).map((planId) => {
+          {(['trial', 'pro', 'plus'] as PlanId[]).map((planId, index) => {
             const plan = PLAN_CATALOG[planId];
             const price =
               planId === 'trial'
@@ -164,8 +165,8 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   : 'border-slate-200 shadow-[0_10px_26px_rgba(15,23,42,0.06)]';
 
             return (
+              <Reveal key={planId} delay={80 + index * 70}>
               <div
-                key={planId}
                 className={cn(
                   cardBase,
                   borderClass,
@@ -235,7 +236,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   disabled={loading || isCurrent || isDowngrade}
                   onClick={() => void handlePlanClick(planId)}
                   className={cn(
-                    'mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-60',
+                    'motion-marketing-cta mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60',
                     planId === 'pro' &&
                       'border border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500',
                     planId === 'plus' &&
@@ -251,11 +252,12 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                       : plan.cta}
                 </button>
               </div>
+              </Reveal>
             );
           })}
         </div>
 
-        <div className="mt-14">
+        <Reveal delay={100} className="mt-14">
           <h3 className="text-center text-2xl font-semibold text-slate-900">
             Why upgrade from Trial?
           </h3>
@@ -275,7 +277,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
 
         {variant === 'landing' ? (
           <p className="mt-10 text-center text-sm text-slate-500">

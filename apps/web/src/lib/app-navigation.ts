@@ -80,18 +80,23 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
   }
   if (hasPerm(user, 'storage_location:read')) {
     push('storage', 'Storage Locations', 'Bins and zones', '/storage-locations', 'Master Data', Warehouse);
+    push('storage-new', 'New storage location', 'Add bin', '/storage-locations/new', 'Actions', Warehouse, ['new']);
   }
   if (hasPerm(user, 'product:read')) {
     push('products', 'Products', 'SKU catalog', '/products', 'Master Data', Package, ['sku', 'inventory']);
-    push('products-new', 'Create product', 'Add SKU', '/products', 'Actions', Package, ['new', 'add']);
+    push('products-new', 'Create product', 'Add SKU', '/products/new', 'Actions', Package, ['new', 'add']);
   }
   if (hasPerm(user, 'supplier:read')) {
     push('suppliers', 'Suppliers', 'Vendor master', '/suppliers', 'Master Data', Truck, ['vendor']);
-    push('suppliers-new', 'Add supplier', 'Onboard vendor', '/suppliers', 'Actions', Truck, ['new']);
+    push('suppliers-new', 'Add supplier', 'Onboard vendor', '/suppliers/new', 'Actions', Truck, ['new']);
+  }
+  if (hasPerm(user, 'shop:read')) {
+    push('customers-new', 'Add customer', 'New customer', '/customers/new', 'Actions', Users, ['new']);
   }
 
   if (hasPerm(user, 'rfq:read')) {
     push('rfqs', 'RFQs', 'Request for quotation', '/rfqs', 'Procurement', FileText);
+    push('rfqs-new', 'New RFQ', 'Create RFQ', '/rfqs/new', 'Actions', FileText, ['new']);
   }
   if (hasPerm(user, 'shop:read')) {
     push(
@@ -102,9 +107,11 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
       'Sales & Finance',
       FileCheck,
     );
+    push('quotations-new', 'New quotation', 'Create quote', '/quotations/new', 'Actions', FileCheck, ['new']);
   }
   if (hasPerm(user, 'contract:read')) {
     push('contracts', 'Contracts', 'Supplier agreements', '/contracts', 'Procurement', FileSignature);
+    push('contracts-new', 'New contract', 'Create contract', '/contracts/new', 'Actions', FileSignature, ['new']);
   }
   if (hasPerm(user, 'purchase_order:read')) {
     push('po', 'Purchase Orders', 'Procure stock', '/purchase-orders', 'Procurement', ClipboardList, ['po']);
@@ -118,12 +125,15 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
 
   if (hasPerm(user, 'shop:read')) {
     push('sales', 'Sales', 'Sales orders', '/sales', 'Sales & Finance', ShoppingCart);
+    push('sales-new', 'New sales order', 'Create SO', '/sales/new', 'Actions', ShoppingCart, ['new']);
     push('invoices', 'Invoices', 'Billing', '/invoices', 'Sales & Finance', FileText);
+    push('invoices-new', 'New invoice', 'Create invoice', '/invoices/new', 'Actions', FileText, ['new']);
     push('payments', 'Payments', 'Settlements', '/payments', 'Sales & Finance', FileCheck);
   }
   if (hasPerm(user, 'goods_issue:read')) {
     push('gi', 'Goods Issue', 'Issue stock', '/goods-issues', 'Warehouse', ArrowUpFromLine, ['outbound']);
   }
+  push('returns-new', 'New return', 'Create return draft', '/returns/new', 'Actions', ArrowUpFromLine, ['new']);
 
   if (hasPerm(user, 'report:view')) {
     push('warehouse', 'Warehouse', 'Stock overview', '/warehouse', 'Operations', Warehouse, ['stock']);

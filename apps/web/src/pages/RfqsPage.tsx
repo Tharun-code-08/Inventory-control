@@ -16,8 +16,9 @@ import {
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ConfirmDialog, CreatePageLayout, EmptyState, LoadingSkeleton, SearchInput } from '@/components/shared';
 import { PageHeader } from '@/components/shared/page-header';
-import { ConfirmDialog } from '@/components/shared';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,13 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import {
   Table,
   TableBody,
@@ -128,13 +122,13 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   );
 }
 
-export function RfqsPage() {
+export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const { data: shops = [] } = useShops();
   const { data: suppliers = [] } = useSuppliers();
-  const { data: rfqs = [] } = useRfqs();
+  const { data: rfqs = [], isLoading } = useRfqs();
   const { data: quotations = [] } = useQuotations();
   const { data: contracts = [] } = useContracts();
   const createRfq = useCreateRfq();
@@ -142,10 +136,10 @@ export function RfqsPage() {
   const resendInvites = useResendRfqInvites();
   const deleteRfq = useDeleteRfq();
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Rfq | null>(null);
   const [tab, setTab] = useState<RfqTab>('all');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [pendingSupplierId, setPendingSupplierId] = useState('');
   const [form, setForm] = useState({
     title: '',
@@ -226,7 +220,7 @@ export function RfqsPage() {
   }, [rfqs, quotesByRfq]);
 
   const filteredRfqs = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = debouncedSearch.trim().toLowerCase();
     return rfqs.filter((r) => {
       if (tab === 'draft' && r.status !== 'DRAFT') return false;
       if (tab === 'sent' && r.status !== 'POSTED') return false;
@@ -238,7 +232,9 @@ export function RfqsPage() {
       }
       return true;
     });
-  }, [rfqs, tab, search, quotesByRfq]);
+  }, [rfqs, tab, debouncedSearch, quotesByRfq]);
+
+  const isSearchPending = search !== debouncedSearch;
 
   const handleExportRfqs = () => {
     const ok = exportModuleCsv('rfqs.csv', filteredRfqs, [
@@ -379,7 +375,9 @@ export function RfqsPage() {
       toast.success(
         `RFQ created for ${form.supplierIds.length} supplier${form.supplierIds.length === 1 ? '' : 's'}`,
       );
-      setCreateOpen(false);
+      if (createOnly) {
+        navigate('/rfqs');
+      }
       resetCreateForm();
     } catch (err: unknown) {
       const msg =
@@ -434,6 +432,228 @@ export function RfqsPage() {
     }
   }
 
+  const rfqCreateForm = (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Title *</Label>
+          <Input
+            className="h-9"
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Deadline</Label>
+          <Input
+            type="date"
+            className="h-9"
+            value={form.deadline}
+            onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))}
+          />
+        </div>
+        {!user?.shopId && (
+          <div className="space-y-1">
+            <Label className="text-xs">Plant *</Label>
+            <Select
+              value={form.shopId || resolvedShopId}
+              onValueChange={(value) => {
+                setForm((p) => ({ ...p, shopId: value }));
+                syncPreferredOrgId(value, functionalCookiesEnabled);
+                setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
+              }}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Plant" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((shop) => (
+                  <SelectItem key={shop.id} value={shop.id}>
+                    {shop.shopName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="space-y-2 sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Suppliers *</Label>
+            <span className="text-[11px] text-slate-500">
+              {form.supplierIds.length} selected
+            </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Select value={pendingSupplierId} onValueChange={setPendingSupplierId}>
+              <SelectTrigger className="h-9 flex-1 text-sm">
+                <SelectValue placeholder="Select supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableSuppliers.length === 0 ? (
+                  <SelectItem value="__all_selected__" disabled>
+                    All suppliers already selected
+                  </SelectItem>
+                ) : (
+                  availableSuppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.supplierName} ({supplier.supplierCode || supplier.id.slice(0, 8)})
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 px-4"
+              disabled={!pendingSupplierId}
+              onClick={addPendingSupplier}
+            >
+              Add
+            </Button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Select a supplier, then click Add. Each supplier will receive a separate RFQ email.
+          </p>
+          {selectedSuppliers.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedSuppliers.map((supplier) => (
+                <div
+                  key={supplier.id}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700"
+                >
+                  <span className="font-medium">
+                    {supplier.supplierName} ({supplier.supplierCode})
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 text-amber-500">
+                    {Array.from({ length: 5 }, (_, index) => (
+                      <Star
+                        key={`${supplier.id}-${index}`}
+                        className={cn(
+                          'h-3 w-3',
+                          index < Math.round(supplier.rating)
+                            ? 'fill-current text-amber-500'
+                            : 'text-slate-300',
+                        )}
+                      />
+                    ))}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded-full text-slate-500 transition hover:text-slate-800"
+                    onClick={() => toggleSupplierSelection(supplier.id)}
+                    aria-label={`Remove ${supplier.supplierName}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Notes</Label>
+          <Input
+            className="h-9"
+            value={form.notes}
+            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Line items</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
+            + Add item
+          </Button>
+        </div>
+        {items.map((item, index) => (
+          <div key={index} className="grid grid-cols-12 gap-2 rounded-lg border p-2">
+            <div className="col-span-5">
+              <Select
+                value={item.productId}
+                onValueChange={(v) => updateItemRow(index, 'productId', v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Product" />
+                </SelectTrigger>
+                <SelectContent className="max-w-[min(24rem,90vw)]">
+                  {products.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      No products for this plant
+                    </SelectItem>
+                  ) : (
+                    products.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {formatProductLabel(p)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Input
+                type="number"
+                min="1"
+                className="h-8 text-xs"
+                value={item.quantity}
+                onChange={(e) => updateItemRow(index, 'quantity', e.target.value)}
+              />
+            </div>
+            <div className="col-span-2">
+              <Input className="h-8 text-xs" value={item.uom} readOnly />
+            </div>
+            <div className="col-span-2">
+              <Input
+                className="h-8 text-xs"
+                placeholder="Spec"
+                value={item.specifications}
+                onChange={(e) => updateItemRow(index, 'specifications', e.target.value)}
+              />
+            </div>
+            <div className="col-span-1 flex items-center">
+              {items.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => removeItemRow(index)}
+                >
+                  ×
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        className="w-full bg-indigo-600 hover:bg-indigo-700"
+        disabled={createRfq.isPending}
+        onClick={onCreate}
+      >
+        {createRfq.isPending ? 'Creating…' : 'Create RFQ'}
+      </Button>
+    </div>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="RFQs">
+        <CreatePageLayout
+          title="Create RFQ"
+          description="Draft a request for quotation and invite one or more suppliers. Each selected supplier receives a separate email when you send the RFQ."
+          backTo="/rfqs"
+        >
+          {rfqCreateForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="RFQs">
       <div className="space-y-6">
@@ -447,7 +667,7 @@ export function RfqsPage() {
           </Button>
           <Button
             className="bg-indigo-600 shadow-md hover:bg-indigo-700"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => navigate('/rfqs/new')}
           >
             <Plus className="mr-2 h-4 w-4" />
             Create RFQ
@@ -517,16 +737,47 @@ export function RfqsPage() {
                     Responses ({stats.responses})
                   </TabsTrigger>
                 </TabsList>
-                <Input
+                <SearchInput
                   placeholder="Search RFQ number or title…"
-                  className="h-9 max-w-xs text-sm"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={setSearch}
+                  isSearching={isSearchPending || isLoading}
+                  showNoResults={
+                    !isLoading &&
+                    !isSearchPending &&
+                    search.trim().length > 0 &&
+                    filteredRfqs.length === 0
+                  }
+                  noResultsMessage="No RFQs match your search."
+                  className="max-w-xs"
                 />
               </div>
 
               <TabsContent value={tab} className="mt-0">
                 <div className="overflow-x-auto rounded-lg border">
+                  {isLoading ? (
+                    <div className="p-4">
+                      <LoadingSkeleton rows={6} cols={9} />
+                    </div>
+                  ) : filteredRfqs.length === 0 ? (
+                    <EmptyState
+                      icon={FileText}
+                      title={search.trim() || tab !== 'all' ? 'No RFQs in this view' : 'No RFQs yet'}
+                      description={
+                        search.trim() || tab !== 'all'
+                          ? 'Try another search or switch tabs.'
+                          : 'Create your first request for quotation to invite supplier bids.'
+                      }
+                      action={
+                        !search.trim() && tab === 'all' ? (
+                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/rfqs/new')}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            New RFQ
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  ) : (
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/80">
@@ -560,14 +811,7 @@ export function RfqsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRfqs.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={9} className="py-10 text-center text-slate-500">
-                            No RFQs in this view.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredRfqs.map((r) => {
+                      {filteredRfqs.map((r) => {
                           const responseCount = quotesByRfq.get(r.id) ?? 0;
                           const deleteBlock = rfqDeleteBlockReason(r.id);
                           const supplierCount = r.suppliers?.length ?? 0;
@@ -661,233 +905,16 @@ export function RfqsPage() {
                               </TableCell>
                             </TableRow>
                           );
-                        })
-                      )}
+                        })}
                     </TableBody>
                   </Table>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </div>
-
-      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>Create RFQ</SheetTitle>
-            <SheetDescription>
-              Draft a request for quotation and invite one or more suppliers. Each selected
-              supplier receives a separate email when you send the RFQ.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Title *</Label>
-                <Input
-                  className="h-9"
-                  value={form.title}
-                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Deadline</Label>
-                <Input
-                  type="date"
-                  className="h-9"
-                  value={form.deadline}
-                  onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))}
-                />
-              </div>
-              {!user?.shopId && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Plant *</Label>
-                  <Select
-                    value={form.shopId || resolvedShopId}
-                    onValueChange={(value) => {
-                      setForm((p) => ({ ...p, shopId: value }));
-                      syncPreferredOrgId(value, functionalCookiesEnabled);
-                      setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Plant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shops.map((shop) => (
-                        <SelectItem key={shop.id} value={shop.id}>
-                          {shop.shopName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-2 sm:col-span-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Suppliers *</Label>
-                  <span className="text-[11px] text-slate-500">
-                    {form.supplierIds.length} selected
-                  </span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Select value={pendingSupplierId} onValueChange={setPendingSupplierId}>
-                    <SelectTrigger className="h-9 flex-1 text-sm">
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSuppliers.length === 0 ? (
-                        <SelectItem value="__all_selected__" disabled>
-                          All suppliers already selected
-                        </SelectItem>
-                      ) : (
-                        availableSuppliers.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.supplierName} ({supplier.supplierCode || supplier.id.slice(0, 8)})
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 px-4"
-                    disabled={!pendingSupplierId}
-                    onClick={addPendingSupplier}
-                  >
-                    Add
-                  </Button>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Select a supplier, then click Add. Each supplier will receive a separate RFQ email.
-                </p>
-                {selectedSuppliers.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedSuppliers.map((supplier) => (
-                      <div
-                        key={supplier.id}
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700"
-                      >
-                        <span className="font-medium">
-                          {supplier.supplierName} ({supplier.supplierCode})
-                        </span>
-                        <span className="inline-flex items-center gap-0.5 text-amber-500">
-                          {Array.from({ length: 5 }, (_, index) => (
-                            <Star
-                              key={`${supplier.id}-${index}`}
-                              className={cn(
-                                'h-3 w-3',
-                                index < Math.round(supplier.rating)
-                                  ? 'fill-current text-amber-500'
-                                  : 'text-slate-300',
-                              )}
-                            />
-                          ))}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-full text-slate-500 transition hover:text-slate-800"
-                          onClick={() => toggleSupplierSelection(supplier.id)}
-                          aria-label={`Remove ${supplier.supplierName}`}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Notes</Label>
-                <Input
-                  className="h-9"
-                  value={form.notes}
-                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Line items</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
-                  + Add item
-                </Button>
-              </div>
-              {items.map((item, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 rounded-lg border p-2">
-                  <div className="col-span-5">
-                    <Select
-                      value={item.productId}
-                      onValueChange={(v) => updateItemRow(index, 'productId', v)}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Product" />
-                      </SelectTrigger>
-                      <SelectContent className="max-w-[min(24rem,90vw)]">
-                        {products.length === 0 ? (
-                          <SelectItem value="__none" disabled>
-                            No products for this plant
-                          </SelectItem>
-                        ) : (
-                          products.map((p) => (
-                            <SelectItem key={p.id} value={p.id} className="text-xs">
-                              {formatProductLabel(p)}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      className="h-8 text-xs"
-                      value={item.quantity}
-                      onChange={(e) => updateItemRow(index, 'quantity', e.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input className="h-8 text-xs" value={item.uom} readOnly />
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="Spec"
-                      value={item.specifications}
-                      onChange={(e) => updateItemRow(index, 'specifications', e.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-1 flex items-center">
-                    {items.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => removeItemRow(index)}
-                      >
-                        ×
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
-              disabled={createRfq.isPending}
-              onClick={onCreate}
-            >
-              {createRfq.isPending ? 'Creating…' : 'Create RFQ'}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

@@ -28,8 +28,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'CUS',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'RFQ',
@@ -37,8 +37,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'RFQ',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'CT',
@@ -46,8 +46,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'CT',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'PO',
@@ -55,8 +55,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'PO',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'GR',
@@ -64,8 +64,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'GR',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'CRT',
@@ -73,7 +73,7 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'CRT',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
     shopScoped: false,
   },
   {
@@ -82,7 +82,7 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'RMO',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
     shopScoped: false,
   },
   {
@@ -91,8 +91,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'QT',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'SO',
@@ -100,8 +100,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'SO',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
   {
     docType: 'GI',
@@ -109,8 +109,8 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultPrefix: 'GI',
     defaultStartingNumber: 1,
     defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.MONTHLY,
-    shopScoped: true,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
   },
 ];
 

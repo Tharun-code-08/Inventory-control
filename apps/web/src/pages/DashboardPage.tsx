@@ -38,6 +38,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { AnimatedNumber } from '@/components/motion';
+import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
 import { useDashboard, type DashboardViewData } from '@/hooks/use-dashboard';
 import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
@@ -72,24 +74,30 @@ function formatAmount(value: number): string {
 
 function StatCard({
   title,
-  value,
+  numericValue,
+  format,
   icon: Icon,
   color,
   bg,
 }: {
   title: string;
-  value: string | number;
+  numericValue: number;
+  format?: (value: number) => string;
   icon: React.ElementType;
   color: string;
   bg: string;
 }) {
   return (
-    <Card className="surface-2">
+    <Card interactive className="surface-2">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+            <AnimatedNumber
+              value={numericValue}
+              format={format}
+              className="mt-1 block text-2xl font-semibold tabular-nums text-foreground"
+            />
           </div>
           <div
             className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}
@@ -145,6 +153,8 @@ export function DashboardPage() {
   const dashboardShopId = productListShopId(user, shopFilter);
   const { data, isLoading, isError, error, refetch } = useDashboard(dashboardShopId);
   const chart = CHART_THEME;
+  const reducedMotion = usePrefersReducedMotion();
+  const chartAnimate = !reducedMotion;
 
   const handleLowStockReorder = async (p: {
     id: string;
@@ -172,30 +182,29 @@ export function DashboardPage() {
     () => [
       {
         title: 'Total Products',
-        value: dashboard?.totalProducts ?? 0,
+        numericValue: dashboard?.totalProducts ?? 0,
         icon: Package,
         color: 'text-blue-300',
         bg: 'bg-blue-500/15 border border-blue-400/20',
       },
       {
         title: 'Total Stock Value',
-        value: dashboard?.totalStockValue
-          ? `₹${dashboard.totalStockValue.toLocaleString()}`
-          : '₹0',
+        numericValue: dashboard?.totalStockValue ?? 0,
+        format: (n: number) => `₹${n.toLocaleString('en-IN')}`,
         icon: DollarSign,
         color: 'text-emerald-300',
         bg: 'bg-emerald-500/15 border border-emerald-400/20',
       },
       {
         title: 'Low Stock Items',
-        value: dashboard?.lowStockCount ?? 0,
+        numericValue: dashboard?.lowStockCount ?? 0,
         icon: AlertTriangle,
         color: 'text-amber-300',
         bg: 'bg-amber-500/15 border border-amber-400/20',
       },
       {
         title: 'Recent Transactions',
-        value: dashboard?.recentTransactions ?? 0,
+        numericValue: dashboard?.recentTransactions ?? 0,
         icon: ArrowRightLeft,
         color: 'text-violet-300',
         bg: 'bg-violet-500/15 border border-violet-400/20',
@@ -247,7 +256,7 @@ export function DashboardPage() {
 
         {/* Charts */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="surface-1">
+          <Card interactive className="surface-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-foreground">
                 Stock Movement (Last 6 Months)
@@ -287,12 +296,16 @@ export function DashboardPage() {
                       name="Receipts"
                       fill="#3b82f6"
                       radius={[4, 4, 0, 0]}
+                      isAnimationActive={chartAnimate}
+                      animationDuration={600}
                     />
                     <Bar
                       dataKey="issues"
                       name="Issues"
                       fill="#f59e0b"
                       radius={[4, 4, 0, 0]}
+                      isAnimationActive={chartAnimate}
+                      animationDuration={600}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -300,7 +313,7 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="surface-1">
+          <Card interactive className="surface-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-foreground">Products by Category</CardTitle>
               <p className="text-xs text-muted-foreground font-normal">
@@ -321,6 +334,8 @@ export function DashboardPage() {
                       cx="50%"
                       cy="50%"
                       outerRadius={100}
+                      isAnimationActive={chartAnimate}
+                      animationDuration={600}
                       label={({ category, percent }) =>
                         `${category} ${(percent * 100).toFixed(0)}%`
                       }
@@ -350,7 +365,7 @@ export function DashboardPage() {
 
         {/* Recent activity */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="surface-1">
+          <Card interactive className="surface-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-foreground">
                 Recent Goods Receipts
@@ -375,8 +390,12 @@ export function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dashboard.recentGoodsReceipts.map((gr) => (
-                      <TableRow key={gr.id}>
+                    {dashboard.recentGoodsReceipts.map((gr, index) => (
+                      <TableRow
+                        key={gr.id}
+                        className="motion-fade-up"
+                        style={{ animationDelay: `${Math.min(index, 4) * 50}ms` }}
+                      >
                         <TableCell className="font-medium">
                           {gr.grNumber}
                         </TableCell>
@@ -398,7 +417,7 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="surface-1">
+          <Card interactive className="surface-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-foreground">Recent Goods Issues</CardTitle>
             </CardHeader>
@@ -420,8 +439,12 @@ export function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dashboard.recentGoodsIssues.map((gi) => (
-                      <TableRow key={gi.id}>
+                    {dashboard.recentGoodsIssues.map((gi, index) => (
+                      <TableRow
+                        key={gi.id}
+                        className="motion-fade-up"
+                        style={{ animationDelay: `${Math.min(index, 4) * 50}ms` }}
+                      >
                         <TableCell className="font-medium">
                           {gi.giNumber}
                         </TableCell>

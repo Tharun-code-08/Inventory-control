@@ -189,7 +189,7 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   );
 }
 
-export function QuotationsPage() {
+export function QuotationsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
@@ -283,7 +283,22 @@ export function QuotationsPage() {
       quantity: '1',
       unitPrice: '0',
     });
+    if (createOnly) {
+      navigate('/quotations');
+    }
   };
+
+  useEffect(() => {
+    if (!createOnly) return;
+    setForm({
+      customerId: '',
+      validUntil: '',
+      shopId: '',
+      productId: '',
+      quantity: '1',
+      unitPrice: '0',
+    });
+  }, [createOnly]);
 
   useEffect(() => {
     syncPreferredOrgId(user?.shopId ? null : resolvedShopId, functionalCookiesEnabled);
@@ -476,23 +491,38 @@ export function QuotationsPage() {
 
   return (
     <AppLayout active="Quotations">
-      <div className="space-y-6">
+      <div className={cn('space-y-6', createOnly && 'create-page-shell p-4 sm:p-6')}>
         <PageHeader
-          title="Sales Quotations"
-          description="Create and manage customer quotations"
+          title={createOnly ? 'Create Quote' : 'Sales Quotations'}
+          description={
+            createOnly
+              ? 'New customer quotation with at least one line'
+              : 'Create and manage customer quotations'
+          }
         >
-          <Button variant="outline" onClick={handleExportQuoteList}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button
-            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Quote
-          </Button>
+          {createOnly ? (
+            <Button variant="outline" onClick={() => navigate('/quotations')} className="w-full sm:w-auto">
+              Back
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleExportQuoteList}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button
+                className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+                onClick={() => navigate('/quotations/new')}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Quote
+              </Button>
+            </>
+          )}
         </PageHeader>
+
+        {!createOnly && (
+          <>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
@@ -755,10 +785,27 @@ export function QuotationsPage() {
             </Tabs>
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
 
-      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent className="overflow-y-auto sm:max-w-md">
+      <Sheet
+        open={createOnly ? true : createOpen}
+        onOpenChange={(open) => {
+          if (!createOnly) {
+            setCreateOpen(open);
+          }
+          if (!open) {
+            resetCreateForm();
+          }
+        }}
+      >
+        <SheetContent
+          className={cn(
+            'overflow-y-auto',
+            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'sm:max-w-md',
+          )}
+        >
           <SheetHeader>
             <SheetTitle>Create Quote</SheetTitle>
             <SheetDescription>New customer quotation with at least one line.</SheetDescription>

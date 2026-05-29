@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader } from '@/components/shared/page-header';
+import { CreatePageLayout, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,14 +20,146 @@ import {
 } from '@/hooks/use-storage-locations';
 import { cn } from '@/lib/cn';
 
-export function StorageLocationsPage() {
+type StorageLocationForm = {
+  code: string;
+  name: string;
+  description: string;
+};
+
+const emptyForm = (): StorageLocationForm => ({
+  code: '',
+  name: '',
+  description: '',
+});
+
+type StorageLocationFormFieldsProps = {
+  shopId: string;
+  onShopIdChange: (value: string) => void;
+  shops: Array<{ id: string; shopName: string }>;
+  form: StorageLocationForm;
+  setForm: React.Dispatch<React.SetStateAction<StorageLocationForm>>;
+};
+
+function StorageLocationFormFields({
+  shopId,
+  onShopIdChange,
+  shops,
+  form,
+  setForm,
+}: StorageLocationFormFieldsProps) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-2 md:col-span-2">
+        <Label>Plant *</Label>
+        <Select value={shopId} onValueChange={onShopIdChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select plant" />
+          </SelectTrigger>
+          <SelectContent>
+            {shops.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.shopName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Code *</Label>
+        <Input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+      </div>
+      <div className="space-y-2">
+        <Label>Name *</Label>
+        <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+      </div>
+      <div className="space-y-2 md:col-span-2">
+        <Label>Description</Label>
+        <Input
+          value={form.description}
+          onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StorageLocationsCreateView() {
+  const navigate = useNavigate();
+  const { data: shops = [] } = useShops();
+  const createLocation = useCreateStorageLocation();
+  const [shopId, setShopId] = useState('');
+  const [form, setForm] = useState(emptyForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const onCreate = async () => {
+    if (!shopId) {
+      toast.error('Select a plant before adding a storage location');
+      return;
+    }
+    if (!form.code.trim()) {
+      toast.error('Code is required');
+      return;
+    }
+    if (!form.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createLocation.mutateAsync({
+        shopId,
+        code: form.code.trim(),
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        isActive: true,
+      });
+      toast.success('Storage location added');
+      navigate('/storage-locations');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+        'Failed to add storage location';
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <CreatePageLayout
+      title="Add Storage Location"
+      description="Create a storage area or bin for a plant"
+      backTo="/storage-locations"
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>Location details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <StorageLocationFormFields
+            shopId={shopId}
+            onShopIdChange={setShopId}
+            shops={shops}
+            form={form}
+            setForm={setForm}
+          />
+          <Button onClick={onCreate} disabled={isSubmitting}>
+            {isSubmitting ? 'Creating…' : 'Add Location'}
+          </Button>
+        </CardContent>
+      </Card>
+    </CreatePageLayout>
+  );
+}
+
+function StorageLocationsListView() {
+  const navigate = useNavigate();
   const { data: shops = [] } = useShops();
   const [shopId, setShopId] = useState<string>('');
   const { data: rows = [] } = useStorageLocations(shopId || undefined);
-  const createLocation = useCreateStorageLocation();
   const deactivateLocation = useDeleteStorageLocation();
   const updateLocation = useUpdateStorageLocation();
-  const [form, setForm] = useState({ code: '', name: '', description: '' });
   const actionPending = deactivateLocation.isPending || updateLocation.isPending;
 
   const onDeactivate = async (id: string) => {
@@ -52,66 +186,52 @@ export function StorageLocationsPage() {
     }
   };
 
-  const onCreate = async () => {
-    if (!shopId) {
-      toast.error('Select a plant before adding a storage location');
-      return;
-    }
-    if (!form.code.trim()) {
-      toast.error('Code is required');
-      return;
-    }
-    if (!form.name.trim()) {
-      toast.error('Name is required');
-      return;
-    }
-    try {
-      await createLocation.mutateAsync({
-        shopId,
-        code: form.code.trim(),
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        isActive: true,
-      });
-      setForm({ code: '', name: '', description: '' });
-      toast.success('Storage location added');
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Failed to add storage location';
-      toast.error(msg);
-    }
-  };
-
   return (
-    <AppLayout active="Storage Locations">
-      <div className="space-y-6">
-        <PageHeader title="Storage Locations" description="Manage plant-wise storage areas and bins." />
-        <Card>
-          <CardHeader><CardTitle>Add Storage Location</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Plant</Label>
-              <Select value={shopId} onValueChange={setShopId}>
-                <SelectTrigger><SelectValue placeholder="Select plant" /></SelectTrigger>
-                <SelectContent>
-                  {shops.map((s) => <SelectItem key={s.id} value={s.id}>{s.shopName}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2"><Label>Code</Label><Input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} /></div>
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>Description</Label><Input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} /></div>
-            <div className="md:col-span-2"><Button onClick={onCreate}>Add Location</Button></div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Location List</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {rows.length === 0 ? <TableRow><TableCell colSpan={5}>No locations found.</TableCell></TableRow> : rows.map((r) => (
+    <div className="space-y-6">
+      <PageHeader title="Storage Locations" description="Manage plant-wise storage areas and bins.">
+        <Button onClick={() => navigate('/storage-locations/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Location
+        </Button>
+      </PageHeader>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Location List</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-w-sm space-y-2">
+            <Label>Filter by plant</Label>
+            <Select value={shopId} onValueChange={setShopId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select plant" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.shopName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5}>No locations found.</TableCell>
+                </TableRow>
+              ) : (
+                rows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.code}</TableCell>
                     <TableCell>{r.name}</TableCell>
@@ -144,12 +264,20 @@ export function StorageLocationsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function StorageLocationsPage({ createOnly = false }: { createOnly?: boolean }) {
+  return (
+    <AppLayout active="Storage Locations">
+      {createOnly ? <StorageLocationsCreateView /> : <StorageLocationsListView />}
     </AppLayout>
   );
 }

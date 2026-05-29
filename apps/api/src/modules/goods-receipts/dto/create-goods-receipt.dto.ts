@@ -45,10 +45,9 @@ export class GoodsReceiptLineDto {
   @IsDateString()
   expiryDate?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsUUID()
-  storageLocationId?: string;
+  storageLocationId!: string;
 }
 
 export class CreateGoodsReceiptDto {

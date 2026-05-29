@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Download, Eye, ImagePlus, Pencil, Plus, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader } from '@/components/shared/page-header';
+import { CreatePageLayout, PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -176,7 +176,8 @@ function buildLinesFromGoodsReceipt(gr: GoodsReceipt, existing?: SupplierReturn)
   });
 }
 
-export function ReturnsPage() {
+export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const shopId = user?.shopId ?? undefined;
   const [searchParams] = useSearchParams();
@@ -210,10 +211,19 @@ export function ReturnsPage() {
 
   useEffect(() => {
     const qsGrId = searchParams.get('grId');
-    if (!qsGrId || editorOpen || form.goodsReceiptId) return;
+    if (!qsGrId || form.goodsReceiptId) return;
     setForm((prev) => ({ ...prev, goodsReceiptId: qsGrId }));
-    setEditorOpen(true);
-  }, [editorOpen, form.goodsReceiptId, searchParams]);
+    if (!createOnly) {
+      navigate(`/returns/new?grId=${encodeURIComponent(qsGrId)}`, { replace: true });
+    }
+  }, [createOnly, form.goodsReceiptId, navigate, searchParams]);
+
+  useEffect(() => {
+    if (!createOnly) return;
+    setEditingReturn(null);
+    const qsGrId = searchParams.get('grId');
+    setForm(qsGrId ? { ...emptyForm(), goodsReceiptId: qsGrId } : emptyForm());
+  }, [createOnly, searchParams]);
 
   useEffect(() => {
     if (!goodsReceiptQuery.data) return;
@@ -250,9 +260,7 @@ export function ReturnsPage() {
   };
 
   const openCreate = () => {
-    setEditingReturn(null);
-    setForm(emptyForm());
-    setEditorOpen(true);
+    navigate('/returns/new');
   };
 
   const openEdit = (ret: SupplierReturn) => {
@@ -317,9 +325,13 @@ export function ReturnsPage() {
         ? await updateReturn.mutateAsync({ id: editingReturn.id, payload })
         : await createReturn.mutateAsync(payload);
       toast.success(editingReturn ? 'Return draft updated' : 'Return draft created');
-      setEditorOpen(false);
-      setEditingReturn(null);
-      setSelectedReturnId(ret.id);
+      if (createOnly && !editingReturn) {
+        navigate('/returns');
+      } else {
+        setEditorOpen(false);
+        setEditingReturn(null);
+        setSelectedReturnId(ret.id);
+      }
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to save return draft'));
     }
@@ -368,6 +380,209 @@ export function ReturnsPage() {
     }
   };
 
+  const draftForm = (onCancel: () => void) => (
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Goods Receipt</Label>
+          <Select
+            value={form.goodsReceiptId}
+            onValueChange={(value) =>
+              setForm((prev) => ({ ...prev, goodsReceiptId: value, items: [] }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a posted goods receipt" />
+            </SelectTrigger>
+            <SelectContent>
+              {postedGoodsReceipts.map((gr) => (
+                <SelectItem key={gr.id} value={gr.id}>
+                  {gr.grNumber} - {gr.supplierName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Return Date</Label>
+          <Input
+            type="date"
+            value={form.returnDate}
+            max={maxReturnDate}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, returnDate: event.target.value }))
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Supplier Ref</Label>
+          <Input
+            value={form.supplierRef}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, supplierRef: event.target.value }))
+            }
+            placeholder="Optional supplier reference"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Internal CC Email</Label>
+          <Input
+            type="email"
+            value={form.internalCcEmail}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, internalCcEmail: event.target.value }))
+            }
+            placeholder="buyer@company.com"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Remarks</Label>
+        <Textarea
+          rows={2}
+          value={form.remarks}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, remarks: event.target.value }))
+          }
+          placeholder="Internal notes or supplier context"
+        />
+      </div>
+
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Select</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead className="text-right">GR Qty</TableHead>
+              <TableHead>UOM</TableHead>
+              <TableHead className="text-right">Return Qty</TableHead>
+              <TableHead>Reason</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {form.items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-8 text-center text-slate-500">
+                  {goodsReceiptQuery.isLoading
+                    ? 'Loading goods receipt lines...'
+                    : 'Select a posted goods receipt to start a return draft.'}
+                </TableCell>
+              </TableRow>
+            ) : (
+              form.items.map((item, index) => (
+                <TableRow key={item.goodsReceiptItemId}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          items: prev.items.map((line, lineIndex) =>
+                            lineIndex === index
+                              ? { ...line, enabled: event.target.checked }
+                              : line,
+                          ),
+                        }))
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium">{item.productCode || 'Item'}</p>
+                    <p className="text-xs text-slate-500">{item.description || '—'}</p>
+                  </TableCell>
+                  <TableCell className="text-right">{item.grnQty}</TableCell>
+                  <TableCell>{item.uom}</TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      value={item.returnQty}
+                      disabled={!item.enabled}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          items: prev.items.map((line, lineIndex) =>
+                            lineIndex === index
+                              ? { ...line, returnQty: event.target.value }
+                              : line,
+                          ),
+                        }))
+                      }
+                      className="w-28 text-right"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={item.reasonCode}
+                      onValueChange={(value) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          items: prev.items.map((line, lineIndex) =>
+                            lineIndex === index
+                              ? {
+                                  ...line,
+                                  reasonCode: value as SupplierReturnReasonCode,
+                                }
+                              : line,
+                          ),
+                        }))
+                      }
+                      disabled={!item.enabled}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REASON_OPTIONS.map((reason) => (
+                          <SelectItem key={reason.value} value={reason.value}>
+                            {reason.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>
+          {createOnly ? 'Cancel' : 'Close'}
+        </Button>
+        <Button
+          className="bg-indigo-600 hover:bg-indigo-700"
+          disabled={createReturn.isPending || updateReturn.isPending}
+          onClick={saveDraft}
+        >
+          {editingReturn ? 'Update Draft' : 'Save Draft'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Goods Returns">
+        <CreatePageLayout
+          title="Create Return"
+          description="Select a posted goods receipt, choose the items to return, and save the draft before sending the supplier notice."
+          backTo="/returns"
+        >
+          <Card>
+            <CardContent className="pt-6">{draftForm(() => navigate('/returns'))}</CardContent>
+          </Card>
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="Goods Returns">
       <div className="space-y-6">
@@ -378,7 +593,7 @@ export function ReturnsPage() {
           </Button>
           <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            New Return
+            Create Return
           </Button>
         </PageHeader>
 
@@ -460,199 +675,24 @@ export function ReturnsPage() {
           </CardContent>
         </Card>
 
-        <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <Dialog
+          open={editorOpen && !!editingReturn}
+          onOpenChange={(open) => {
+            setEditorOpen(open);
+            if (!open) setEditingReturn(null);
+          }}
+        >
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
             <DialogHeader>
-              <DialogTitle>{editingReturn ? 'Edit Return Draft' : 'Create Return Draft'}</DialogTitle>
+              <DialogTitle>Edit Return Draft</DialogTitle>
               <DialogDescription>
-                Select a posted goods receipt, choose the items to return, and save the draft before sending the supplier notice.
+                Update return lines before sending the supplier notice.
               </DialogDescription>
             </DialogHeader>
-
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Goods Receipt</Label>
-                  <Select
-                    value={form.goodsReceiptId}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, goodsReceiptId: value, items: [] }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a posted goods receipt" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {postedGoodsReceipts.map((gr) => (
-                        <SelectItem key={gr.id} value={gr.id}>
-                          {gr.grNumber} - {gr.supplierName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Return Date</Label>
-                  <Input
-                    type="date"
-                    value={form.returnDate}
-                    max={maxReturnDate}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, returnDate: event.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Supplier Ref</Label>
-                  <Input
-                    value={form.supplierRef}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, supplierRef: event.target.value }))
-                    }
-                    placeholder="Optional supplier reference"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Internal CC Email</Label>
-                  <Input
-                    type="email"
-                    value={form.internalCcEmail}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, internalCcEmail: event.target.value }))
-                    }
-                    placeholder="buyer@company.com"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Remarks</Label>
-                <Textarea
-                  rows={2}
-                  value={form.remarks}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, remarks: event.target.value }))
-                  }
-                  placeholder="Internal notes or supplier context"
-                />
-              </div>
-
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Select</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="text-right">GR Qty</TableHead>
-                      <TableHead>UOM</TableHead>
-                      <TableHead className="text-right">Return Qty</TableHead>
-                      <TableHead>Reason</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {form.items.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-slate-500">
-                          {goodsReceiptQuery.isLoading
-                            ? 'Loading goods receipt lines...'
-                            : 'Select a posted goods receipt to start a return draft.'}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      form.items.map((item, index) => (
-                        <TableRow key={item.goodsReceiptItemId}>
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={item.enabled}
-                              onChange={(event) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((line, lineIndex) =>
-                                    lineIndex === index
-                                      ? { ...line, enabled: event.target.checked }
-                                      : line,
-                                  ),
-                                }))
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <p className="font-medium">{item.productCode || 'Item'}</p>
-                            <p className="text-xs text-slate-500">{item.description || '—'}</p>
-                          </TableCell>
-                          <TableCell className="text-right">{item.grnQty}</TableCell>
-                          <TableCell>{item.uom}</TableCell>
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min="0.001"
-                              step="0.001"
-                              value={item.returnQty}
-                              disabled={!item.enabled}
-                              onChange={(event) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((line, lineIndex) =>
-                                    lineIndex === index
-                                      ? { ...line, returnQty: event.target.value }
-                                      : line,
-                                  ),
-                                }))
-                              }
-                              className="w-28 text-right"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={item.reasonCode}
-                              onValueChange={(value) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((line, lineIndex) =>
-                                    lineIndex === index
-                                      ? {
-                                          ...line,
-                                          reasonCode: value as SupplierReturnReasonCode,
-                                        }
-                                      : line,
-                                  ),
-                                }))
-                              }
-                              disabled={!item.enabled}
-                            >
-                              <SelectTrigger className="w-40">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {REASON_OPTIONS.map((reason) => (
-                                  <SelectItem key={reason.value} value={reason.value}>
-                                    {reason.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditorOpen(false)}>
-                  Close
-                </Button>
-                <Button
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                  disabled={createReturn.isPending || updateReturn.isPending}
-                  onClick={saveDraft}
-                >
-                  {editingReturn ? 'Update Draft' : 'Save Draft'}
-                </Button>
-              </div>
-            </div>
+            {draftForm(() => {
+              setEditorOpen(false);
+              setEditingReturn(null);
+            })}
           </DialogContent>
         </Dialog>
 

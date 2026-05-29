@@ -22,10 +22,10 @@ describe('DocumentNumberService', () => {
         prefix: 'PO',
         startingNumber: 12,
         padWidth: 5,
-        restartPeriod: DocumentSeriesRestart.MONTHLY,
-        shopScoped: true,
+        restartPeriod: DocumentSeriesRestart.NONE,
+        shopScoped: false,
       }),
-      sequenceBucket: jest.fn().mockReturnValue('202605'),
+      sequenceBucket: jest.fn().mockReturnValue('000000'),
       sanitizePrefix: jest.fn((value: string) => value),
       shopScopedPrefix: jest.fn(() => 'PO-HQ001'),
     };
@@ -37,7 +37,7 @@ describe('DocumentNumberService', () => {
       date: new Date('2026-05-15T00:00:00.000Z'),
     });
 
-    expect(number).toBe('PO-HQ001-202605-00012');
+    expect(number).toBe('PO-00012');
     expect(tx.documentSequence.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ lastSeq: 12 }),
@@ -66,10 +66,10 @@ describe('DocumentNumberService', () => {
         prefix: 'CRT',
         startingNumber: 1,
         padWidth: 5,
-        restartPeriod: DocumentSeriesRestart.MONTHLY,
+        restartPeriod: DocumentSeriesRestart.NONE,
         shopScoped: false,
       }),
-      sequenceBucket: jest.fn().mockReturnValue('202605'),
+      sequenceBucket: jest.fn().mockReturnValue('000000'),
       sanitizePrefix: jest.fn((value: string) => value),
       shopScopedPrefix: jest.fn((shop: string, prefix: string) => `${prefix}-${shop}`),
     };
@@ -81,6 +81,6 @@ describe('DocumentNumberService', () => {
       date: new Date('2026-05-15T00:00:00.000Z'),
     });
 
-    expect(number).toBe('CRT-202605-00021');
+    expect(number).toBe('CRT-00021');
   });
 });

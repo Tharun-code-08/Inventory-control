@@ -65,6 +65,8 @@ export type ProductFilters = {
   category?: string;
   isActive?: boolean;
   shopId?: string;
+  /** List all company products (not restricted to a single plant assignment). */
+  companyCatalog?: boolean;
 };
 
 /** Payload shape accepted by `POST /products`. Mirrors `CreateProductDto`. */
@@ -257,6 +259,7 @@ export function useProducts(filters: ProductFilters = {}) {
       if (filters.category) params.set('category', filters.category);
       if (filters.isActive !== undefined) params.set('is_active', String(filters.isActive));
       if (filters.shopId) params.set('shop_id', filters.shopId);
+      if (filters.companyCatalog) params.set('company_catalog', 'true');
       const suffix = params.toString();
       const res = await api.get(`/products${suffix ? `?${suffix}` : ''}`);
       return normalizeProductList(res.data, filters);
@@ -285,6 +288,55 @@ export function useCreateProduct() {
       const res = await api.post('/products', payload);
       return normalizeProduct(res.data.data);
     },
+    onMutate: async (payload) => {
+      await qc.cancelQueries({ queryKey: productKeys.lists() });
+      const tempId = `optimistic-${Date.now()}`;
+      const now = new Date().toISOString();
+      const optimistic = normalizeProduct({
+        id: tempId,
+        productCode: payload.productCode || '…',
+        description: payload.description,
+        uom: payload.uom,
+        category: payload.category,
+        hsnCode: payload.hsnCode ?? null,
+        materialGroup: payload.materialGroup ?? null,
+        drawingReference: payload.drawingReference ?? null,
+        brand: payload.brand ?? null,
+        taxPreference: payload.taxPreference ?? 'TAXABLE',
+        purchasePrice: payload.purchasePrice,
+        sellingPrice: payload.sellingPrice,
+        isActive: payload.isActive !== false,
+        plants: payload.plants,
+        specifications: payload.specifications ?? [],
+        createdAt: now,
+        updatedAt: now,
+      });
+      const snapshots = qc.getQueriesData<ProductListResult>({ queryKey: productKeys.lists() });
+      snapshots.forEach(([queryKey, old]) => {
+        if (!old || !Array.isArray(old.items)) return;
+        const limit = old.meta?.limit ?? 10;
+        const items = [optimistic, ...old.items].slice(0, limit);
+        const total = (old.meta?.total ?? old.items.length) + 1;
+        qc.setQueryData<ProductListResult>(queryKey, {
+          ...old,
+          items,
+          data: items,
+          meta: {
+            ...old.meta,
+            total,
+            page: 1,
+            limit,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        });
+      });
+      return { snapshots, tempId };
+    },
+    onError: (_err, _payload, context) => {
+      context?.snapshots?.forEach(([queryKey, data]) => {
+        qc.setQueryData(queryKey, data);
+      });
+    },
     onSuccess: async (product) => {
       qc.setQueriesData(
         { queryKey: productKeys.lists() },
@@ -292,8 +344,8 @@ export function useCreateProduct() {
           if (!old || !Array.isArray(old.items)) return old;
           if (old.items.some((row) => row.id === product.id)) return old;
           const limit = old.meta?.limit ?? 10;
-          const items = [product, ...old.items].slice(0, limit);
-          const total = (old.meta?.total ?? old.items.length) + 1;
+          const items = [product, ...old.items.filter((row) => !row.id.startsWith('optimistic-'))].slice(0, limit);
+          const total = old.meta?.total ?? old.items.length;
           return {
             ...old,
             items,

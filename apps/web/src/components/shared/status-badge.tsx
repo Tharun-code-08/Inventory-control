@@ -6,26 +6,42 @@ const statusVariantMap: Record<string, BadgeProps['variant']> = {
   POSTED: 'success',
   COMPLETED: 'success',
   CONFIRMED: 'success',
+  PAID: 'success',
+  APPROVED: 'success',
   DRAFT: 'warning',
   LOW: 'warning',
   PENDING: 'warning',
+  OPEN: 'info',
   INACTIVE: 'destructive',
   ERROR: 'destructive',
   CANCELLED: 'destructive',
+  CLOSED: 'secondary',
 };
 
 type StatusBadgeProps = {
   status: string;
   variant?: BadgeProps['variant'];
   className?: string;
+  compact?: boolean;
 };
 
-export function StatusBadge({ status, variant, className }: StatusBadgeProps) {
-  const resolvedVariant = variant ?? statusVariantMap[status.toUpperCase()] ?? 'secondary';
+function formatStatusLabel(status: string): string {
+  return status.toLowerCase().replace(/_/g, ' ');
+}
+
+export function StatusBadge({ status, variant, className, compact }: StatusBadgeProps) {
+  const normalized = status.toUpperCase();
+  const resolvedVariant = variant ?? statusVariantMap[normalized] ?? 'secondary';
+  const label = formatStatusLabel(status);
 
   return (
-    <Badge variant={resolvedVariant} className={cn('capitalize', className)}>
-      {status.toLowerCase().replace(/_/g, ' ')}
+    <Badge
+      key={label}
+      variant={resolvedVariant}
+      className={cn('motion-badge-crossfade capitalize', compact && 'text-[10px]', className)}
+      aria-label={`Status: ${label}`}
+    >
+      {label}
     </Badge>
   );
 }

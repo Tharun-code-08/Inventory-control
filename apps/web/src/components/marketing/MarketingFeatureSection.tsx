@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { MarketingFeatureBlock } from '@/lib/marketing-content';
 import { cn } from '@/lib/cn';
+import { Reveal } from '@/components/motion';
 import { MarketingCtaLink } from './MarketingCtaLink';
 import { MarketingImagePlaceholder } from './MarketingImagePlaceholder';
 
@@ -22,7 +23,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
       aria-labelledby={`feature-${block.id}-heading`}
     >
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-14">
-        <div className={cn(reversed && 'lg:order-2')}>
+        <Reveal className={cn(reversed && 'lg:order-2')}>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{block.eyebrow}</p>
           <h2 id={`feature-${block.id}-heading`} className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             {block.title}
@@ -56,9 +57,9 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
               <MarketingCtaLink cta={block.cta} variant="primary" className="px-6 py-3" />
             </div>
           ) : null}
-        </div>
+        </Reveal>
 
-        <div className={cn(reversed && 'lg:order-1')}>
+        <Reveal delay={100} className={cn(reversed && 'lg:order-1')}>
           {block.tabs.map((tab) => (
             <div
               key={tab.id}
@@ -68,14 +69,16 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
               hidden={activeId !== tab.id}
             >
               {activeId === tab.id ? (
-                <MarketingImagePlaceholder slot={tab.imageSlot} className="w-full" />
+                <div key={activeId} className="motion-fade-up">
+                  <MarketingImagePlaceholder slot={tab.imageSlot} className="w-full" />
+                </div>
               ) : null}
             </div>
           ))}
           {activeTab?.description ? (
             <p className="mt-3 text-sm text-slate-500">{activeTab.description}</p>
           ) : null}
-        </div>
+        </Reveal>
       </div>
     </section>
   );

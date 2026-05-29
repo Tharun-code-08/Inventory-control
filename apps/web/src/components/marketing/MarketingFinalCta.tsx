@@ -1,4 +1,5 @@
 import { MARKETING_FINAL_CTA } from '@/lib/marketing-content';
+import { Reveal } from '@/components/motion';
 import { MarketingCtaLink } from './MarketingCtaLink';
 import { MarketingImagePlaceholder } from './MarketingImagePlaceholder';
 
@@ -9,7 +10,6 @@ export function MarketingFinalCta() {
     <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 py-16 sm:py-20" aria-labelledby="final-cta-heading">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/0.12),transparent_50%)]" />
 
-      {/* Floating screenshots — desktop only */}
       {primaryImage ? (
         <div className="pointer-events-none absolute -right-8 top-8 hidden w-[42%] max-w-md rotate-3 md:block lg:-right-4 lg:top-6">
           <MarketingImagePlaceholder slot={primaryImage} className="shadow-2xl shadow-indigo-950/30" aspectClassName="aspect-[4/3]" />
@@ -22,7 +22,7 @@ export function MarketingFinalCta() {
       ) : null}
 
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mx-auto max-w-xl text-center lg:max-w-lg lg:text-left">
+        <Reveal className="mx-auto max-w-xl text-center lg:max-w-lg lg:text-left">
           <h2 id="final-cta-heading" className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {MARKETING_FINAL_CTA.title}
           </h2>
@@ -39,7 +39,7 @@ export function MarketingFinalCta() {
               className="border-white/30 bg-white/10 text-white hover:bg-white/20"
             />
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

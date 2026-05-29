@@ -33,6 +33,7 @@ export class ProductsController {
       search: query.search,
       page: query.page,
       limit: query.limit,
+      company_catalog: query.company_catalog,
     });
   }
 

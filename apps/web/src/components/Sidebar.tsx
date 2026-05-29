@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDownToLine,
@@ -86,6 +86,8 @@ export function Sidebar({
   const [logoutFadeOut, setLogoutFadeOut] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navScrollRef = useRef<HTMLElement>(null);
+  const [navIndicator, setNavIndicator] = useState<{ top: number; height: number } | null>(null);
   const isOrgAdmin = isOrgAdminUser(user);
   const perms = user?.permissions ?? [];
   const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
@@ -159,6 +161,35 @@ export function Sidebar({
 
   const showLabels = !collapsed || isMobile;
 
+  useLayoutEffect(() => {
+    const navEl = navScrollRef.current;
+    if (!navEl) return;
+
+    const activeEl = navEl.querySelector<HTMLElement>('[data-nav-active="true"]');
+    if (!activeEl) {
+      setNavIndicator(null);
+      return;
+    }
+
+    const update = () => {
+      const navRect = navEl.getBoundingClientRect();
+      const itemRect = activeEl.getBoundingClientRect();
+      setNavIndicator({
+        top: itemRect.top - navRect.top + navEl.scrollTop,
+        height: itemRect.height,
+      });
+    };
+
+    update();
+    navEl.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+
+    return () => {
+      navEl.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [location.pathname, navItems, showLabels, collapsed, isMobile, mobileOpen]);
+
   async function handleLogout() {
     if (showLogoutSplash) return;
     setLogoutFadeOut(false);
@@ -212,7 +243,7 @@ export function Sidebar({
       {isMobile && mobileOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1px] motion-page-enter md:hidden"
           aria-label="Close navigation"
           onClick={() => onMobileOpenChange?.(false)}
         />
@@ -263,9 +294,16 @@ export function Sidebar({
           )}
         </div>
 
-        <nav className="sidebar-scroll mt-4 flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+        <nav ref={navScrollRef} className="sidebar-scroll relative mt-4 flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+          {navIndicator ? (
+            <span
+              aria-hidden="true"
+              className="motion-nav-indicator pointer-events-none absolute left-2 right-2 z-0 rounded-xl bg-indigo-100/80 dark:bg-indigo-950/40"
+              style={{ top: navIndicator.top, height: navIndicator.height }}
+            />
+          ) : null}
           {navItems.map((item, index) => {
-            const active = isActive(location.pathname, item.path);
+            const itemActive = isActive(location.pathname, item.path);
             const prevSection = index > 0 ? sectionFor(navItems[index - 1].path) : null;
             const section = sectionFor(item.path);
             const showSectionHeading = showLabels && section !== prevSection;
@@ -278,13 +316,14 @@ export function Sidebar({
                 ) : null}
                 <button
                   type="button"
+                  data-nav-active={itemActive ? 'true' : undefined}
                   onClick={() => {
                     nav(item.path);
                     onMobileOpenChange?.(false);
                   }}
                   className={cn(
-                    'sidebar-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
-                    active
+                    'sidebar-item relative z-[1] flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
+                    itemActive
                       ? 'active'
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
                   )}
@@ -292,7 +331,7 @@ export function Sidebar({
                   <item.icon
                     className={cn(
                       'h-5 w-5 shrink-0',
-                      active ? 'selection-active-icon' : 'text-slate-500 dark:text-slate-400',
+                      itemActive ? 'selection-active-icon' : 'text-slate-500 dark:text-slate-400',
                     )}
                   />
                   {showLabels && <span className="font-medium">{item.label}</span>}
