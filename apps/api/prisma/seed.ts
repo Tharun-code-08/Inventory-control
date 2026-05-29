@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 
 /**
  * Idempotent seed used for local development AND fresh production bootstraps.
- * Creates six system roles, a default shop, and an owner user.
+ * Creates system roles, a default shop, and an owner user.
  */
 const ALL_PERMISSIONS = [
   'user:manage',
@@ -91,10 +91,44 @@ const VIEWER_PERMISSIONS = [
 
 const VENDOR_PERMISSIONS = ['vendor_portal:access'];
 
+const PURCHASE_MANAGER_PERMISSIONS = [
+  'shop:read',
+  'company:read',
+  'product:read',
+  'supplier:read',
+  'supplier:write',
+  'rfq:read',
+  'rfq:write',
+  'contract:read',
+  'contract:write',
+  'purchase_order:read',
+  'purchase_order:create',
+  'purchase_order:approve',
+  'goods_receipt:read',
+  'report:view',
+  'report:export',
+];
+
+const SALES_PERMISSIONS = [
+  'shop:read',
+  'company:read',
+  'product:read',
+  'quote:read',
+  'quote:write',
+  'goods_issue:read',
+  'goods_issue:create',
+  'report:view',
+];
+
+const EMPLOYEE_PERMISSIONS = ['shop:read', 'company:read', 'product:read'];
+
 const ROLE_DEFINITIONS: Array<{ name: RoleName; permissions: string[] }> = [
   { name: RoleName.OWNER, permissions: OWNER_PERMISSIONS },
   { name: RoleName.ADMIN, permissions: ADMIN_PERMISSIONS },
   { name: RoleName.INVENTORY_MANAGER, permissions: INVENTORY_MANAGER_PERMISSIONS },
+  { name: RoleName.PURCHASE_MANAGER, permissions: PURCHASE_MANAGER_PERMISSIONS },
+  { name: RoleName.SALES, permissions: SALES_PERMISSIONS },
+  { name: RoleName.EMPLOYEE, permissions: EMPLOYEE_PERMISSIONS },
   { name: RoleName.WAREHOUSE_STAFF, permissions: WAREHOUSE_STAFF_PERMISSIONS },
   { name: RoleName.VIEWER, permissions: VIEWER_PERMISSIONS },
   { name: RoleName.VENDOR, permissions: VENDOR_PERMISSIONS },

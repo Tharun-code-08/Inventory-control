@@ -354,6 +354,9 @@ export class EmailNotificationsService {
         roleNames.add(RoleName.INVENTORY_MANAGER);
         roleNames.add(RoleName.WAREHOUSE_STAFF);
       }
+      if (token === 'role:procurement') {
+        roleNames.add(RoleName.PURCHASE_MANAGER);
+      }
     }
 
     const users = await this.prisma.user.findMany({

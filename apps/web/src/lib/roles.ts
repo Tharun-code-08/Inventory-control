@@ -4,6 +4,9 @@ export type SystemRoleName =
   | 'OWNER'
   | 'ADMIN'
   | 'INVENTORY_MANAGER'
+  | 'PURCHASE_MANAGER'
+  | 'SALES'
+  | 'EMPLOYEE'
   | 'WAREHOUSE_STAFF'
   | 'VIEWER'
   | 'VENDOR'
@@ -36,6 +39,8 @@ export function isShopScopedUser(user: AuthUser | null | undefined): boolean {
   return (
     (role === 'SHOP_USER' ||
       role === 'WAREHOUSE_STAFF' ||
+      role === 'EMPLOYEE' ||
+      role === 'SALES' ||
       role === 'VIEWER' ||
       role === 'VENDOR') &&
     !!user?.shopId
@@ -47,6 +52,9 @@ export function roleDisplayLabel(role: string | null | undefined): string {
     OWNER: 'Owner',
     ADMIN: 'Admin',
     INVENTORY_MANAGER: 'Inventory manager',
+    PURCHASE_MANAGER: 'Purchase manager',
+    SALES: 'Sales',
+    EMPLOYEE: 'Employee',
     WAREHOUSE_STAFF: 'Warehouse staff',
     VIEWER: 'Viewer / auditor',
     VENDOR: 'Vendor / supplier',
@@ -57,5 +65,26 @@ export function roleDisplayLabel(role: string | null | undefined): string {
 }
 
 export function dashboardHomePath(role: string | null | undefined): string {
-  return isOrgAdminUser({ role } as AuthUser) ? '/dashboard' : '/products';
+  switch (normalizeRole(role)) {
+    case 'OWNER':
+    case 'ADMIN':
+      return '/dashboard';
+    case 'INVENTORY_MANAGER':
+      return '/warehouse';
+    case 'PURCHASE_MANAGER':
+      return '/purchase-orders';
+    case 'SALES':
+      return '/sales';
+    case 'WAREHOUSE_STAFF':
+    case 'SHOP_USER':
+      return '/goods-receipts';
+    case 'EMPLOYEE':
+      return '/products';
+    case 'VIEWER':
+      return '/reports';
+    case 'VENDOR':
+      return '/supplier-portal';
+    default:
+      return '/products';
+  }
 }

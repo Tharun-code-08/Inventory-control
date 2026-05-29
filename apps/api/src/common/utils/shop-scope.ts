@@ -7,6 +7,8 @@ export function assertShopScope(user: RequestUser, shopId: string | null | undef
   if (
     user.role === RoleName.SHOP_USER ||
     user.role === RoleName.WAREHOUSE_STAFF ||
+    user.role === RoleName.EMPLOYEE ||
+    user.role === RoleName.SALES ||
     user.role === RoleName.VIEWER ||
     user.role === RoleName.VENDOR
   ) {
@@ -39,6 +41,8 @@ export function defaultShopFilter(user: RequestUser): string | undefined {
   if (
     user.role === RoleName.SHOP_USER ||
     user.role === RoleName.WAREHOUSE_STAFF ||
+    user.role === RoleName.EMPLOYEE ||
+    user.role === RoleName.SALES ||
     user.role === RoleName.VIEWER ||
     user.role === RoleName.VENDOR
   ) {

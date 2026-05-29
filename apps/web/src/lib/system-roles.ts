@@ -6,6 +6,9 @@ import {
   User,
   Eye,
   Truck,
+  ClipboardList,
+  ShoppingCart,
+  Users,
 } from 'lucide-react';
 
 export type AccessLevel = 'full' | 'partial' | 'none';
@@ -36,6 +39,9 @@ export type SystemRoleName =
   | 'OWNER'
   | 'ADMIN'
   | 'INVENTORY_MANAGER'
+  | 'PURCHASE_MANAGER'
+  | 'SALES'
+  | 'EMPLOYEE'
   | 'WAREHOUSE_STAFF'
   | 'VIEWER'
   | 'VENDOR';
@@ -44,6 +50,9 @@ export const SYSTEM_ROLE_ORDER: SystemRoleName[] = [
   'OWNER',
   'ADMIN',
   'INVENTORY_MANAGER',
+  'PURCHASE_MANAGER',
+  'SALES',
+  'EMPLOYEE',
   'WAREHOUSE_STAFF',
   'VIEWER',
   'VENDOR',
@@ -96,6 +105,51 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     ],
   },
   {
+    name: 'PURCHASE_MANAGER',
+    title: 'Purchase manager',
+    description: 'Procurement and supplier workflows',
+    accessTier: 'Procurement',
+    accessBadgeClass: 'bg-sky-100 text-sky-800 border-sky-200',
+    icon: ClipboardList,
+    iconClass: 'text-sky-600 bg-sky-50 border-sky-200',
+    capabilities: [
+      { label: 'Suppliers & RFQs', level: 'full' },
+      { label: 'Purchase orders', level: 'full' },
+      { label: 'Stock movements', level: 'none' },
+      { label: 'User management', level: 'none' },
+    ],
+  },
+  {
+    name: 'SALES',
+    title: 'Sales',
+    description: 'Quotations and order fulfillment',
+    accessTier: 'Sales ops',
+    accessBadgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    icon: ShoppingCart,
+    iconClass: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+    capabilities: [
+      { label: 'Quotations', level: 'full' },
+      { label: 'Dispatch orders', level: 'full' },
+      { label: 'Procurement approve', level: 'none' },
+      { label: 'Master data edits', level: 'none' },
+    ],
+  },
+  {
+    name: 'EMPLOYEE',
+    title: 'Employee',
+    description: 'Read-only plant access',
+    accessTier: 'Read only',
+    accessBadgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+    icon: Users,
+    iconClass: 'text-teal-600 bg-teal-50 border-teal-200',
+    capabilities: [
+      { label: 'View products', level: 'full' },
+      { label: 'View plant info', level: 'full' },
+      { label: 'Stock movements', level: 'none' },
+      { label: 'Reports & analytics', level: 'none' },
+    ],
+  },
+  {
     name: 'WAREHOUSE_STAFF',
     title: 'Warehouse staff',
     description: 'Day-to-day stock ops',
@@ -142,6 +196,12 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   },
 ];
 
+const noneForNew: Record<'PURCHASE_MANAGER' | 'SALES' | 'EMPLOYEE', AccessLevel> = {
+  PURCHASE_MANAGER: 'none',
+  SALES: 'none',
+  EMPLOYEE: 'none',
+};
+
 export const PERMISSION_MATRIX: MatrixRow[] = [
   {
     id: 'view_stock',
@@ -150,6 +210,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      PURCHASE_MANAGER: 'full',
+      SALES: 'full',
+      EMPLOYEE: 'partial',
       WAREHOUSE_STAFF: 'full',
       VIEWER: 'full',
       VENDOR: 'none',
@@ -162,6 +225,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -174,6 +238,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'full',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -186,6 +251,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      PURCHASE_MANAGER: 'none',
+      SALES: 'full',
+      EMPLOYEE: 'none',
       WAREHOUSE_STAFF: 'full',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -198,6 +266,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'partial',
+      PURCHASE_MANAGER: 'full',
+      SALES: 'none',
+      EMPLOYEE: 'none',
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -210,6 +281,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'none',
+      PURCHASE_MANAGER: 'full',
+      SALES: 'none',
+      EMPLOYEE: 'none',
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -222,6 +296,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'partial',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'full',
@@ -234,6 +309,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      PURCHASE_MANAGER: 'full',
+      SALES: 'partial',
+      EMPLOYEE: 'none',
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'full',
       VENDOR: 'none',
@@ -246,6 +324,9 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'full',
+      PURCHASE_MANAGER: 'full',
+      SALES: 'none',
+      EMPLOYEE: 'none',
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'partial',
       VENDOR: 'none',
@@ -258,6 +339,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'none',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -270,6 +352,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'none',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -282,6 +365,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'none',
       INVENTORY_MANAGER: 'none',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
@@ -294,6 +378,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
       OWNER: 'full',
       ADMIN: 'full',
       INVENTORY_MANAGER: 'none',
+      ...noneForNew,
       WAREHOUSE_STAFF: 'none',
       VIEWER: 'none',
       VENDOR: 'none',
