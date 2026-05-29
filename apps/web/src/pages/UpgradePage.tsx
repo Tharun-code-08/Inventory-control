@@ -164,13 +164,19 @@ export function UpgradePage() {
           </CardContent>
         </Card>
 
-        {!invoicesLoading && invoices.length > 0 ? (
+        {!invoicesLoading && data && data.plan !== 'TRIAL' ? (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Subscription invoices</CardTitle>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+              {invoices.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  No invoices yet. Refresh this page — invoices for your current plan are generated
+                  automatically.
+                </p>
+              ) : (
+                <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-slate-500">
                     <th className="pb-2 pr-4 font-medium">Invoice</th>
@@ -202,6 +208,7 @@ export function UpgradePage() {
                   ))}
                 </tbody>
               </table>
+              )}
             </CardContent>
           </Card>
         ) : null}
