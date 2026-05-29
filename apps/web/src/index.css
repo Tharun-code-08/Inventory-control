@@ -252,6 +252,39 @@
     color: hsl(var(--status-info));
   }
 
+  .marketing-marquee:hover .marketing-marquee-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marketing-marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .marketing-marquee-track {
+    animation: marketing-marquee-scroll 22s linear infinite;
+  }
+
+  .integrations-marquee .marketing-marquee-track {
+    animation-duration: 28s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marketing-marquee {
+      display: none;
+    }
+    .marketing-marquee-static {
+      display: flex !important;
+    }
+    .marketing-marquee-track {
+      animation: none;
+    }
+  }
+
   .dashboard-normal .glass-panel {
     background: #ffffff;
     border: 1px solid #e2e8f0;
