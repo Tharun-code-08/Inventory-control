@@ -4,6 +4,7 @@ import { MailModule } from '../../common/mail/mail.module';
 import { PdfModule } from '../../common/pdf/pdf.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { EmailNotificationsModule } from '../email-notifications/email-notifications.module';
+import { PlatformNotificationsModule } from '../platform-notifications/platform-notifications.module';
 import { EngagementTrackerService } from './engagement-tracker.service';
 import { LifecycleOrchestratorService } from './lifecycle-orchestrator.service';
 import { PlatformLifecycleMailService } from './platform-lifecycle-mail.service';
@@ -18,6 +19,7 @@ import { SUBSCRIPTION_LIFECYCLE_QUEUE } from './subscription-lifecycle.constants
     MailModule,
     PdfModule,
     EmailNotificationsModule,
+    PlatformNotificationsModule,
     BullModule.registerQueue({ name: SUBSCRIPTION_LIFECYCLE_QUEUE }),
   ],
   providers: [

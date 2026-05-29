@@ -104,7 +104,9 @@ export class PurchaseOrdersController {
     @Res() res: Response,
   ) {
     try {
-      const result = await this.documentPdf.renderPdfWithRetry(user, 'purchase-order', id);
+      const result = await this.documentPdf.renderWithRetry(() =>
+        this.documentPdf.renderPurchaseOrderPdf(user, id),
+      );
       res.set({
         'Content-Type': result.contentType,
         'Content-Disposition': `attachment; filename="${result.filename}"`,

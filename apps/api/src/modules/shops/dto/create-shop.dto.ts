@@ -5,9 +5,13 @@ import { normalizeSpaces } from '../../../common/utils/normalize';
 
 export class CreateShopDto {
   @ApiProperty({ example: 'SH-003' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase().replace(/\s+/g, '') : value,
+  )
   @IsString()
-  @Matches(/^[A-Z0-9_-]{3,20}$/)
+  @Matches(/^[A-Z0-9_-]{3,20}$/, {
+    message: 'Plant code must be 3–20 characters using letters, numbers, hyphens, or underscores only',
+  })
   shopNumber!: string;
 
   @ApiProperty()

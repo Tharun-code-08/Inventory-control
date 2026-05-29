@@ -63,6 +63,20 @@ type PlantFormState = {
 type LocationDraft = { code: string; name: string; description: string };
 
 const CREATE_NEW_STORAGE_CODE = '__create_new__';
+const PLANT_CODE_PATTERN = /^[A-Z0-9_-]{3,20}$/;
+
+function normalizePlantCode(value: string): string {
+  return value.trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function validatePlantCode(value: string): string | null {
+  const code = normalizePlantCode(value);
+  if (!code) return 'Plant code is required';
+  if (!PLANT_CODE_PATTERN.test(code)) {
+    return 'Plant code must be 3–20 characters using letters, numbers, hyphens, or underscores only (e.g. HQ-002)';
+  }
+  return null;
+}
 
 const emptyForm = (): PlantFormState => ({
   shopNumber: '',
@@ -140,8 +154,18 @@ function PlantFormFields({
           <Input
             ref={firstFieldRef}
             value={form.shopNumber}
+            placeholder="HQ-002"
             onChange={(e) => setForm((p) => ({ ...p, shopNumber: e.target.value }))}
+            onBlur={() =>
+              setForm((p) => ({
+                ...p,
+                shopNumber: p.shopNumber ? normalizePlantCode(p.shopNumber) : p.shopNumber,
+              }))
+            }
           />
+          <p className="text-xs text-slate-500">
+            Letters, numbers, hyphens, and underscores only. Spaces are removed automatically.
+          </p>
         </div>
         <div className="space-y-2">
           <Label>Plant Name *</Label>
@@ -457,10 +481,12 @@ function PlantsListView() {
   };
 
   const onSave = async () => {
-    if (!form.shopNumber.trim()) {
-      toast.error('Plant code is required');
+    const plantCodeError = validatePlantCode(form.shopNumber);
+    if (plantCodeError) {
+      toast.error(plantCodeError);
       return;
     }
+    const shopNumber = normalizePlantCode(form.shopNumber);
     if (!form.shopName.trim()) {
       toast.error('Plant name is required');
       return;
@@ -475,6 +501,7 @@ function PlantsListView() {
       await updatePlant.mutateAsync({
         id: editingPlant!.id,
         ...form,
+        shopNumber,
         taxId: form.taxId || undefined,
       });
       toast.success('Plant updated successfully');
@@ -688,10 +715,12 @@ function PlantsCreateView() {
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
 
   const onCreate = async () => {
-    if (!form.shopNumber.trim()) {
-      toast.error('Plant code is required');
+    const plantCodeError = validatePlantCode(form.shopNumber);
+    if (plantCodeError) {
+      toast.error(plantCodeError);
       return;
     }
+    const shopNumber = normalizePlantCode(form.shopNumber);
     if (!form.shopName.trim()) {
       toast.error('Plant name is required');
       return;
@@ -714,6 +743,7 @@ function PlantsCreateView() {
     try {
       const created = await createPlant.mutateAsync({
         ...form,
+        shopNumber,
         taxId: form.taxId || undefined,
       });
 

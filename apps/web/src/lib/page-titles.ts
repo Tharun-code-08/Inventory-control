@@ -78,6 +78,7 @@ const ROUTE_TITLES: Record<string, RouteTitleMeta> = {
   '/notifications': { page: 'Notifications', module: 'Operations' },
   '/settings': { page: 'Settings', module: 'System' },
   '/upgrade': { page: 'Upgrade', module: 'System' },
+  '/platform/subscriptions': { page: 'Platform Admin', module: 'System' },
   '/profile': { page: 'Profile', module: 'System' },
   '/help': { page: 'Help & Support', module: 'System' },
 };

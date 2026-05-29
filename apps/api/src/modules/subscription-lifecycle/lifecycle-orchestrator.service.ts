@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 import { buildSubscriptionInvoicePdfHtml } from '../../common/pdf/builders/subscription-invoice.builder';
 import { renderHtmlToPdfBuffer } from '../../common/pdf/html-to-pdf.service';
 import { getTrialDays } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PlatformRevenueService } from '../platform-notifications/platform-revenue.service';
 import { PlatformLifecycleMailService } from './platform-lifecycle-mail.service';
 import { SubscriptionInvoiceService } from './subscription-invoice.service';
-
 function planLabel(plan: SubscriptionPlan): string {
   if (plan === 'PLUS') return 'Plus';
   if (plan === 'PRO') return 'Pro';
@@ -29,8 +29,8 @@ export class LifecycleOrchestratorService {
     private readonly prisma: PrismaService,
     private readonly invoices: SubscriptionInvoiceService,
     private readonly mail: PlatformLifecycleMailService,
+    @Optional() private readonly platformRevenue: PlatformRevenueService | null = null,
   ) {}
-
   async onTrialStarted(args: { companyId: string; ownerEmail: string; companyName: string }) {
     const company = await this.prisma.company.findUnique({
       where: { id: args.companyId },
@@ -49,6 +49,10 @@ export class LifecycleOrchestratorService {
       context: { trialEndsAt },
     });
 
+    await this.platformRevenue
+      ?.onTrialStarted({ companyId: args.companyId, companyName: args.companyName })
+      .catch(() => undefined);
+
     this.logger.log(`Trial welcome queued for company ${args.companyId}`);
   }
 
@@ -63,9 +67,17 @@ export class LifecycleOrchestratorService {
   }) {
     const company = await this.prisma.company.findUnique({
       where: { id: args.companyId },
-      select: { address: true, companyName: true, platformMarketingOptOut: true },
+      select: {
+        address: true,
+        companyName: true,
+        platformMarketingOptOut: true,
+        paidActivatedAt: true,
+        subscriptionPlan: true,
+      },
     });
     if (!company) return;
+
+    const isFirstPaid = !company.paidActivatedAt;
 
     await this.prisma.company.update({
       where: { id: args.companyId },
@@ -98,6 +110,27 @@ export class LifecycleOrchestratorService {
       invoiceNumber: invoice.invoiceNumber,
       invoicePdf: pdfBuffer,
     });
+
+    if (isFirstPaid || company.subscriptionPlan === SubscriptionPlan.TRIAL) {
+      await this.platformRevenue
+        ?.onTrialConverted({
+          companyId: args.companyId,
+          companyName: args.companyName,
+          plan: args.plan,
+          amountPaise: args.amountPaise,
+        })
+        .catch(() => undefined);
+    } else if (args.paymentId) {
+      await this.platformRevenue
+        ?.onSubscriptionRenewed({
+          companyId: args.companyId,
+          companyName: args.companyName,
+          plan: args.plan,
+          amountPaise: args.amountPaise,
+          paymentId: args.paymentId,
+        })
+        .catch(() => undefined);
+    }
 
     this.logger.log(`Subscription activated lifecycle for company ${args.companyId}`);
   }
@@ -135,6 +168,22 @@ export class LifecycleOrchestratorService {
       recipient: args.ownerEmail,
       campaignKey: key,
     });
+
+    await this.platformRevenue
+      ?.onFailedRenewal({
+        companyId: args.companyId,
+        companyName: args.companyName,
+        paymentId: args.paymentId,
+        failureReason: args.failureReason,
+        renewalAttempt: args.renewalAttempt,
+      })
+      .catch(() => undefined);
+
+    if (args.renewalAttempt >= 4) {
+      await this.platformRevenue
+        ?.onSubscriptionCancelled({ companyId: args.companyId, companyName: args.companyName })
+        .catch(() => undefined);
+    }
   }
 
   async onTrialExpired(args: { companyId: string; ownerEmail: string; companyName: string }) {

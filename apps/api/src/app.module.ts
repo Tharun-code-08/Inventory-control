@@ -51,6 +51,7 @@ import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { SubscriptionLifecycleModule } from './modules/subscription-lifecycle/subscription-lifecycle.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { PlatformNotificationsModule } from './modules/platform-notifications/platform-notifications.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
@@ -130,6 +131,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     BillingModule,
     SubscriptionLifecycleModule,
     PlatformModule,
+    PlatformNotificationsModule,
     PostalCodesModule,
     QueuesModule,
     UploadModule,

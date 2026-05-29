@@ -27,7 +27,6 @@ import {
   type CreateQuotationPayload,
 } from '@/hooks/use-quotations';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { formatInr } from '@/lib/format-money';
 
 type ManualLine = {
   rfqItemId: string;
@@ -51,6 +50,14 @@ function buildQuotationNotes(leadTimeDays: string, notes: string): string | unde
   const extra = notes.trim();
   if (extra) parts.push(extra);
   return parts.length > 0 ? parts.join('\n') : undefined;
+}
+
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+  }).format(value);
 }
 
 function linesFromRfq(rfq: Rfq): ManualLine[] {
@@ -105,9 +112,9 @@ export function ManualSupplierResponseDialog({
   async function handleSubmit() {
     if (!supplier) return;
 
-    const missingPrice = lines.filter((line) => !(Number(line.unitPrice) > 0));
-    if (missingPrice.length > 0) {
-      toast.error('Enter a unit price for every line item');
+    const priced = lines.filter((line) => Number(line.unitPrice) > 0);
+    if (priced.length === 0) {
+      toast.error('Enter a unit price for at least one line');
       return;
     }
 
@@ -115,7 +122,7 @@ export function ManualSupplierResponseDialog({
       rfqId: rfq.id,
       supplierId: supplier.supplierId,
       notes: buildQuotationNotes(leadTimeDays, notes),
-      items: lines.map((line) => {
+      items: priced.map((line) => {
         const rfqItem = rfq.items.find((item) => item.id === line.rfqItemId);
         return {
           rfqItemId: line.rfqItemId,
@@ -187,7 +194,7 @@ export function ManualSupplierResponseDialog({
                       />
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      {formatInr(lineTotal)}
+                      {formatMoney(lineTotal)}
                     </TableCell>
                   </TableRow>
                 );
@@ -197,7 +204,7 @@ export function ManualSupplierResponseDialog({
         </div>
 
         <div className="flex justify-end text-sm font-semibold text-slate-900">
-          Grand total: <span className="ml-2 text-indigo-700">{formatInr(grandTotal)}</span>
+          Grand total: <span className="ml-2 text-indigo-700">{formatMoney(grandTotal)}</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

@@ -125,6 +125,19 @@ enum LifecycleCampaignStatus {
   FAILED
 }
 
+enum PlatformNotificationCategory {
+  REVENUE
+  HEALTH
+  SYSTEM
+}
+
+enum PlatformNotificationSeverity {
+  CRITICAL
+  HIGH
+  WARNING
+  INFO
+}
+
 enum PasswordResetMethod {
   OTP
   MAGIC_LINK
@@ -1574,6 +1587,41 @@ model AlertEvent {
   @@index([alertType, triggeredAt])
   @@index([shopId, isRead])
   @@map("alert_events")
+}
+
+model PlatformNotification {
+  id              String                       @id @default(uuid()) @db.Uuid
+  category        PlatformNotificationCategory
+  severity        PlatformNotificationSeverity @default(INFO)
+  notificationKey String                       @map("notification_key")
+  title           String
+  message         String
+  actionUrl       String?                      @map("action_url")
+  referenceType   String?                      @map("reference_type")
+  referenceId     String?                      @map("reference_id") @db.Uuid
+  companyId       String?                      @map("company_id") @db.Uuid
+  createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt       DateTime?                    @map("expires_at") @db.Timestamptz(6)
+
+  reads PlatformNotificationRead[]
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([notificationKey])
+  @@map("platform_notifications")
+}
+
+model PlatformNotificationRead {
+  id             String   @id @default(uuid()) @db.Uuid
+  notificationId String   @map("notification_id") @db.Uuid
+  adminEmail     String   @map("admin_email")
+  readAt         DateTime @default(now()) @map("read_at") @db.Timestamptz(6)
+
+  notification PlatformNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, adminEmail])
+  @@index([adminEmail])
+  @@map("platform_notification_reads")
 }
 
 model Currency {

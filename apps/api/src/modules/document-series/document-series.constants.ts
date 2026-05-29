@@ -41,15 +41,6 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     shopScoped: false,
   },
   {
-    docType: 'QUO',
-    moduleLabel: 'Supplier Quotation',
-    defaultPrefix: 'QUO',
-    defaultStartingNumber: 1,
-    defaultPadWidth: 5,
-    defaultRestartPeriod: DocumentSeriesRestart.NONE,
-    shopScoped: false,
-  },
-  {
     docType: 'CT',
     moduleLabel: 'Contracts',
     defaultPrefix: 'CT',

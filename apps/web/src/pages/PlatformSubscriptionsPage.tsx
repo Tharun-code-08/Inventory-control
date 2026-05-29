@@ -1,8 +1,17 @@
 import { usePlatformDashboard } from '@/hooks/use-platform-dashboard';
+import {
+  useMarkAllPlatformNotificationsRead,
+  useMarkPlatformNotificationRead,
+  usePlatformHealth,
+  usePlatformNotifications,
+  usePlatformUnreadCount,
+} from '@/hooks/use-platform-notifications';
 import { AppLayout } from '@/components/AppLayout';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatInr } from '@/lib/format-money';
+import { cn } from '@/lib/cn';
 
 function KpiCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -17,8 +26,19 @@ function KpiCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+function severityVariant(severity: string) {
+  if (severity === 'CRITICAL' || severity === 'HIGH') return 'destructive' as const;
+  if (severity === 'WARNING') return 'secondary' as const;
+  return 'outline' as const;
+}
+
 export function PlatformSubscriptionsPage() {
   const { data, isLoading, isError } = usePlatformDashboard();
+  const notificationsQuery = usePlatformNotifications();
+  const unreadQuery = usePlatformUnreadCount();
+  const healthQuery = usePlatformHealth();
+  const markRead = useMarkPlatformNotificationRead();
+  const markAllRead = useMarkAllPlatformNotificationsRead();
 
   if (isLoading) {
     return (
@@ -47,9 +67,96 @@ export function PlatformSubscriptionsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Platform subscriptions</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Trial conversion, paid subscribers, renewals, and email performance.
+            Trial conversion, paid subscribers, renewals, revenue alerts, and infrastructure health.
           </p>
+          {(unreadQuery.data ?? 0) > 0 ? (
+            <p className="mt-2 text-sm font-medium text-indigo-700">
+              {unreadQuery.data} unread platform notification{(unreadQuery.data ?? 0) === 1 ? '' : 's'}
+            </p>
+          ) : null}
         </div>
+
+        {healthQuery.data ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Infrastructure health</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-slate-500">Database</p>
+                <p className={cn('font-semibold', healthQuery.data.database.usagePct >= 80 && 'text-amber-700')}>
+                  {healthQuery.data.database.usagePct}% used
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500">CPU load</p>
+                <p className="font-semibold">{healthQuery.data.cpuLoadPct}%</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Memory</p>
+                <p className="font-semibold">{healthQuery.data.memoryUsagePct}%</p>
+              </div>
+              <div>
+                <p className="text-slate-500">API errors (since last check)</p>
+                <p className="font-semibold">{healthQuery.data.httpErrorsDelta5m}</p>
+              </div>
+              {healthQuery.data.disk.map((disk) => (
+                <div key={disk.path}>
+                  <p className="truncate text-slate-500" title={disk.path}>
+                    Disk free
+                  </p>
+                  <p className={cn('font-semibold', disk.freePct >= 0 && disk.freePct < 15 && 'text-red-700')}>
+                    {disk.freePct < 0 ? 'n/a' : `${disk.freePct}%`}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-base">Platform notifications</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+            >
+              Mark all read
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {(notificationsQuery.data ?? []).length === 0 ? (
+              <p className="text-slate-500">No platform alerts yet.</p>
+            ) : (
+              (notificationsQuery.data ?? []).slice(0, 20).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (!item.isRead) markRead.mutate(item.id);
+                  }}
+                  className={cn(
+                    'w-full rounded-lg border px-3 py-2 text-left',
+                    !item.isRead ? 'border-indigo-200 bg-indigo-50' : 'border-slate-100',
+                  )}
+                >
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <Badge variant={severityVariant(item.severity)}>{item.severity}</Badge>
+                    <Badge variant="outline">{item.category}</Badge>
+                    {!item.isRead ? <Badge>New</Badge> : null}
+                  </div>
+                  <p className="font-medium text-slate-900">{item.title}</p>
+                  <p className="text-slate-600">{item.message}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {new Date(item.createdAt).toLocaleString()}
+                  </p>
+                </button>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Active trials" value={kpis.activeTrials} />

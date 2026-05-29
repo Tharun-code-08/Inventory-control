@@ -14,6 +14,7 @@ import type { Request } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
+import { PlatformRevenueService } from '../platform-notifications/platform-revenue.service';
 import { DUNNING_CAMPAIGN_KEYS } from '../subscription-lifecycle/lifecycle-rules.constants';
 import { RazorpayService } from './razorpay.service';
 
@@ -46,6 +47,7 @@ export class BillingWebhookController {
     private readonly razorpay: RazorpayService,
     private readonly prisma: PrismaService,
     private readonly lifecycle: LifecycleOrchestratorService,
+    private readonly platformRevenue: PlatformRevenueService,
   ) {}
 
   @Public()
@@ -83,9 +85,11 @@ export class BillingWebhookController {
 
     const payment = await this.prisma.subscriptionPayment.findUnique({
       where: { razorpayOrderId: orderId },
+      include: { company: { select: { companyName: true, paidActivatedAt: true } } },
     });
     if (!payment) return;
 
+    const wasPaid = payment.status === 'paid';
     await this.prisma.subscriptionPayment.update({
       where: { id: payment.id },
       data: {
@@ -95,6 +99,23 @@ export class BillingWebhookController {
         failureReason: null,
       },
     });
+
+    if (
+      !wasPaid &&
+      payment.company?.paidActivatedAt &&
+      payment.companyId &&
+      payment.company.companyName
+    ) {
+      await this.platformRevenue
+        .onSubscriptionRenewed({
+          companyId: payment.companyId,
+          companyName: payment.company.companyName,
+          plan: payment.plan,
+          amountPaise: payment.amountPaise,
+          paymentId: payment.id,
+        })
+        .catch(() => undefined);
+    }
   }
 
   private async handlePaymentFailed(payload: RazorpayWebhookPayload) {

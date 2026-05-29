@@ -144,6 +144,15 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
   push('settings', 'Settings', 'Preferences', '/settings', 'System', Settings, ['profile']);
   if (hasPerm(user, 'user:manage') || user?.role === 'OWNER' || user?.role === 'ADMIN') {
     push(
+      'platform-subscriptions',
+      'Platform Admin',
+      'Revenue and health alerts',
+      '/platform/subscriptions',
+      'System',
+      BarChart3,
+      ['platform', 'mrr', 'admin'],
+    );
+    push(
       'transaction-number-series',
       'Transaction Number Series',
       'Customize document prefixes',

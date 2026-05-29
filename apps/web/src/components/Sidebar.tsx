@@ -131,6 +131,7 @@ export function Sidebar({
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
       ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
+      ...(isOrgAdmin ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }] : []),
       { label: 'Settings', icon: Settings, path: '/settings' },
     ];
   }, [perms, isOrgAdmin]);
