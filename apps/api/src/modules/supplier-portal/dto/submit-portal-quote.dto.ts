@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -36,7 +35,7 @@ export class SubmitPortalQuoteDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsNumber()
   @Min(0)
   leadTimeDays?: number;
 

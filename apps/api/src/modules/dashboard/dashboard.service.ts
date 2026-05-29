@@ -3,6 +3,7 @@ import { DocumentStatus, Prisma, PurchaseOrderStatus, SalesOrderStatus } from '@
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
+import { EFFECTIVE_CURRENT_STOCK_SQL } from '../stock/effective-current-stock';
 
 export type DashboardSummaryPayload = {
   totalProducts: number;
@@ -277,11 +278,12 @@ export class DashboardService {
   }
 
   /**
-   * Compute total stock value (sum of live current_stock × unit cost) and low-
-   * stock counts in one SQL pass. Quantity comes from stock_summary.current_stock
-   * only — the live on-hand balance after posted GR/GI/returns/adjustments.
+   * Compute total stock value (sum of live on-hand × unit cost) and low-stock
+   * counts in one SQL pass. Quantity uses ledger net when movements exist,
+   * otherwise stock_summary — same as Products / warehouse inventory.
    */
   private async aggregateStockValueAndLowCount(shopIds: string[]) {
+    const stockQty = Prisma.raw(`(${EFFECTIVE_CURRENT_STOCK_SQL})`);
     const rows = await this.prisma.$queryRaw<
       Array<{
         total_value: string | null;
@@ -289,36 +291,36 @@ export class DashboardService {
         critical_count: string | null;
         warning_count: string | null;
       }>
-    >`
+    >(Prisma.sql`
       SELECT
         COALESCE(SUM(
-          COALESCE(s.current_stock, 0)
+          ${stockQty}
           * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
         ), 0)::text AS total_value,
         COALESCE(SUM(CASE
           WHEN pp.min_stock_level > 0
-           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+           AND ${stockQty} <= pp.min_stock_level
           THEN 1 ELSE 0 END), 0)::text AS low_count,
         COALESCE(SUM(CASE
           WHEN pp.min_stock_level > 0
-           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+           AND ${stockQty} <= pp.min_stock_level
            AND (
-             COALESCE(s.current_stock, 0) = 0
-             OR COALESCE(s.current_stock, 0) < 0.25 * pp.min_stock_level
+             ${stockQty} = 0
+             OR ${stockQty} < 0.25 * pp.min_stock_level
            )
           THEN 1 ELSE 0 END), 0)::text AS critical_count,
         COALESCE(SUM(CASE
           WHEN pp.min_stock_level > 0
-           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
-           AND COALESCE(s.current_stock, 0) > 0
-           AND COALESCE(s.current_stock, 0) >= 0.25 * pp.min_stock_level
+           AND ${stockQty} <= pp.min_stock_level
+           AND ${stockQty} > 0
+           AND ${stockQty} >= 0.25 * pp.min_stock_level
           THEN 1 ELSE 0 END), 0)::text AS warning_count
       FROM product_plants pp
       JOIN products p ON p.id = pp.product_id AND p.is_active = true
       LEFT JOIN stock_summary s
         ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
       WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
-    `;
+    `);
     const row = rows[0] ?? { total_value: '0', low_count: '0', critical_count: '0', warning_count: '0' };
     return {
       totalStockValue: Math.round(Number(row.total_value ?? '0') * 100) / 100,
@@ -329,6 +331,7 @@ export class DashboardService {
   }
 
   private async fetchTopProducts(shopIds: string[], limit: number) {
+    const stockQty = Prisma.raw(`(${EFFECTIVE_CURRENT_STOCK_SQL})`);
     const rows = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -339,16 +342,16 @@ export class DashboardService {
         unit_cost: string;
         stock_value: string;
       }>
-    >`
+    >(Prisma.sql`
       SELECT
         p.id,
         p.product_code,
         p.description,
         p.category,
-        COALESCE(s.current_stock, 0)::text AS current_stock,
+        ${stockQty}::text AS current_stock,
         COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)::text AS unit_cost,
         (
-          COALESCE(s.current_stock, 0)
+          ${stockQty}
           * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
         )::text AS stock_value
       FROM product_plants pp
@@ -357,11 +360,11 @@ export class DashboardService {
         ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
       WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
       ORDER BY (
-        COALESCE(s.current_stock, 0)
+        ${stockQty}
         * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
       ) DESC
       LIMIT ${limit}
-    `;
+    `);
     return rows.map((r) => ({
       id: r.id,
       productCode: r.product_code,
@@ -374,6 +377,7 @@ export class DashboardService {
   }
 
   private async fetchLowStockProducts(shopIds: string[], limit: number) {
+    const stockQty = Prisma.raw(`(${EFFECTIVE_CURRENT_STOCK_SQL})`);
     const rows = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -384,9 +388,9 @@ export class DashboardService {
         current_stock: string;
         min_stock_level: string;
       }>
-    >`
+    >(Prisma.sql`
       SELECT p.id, pp.shop_id, p.product_code, p.description, p.category,
-             COALESCE(s.current_stock, 0)::text AS current_stock,
+             ${stockQty}::text AS current_stock,
              pp.min_stock_level::text AS min_stock_level
       FROM product_plants pp
       JOIN products p ON p.id = pp.product_id AND p.is_active = true
@@ -395,12 +399,12 @@ export class DashboardService {
       WHERE pp.is_active = true
         AND pp.shop_id = ANY(${shopIds}::uuid[])
         AND pp.min_stock_level > 0
-        AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+        AND ${stockQty} <= pp.min_stock_level
       ORDER BY (CASE WHEN pp.min_stock_level > 0
-                      THEN COALESCE(s.current_stock, 0) / pp.min_stock_level
+                      THEN ${stockQty} / pp.min_stock_level
                       ELSE 0 END) ASC
       LIMIT ${limit}
-    `;
+    `);
     return rows.map((r) => ({
       id: r.id,
       shopId: r.shop_id,

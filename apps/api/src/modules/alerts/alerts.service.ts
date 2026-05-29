@@ -7,6 +7,7 @@ import { UpdateNotificationConfigDto } from './dto/update-notification-config.dt
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { EFFECTIVE_CURRENT_STOCK_SQL } from '../stock/effective-current-stock';
 
 const CONFIG_KEY_PREFIX = 'notifications_matrix_config_v1';
 
@@ -151,6 +152,7 @@ export class AlertsService {
       referenceId?: string;
     }> = [];
 
+    const stockQty = Prisma.raw(`(${EFFECTIVE_CURRENT_STOCK_SQL})`);
     const lowStockRows = await this.prisma.$queryRaw<
       Array<{
         shop_id: string;
@@ -160,12 +162,12 @@ export class AlertsService {
         current_stock: string;
         min_stock_level: string;
       }>
-    >`
+    >(Prisma.sql`
       SELECT pp.shop_id,
              p.id AS product_id,
              p.product_code,
              p.description,
-             COALESCE(s.current_stock, 0)::text AS current_stock,
+             ${stockQty}::text AS current_stock,
              pp.min_stock_level::text AS min_stock_level
       FROM product_plants pp
       INNER JOIN products p ON p.id = pp.product_id
@@ -174,9 +176,9 @@ export class AlertsService {
        AND s.product_id = pp.product_id
       WHERE pp.is_active = true
         AND pp.min_stock_level > 0
-        AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+        AND ${stockQty} <= pp.min_stock_level
       LIMIT 200
-    `;
+    `);
 
     const activeLowStockKeys = new Set(
       lowStockRows.map((row) => `${row.shop_id}:${row.product_id}`),

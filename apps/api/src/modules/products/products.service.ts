@@ -170,38 +170,7 @@ export class ProductsService {
     productIds: string[],
     shopIds?: string[],
   ) {
-    if (productIds.length === 0) {
-      return new Map<string, number>();
-    }
-
-    const [summaryRows, ledgerRows] = await Promise.all([
-      tx.stockSummary.findMany({
-        where: {
-          productId: { in: productIds },
-          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
-        },
-        select: { productId: true, shopId: true, currentStock: true },
-      }),
-      tx.stockLedger.groupBy({
-        by: ['productId', 'shopId'],
-        where: {
-          productId: { in: productIds },
-          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
-        },
-        _sum: { inQty: true, outQty: true },
-      }),
-    ]);
-
-    const balances = new Map<string, number>();
-    for (const row of summaryRows) {
-      balances.set(`${row.productId}:${row.shopId}`, Number(row.currentStock));
-    }
-    for (const row of ledgerRows) {
-      const inQty = Number(row._sum.inQty ?? 0);
-      const outQty = Number(row._sum.outQty ?? 0);
-      balances.set(`${row.productId}:${row.shopId}`, inQty - outQty);
-    }
-    return balances;
+    return this.stock.buildStockBalanceMap(tx, productIds, shopIds);
   }
 
   private async getAccessibleShops(

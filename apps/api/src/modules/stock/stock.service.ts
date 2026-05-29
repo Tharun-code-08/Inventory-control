@@ -101,6 +101,50 @@ export class StockService {
   }
 
   /**
+   * Batch map of on-hand qty keyed by `productId:shopId`. Ledger net movement
+   * wins when ledger rows exist; otherwise stock_summary.current_stock is used.
+   * Matches Products list / warehouse inventory display.
+   */
+  async buildStockBalanceMap(
+    tx: Prisma.TransactionClient | PrismaService,
+    productIds: string[],
+    shopIds?: string[],
+  ) {
+    if (productIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const [summaryRows, ledgerRows] = await Promise.all([
+      tx.stockSummary.findMany({
+        where: {
+          productId: { in: productIds },
+          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
+        },
+        select: { productId: true, shopId: true, currentStock: true },
+      }),
+      tx.stockLedger.groupBy({
+        by: ['productId', 'shopId'],
+        where: {
+          productId: { in: productIds },
+          ...(shopIds?.length ? { shopId: { in: shopIds } } : {}),
+        },
+        _sum: { inQty: true, outQty: true },
+      }),
+    ]);
+
+    const balances = new Map<string, number>();
+    for (const row of summaryRows) {
+      balances.set(`${row.productId}:${row.shopId}`, Number(row.currentStock));
+    }
+    for (const row of ledgerRows) {
+      const inQty = Number(row._sum.inQty ?? 0);
+      const outQty = Number(row._sum.outQty ?? 0);
+      balances.set(`${row.productId}:${row.shopId}`, inQty - outQty);
+    }
+    return balances;
+  }
+
+  /**
    * On-hand quantity for a shop+product. When ledger rows exist, use net
    * ledger movement (matches product list / warehouse display). Otherwise fall
    * back to stock_summary — avoids rejecting issues when summary row is missing

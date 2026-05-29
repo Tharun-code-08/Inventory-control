@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/cn';
+import { formatInr } from '@/lib/format-money';
 import { portalGet, portalPost } from '@/lib/portal-api';
 import { BrandLogo } from '@/components/BrandLogo';
 
@@ -163,11 +164,19 @@ export function SupplierPortalSubmitPage() {
 
   async function handleSubmit() {
     if (!verifyResult || !rfq) return;
-    const priced = lines.filter((l) => Number(l.unitPrice) > 0);
-    if (priced.length === 0) {
-      toast.error('Enter a unit price for at least one line');
+
+    const missingPrice = lines.filter((l) => !(Number(l.unitPrice) > 0));
+    if (missingPrice.length > 0) {
+      toast.error('Enter a unit price for every line item');
       return;
     }
+
+    const leadParsed = leadTimeDays.trim() ? Number(leadTimeDays) : undefined;
+    if (leadParsed != null && (!Number.isFinite(leadParsed) || leadParsed < 0)) {
+      toast.error('Lead time must be a valid number of days');
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await portalPost<{ referenceCode: string; totalValue: number }>(
@@ -175,9 +184,9 @@ export function SupplierPortalSubmitPage() {
         {
           rfqId: rfq.id,
           supplierId: verifyResult.supplier.id,
-          leadTimeDays: leadTimeDays ? Number(leadTimeDays) : undefined,
+          leadTimeDays: leadParsed != null ? Math.round(leadParsed) : undefined,
           notes: notes.trim() || undefined,
-          items: priced.map((l) => ({
+          items: lines.map((l) => ({
             rfqItemId: l.rfqItemId,
             unitPrice: Number(l.unitPrice),
           })),
@@ -331,7 +340,7 @@ export function SupplierPortalSubmitPage() {
                           />
                         </td>
                         <td className="px-3 py-2 text-right font-medium tabular-nums">
-                          ₹{lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatInr(lineTotal)}
                         </td>
                       </tr>
                     );
@@ -343,7 +352,7 @@ export function SupplierPortalSubmitPage() {
                       Grand total
                     </td>
                     <td className="px-3 py-2 text-right text-indigo-700">
-                      ₹{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatInr(grandTotal)}
                     </td>
                   </tr>
                 </tfoot>
@@ -395,7 +404,7 @@ export function SupplierPortalSubmitPage() {
                 Total quote value
               </p>
               <p className="text-lg font-bold text-indigo-700">
-                ₹{confirmation.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatInr(confirmation.totalValue)}
               </p>
             </div>
             <p className="mx-auto mt-6 max-w-md text-xs text-slate-500">

@@ -4,12 +4,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser, shopListWhere } from '../../common/utils/shop-scope';
 import { SubscriptionService } from '../billing/subscription.service';
+import { StockService } from '../stock/stock.service';
+import { effectiveCurrentStockExpr } from '../stock/effective-current-stock';
 
 @Injectable()
 export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionService,
+    private readonly stock: StockService,
   ) {}
 
   private async assertReportsAllowed(user: RequestUser) {
@@ -68,18 +71,9 @@ export class ReportsService {
       orderBy: [{ product: { productCode: 'asc' } }, { shopId: 'asc' }],
     });
 
-    const summaryKeys = assignments.map((a) => ({ shopId: a.shopId, productId: a.productId }));
-    const summaries = summaryKeys.length
-      ? await this.prisma.stockSummary.findMany({
-          where: {
-            OR: summaryKeys.map((k) => ({ shopId: k.shopId, productId: k.productId })),
-          },
-          select: { shopId: true, productId: true, currentStock: true },
-        })
-      : [];
-    const stockByKey = new Map(
-      summaries.map((s) => [`${s.shopId}:${s.productId}`, s.currentStock]),
-    );
+    const productIds = [...new Set(assignments.map((a) => a.productId))];
+    const shopIds = [...new Set(assignments.map((a) => a.shopId))];
+    const stockByKey = await this.stock.buildStockBalanceMap(this.prisma, productIds, shopIds);
 
     return assignments
       .map((a) => ({
@@ -88,7 +82,9 @@ export class ReportsService {
         description: a.product.description,
         category: a.product.category,
         shop_id: a.shopId,
-        current_stock: stockByKey.get(`${a.shopId}:${a.productId}`) ?? new Prisma.Decimal(0),
+        current_stock: new Prisma.Decimal(
+          stockByKey.get(`${a.productId}:${a.shopId}`) ?? 0,
+        ),
         min_stock_level: a.minStockLevel,
       }))
       .filter((r) =>
@@ -270,7 +266,7 @@ export class ReportsService {
     >(Prisma.sql`
       SELECT sh.id as shop_id, sh.shop_name,
              COUNT(DISTINCT p.id)::int as sku_count,
-             SUM(COALESCE(ss.current_stock,0) * p.purchase_price) as stock_value
+             SUM((${effectiveCurrentStockExpr('ss')}) * p.purchase_price) as stock_value
       FROM shops sh
       LEFT JOIN product_plants pp ON pp.shop_id = sh.id AND pp.is_active = true
       LEFT JOIN products p ON p.id = pp.product_id AND p.is_active = true

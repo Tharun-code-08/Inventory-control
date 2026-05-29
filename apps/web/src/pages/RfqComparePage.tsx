@@ -41,14 +41,7 @@ import {
   type RfqAllocationMap,
 } from '@/lib/bid-comparison';
 import { cn } from '@/lib/cn';
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
+import { formatInr } from '@/lib/format-money';
 
 type SummaryCardProps = {
   title: string;
@@ -259,7 +252,7 @@ export function RfqComparePage() {
                 />
                 <SummaryCard
                   title="Lowest price"
-                  value={formatMoney(summary.lowest.totalPrice)}
+                  value={formatInr(summary.lowest.totalPrice)}
                   sub={summary.lowest.supplierName}
                   accent="bg-sky-500"
                   icon={<Star className="h-5 w-5 text-sky-600" />}
@@ -373,7 +366,7 @@ export function RfqComparePage() {
                               lowestPrice && 'text-emerald-700',
                             )}
                           >
-                            {formatMoney(row.totalPrice)}
+                            {formatInr(row.totalPrice)}
                           </TableCell>
                           <TableCell className="text-indigo-700">{leadDisplay}</TableCell>
                           <TableCell className="text-center">
@@ -479,7 +472,7 @@ export function RfqComparePage() {
                               Lead: {lead != null ? `${lead}d` : '—'}
                             </p>
                             <p className="text-xs text-slate-600">
-                              {formatMoney(score?.totalPrice ?? 0)}
+                              {formatInr(score?.totalPrice ?? 0)}
                             </p>
                             {isSel && (
                               <span className="mt-1 inline-block rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium uppercase text-white">
@@ -526,7 +519,7 @@ export function RfqComparePage() {
                             return (
                               <TableCell key={quote.id} className="align-top">
                                 <p className="mb-1.5 text-center text-xs font-medium text-slate-600">
-                                  {unit > 0 ? `${formatMoney(unit)} / unit` : '—'}
+                                  {unit > 0 ? `${formatInr(unit)} / unit` : '—'}
                                 </p>
                                 <Input
                                   type="number"
@@ -577,7 +570,7 @@ export function RfqComparePage() {
                       <TableCell colSpan={2}>Allocated cost</TableCell>
                       {bids.map((quote) => (
                         <TableCell key={quote.id} className="text-center tabular-nums">
-                          {formatMoney(allocatedCosts[quote.id] ?? 0)}
+                          {formatInr(allocatedCosts[quote.id] ?? 0)}
                         </TableCell>
                       ))}
                       <TableCell />

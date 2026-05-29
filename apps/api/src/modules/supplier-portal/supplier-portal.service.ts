@@ -143,6 +143,10 @@ export class SupplierPortalService {
     }
     const itemMap = new Map(rfq.items.map((i) => [i.id, i]));
 
+    if (dto.items.length !== rfq.items.length) {
+      throw new BadRequestException('Unit price is required for every RFQ line item');
+    }
+
     const lines = dto.items.map((line) => {
       const rfqItem = itemMap.get(line.rfqItemId);
       if (!rfqItem) {
@@ -150,6 +154,9 @@ export class SupplierPortalService {
       }
       const qty = Number(rfqItem.quantity);
       const unitPrice = line.unitPrice;
+      if (!(unitPrice > 0)) {
+        throw new BadRequestException(`Unit price must be greater than zero for line ${line.rfqItemId}`);
+      }
       return {
         rfqItemId: rfqItem.id,
         productId: rfqItem.productId,
@@ -164,7 +171,7 @@ export class SupplierPortalService {
 
     const notes = [
       dto.notes?.trim(),
-      dto.leadTimeDays != null ? `Lead time: ${dto.leadTimeDays} days` : null,
+      dto.leadTimeDays != null ? `Lead time: ${Math.round(dto.leadTimeDays)} days` : null,
       'Submitted via supplier portal',
     ]
       .filter(Boolean)
