@@ -149,7 +149,18 @@ export function shopListWhere(actor: RequestUser): Prisma.ShopWhereInput {
     return { id: { in: tenantShops } };
   }
   if (actor.companyId) {
-    return { companyId: actor.companyId };
+    return {
+      OR: [
+        { companyId: actor.companyId },
+        {
+          companyId: null,
+          OR: [
+            { createdById: actor.id },
+            { createdBy: { shop: { companyId: actor.companyId } } },
+          ],
+        },
+      ],
+    };
   }
   if (actor.shopId) {
     return { id: actor.shopId };

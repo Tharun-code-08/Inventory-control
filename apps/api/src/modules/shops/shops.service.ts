@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
@@ -15,7 +15,68 @@ export class ShopsService {
     private readonly subscriptions: SubscriptionService,
   ) {}
 
+  /** Attach orphaned plants (missing company) to the creator's organisation. */
+  private async repairOrphanShops(user: RequestUser) {
+    if (!user.companyId) return;
+    await this.prisma.shop.updateMany({
+      where: {
+        companyId: null,
+        OR: [
+          { createdById: user.id },
+          { createdBy: { shop: { companyId: user.companyId } } },
+        ],
+      },
+      data: { companyId: user.companyId },
+    });
+  }
+
+  private async assertPlantAccess(user: RequestUser, shopId: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true, companyId: true, createdById: true },
+    });
+    if (!shop) throw new NotFoundException('Shop not found');
+
+    if (user.companyId && shop.companyId === user.companyId) return;
+    if (!shop.companyId && shop.createdById === user.id) return;
+    if (!shop.companyId && shop.createdById && user.companyId) {
+      const creator = await this.prisma.user.findUnique({
+        where: { id: shop.createdById },
+        select: { shop: { select: { companyId: true } } },
+      });
+      if (creator?.shop?.companyId === user.companyId) return;
+    }
+
+    const allowed = shopListWhere(user);
+    const visible = await this.prisma.shop.findFirst({
+      where: { id: shopId, ...allowed },
+      select: { id: true },
+    });
+    if (!visible) {
+      throw new NotFoundException('Shop not found');
+    }
+  }
+
+  private async purgeUnusedStorageLocations(shopId: string) {
+    const locations = await this.prisma.storageLocation.findMany({
+      where: { shopId },
+      select: { id: true },
+    });
+    for (const location of locations) {
+      const [productPlants, receiptItems, transfersFrom, transfersTo] = await Promise.all([
+        this.prisma.productPlant.count({ where: { storageLocationId: location.id } }),
+        this.prisma.goodsReceiptItem.count({ where: { storageLocationId: location.id } }),
+        this.prisma.stockTransferHeader.count({ where: { fromLocationId: location.id } }),
+        this.prisma.stockTransferHeader.count({ where: { toLocationId: location.id } }),
+      ]);
+      if (productPlants + receiptItems + transfersFrom + transfersTo === 0) {
+        await this.prisma.storageLocation.delete({ where: { id: location.id } });
+      }
+    }
+  }
+
   async list(user: RequestUser, query: { is_active?: boolean; cursor?: string; take?: number }) {
+    await this.repairOrphanShops(user);
     const take = clampTake(query.take);
     const where: Prisma.ShopWhereInput = {
       ...shopListWhere(user),
@@ -34,8 +95,9 @@ export class ShopsService {
   }
 
   async create(user: RequestUser, dto: CreateShopDto) {
-    if (dto.companyId) {
-      await this.subscriptions.assertWarehouseLimit(dto.companyId);
+    const companyId = dto.companyId ?? user.companyId ?? undefined;
+    if (companyId) {
+      await this.subscriptions.assertWarehouseLimit(companyId);
     }
     return this.prisma.shop.create({
       data: {
@@ -46,7 +108,7 @@ export class ShopsService {
         contactPerson: dto.contactPerson,
         mobile: dto.mobile,
         email: dto.email.toLowerCase().trim(),
-        companyId: dto.companyId,
+        companyId,
         isActive: dto.isActive ?? true,
         createdById: user.id,
       },
@@ -55,14 +117,14 @@ export class ShopsService {
   }
 
   async get(user: RequestUser, id: string) {
-    assertShopScope(user, id);
+    await this.assertPlantAccess(user, id);
     const shop = await this.prisma.shop.findUnique({ where: { id }, include: { company: true } });
     if (!shop) throw new NotFoundException('Shop not found');
     return shop;
   }
 
   async update(user: RequestUser, id: string, dto: UpdateShopDto) {
-    assertShopScope(user, id);
+    await this.assertPlantAccess(user, id);
     await this.get(user, id);
     return this.prisma.shop.update({
       where: { id },
@@ -90,39 +152,48 @@ export class ShopsService {
    * of mistyped or never-used plants only.
    */
   async remove(user: RequestUser, id: string) {
-    assertShopScope(user, id);
+    await this.assertPlantAccess(user, id);
     await this.get(user, id);
 
-    const [
-      productPlantCount,
-      storageLocCount,
-      userCount,
-      grCount,
-      giCount,
-      dmgCount,
-      poCount,
-      ledgerCount,
-      summaryCount,
-      costLayerCount,
-    ] = await Promise.all([
-      this.prisma.productPlant.count({ where: { shopId: id } }),
-      this.prisma.storageLocation.count({ where: { shopId: id } }),
-      this.prisma.user.count({ where: { shopId: id } }),
-      this.prisma.goodsReceiptHeader.count({ where: { shopId: id } }),
-      this.prisma.goodsIssueHeader.count({ where: { shopId: id } }),
-      this.prisma.damagedStock.count({ where: { shopId: id } }),
-      this.prisma.purchaseOrderHeader.count({ where: { shopId: id } }),
-      this.prisma.stockLedger.count({ where: { shopId: id } }),
-      this.prisma.stockSummary.count({ where: { shopId: id } }),
-      this.prisma.costLayer.count({ where: { shopId: id } }),
-    ]);
+    const countBlockers = async () => {
+      const [
+        productPlantCount,
+        storageLocCount,
+        userCount,
+        grCount,
+        giCount,
+        dmgCount,
+        poCount,
+        ledgerCount,
+        summaryCount,
+        costLayerCount,
+      ] = await Promise.all([
+        this.prisma.productPlant.count({ where: { shopId: id } }),
+        this.prisma.storageLocation.count({ where: { shopId: id } }),
+        this.prisma.user.count({ where: { shopId: id } }),
+        this.prisma.goodsReceiptHeader.count({ where: { shopId: id } }),
+        this.prisma.goodsIssueHeader.count({ where: { shopId: id } }),
+        this.prisma.damagedStock.count({ where: { shopId: id } }),
+        this.prisma.purchaseOrderHeader.count({ where: { shopId: id } }),
+        this.prisma.stockLedger.count({ where: { shopId: id } }),
+        this.prisma.stockSummary.count({ where: { shopId: id } }),
+        this.prisma.costLayer.count({ where: { shopId: id } }),
+      ]);
 
-    const blockers: string[] = [];
-    if (productPlantCount > 0) blockers.push('product assignments');
-    if (storageLocCount > 0) blockers.push('storage locations');
-    if (userCount > 0) blockers.push('users');
-    if (grCount + giCount + dmgCount + poCount > 0) blockers.push('transactions');
-    if (ledgerCount + summaryCount + costLayerCount > 0) blockers.push('stock history');
+      const blockers: string[] = [];
+      if (productPlantCount > 0) blockers.push('product assignments');
+      if (storageLocCount > 0) blockers.push('storage locations');
+      if (userCount > 0) blockers.push('users');
+      if (grCount + giCount + dmgCount + poCount > 0) blockers.push('transactions');
+      if (ledgerCount + summaryCount + costLayerCount > 0) blockers.push('stock history');
+      return blockers;
+    };
+
+    let blockers = await countBlockers();
+    if (blockers.length === 1 && blockers[0] === 'storage locations') {
+      await this.purgeUnusedStorageLocations(id);
+      blockers = await countBlockers();
+    }
 
     if (blockers.length > 0) {
       throw new BadRequestException(

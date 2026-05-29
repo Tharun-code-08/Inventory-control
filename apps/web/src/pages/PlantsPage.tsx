@@ -49,6 +49,7 @@ import {
   type StorageLocation,
 } from '@/hooks/use-storage-locations';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAuthStore } from '@/store/authStore';
 
 type PlantFormState = {
   shopNumber: string;
@@ -699,8 +700,10 @@ function PlantsListView() {
 
 function PlantsCreateView() {
   const navigate = useNavigate();
+  const companyId = useAuthStore((s) => s.user?.companyId ?? undefined);
   const createPlant = useCreateShop();
   const createStorageLocation = useCreateStorageLocation();
+  const { data: plants = [] } = useShops();
   const { data: allLocations = [] } = useStorageLocations();
   const existingStorageCodes = useMemo(
     () =>
@@ -721,6 +724,13 @@ function PlantsCreateView() {
       return;
     }
     const shopNumber = normalizePlantCode(form.shopNumber);
+    const duplicate = plants.find((p) => p.shopNumber.toUpperCase() === shopNumber);
+    if (duplicate) {
+      toast.error(
+        `Plant code "${shopNumber}" is already used by "${duplicate.shopName}". Choose a different code or edit the existing plant.`,
+      );
+      return;
+    }
     if (!form.shopName.trim()) {
       toast.error('Plant name is required');
       return;
@@ -744,6 +754,7 @@ function PlantsCreateView() {
       const created = await createPlant.mutateAsync({
         ...form,
         shopNumber,
+        companyId,
         taxId: form.taxId || undefined,
       });
 

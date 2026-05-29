@@ -52,7 +52,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (normalized.includes('shop_number')) {
-      return 'A shop with this code already exists';
+      return 'A plant with this code already exists';
     }
 
     if (normalized.includes('rfq_number')) {
