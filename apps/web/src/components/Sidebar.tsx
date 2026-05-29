@@ -69,6 +69,8 @@ function sectionFor(path: string) {
   return 'Operations';
 }
 
+const EMPTY_PERMISSIONS: string[] = [];
+
 export function Sidebar({
   collapsed,
   onCollapsedChange,
@@ -89,11 +91,11 @@ export function Sidebar({
   const navScrollRef = useRef<HTMLElement>(null);
   const [navIndicator, setNavIndicator] = useState<{ top: number; height: number } | null>(null);
   const isOrgAdmin = isOrgAdminUser(user);
-  const perms = user?.permissions ?? [];
-  const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
+  const perms = user?.permissions ?? EMPTY_PERMISSIONS;
+  const navItems = useMemo(() => {
+    const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
 
-  const navItems = useMemo(
-    () => [
+    return [
       ...(isOrgAdmin ? [{ label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }] : []),
 
       // Master Data
@@ -130,9 +132,8 @@ export function Sidebar({
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
       ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
       { label: 'Settings', icon: Settings, path: '/settings' },
-    ],
-    [has, isOrgAdmin],
-  );
+    ];
+  }, [perms, isOrgAdmin]);
 
   useEffect(() => {
     function close(e: MouseEvent) {
@@ -174,10 +175,13 @@ export function Sidebar({
     const update = () => {
       const navRect = navEl.getBoundingClientRect();
       const itemRect = activeEl.getBoundingClientRect();
-      setNavIndicator({
-        top: itemRect.top - navRect.top + navEl.scrollTop,
-        height: itemRect.height,
-      });
+      const nextTop = itemRect.top - navRect.top + navEl.scrollTop;
+      const nextHeight = itemRect.height;
+      setNavIndicator((prev) =>
+        prev?.top === nextTop && prev.height === nextHeight
+          ? prev
+          : { top: nextTop, height: nextHeight },
+      );
     };
 
     update();
