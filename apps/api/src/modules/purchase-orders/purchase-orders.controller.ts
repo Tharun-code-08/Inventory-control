@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res, ServiceUnavailableException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { SkipEnvelope } from '../../common/decorators/skip-envelope.decorator';
 import { RequireAnyPermission } from '../../common/decorators/require-any-permission.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
@@ -34,18 +36,17 @@ export class PurchaseOrdersController {
 
   @RequirePermission('purchase_order:create')
   @Post()
-  create(
+  async create(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreatePurchaseOrderDto,
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ) {
     const payload = { ...dto, idempotencyKey: dto.idempotencyKey ?? idempotencyKey };
-    return this.service.create(user, payload).then(async (po) => {
-      if (dto.sendToSupplier) {
-        await this.service.sendToSupplier(user, po.id);
-      }
-      return po;
-    });
+    const po = await this.service.create(user, payload);
+    if (dto.sendToSupplier) {
+      await this.service.sendToSupplier(user, po.id);
+    }
+    return po;
   }
 
   @RequirePermission('purchase_order:read')
@@ -94,6 +95,7 @@ export class PurchaseOrdersController {
     return this.service.sendToSupplier(user, id, { resend: resend === 'true' });
   }
 
+  @SkipEnvelope()
   @RequirePermission('purchase_order:read')
   @Get(':id/export-pdf')
   async exportPdf(
@@ -101,12 +103,26 @@ export class PurchaseOrdersController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    const result = await this.documentPdf.renderPurchaseOrderPdf(user, id);
-    res.set({
-      'Content-Type': result.contentType,
-      'Content-Disposition': `attachment; filename="${result.filename}"`,
-      'Content-Length': result.buffer.length,
-    });
-    res.send(result.buffer);
+    try {
+      const result = await this.documentPdf.renderPdfWithRetry(user, 'purchase-order', id);
+      res.set({
+        'Content-Type': result.contentType,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+        'Content-Length': result.buffer.length,
+      });
+      res.send(result.buffer);
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      const message = err instanceof Error ? err.message.trim() : String(err);
+      const lower = message.toLowerCase();
+      if (
+        lower.includes('pdf engine') ||
+        lower.includes('chromium') ||
+        lower.includes('could not render pdf')
+      ) {
+        throw new ServiceUnavailableException(message || 'Could not generate PDF');
+      }
+      throw new BadRequestException(message || 'Could not generate PDF');
+    }
   }
 }

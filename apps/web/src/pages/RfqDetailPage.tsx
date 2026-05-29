@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileDown,
   Paperclip,
+  Plus,
   ShoppingCart,
   Trash2,
 } from 'lucide-react';
@@ -57,6 +58,10 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { formatSupplierReference } from '@/lib/document-display';
 import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
+import {
+  ManualSupplierResponseDialog,
+  type ManualResponseSupplier,
+} from '@/components/rfq/ManualSupplierResponseDialog';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -237,6 +242,8 @@ export function RfqDetailPage() {
   const [poDialogOpen, setPoDialogOpen] = useState(false);
   const [creatingQuoteId, setCreatingQuoteId] = useState<string | null>(null);
   const [isCreatingAll, setIsCreatingAll] = useState(false);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [manualSupplier, setManualSupplier] = useState<ManualResponseSupplier | null>(null);
 
   const awardedQuoteIds = useMemo(() => {
     const set = new Set<string>();
@@ -248,6 +255,26 @@ export function RfqDetailPage() {
 
   const portalUrl = id ? supplierPortalSubmitUrl(id) : '';
   const accessCode = id ? rfqPortalAccessCode(id) : '';
+
+  const suppliersWithoutResponses = useMemo(() => {
+    if (!rfq?.suppliers?.length) return [] as ManualResponseSupplier[];
+    const quotedIds = new Set(
+      quotations
+        .map((q) => q.supplier?.id)
+        .filter((value): value is string => Boolean(value)),
+    );
+    return rfq.suppliers
+      .filter((entry) => !quotedIds.has(entry.supplierId))
+      .map((entry) => ({
+        supplierId: entry.supplierId,
+        supplierName: entry.supplier?.supplierName ?? 'Supplier',
+      }));
+  }, [quotations, rfq?.suppliers]);
+
+  function openManualResponse(supplier: ManualResponseSupplier) {
+    setManualSupplier(supplier);
+    setManualDialogOpen(true);
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -659,13 +686,31 @@ export function RfqDetailPage() {
         </Card>
 
         <Card id="supplier-responses">
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Supplier responses</CardTitle>
+            {suppliersWithoutResponses.length > 0 ? (
+              <div className="flex flex-wrap justify-end gap-2">
+                {suppliersWithoutResponses.map((supplier) => (
+                  <Button
+                    key={supplier.supplierId}
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => openManualResponse(supplier)}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add: {supplier.supplierName}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent className="p-0">
             {quotations.length === 0 ? (
               <p className="px-6 py-8 text-center text-sm text-slate-500">
-                No quotes yet. Share the portal link after you send this RFQ.
+                {suppliersWithoutResponses.length > 0
+                  ? 'No responses yet. Add a quote manually or share the portal link with suppliers.'
+                  : 'No quotes yet. Share the portal link after you send this RFQ.'}
               </p>
             ) : (
               <Table>
@@ -732,6 +777,15 @@ export function RfqDetailPage() {
         loading={deleteRfq.isPending}
         onConfirm={confirmDeleteRfq}
       />
+
+      {rfq ? (
+        <ManualSupplierResponseDialog
+          open={manualDialogOpen}
+          onOpenChange={setManualDialogOpen}
+          rfq={rfq}
+          supplier={manualSupplier}
+        />
+      ) : null}
 
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
         <DialogContent className="sm:max-w-2xl">

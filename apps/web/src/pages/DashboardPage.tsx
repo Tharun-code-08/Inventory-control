@@ -38,9 +38,15 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { AnimatedNumber } from '@/components/motion';
 import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
 import { useDashboard, type DashboardViewData } from '@/hooks/use-dashboard';
+import { EMPTY_DASHBOARD } from '@/lib/dashboard-demo-data';
+import {
+  DashboardKpiCard,
+  DashboardKpiCardSkeleton,
+} from '@/components/dashboard/DashboardKpiCard';
+import { DashboardInsightsPanel } from '@/components/dashboard/DashboardInsightsPanel';
+import { computePeriodTrend } from '@/lib/kpi-trend';
 import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
@@ -72,53 +78,8 @@ function formatAmount(value: number): string {
   }).format(value);
 }
 
-function StatCard({
-  title,
-  numericValue,
-  format,
-  icon: Icon,
-  color,
-  bg,
-}: {
-  title: string;
-  numericValue: number;
-  format?: (value: number) => string;
-  icon: React.ElementType;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <Card interactive className="surface-2">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-            <AnimatedNumber
-              value={numericValue}
-              format={format}
-              className="mt-1 block text-2xl font-semibold tabular-nums text-foreground"
-            />
-          </div>
-          <div
-            className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}
-          >
-            <Icon className={`h-5 w-5 ${color}`} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatSkeleton() {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <Skeleton className="h-4 w-24 mb-3" />
-        <Skeleton className="h-8 w-20" />
-      </CardContent>
-    </Card>
-  );
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString('en-IN')}`;
 }
 
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
@@ -178,40 +139,73 @@ export function DashboardPage() {
 
   const dashboard = data as DashboardViewData | undefined;
 
-  const stats = useMemo(
-    () => [
+  const lowStockReportPath = useMemo(() => {
+    const params = new URLSearchParams({ tab: 'low-stock' });
+    if (dashboardShopId) params.set('shopId', dashboardShopId);
+    return `/reports?${params.toString()}`;
+  }, [dashboardShopId]);
+
+  const kpiCards = useMemo(() => {
+    const ctx = dashboard?.kpiContext ?? EMPTY_DASHBOARD.kpiContext;
+    const added = ctx.productsAddedThisMonth;
+    const productsContext =
+      added > 0 ? `+${added.toLocaleString('en-IN')} this month` : 'No new products this month';
+    const transactionTrend = computePeriodTrend(
+      dashboard?.recentTransactions ?? 0,
+      ctx.transactionsPriorPeriod,
+    );
+
+    return [
       {
-        title: 'Total Products',
+        key: 'products',
+        label: 'Total Products',
         numericValue: dashboard?.totalProducts ?? 0,
+        context: productsContext,
         icon: Package,
-        color: 'text-blue-300',
-        bg: 'bg-blue-500/15 border border-blue-400/20',
+        iconClassName: 'text-blue-600',
+        iconWrapClassName: 'bg-blue-500/15 border border-blue-400/20',
+        ariaLabel: `Total Products: ${(dashboard?.totalProducts ?? 0).toLocaleString('en-IN')}. View products.`,
+        onClick: () => navigate('/products'),
       },
       {
-        title: 'Total Stock Value',
+        key: 'stock-value',
+        label: 'Total Stock Value',
         numericValue: dashboard?.totalStockValue ?? 0,
-        format: (n: number) => `₹${n.toLocaleString('en-IN')}`,
+        format: formatInr,
+        context: `Avg product value ${formatInr(ctx.stockValueAvgPerProduct)}`,
         icon: DollarSign,
-        color: 'text-emerald-300',
-        bg: 'bg-emerald-500/15 border border-emerald-400/20',
+        iconClassName: 'text-emerald-600',
+        iconWrapClassName: 'bg-emerald-500/15 border border-emerald-400/20',
+        tooltip:
+          'Calculated using current quantity × unit cost across all inventory items.',
+        ariaLabel: `Total Stock Value: ${formatInr(dashboard?.totalStockValue ?? 0)}. View products.`,
+        onClick: () => navigate('/products'),
       },
       {
-        title: 'Low Stock Items',
+        key: 'low-stock',
+        label: 'Low Stock Alerts',
         numericValue: dashboard?.lowStockCount ?? 0,
+        context: `Critical: ${dashboard?.lowStockCriticalCount ?? 0} · Warning: ${dashboard?.lowStockWarningCount ?? 0}`,
         icon: AlertTriangle,
-        color: 'text-amber-300',
-        bg: 'bg-amber-500/15 border border-amber-400/20',
+        iconClassName: 'text-amber-600',
+        iconWrapClassName: 'bg-amber-500/15 border border-amber-400/20',
+        ariaLabel: `Low Stock Alerts: ${dashboard?.lowStockCount ?? 0} items. View low stock report.`,
+        onClick: () => navigate(lowStockReportPath),
       },
       {
-        title: 'Recent Transactions',
+        key: 'transactions',
+        label: 'Recent Transactions',
         numericValue: dashboard?.recentTransactions ?? 0,
+        context: 'Posted GR & GI in the last 30 days',
+        trend: transactionTrend,
         icon: ArrowRightLeft,
-        color: 'text-violet-300',
-        bg: 'bg-violet-500/15 border border-violet-400/20',
+        iconClassName: 'text-violet-600',
+        iconWrapClassName: 'bg-violet-500/15 border border-violet-400/20',
+        ariaLabel: `Recent Transactions: ${dashboard?.recentTransactions ?? 0}. View stock movement history.`,
+        onClick: () => navigate('/reports?tab=stock-ledger'),
       },
-    ],
-    [dashboard],
-  );
+    ];
+  }, [dashboard, lowStockReportPath, navigate]);
 
   return (
     <AppLayout active="Dashboard">
@@ -247,12 +241,18 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Stat cards */}
+        {/* KPI cards */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
-            : stats.map((s) => <StatCard key={s.title} {...s} />)}
+            ? Array.from({ length: 4 }).map((_, i) => <DashboardKpiCardSkeleton key={i} />)
+            : kpiCards.map((card) => <DashboardKpiCard key={card.key} {...card} />)}
         </div>
+
+        <DashboardInsightsPanel
+          dashboard={dashboard}
+          shopId={dashboardShopId}
+          isLoading={isLoading}
+        />
 
         {/* Charts */}
         <div className="grid gap-4 lg:grid-cols-2">
@@ -473,7 +473,7 @@ export function DashboardPage() {
                 Top Products by Stock Value
               </CardTitle>
               <p className="text-xs font-normal text-muted-foreground">
-                Highest inventory value (selling price × on-hand stock) for your plant.
+                Highest inventory value (unit cost × on-hand stock) for your plant.
               </p>
             </div>
             <Button
@@ -502,7 +502,7 @@ export function DashboardPage() {
                     <TableHead>Description</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Unit Cost</TableHead>
                     <TableHead className="text-right">Stock Value</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -525,7 +525,7 @@ export function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{p.currentStock}</TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {formatAmount(p.sellingPrice)}
+                        {formatAmount(p.unitCost)}
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
                         {formatAmount(p.stockValue)}
@@ -570,18 +570,11 @@ export function DashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {dashboard.lowStockProducts.map((p) => {
-                    const ratio =
-                      p.minStockLevel > 0
-                        ? p.currentStock / p.minStockLevel
-                        : 0;
-                    const severity =
-                      ratio === 0
-                        ? 'Out of Stock'
-                        : ratio < 0.5
-                          ? 'Critical'
-                          : 'Low';
-                    const variant: 'destructive' | 'warning' =
-                      ratio < 0.5 ? 'destructive' : 'warning';
+                    const isCritical =
+                      p.currentStock === 0 ||
+                      (p.minStockLevel > 0 && p.currentStock < 0.25 * p.minStockLevel);
+                    const severity = isCritical ? 'Critical' : 'Warning';
+                    const variant: 'destructive' | 'warning' = isCritical ? 'destructive' : 'warning';
                     return (
                       <TableRow
                         key={`${p.id}-${p.shopId}`}

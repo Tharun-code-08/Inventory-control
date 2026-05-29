@@ -11,17 +11,29 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
     return msg || fallback;
   }
 
-  if (status === 502 || status === 503 || status === 504) {
+  if (status === 502 || status === 504) {
     return `API server unavailable (${status}). Wait a moment and try again.`;
   }
 
   const data = response.data;
   if (!data || typeof data !== 'object') {
     if (status === 404) return 'API endpoint not found. The server may need an update.';
+    if (status === 503) return 'API server unavailable (503). Wait a moment and try again.';
     return (err as Error)?.message?.trim() || fallback;
   }
 
   const payload = data as Record<string, unknown>;
+
+  if (status === 503) {
+    const nested503 = payload.error;
+    if (nested503 && typeof nested503 === 'object' && nested503 !== null) {
+      const msg = (nested503 as { message?: string }).message?.trim();
+      if (msg) {
+        return appendRequestId(msg, nested503 as { requestId?: string });
+      }
+    }
+    return 'API server unavailable (503). Wait a moment and try again.';
+  }
 
   const nested = payload.error;
   if (nested && typeof nested === 'object' && nested !== null) {
@@ -47,12 +59,40 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
       if (parts.length > 0) return parts.join(' ');
     }
     if (Array.isArray(msg)) return msg.filter(Boolean).join(', ');
-    if (typeof msg === 'string' && msg.trim()) return msg.trim();
+    if (typeof msg === 'string' && msg.trim()) {
+      return appendRequestId(msg.trim(), nestedObj as { requestId?: string });
+    }
   }
 
   const top = payload.message;
-  if (Array.isArray(top)) return top.filter(Boolean).join(', ');
-  if (typeof top === 'string' && top.trim()) return top.trim();
+  if (Array.isArray(top)) {
+    return appendRequestId(top.filter(Boolean).join(', '), payload as { requestId?: string });
+  }
+  if (typeof top === 'string' && top.trim()) {
+    return appendRequestId(top.trim(), payload as { requestId?: string });
+  }
 
   return fallback;
+}
+
+function appendRequestId(message: string, payload?: { requestId?: string }): string {
+  const requestId = payload?.requestId?.trim();
+  if (!requestId || message.includes(requestId)) return message;
+  return `${message} (ref: ${requestId})`;
+}
+
+/** Parse JSON (or plain text) error bodies returned as blobs from axios. */
+export async function readApiErrorFromBlob(
+  blob: Blob,
+  status?: number,
+  fallback = 'Request failed',
+): Promise<string> {
+  const text = await blob.text();
+  if (!text.trim()) return fallback;
+  try {
+    const json = JSON.parse(text) as unknown;
+    return getApiErrorMessage({ response: { data: json, status } }, fallback);
+  } catch {
+    return text.trim();
+  }
 }

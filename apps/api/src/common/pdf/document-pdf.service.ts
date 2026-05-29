@@ -369,6 +369,16 @@ export class DocumentPdfService {
 
   }
 
+  async renderPdfWithRetry(
+    user: RequestUser,
+    kind: DocumentPdfKind,
+    id: string,
+    maxAttempts = 3,
+    delayMs = 400,
+  ): Promise<DocumentPdfRenderResult> {
+    return this.renderWithRetry(() => this.renderPdf(user, kind, id), maxAttempts, delayMs);
+  }
+
 
 
   async renderPurchaseOrderPdf(user: RequestUser, id: string): Promise<DocumentPdfRenderResult> {

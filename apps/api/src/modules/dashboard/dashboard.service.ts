@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { DocumentStatus, Prisma } from '@prisma/client';
+import { DocumentStatus, Prisma, PurchaseOrderStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
@@ -8,6 +8,8 @@ export type DashboardSummaryPayload = {
   totalProducts: number;
   totalStockValue: number;
   lowStockCount: number;
+  lowStockCriticalCount: number;
+  lowStockWarningCount: number;
   recentTransactions: number;
   monthlyMovement: { month: string; receipts: number; issues: number }[];
   categoryBreakdown: { category: string; count: number }[];
@@ -41,9 +43,16 @@ export type DashboardSummaryPayload = {
     description: string;
     category: string;
     currentStock: number;
-    sellingPrice: number;
+    unitCost: number;
     stockValue: number;
   }>;
+  kpiContext: {
+    productsAddedThisMonth: number;
+    stockValueAvgPerProduct: number;
+    transactionsPriorPeriod: number;
+    pendingPurchaseOrders: number;
+    pendingSalesOrders: number;
+  };
 };
 
 type MonthlyRow = { month: Date; receipts: bigint; issues: bigint };
@@ -71,10 +80,17 @@ export class DashboardService {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
     const sixMonthsAgoStart = new Date();
     sixMonthsAgoStart.setMonth(sixMonthsAgoStart.getMonth() - 5);
     sixMonthsAgoStart.setDate(1);
     sixMonthsAgoStart.setHours(0, 0, 0, 0);
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
 
     const [
       totalProducts,
@@ -85,8 +101,13 @@ export class DashboardService {
       recentGiHeaders,
       gr30,
       gi30,
+      grPrior30,
+      giPrior30,
       monthlyRows,
       topProducts,
+      productsAddedThisMonth,
+      pendingPurchaseOrders,
+      pendingSalesOrders,
     ] = await Promise.all([
       this.prisma.product.count({ where: productWhere }),
       this.prisma.product.groupBy({
@@ -136,8 +157,40 @@ export class DashboardService {
           shopId: shopFilter,
         },
       }),
+      this.prisma.goodsReceiptHeader.count({
+        where: {
+          status: DocumentStatus.POSTED,
+          grDate: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+          shopId: shopFilter,
+        },
+      }),
+      this.prisma.goodsIssueHeader.count({
+        where: {
+          status: DocumentStatus.POSTED,
+          giDate: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+          shopId: shopFilter,
+        },
+      }),
       this.fetchMonthlyMovement(shopIds, sixMonthsAgoStart),
       this.fetchTopProducts(shopIds, 10),
+      this.prisma.product.count({
+        where: {
+          ...productWhere,
+          createdAt: { gte: monthStart },
+        },
+      }),
+      this.prisma.purchaseOrderHeader.count({
+        where: {
+          status: PurchaseOrderStatus.CONFIRMED,
+          shopId: shopFilter,
+        },
+      }),
+      this.prisma.salesOrderHeader.count({
+        where: {
+          status: SalesOrderStatus.CONFIRMED,
+          shopId: shopFilter,
+        },
+      }),
     ]);
 
     const monthlyMovement = this.formatMonthlyMovement(monthlyRows, sixMonthsAgoStart);
@@ -165,10 +218,17 @@ export class DashboardService {
       status: gi.status,
     }));
 
+    const stockValueAvgPerProduct =
+      totalProducts > 0
+        ? Math.round((stockValueAndLow.totalStockValue / totalProducts) * 100) / 100
+        : 0;
+
     return {
       totalProducts,
       totalStockValue: stockValueAndLow.totalStockValue,
       lowStockCount: stockValueAndLow.lowStockCount,
+      lowStockCriticalCount: stockValueAndLow.lowStockCriticalCount,
+      lowStockWarningCount: stockValueAndLow.lowStockWarningCount,
       recentTransactions: gr30 + gi30,
       monthlyMovement,
       categoryBreakdown,
@@ -176,6 +236,13 @@ export class DashboardService {
       recentGoodsIssues,
       lowStockProducts,
       topProducts,
+      kpiContext: {
+        productsAddedThisMonth,
+        stockValueAvgPerProduct,
+        transactionsPriorPeriod: grPrior30 + giPrior30,
+        pendingPurchaseOrders,
+        pendingSalesOrders,
+      },
     };
   }
 
@@ -210,28 +277,54 @@ export class DashboardService {
   }
 
   /**
-   * Compute total stock value (sum of selling_price * current_stock) and the
-   * count of products below their min_stock_level in a single SQL pass instead
-   * of materializing every product row in JS.
+   * Compute total stock value (sum of live current_stock × unit cost) and low-
+   * stock counts in one SQL pass. Quantity comes from stock_summary.current_stock
+   * only — the live on-hand balance after posted GR/GI/returns/adjustments.
    */
   private async aggregateStockValueAndLowCount(shopIds: string[]) {
-    // Multi-plant: each (product, plant) assignment is its own line, so we
-    // pivot off product_plants instead of products. Min-stock comparisons
-    // use the per-plant pp.min_stock_level threshold.
-    const rows = await this.prisma.$queryRaw<Array<{ total_value: string | null; low_count: string | null }>>`
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        total_value: string | null;
+        low_count: string | null;
+        critical_count: string | null;
+        warning_count: string | null;
+      }>
+    >`
       SELECT
-        COALESCE(SUM(p.selling_price * COALESCE(s.current_stock, 0)), 0)::text AS total_value,
-        COALESCE(SUM(CASE WHEN COALESCE(s.current_stock, 0) < pp.min_stock_level THEN 1 ELSE 0 END), 0)::text AS low_count
+        COALESCE(SUM(
+          COALESCE(s.current_stock, 0)
+          * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
+        ), 0)::text AS total_value,
+        COALESCE(SUM(CASE
+          WHEN pp.min_stock_level > 0
+           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+          THEN 1 ELSE 0 END), 0)::text AS low_count,
+        COALESCE(SUM(CASE
+          WHEN pp.min_stock_level > 0
+           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+           AND (
+             COALESCE(s.current_stock, 0) = 0
+             OR COALESCE(s.current_stock, 0) < 0.25 * pp.min_stock_level
+           )
+          THEN 1 ELSE 0 END), 0)::text AS critical_count,
+        COALESCE(SUM(CASE
+          WHEN pp.min_stock_level > 0
+           AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
+           AND COALESCE(s.current_stock, 0) > 0
+           AND COALESCE(s.current_stock, 0) >= 0.25 * pp.min_stock_level
+          THEN 1 ELSE 0 END), 0)::text AS warning_count
       FROM product_plants pp
       JOIN products p ON p.id = pp.product_id AND p.is_active = true
       LEFT JOIN stock_summary s
         ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
       WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
     `;
-    const row = rows[0] ?? { total_value: '0', low_count: '0' };
+    const row = rows[0] ?? { total_value: '0', low_count: '0', critical_count: '0', warning_count: '0' };
     return {
       totalStockValue: Math.round(Number(row.total_value ?? '0') * 100) / 100,
       lowStockCount: Number(row.low_count ?? '0'),
+      lowStockCriticalCount: Number(row.critical_count ?? '0'),
+      lowStockWarningCount: Number(row.warning_count ?? '0'),
     };
   }
 
@@ -243,7 +336,7 @@ export class DashboardService {
         description: string;
         category: string;
         current_stock: string;
-        selling_price: string;
+        unit_cost: string;
         stock_value: string;
       }>
     >`
@@ -253,14 +346,20 @@ export class DashboardService {
         p.description,
         p.category,
         COALESCE(s.current_stock, 0)::text AS current_stock,
-        p.selling_price::text AS selling_price,
-        (p.selling_price * COALESCE(s.current_stock, 0))::text AS stock_value
+        COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)::text AS unit_cost,
+        (
+          COALESCE(s.current_stock, 0)
+          * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
+        )::text AS stock_value
       FROM product_plants pp
       JOIN products p ON p.id = pp.product_id AND p.is_active = true
       LEFT JOIN stock_summary s
         ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
       WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
-      ORDER BY (p.selling_price * COALESCE(s.current_stock, 0)) DESC
+      ORDER BY (
+        COALESCE(s.current_stock, 0)
+        * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
+      ) DESC
       LIMIT ${limit}
     `;
     return rows.map((r) => ({
@@ -269,7 +368,7 @@ export class DashboardService {
       description: r.description,
       category: r.category?.trim() ? r.category : 'Uncategorized',
       currentStock: Number(r.current_stock),
-      sellingPrice: Number(r.selling_price),
+      unitCost: Number(r.unit_cost),
       stockValue: Math.round(Number(r.stock_value ?? '0') * 100) / 100,
     }));
   }
@@ -295,7 +394,8 @@ export class DashboardService {
         ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
       WHERE pp.is_active = true
         AND pp.shop_id = ANY(${shopIds}::uuid[])
-        AND COALESCE(s.current_stock, 0) < pp.min_stock_level
+        AND pp.min_stock_level > 0
+        AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
       ORDER BY (CASE WHEN pp.min_stock_level > 0
                       THEN COALESCE(s.current_stock, 0) / pp.min_stock_level
                       ELSE 0 END) ASC

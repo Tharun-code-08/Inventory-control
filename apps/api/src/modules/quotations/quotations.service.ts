@@ -40,6 +40,21 @@ export class QuotationsService {
     const rfq = await this.prisma.rfqHeader.findUnique({ where: { id: dto.rfqId } });
     if (!rfq) throw new NotFoundException('RFQ not found');
     assertShopScope(user, rfq.shopId);
+
+    const invited = await this.prisma.rfqSupplier.findFirst({
+      where: { rfqId: dto.rfqId, supplierId: dto.supplierId },
+    });
+    if (!invited) {
+      throw new BadRequestException('Supplier is not invited to this RFQ');
+    }
+
+    const existing = await this.prisma.supplierQuotationHeader.findFirst({
+      where: { rfqId: dto.rfqId, supplierId: dto.supplierId },
+    });
+    if (existing) {
+      throw new BadRequestException('This supplier already has a quotation for this RFQ');
+    }
+
     const quoteDate = dto.quoteDate ? new Date(dto.quoteDate) : new Date();
     return this.prisma.$transaction(async (tx) => {
       const quoteNumber = await this.numbers.nextShopScopedNumber(tx, {

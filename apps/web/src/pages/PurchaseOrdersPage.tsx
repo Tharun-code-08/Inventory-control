@@ -175,7 +175,10 @@ const PO_SELECT_CONTENT = 'max-h-52 text-xs';
 function tomorrowDateString() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /**
@@ -853,8 +856,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     try {
       await downloadDocumentPdf('purchase-order', po.id);
       toast.success('PDF downloaded');
-    } catch {
-      toast.error('Could not generate PDF');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Could not generate PDF'));
     }
   }
 
@@ -910,28 +913,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   }
 
   function apiErrorMessage(e: unknown): string | undefined {
-    const err = e as {
-      response?: {
-        status?: number;
-        data?: { error?: { message?: string }; message?: string | string[] };
-      };
-      message?: string;
-    };
-    if (err.response?.status === 502) {
-      return (
-        err.message ??
-        'Backend API is unavailable. Run npm run dev:api in retail-ims and ensure cloudflared routes to port 3000.'
-      );
-    }
-    if (err.response?.status === 504) {
-      return err.message ?? 'Request timed out while sending email. Try again—the PDF may still be generating.';
-    }
-    const nested = err.response?.data?.error?.message;
-    if (nested) return nested;
-    const bodyMsg = err.response?.data?.message;
-    if (Array.isArray(bodyMsg)) return bodyMsg.join(', ');
-    if (typeof bodyMsg === 'string') return bodyMsg;
-    return err.message;
+    return getApiErrorMessage(e, '');
   }
 
   function isApiNotFound(e: unknown): boolean {

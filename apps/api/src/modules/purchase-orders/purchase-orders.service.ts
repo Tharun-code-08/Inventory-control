@@ -14,7 +14,7 @@ import { RfqsService } from '../rfqs/rfqs.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { purchaseOrderDefaults } from '../email-notifications/email-notifications.outbound';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
-import { assertFuture } from '../../common/utils/date-guards';
+import { assertNotFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import type { PurchaseOrderEmailContent } from '../../common/mail/purchase-order-supplier.template';
@@ -446,7 +446,7 @@ export class PurchaseOrdersService {
       });
     }
     const poDate = new Date(dto.poDate);
-    assertFuture(poDate);
+    assertNotFuture(poDate, 'PO date');
     const idempotencyScope = this.idempotencyScope(user);
 
     return this.prisma.$transaction(async (tx) => {
@@ -559,7 +559,7 @@ export class PurchaseOrdersService {
     }
 
     const poDate = dto.poDate ? new Date(dto.poDate) : new Date(existing.poDate);
-    assertFuture(poDate);
+    assertNotFuture(poDate, 'PO date');
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {

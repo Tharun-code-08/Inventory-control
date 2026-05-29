@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -51,6 +52,20 @@ import { exportReportCsv } from '@/lib/report-csv-export';
 import type { CsvColumn } from '@/lib/csv';
 
 const ALL = '_all';
+
+const REPORT_TABS = [
+  'low-stock',
+  'stock-ledger',
+  'gr-register',
+  'gi-register',
+  'shop-summary',
+] as const;
+
+type ReportTab = (typeof REPORT_TABS)[number];
+
+function isReportTab(value: string | null): value is ReportTab {
+  return REPORT_TABS.includes(value as ReportTab);
+}
 
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -714,11 +729,23 @@ function ShopSummaryTab({
 export function ReportsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = isOrgAdminUser(user);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: ReportTab = isReportTab(tabParam) ? tabParam : 'low-stock';
+  const shopIdParam = searchParams.get('shopId') ?? undefined;
 
-  const [filters, setFilters] = useState<ReportFilters>({});
+  const [filters, setFilters] = useState<ReportFilters>(() =>
+    shopIdParam ? { shopId: shopIdParam } : {},
+  );
   const { data: shopsData } = useShops();
   const { categories } = useProductCategories();
   const shops = (shopsData ?? []).map((s) => ({ id: s.id, name: s.shopName }));
+
+  useEffect(() => {
+    if (shopIdParam) {
+      setFilters((prev) => (prev.shopId === shopIdParam ? prev : { ...prev, shopId: shopIdParam }));
+    }
+  }, [shopIdParam]);
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.name, label: c.name })),
@@ -728,6 +755,17 @@ export function ReportsPage() {
   const updateFilters = useCallback((partial: Partial<ReportFilters>) => {
     setFilters((prev) => ({ ...prev, ...partial }));
   }, []);
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', value);
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   const tabProps: TabShellProps = {
     filters,
@@ -745,7 +783,7 @@ export function ReportsPage() {
           description="Stock registers, movement history, and shop summaries"
         />
 
-        <Tabs defaultValue="low-stock" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="flex h-auto w-full flex-wrap gap-1 overflow-x-auto">
             <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
             <TabsTrigger value="stock-ledger">Stock Ledger</TabsTrigger>

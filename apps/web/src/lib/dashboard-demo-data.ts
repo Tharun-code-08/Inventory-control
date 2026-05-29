@@ -2,6 +2,8 @@ export type DashboardViewData = {
   totalProducts: number;
   totalStockValue: number;
   lowStockCount: number;
+  lowStockCriticalCount: number;
+  lowStockWarningCount: number;
   recentTransactions: number;
   monthlyMovement: { month: string; receipts: number; issues: number }[];
   categoryBreakdown: { category: string; count: number }[];
@@ -35,16 +37,32 @@ export type DashboardViewData = {
     description: string;
     category: string;
     currentStock: number;
-    sellingPrice: number;
+    unitCost: number;
     stockValue: number;
   }>;
+  kpiContext: {
+    productsAddedThisMonth: number;
+    stockValueAvgPerProduct: number;
+    transactionsPriorPeriod: number;
+    pendingPurchaseOrders: number;
+    pendingSalesOrders: number;
+  };
 };
 
 export const EMPTY_DASHBOARD: DashboardViewData = {
   totalProducts: 0,
   totalStockValue: 0,
   lowStockCount: 0,
+  lowStockCriticalCount: 0,
+  lowStockWarningCount: 0,
   recentTransactions: 0,
+  kpiContext: {
+    productsAddedThisMonth: 0,
+    stockValueAvgPerProduct: 0,
+    transactionsPriorPeriod: 0,
+    pendingPurchaseOrders: 0,
+    pendingSalesOrders: 0,
+  },
   monthlyMovement: [],
   categoryBreakdown: [],
   recentGoodsReceipts: [],

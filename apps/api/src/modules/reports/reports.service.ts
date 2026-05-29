@@ -91,7 +91,11 @@ export class ReportsService {
         current_stock: stockByKey.get(`${a.shopId}:${a.productId}`) ?? new Prisma.Decimal(0),
         min_stock_level: a.minStockLevel,
       }))
-      .filter((r) => (lowOnly ? r.current_stock.lt(r.min_stock_level) : true));
+      .filter((r) =>
+        lowOnly
+          ? r.min_stock_level.gt(0) && r.current_stock.lte(r.min_stock_level)
+          : true,
+      );
   }
 
   async lowStock(user: RequestUser, shop_id?: string, category?: string) {

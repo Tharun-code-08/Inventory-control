@@ -16,6 +16,30 @@ import { captureServerError } from '../observability/sentry';
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
+  private schemaDriftMessage(exception: unknown): string | null {
+    if (!(exception instanceof Error)) return null;
+    const msg = exception.message.toLowerCase();
+    if (
+      msg.includes('document_series_config') ||
+      msg.includes('document_email_outbox') ||
+      msg.includes('email_delivery_log') ||
+      msg.includes('email_sender')
+    ) {
+      return 'Database schema is out of date. On the API server run: cd apps/api && npx prisma migrate deploy';
+    }
+    if (msg.includes('does not exist') && (msg.includes('table') || msg.includes('column') || msg.includes('relation'))) {
+      return 'Database schema is out of date. On the API server run: cd apps/api && npx prisma migrate deploy';
+    }
+    if (
+      msg.includes('pdf engine') ||
+      msg.includes('chromium') ||
+      msg.includes('could not render pdf')
+    ) {
+      return 'PDF engine unavailable. Install Chromium/Chrome on the API server or set PUPPETEER_EXECUTABLE_PATH.';
+    }
+    return null;
+  }
+
   private uniqueConstraintMessage(targets: string[]) {
     const normalized = targets.map((target) => String(target).toLowerCase());
 
@@ -162,6 +186,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
           },
         });
       }
+
+      if (exception.code === 'P2021' || exception.code === 'P2022') {
+        return response.status(503).json({
+          success: false,
+          error: {
+            code: 'SCHEMA_OUT_OF_DATE',
+            message:
+              'Database schema is out of date. On the API server run: cd apps/api && npx prisma migrate deploy',
+            requestId,
+          },
+        });
+      }
     }
 
     if (exception instanceof Prisma.PrismaClientValidationError) {
@@ -214,6 +250,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       route: request.originalUrl ?? null,
       userId: request.user?.id ?? null,
     });
+
+    const schemaMessage = this.schemaDriftMessage(exception);
+    if (schemaMessage) {
+      return response.status(503).json({
+        success: false,
+        error: {
+          code: 'SCHEMA_OUT_OF_DATE',
+          message: schemaMessage,
+          requestId,
+        },
+      });
+    }
 
     const devMessage =
       debugEnabled && exception instanceof Error ? exception.message : 'An unexpected error occurred';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type ChangeEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -264,7 +264,7 @@ function resolveMinStock(product: Product, shopId?: string): number {
 }
 
 function isLowStock(stock: number, min: number): boolean {
-  return min > 0 && stock > 0 && stock < min;
+  return min > 0 && stock <= min;
 }
 
 function isOutOfStock(stock: number): boolean {
@@ -618,6 +618,8 @@ function PlantAssignmentRow({
 
 export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lowStockFilter = searchParams.get('filter') === 'low-stock';
   const user = useAuthStore((s) => s.user);
   const isAdmin = isAdminUser(user);
   const shops = useShops();
@@ -683,6 +685,18 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   const items: Product[] = data?.items ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 };
   const catalogTotal = meta.total;
+
+  const lowStockRows = useMemo(() => {
+    const rows = statsQuery.data?.items ?? items;
+    return rows.filter((product) => {
+      if (!product.isActive) return false;
+      const stock = resolveProductStock(product, listShopId);
+      const min = resolveMinStock(product, listShopId);
+      return isLowStock(stock, min);
+    });
+  }, [statsQuery.data?.items, items, listShopId]);
+
+  const tableItems = lowStockFilter ? lowStockRows : items;
 
   const stats = useMemo(() => {
     const statsRows = statsQuery.data?.items ?? [];
@@ -1996,6 +2010,30 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           </Button>
         </PageHeader>
 
+        {lowStockFilter ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span>
+              Showing <strong>{lowStockRows.length}</strong> low-stock product
+              {lowStockRows.length === 1 ? '' : 's'} (at or below reorder level).
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-amber-300 bg-white hover:bg-amber-100"
+              onClick={() => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete('filter');
+                  return next;
+                });
+              }}
+            >
+              Clear filter
+            </Button>
+          </div>
+        ) : null}
+
         {lastImportReport ? (
           <Card className="border-slate-200/90 shadow-sm">
             <CardContent className="space-y-3 p-4">
@@ -2159,21 +2197,40 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                     Retry
                   </Button>
                 </div>
-              ) : items.length === 0 ? (
+              ) : tableItems.length === 0 ? (
                 <EmptyState
                   icon={Package}
                   title={
-                    search || categoryFilter !== 'all' || statusFilter !== 'all'
-                      ? 'No products match your filters'
-                      : 'No products yet'
+                    lowStockFilter
+                      ? 'No low-stock products'
+                      : search || categoryFilter !== 'all' || statusFilter !== 'all'
+                        ? 'No products match your filters'
+                        : 'No products yet'
                   }
                   description={
-                    search || categoryFilter !== 'all' || statusFilter !== 'all'
-                      ? 'Try adjusting your search or filters.'
-                      : 'Get started by adding your first product to the catalog.'
+                    lowStockFilter
+                      ? 'All products are at or above their reorder levels for this plant.'
+                      : search || categoryFilter !== 'all' || statusFilter !== 'all'
+                        ? 'Try adjusting your search or filters.'
+                        : 'Get started by adding your first product to the catalog.'
                   }
                   action={
-                    !search && categoryFilter === 'all' && statusFilter === 'all' ? (
+                    lowStockFilter ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSearchParams((prev) => {
+                            const next = new URLSearchParams(prev);
+                            next.delete('filter');
+                            return next;
+                          });
+                        }}
+                      >
+                        View all products
+                      </Button>
+                    ) : !search && categoryFilter === 'all' && statusFilter === 'all' ? (
                       <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Product
@@ -2201,7 +2258,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                     </TableRow>
                   </TableHeader>
                   <AnimatedTableBody pageKey={page}>
-                    {items.map((product) => {
+                    {tableItems.map((product) => {
                       const stockValue = resolveProductStock(product, listShopId);
                       const minStockValue = resolveMinStock(product, listShopId);
 
@@ -2276,7 +2333,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               )}
             </div>
 
-            {!isLoading && !isError && items.length > 0 && (
+            {!isLoading && !isError && !lowStockFilter && items.length > 0 && (
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
                   Showing{' '}

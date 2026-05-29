@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { dashboardKeys } from '@/hooks/use-dashboard';
 
 export type GoodsReceiptStatus = 'DRAFT' | 'POSTED';
 
@@ -174,7 +175,7 @@ export function usePostGoodsReceipt() {
         qc.invalidateQueries({ queryKey: grKeys.detail(id) }),
         qc.invalidateQueries({ queryKey: ['products'] }),
         qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
-        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: dashboardKeys.all }),
         qc.invalidateQueries({ queryKey: ['alerts'] }),
       ]);
     },

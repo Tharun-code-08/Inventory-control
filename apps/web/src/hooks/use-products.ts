@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { dashboardKeys } from '@/hooks/use-dashboard';
 
 export type TaxPreference = 'TAXABLE' | 'NON_TAXABLE';
 
@@ -362,6 +363,7 @@ export function useCreateProduct() {
       );
       await qc.invalidateQueries({ queryKey: productKeys.lists() });
       await qc.refetchQueries({ queryKey: productKeys.lists(), type: 'active' });
+      await qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }
@@ -376,6 +378,7 @@ export function useUpdateProduct() {
     onSuccess: (_product, variables) => {
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }
@@ -390,6 +393,7 @@ export function useToggleProductStatus(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }
@@ -404,6 +408,7 @@ export function useDeleteProduct() {
     onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: productKeys.lists() });
       qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }
@@ -513,7 +518,7 @@ export function useBulkProductImport() {
     onSuccess: async (result) => {
       if (!result.validateOnly) {
         await qc.invalidateQueries({ queryKey: productKeys.lists() });
-        await qc.invalidateQueries({ queryKey: ['dashboard'] });
+        await qc.invalidateQueries({ queryKey: dashboardKeys.all });
       }
     },
   });
@@ -533,7 +538,7 @@ export function useBulkInventoryUpload() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: productKeys.lists() });
-      await qc.invalidateQueries({ queryKey: ['dashboard'] });
+      await qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }

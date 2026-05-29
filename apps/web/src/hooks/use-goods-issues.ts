@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { dashboardKeys } from '@/hooks/use-dashboard';
 
 export type GoodsIssueStatus = 'DRAFT' | 'POSTED';
 
@@ -156,7 +157,7 @@ export function usePostGoodsIssue() {
         qc.invalidateQueries({ queryKey: giKeys.lists() }),
         qc.invalidateQueries({ queryKey: giKeys.detail(id) }),
         qc.invalidateQueries({ queryKey: ['products'] }),
-        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: dashboardKeys.all }),
       ]);
     },
   });

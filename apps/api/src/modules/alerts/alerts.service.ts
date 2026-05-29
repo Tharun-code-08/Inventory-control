@@ -173,7 +173,8 @@ export class AlertsService {
         ON s.shop_id = pp.shop_id
        AND s.product_id = pp.product_id
       WHERE pp.is_active = true
-        AND COALESCE(s.current_stock, 0) < pp.min_stock_level
+        AND pp.min_stock_level > 0
+        AND COALESCE(s.current_stock, 0) <= pp.min_stock_level
       LIMIT 200
     `;
 

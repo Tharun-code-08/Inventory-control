@@ -148,12 +148,16 @@ export function useLowStockReport(filters: ReportFilters = {}) {
   });
 }
 
-export function useFastMovingReport(filters: ReportFilters = {}) {
+export function useFastMovingReport(
+  filters: ReportFilters = {},
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: reportKeys.fastMoving(filters),
+    enabled: options?.enabled ?? Boolean(filters.shopId && filters.dateFrom && filters.dateTo),
     queryFn: async () => {
       const res = await api.get(`/reports/fast-moving?${buildParams(filters)}`);
-      return res.data.data;
+      return Array.isArray(res.data?.data) ? res.data.data : [];
     },
   });
 }
