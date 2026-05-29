@@ -69,6 +69,16 @@ export class GoodsReceiptsController {
   }
 
   @RequirePermission('goods_receipt:create')
+  @Post(':id/send')
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.service.sendToSupplier(user, id, { resend: resend === 'true' });
+  }
+
+  @RequirePermission('goods_receipt:create')
   @Delete(':id')
   remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.service.remove(user, id);

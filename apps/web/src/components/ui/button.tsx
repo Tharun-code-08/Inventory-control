@@ -80,6 +80,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       typeof props["aria-label"] === "string" ? props["aria-label"] : undefined;
     const inferredTitle = textFromNode(children);
     const resolvedTitle = title ?? ariaLabel ?? (inferredTitle || undefined);
+
+    if (asChild) {
+      return (
+        <Comp
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          title={resolvedTitle}
+          {...props}
+        >
+          {children}
+        </Comp>
+      );
+    }
+
     const showLabel = loading && loadingLabel ? loadingLabel : children;
 
     return (

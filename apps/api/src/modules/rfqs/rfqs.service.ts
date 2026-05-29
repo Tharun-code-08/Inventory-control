@@ -178,6 +178,45 @@ export class RfqsService {
     }
   }
 
+  private async buildRfqPdfAttachments(rfq: {
+    rfqNumber: string;
+    title: string;
+    deadline: Date | null;
+    shop: { shopName: string };
+    items?: Array<{
+      productId?: string | null;
+      quantity?: Prisma.Decimal | number;
+      product?: { description?: string | null } | null;
+    }>;
+  }) {
+    return tryRenderDocumentPdfAttachment(
+      {
+        title: 'Request for Quotation',
+        documentNumber: rfq.rfqNumber,
+        documentDate: rfq.deadline
+          ? rfq.deadline.toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : undefined,
+        partyLabel: 'RFQ Title',
+        partyName: rfq.title,
+        companyName: rfq.shop.shopName,
+        summaryLines: [
+          { label: 'RFQ Number', value: rfq.rfqNumber },
+          { label: 'Deadline', value: rfq.deadline?.toLocaleDateString('en-GB') ?? '—' },
+        ],
+        tableHeaders: ['Product', 'Qty'],
+        tableRows: (rfq.items ?? []).map((item) => [
+          String(item.product?.description ?? item.productId ?? ''),
+          String(item.quantity ?? ''),
+        ]),
+      },
+      'rfq',
+    );
+  }
+
   async send(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
     const suppliers = existing.suppliers ?? [];
@@ -191,32 +230,7 @@ export class RfqsService {
     }
 
     const companyName = existing.shop.shopName;
-    const attachments = await tryRenderDocumentPdfAttachment(
-      {
-        title: 'Request for Quotation',
-        documentNumber: existing.rfqNumber,
-        documentDate: existing.deadline
-          ? existing.deadline.toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })
-          : undefined,
-        partyLabel: 'RFQ Title',
-        partyName: existing.title,
-        companyName,
-        summaryLines: [
-          { label: 'RFQ Number', value: existing.rfqNumber },
-          { label: 'Deadline', value: existing.deadline?.toLocaleDateString('en-GB') ?? '—' },
-        ],
-        tableHeaders: ['Product', 'Qty'],
-        tableRows: (existing.items ?? []).map((item) => [
-          String(item.product?.description ?? item.productId ?? ''),
-          String(item.quantity ?? ''),
-        ]),
-      },
-      'rfq',
-    );
+    const attachments = await this.buildRfqPdfAttachments(existing);
 
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
     const emailDelivery = await this.mail.sendRfqInvites({
@@ -285,6 +299,7 @@ export class RfqsService {
     }
 
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);
+    const attachments = await this.buildRfqPdfAttachments(existing);
     const emailDelivery = await this.mail.sendRfqInvites({
       companyId: existing.shop.companyId,
       rfqId: existing.id,
@@ -293,6 +308,7 @@ export class RfqsService {
       deadline: existing.deadline,
       recipients: this.inviteRecipients(suppliers),
       shopId: existing.shopId,
+      attachments,
       prepareInvite: (content) => {
         const defaults = rfqInviteDefaults(content);
         return this.emailNotifications.prepareTemplate(

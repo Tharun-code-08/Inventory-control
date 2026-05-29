@@ -28,6 +28,17 @@ export class InvoicesController {
     return this.invoices.create(user, dto);
   }
 
+  @RequirePermission('shop:write')
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Email invoice to customer (with PDF attachment)' })
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.invoices.sendToCustomer(user, id, { resend: resend === 'true' });
+  }
+
   @RequirePermission('shop:read')
   @Get(':id')
   @ApiOperation({ summary: 'Get an invoice by id' })

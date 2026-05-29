@@ -38,4 +38,15 @@ export class SupplierBillsController {
   get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.supplierBills.get(user, id);
   }
+
+  @RequirePermission('shop:write')
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Email supplier bill to supplier (with PDF attachment)' })
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.supplierBills.sendToSupplier(user, id, { resend: resend === 'true' });
+  }
 }

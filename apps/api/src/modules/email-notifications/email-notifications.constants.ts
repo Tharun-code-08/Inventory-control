@@ -8,6 +8,10 @@ export const EMAIL_TEMPLATE_IDS = [
   'invoice_created',
   'payment_received',
   'payment_reminder',
+  'sales_order_customer',
+  'supplier_bill_issued',
+  'supplier_payment_recorded',
+  'goods_receipt_supplier',
   'user_invite',
   'goods_receipt_posted',
 ] as const;
@@ -128,6 +132,42 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
       '<p>Dear {{customer_name}},</p><p>We received {{payment_type}} payment of {{amount_paid}} against invoice {{invoice_number}}.</p><p>Receipt: {{receipt_number}}<br/>Balance due: {{balance_due}}</p><p>Thank you,<br/>{{company_name}}</p>',
   },
   {
+    id: 'sales_order_customer',
+    label: 'Sales Order',
+    group: 'sales',
+    description: 'Sent to the customer when a sales order is confirmed.',
+    placeholders: ['customer_name', 'so_number', 'order_date', 'expected_date', 'total_amount', 'shop_name', 'company_name'],
+    defaultSubject: 'Sales Order {{so_number}} — {{company_name}}',
+    defaultBodyText:
+      'Dear {{customer_name}},\n\nPlease find sales order {{so_number}} dated {{order_date}}.\nExpected date: {{expected_date}}\nPlant: {{shop_name}}\nTotal: {{total_amount}}\n\nThank you,\n{{company_name}}',
+    defaultBodyHtml:
+      '<p>Dear {{customer_name}},</p><p>Please find sales order <strong>{{so_number}}</strong> dated {{order_date}}.</p><p>Expected date: {{expected_date}}<br/>Plant: {{shop_name}}<br/>Total: {{total_amount}}</p><p>Thank you,<br/>{{company_name}}</p>',
+  },
+  {
+    id: 'supplier_bill_issued',
+    label: 'Supplier Bill',
+    group: 'procurement',
+    description: 'Sent to the supplier when a supplier bill is issued.',
+    placeholders: ['supplier_name', 'bill_number', 'bill_date', 'due_date', 'total_amount', 'po_number', 'company_name'],
+    defaultSubject: 'Supplier Bill {{bill_number}} — {{company_name}}',
+    defaultBodyText:
+      'Hello {{supplier_name}},\n\nSupplier bill {{bill_number}} dated {{bill_date}} has been issued.\nDue date: {{due_date}}\nPurchase order: {{po_number}}\nAmount: {{total_amount}}\n\n{{company_name}}',
+    defaultBodyHtml:
+      '<p>Hello {{supplier_name}},</p><p>Supplier bill <strong>{{bill_number}}</strong> dated {{bill_date}} has been issued.</p><p>Due date: {{due_date}}<br/>Purchase order: {{po_number}}<br/>Amount: {{total_amount}}</p><p>{{company_name}}</p>',
+  },
+  {
+    id: 'supplier_payment_recorded',
+    label: 'Supplier Payment',
+    group: 'procurement',
+    description: 'Sent to the supplier when a payment is recorded against a bill.',
+    placeholders: ['supplier_name', 'bill_number', 'payment_number', 'amount_paid', 'balance_due', 'payment_type', 'company_name'],
+    defaultSubject: 'Payment recorded for bill {{bill_number}}',
+    defaultBodyText:
+      'Hello {{supplier_name}},\n\nWe recorded {{payment_type}} payment of {{amount_paid}} against bill {{bill_number}}.\nPayment ref: {{payment_number}}\nBalance due: {{balance_due}}\n\n{{company_name}}',
+    defaultBodyHtml:
+      '<p>Hello {{supplier_name}},</p><p>We recorded {{payment_type}} payment of {{amount_paid}} against bill {{bill_number}}.</p><p>Payment ref: {{payment_number}}<br/>Balance due: {{balance_due}}</p><p>{{company_name}}</p>',
+  },
+  {
     id: 'payment_reminder',
     label: 'Payment Reminder',
     group: 'sales',
@@ -162,6 +202,18 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
       'Goods receipt {{gr_number}} from {{supplier_name}} has been posted for {{shop_name}}.\n\n{{company_name}}',
     defaultBodyHtml:
       '<p>Goods receipt <strong>{{gr_number}}</strong> from {{supplier_name}} has been posted for {{shop_name}}.</p>',
+  },
+  {
+    id: 'goods_receipt_supplier',
+    label: 'Goods Receipt (Supplier)',
+    group: 'warehouse',
+    description: 'Sent to the supplier when a goods receipt is posted.',
+    placeholders: ['supplier_name', 'gr_number', 'gr_date', 'shop_name', 'total_value', 'po_number', 'company_name'],
+    defaultSubject: 'Goods Receipt {{gr_number}} — {{company_name}}',
+    defaultBodyText:
+      'Hello {{supplier_name}},\n\nGoods receipt {{gr_number}} dated {{gr_date}} has been posted for {{shop_name}}.\nPurchase order: {{po_number}}\nTotal: {{total_value}}\n\n{{company_name}}',
+    defaultBodyHtml:
+      '<p>Hello {{supplier_name}},</p><p>Goods receipt <strong>{{gr_number}}</strong> dated {{gr_date}} has been posted for {{shop_name}}.</p><p>Purchase order: {{po_number}}<br/>Total: {{total_value}}</p><p>{{company_name}}</p>',
   },
 ];
 

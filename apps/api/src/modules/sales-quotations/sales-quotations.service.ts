@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, SalesOrderStatus, SalesQuotationStatus } from '@prisma/client';
+import { DocumentEmailTrigger, Prisma, SalesOrderStatus, SalesQuotationStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
-import { MailService, type EmailDeliveryResult } from '../../common/mail/mail.service';
+import { MailService } from '../../common/mail/mail.service';
 import { buildQuotationPortalReviewUrl } from '../../common/mail/portal-url';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -14,7 +14,8 @@ import { UpdateSalesQuotationDto } from './dto/update-sales-quotation.dto';
 import { SubscriptionService } from '../billing/subscription.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { salesQuotationDefaults } from '../email-notifications/email-notifications.outbound';
-import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
+import { DocumentEmailService } from '../document-email/document-email.service';
+import type { DocumentEmailSendResult } from '../document-email/document-email.types';
 
 @Injectable()
 export class SalesQuotationsService {
@@ -25,6 +26,7 @@ export class SalesQuotationsService {
     private readonly config: ConfigService,
     private readonly subscriptions: SubscriptionService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   private computeLines(items: CreateSalesQuotationDto['items']) {
@@ -50,9 +52,11 @@ export class SalesQuotationsService {
   }
 
   private async emailQuotation(
+    user: RequestUser,
     row: Awaited<ReturnType<typeof this.get>>,
     options: { portalToken: string; isRevision?: boolean },
-  ): Promise<EmailDeliveryResult> {
+    trigger: DocumentEmailTrigger,
+  ): Promise<DocumentEmailSendResult> {
     const customerEmail = row.customer.email?.trim();
     if (!customerEmail) {
       throw new BadRequestException(
@@ -89,45 +93,33 @@ export class SalesQuotationsService {
       throw new BadRequestException('Shop is not linked to a company');
     }
 
-    const attachments = await tryRenderDocumentPdfAttachment(
-      {
-        title: 'Sales Quotation',
-        documentNumber: row.quoteNumber,
-        documentDate: emailContent.quoteDate,
-        partyLabel: 'Customer',
-        partyName: emailContent.customerName,
-        companyName: emailContent.companyName,
-        summaryLines: [
-          { label: 'Quote Date', value: emailContent.quoteDate },
-          { label: 'Valid Until', value: emailContent.validUntil ?? '—' },
-          { label: 'Total', value: emailContent.totalValue },
-        ],
-        tableHeaders: ['Code', 'Description', 'Qty', 'Rate', 'Value'],
-        tableRows: emailContent.lines.map((line) => [
-          line.code,
-          line.description,
-          line.quantity,
-          line.unitPrice,
-          line.lineValue,
-        ]),
-      },
-      'quotation',
-    );
-
-    return this.mail.sendSalesQuotationToCustomer({
+    return this.documentEmail.sendSalesQuotationEmail(user, {
+      quoteId: row.id,
       companyId: row.shop.companyId,
-      to: customerEmail,
+      shopId: row.shopId,
+      recipient: customerEmail,
       content: emailContent,
-      overrides: prepared,
-      attachments,
+      prepared,
+      documentNumber: row.quoteNumber,
+      trigger,
     });
   }
 
   private withEmailDelivery<T extends Record<string, unknown>>(
     row: T,
-    delivery: EmailDeliveryResult,
+    delivery: DocumentEmailSendResult,
   ) {
-    return { ...row, emailDelivery: delivery };
+    return {
+      ...row,
+      emailDelivery: delivery.sent
+        ? {
+            messageId: '',
+            to: delivery.to,
+            from: delivery.to,
+            replyTo: delivery.to,
+          }
+        : undefined,
+    };
   }
 
   async list(user: RequestUser, customerId?: string) {
@@ -258,7 +250,7 @@ export class SalesQuotationsService {
     }
 
     const portalToken = row.portalToken ?? this.newPortalToken();
-    const delivery = await this.emailQuotation(row, { portalToken });
+    const delivery = await this.emailQuotation(user, row, { portalToken }, DocumentEmailTrigger.MANUAL);
 
     const updated = await this.prisma.salesQuotationHeader.update({
       where: { id },
@@ -280,6 +272,29 @@ export class SalesQuotationsService {
     return this.withEmailDelivery(updated, delivery);
   }
 
+  async sendEmail(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const row = await this.get(user, id);
+    if (row.status === SalesQuotationStatus.DRAFT) {
+      return this.send(user, id);
+    }
+
+    const portalToken = row.portalToken ?? this.newPortalToken();
+    if (!row.portalToken) {
+      await this.prisma.salesQuotationHeader.update({
+        where: { id },
+        data: { portalToken, updatedById: user.id },
+      });
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    return this.emailQuotation(
+      user,
+      { ...row, portalToken },
+      { portalToken, isRevision: row.status === SalesQuotationStatus.USER_REQUESTED },
+      trigger,
+    );
+  }
+
   async resend(user: RequestUser, id: string) {
     const row = await this.get(user, id);
     if (row.status !== SalesQuotationStatus.USER_REQUESTED) {
@@ -289,7 +304,12 @@ export class SalesQuotationsService {
     }
 
     const portalToken = row.portalToken ?? this.newPortalToken();
-    const delivery = await this.emailQuotation(row, { portalToken, isRevision: true });
+    const delivery = await this.emailQuotation(
+      user,
+      row,
+      { portalToken, isRevision: true },
+      DocumentEmailTrigger.RESEND,
+    );
 
     const updated = await this.prisma.salesQuotationHeader.update({
       where: { id },

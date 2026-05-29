@@ -4,6 +4,7 @@ import { Download, Eye, ImagePlus, Pencil, Plus, Send, Trash2, XCircle } from 'l
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { CreatePageLayout, PageHeader } from '@/components/shared';
+import { DocumentDetailActions } from '@/components/shared/DocumentDetailActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -707,6 +708,12 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
               <p className="py-8 text-center text-slate-500">Loading return order...</p>
             ) : detailReturn ? (
               <div className="space-y-5">
+                <DocumentDetailActions
+                  kind="goods-return"
+                  id={detailReturn.id}
+                  canSend={detailReturn.status !== 'DRAFT'}
+                  resend
+                />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-slate-500">Supplier</p>

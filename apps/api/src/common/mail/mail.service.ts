@@ -770,6 +770,102 @@ export class MailService implements OnModuleInit {
     });
   }
 
+  async sendSalesOrderToCustomer(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SalesOrderCustomerEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      salesOrderCustomerHtml,
+      salesOrderCustomerSubject,
+      salesOrderCustomerText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? salesOrderCustomerSubject(args.content),
+      text: args.overrides?.text ?? salesOrderCustomerText(args.content),
+      html: args.overrides?.html ?? salesOrderCustomerHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierBillIssued(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SupplierBillIssuedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      supplierBillIssuedHtml,
+      supplierBillIssuedSubject,
+      supplierBillIssuedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? supplierBillIssuedSubject(args.content),
+      text: args.overrides?.text ?? supplierBillIssuedText(args.content),
+      html: args.overrides?.html ?? supplierBillIssuedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendGoodsReceiptToSupplier(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').GoodsReceiptSupplierEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      goodsReceiptSupplierHtml,
+      goodsReceiptSupplierSubject,
+      goodsReceiptSupplierText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? goodsReceiptSupplierSubject(args.content),
+      text: args.overrides?.text ?? goodsReceiptSupplierText(args.content),
+      html: args.overrides?.html ?? goodsReceiptSupplierHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierPaymentRecorded(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SupplierPaymentRecordedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      supplierPaymentRecordedHtml,
+      supplierPaymentRecordedSubject,
+      supplierPaymentRecordedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? supplierPaymentRecordedSubject(args.content),
+      text: args.overrides?.text ?? supplierPaymentRecordedText(args.content),
+      html: args.overrides?.html ?? supplierPaymentRecordedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
   async sendSupplierDeletionConfirm(args: {
     adminEmail: string;
     supplierName: string;

@@ -1,12 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { buildPoPdfDataFromRecord } from '../../common/pdf/build-po-pdf-data';
-import {
-  buildPurchaseOrderPrintHtml,
-  purchaseOrderPdfFilename,
-  renderPurchaseOrderPdfBuffer,
-} from '../../common/pdf/purchase-order-pdf';
+import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentEmailService } from '../document-email/document-email.service';
+import { DocumentEmailTrigger } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
@@ -20,7 +17,6 @@ import { getIdempotentResult, setIdempotentResult } from '../../common/utils/ide
 import { assertFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
-import { MailService } from '../../common/mail/mail.service';
 import type { PurchaseOrderEmailContent } from '../../common/mail/purchase-order-supplier.template';
 import type { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
 
@@ -46,16 +42,15 @@ const ITEM_WITH_PRODUCT = {
 
 @Injectable()
 export class PurchaseOrdersService {
-  private readonly logger = new Logger(PurchaseOrdersService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
     private readonly subscriptions: SubscriptionService,
-    private readonly mail: MailService,
     private readonly rfqs: RfqsService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentPdf: DocumentPdfService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   private idempotencyScope(user: RequestUser): string {
@@ -686,13 +681,7 @@ export class PurchaseOrdersService {
   }
 
   async printHtml(user: RequestUser, id: string) {
-    const po = await this.get(user, id);
-    const shopRow = await this.prisma.shop.findUnique({
-      where: { id: po.shopId },
-      select: { companyId: true },
-    });
-    if (!shopRow?.companyId) throw new BadRequestException('Shop not linked to a company');
-    return buildPurchaseOrderPrintHtml(await buildPoPdfDataFromRecord(this.prisma, po, shopRow.companyId));
+    return this.documentPdf.buildPurchaseOrderPrintHtml(user, id);
   }
 
   private formatMoney(value: number): string {
@@ -735,7 +724,7 @@ export class PurchaseOrdersService {
     };
   }
 
-  async sendToSupplier(user: RequestUser, id: string) {
+  async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
     const po = await this.get(user, id);
     const shopRow = await this.prisma.shop.findUnique({
       where: { id: po.shopId },
@@ -762,18 +751,6 @@ export class PurchaseOrdersService {
     }
 
     const content = this.buildPoEmailContent(po, shopRow.company?.companyName ?? 'Company');
-    const pdfFilename = purchaseOrderPdfFilename(po.poNumber);
-    let attachments: Array<{ filename: string; content: Buffer }> | undefined;
-    try {
-      const pdfBuffer = await renderPurchaseOrderPdfBuffer(
-        await buildPoPdfDataFromRecord(this.prisma, po, shopRow.companyId),
-      );
-      attachments = [{ filename: pdfFilename, content: pdfBuffer }];
-    } catch (err) {
-      const message = (err as Error).message ?? 'PDF generation failed';
-      this.logger.warn(`PO PDF attachment skipped for ${po.poNumber}: ${message}`);
-    }
-
     const defaults = purchaseOrderDefaults(content);
     const prepared = await this.emailNotifications.prepareTemplateForShop(
       po.shopId,
@@ -785,19 +762,18 @@ export class PurchaseOrdersService {
       throw new BadRequestException('Purchase order email notifications are disabled in settings.');
     }
 
-    await this.mail.sendPurchaseOrderToSupplier({
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+
+    return this.documentEmail.sendPurchaseOrderEmail(user, {
+      poId: id,
       companyId: shopRow.companyId,
-      to: email,
+      shopId: po.shopId,
+      recipient: email,
       content,
-      attachments,
-      overrides: prepared,
+      prepared,
+      documentNumber: po.poNumber,
+      trigger,
     });
-    return {
-      sent: true,
-      to: email,
-      attachment: attachments ? pdfFilename : null,
-      pdfAttached: Boolean(attachments),
-    };
   }
 }
 

@@ -64,6 +64,7 @@ import { cn } from '@/lib/cn';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { uiSurfaces } from '@/lib/ui-surfaces';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { DocumentDetailActions } from '@/components/shared/DocumentDetailActions';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 type QuoteTab =
@@ -960,6 +961,13 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </Button>
                 </div>
               </SheetHeader>
+
+              <DocumentDetailActions
+                kind="sales-quotation"
+                id={viewQuote.id}
+                canSend={viewQuote.status !== 'DRAFT' && viewQuote.status !== 'CANCELLED'}
+                resend={viewQuote.status !== 'DRAFT'}
+              />
 
               <div className="mt-6 space-y-5">
                 <div className="grid gap-3 sm:grid-cols-2">

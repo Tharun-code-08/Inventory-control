@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
+import { DocumentRowActions } from '@/components/shared/DocumentRowActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -139,12 +140,13 @@ export function SupplierPaymentsPage() {
                   <TableHead>Bill</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Method</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5}>No supplier payments found.</TableCell>
+                    <TableCell colSpan={6}>No supplier payments found.</TableCell>
                   </TableRow>
                 ) : (
                   payments.map((payment) => (
@@ -158,6 +160,9 @@ export function SupplierPaymentsPage() {
                         {Number(payment.amount ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell>{payment.method ?? '-'}</TableCell>
+                      <TableCell>
+                        <DocumentRowActions kind="supplier-payment" id={payment.id} />
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

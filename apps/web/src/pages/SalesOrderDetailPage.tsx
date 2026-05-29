@@ -5,6 +5,7 @@ import {
   FileText,
   FileDown,
   Pencil,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
@@ -26,6 +27,10 @@ import {
 } from '@/hooks/use-sales-orders';
 import { useCreateInvoice } from '@/hooks/use-invoices';
 import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
+import { useDocumentEmailHistory } from '@/hooks/use-document-email-history';
+import { useSendDocumentEmail } from '@/hooks/use-document-send';
+import { DocumentEmailHistoryPanel } from '@/components/shared/DocumentEmailHistoryPanel';
+import { downloadDocumentPdf } from '@/lib/document-pdf';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
 import {
@@ -81,6 +86,8 @@ export function SalesOrderDetailPage() {
   const confirmOrder = useConfirmSalesOrder();
   const fulfillOrder = useFulfillSalesOrder();
   const createInvoice = useCreateInvoice();
+  const sendEmail = useSendDocumentEmail('sales-order');
+  const emailHistoryQuery = useDocumentEmailHistory('sales-order', orderId || null);
 
   const remarks = parseOrderRemarks(order?.remarks);
   const grandTotal = order ? orderGrandTotal(order) : 0;
@@ -89,11 +96,22 @@ export function SalesOrderDetailPage() {
   const onDownloadPdf = async () => {
     if (!order) return;
     try {
-      const { downloadSalesOrderPdf } = await import('@/lib/sales-order-pdf');
-      downloadSalesOrderPdf(order);
+      await downloadDocumentPdf('sales-order', order.id);
       toast.success('PDF downloaded');
-    } catch {
-      toast.error('Failed to generate PDF');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to download PDF'));
+    }
+  };
+
+  const onSendEmail = async () => {
+    if (!order) return;
+    try {
+      const result = await sendEmail.mutateAsync({ id: order.id, resend: order.status !== 'DRAFT' });
+      if (result?.sent) toast.success('Sales order emailed with PDF');
+      else if (result?.queued) toast.message(result?.message ?? 'Email queued for delivery');
+      else toast.success('Email submitted');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to send email'));
     }
   };
 
@@ -218,6 +236,12 @@ export function SalesOrderDetailPage() {
               <FileDown className="mr-2 h-4 w-4" />
               Download PDF
             </Button>
+            {order.status !== 'DRAFT' && (
+              <Button variant="outline" onClick={onSendEmail} disabled={sendEmail.isPending}>
+                <Send className="mr-2 h-4 w-4" />
+                {sendEmail.isPending ? 'Sending…' : 'Email customer'}
+              </Button>
+            )}
             <Button variant="outline" onClick={onCreateInvoice} disabled={createInvoice.isPending}>
               <FileText className="mr-2 h-4 w-4" />
               Generate Invoice
@@ -262,6 +286,14 @@ export function SalesOrderDetailPage() {
             value={order.expectedDate ? formatOrderDate(order.expectedDate) : '—'}
           />
         </div>
+
+        {order.status !== 'DRAFT' && (
+          <DocumentEmailHistoryPanel
+            summary={emailHistoryQuery.data?.summary}
+            history={emailHistoryQuery.data?.history}
+            isLoading={emailHistoryQuery.isLoading}
+          />
+        )}
 
         <Card className="border-slate-200/90 shadow-sm">
           <CardHeader className="pb-2">

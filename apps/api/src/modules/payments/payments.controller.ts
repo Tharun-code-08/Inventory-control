@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -41,5 +41,16 @@ export class PaymentsController {
       ...dto,
       idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
     });
+  }
+
+  @RequirePermission('shop:write')
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Email payment receipt to customer (with PDF attachment)' })
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.payments.sendToCustomer(user, id, { resend: resend === 'true' });
   }
 }

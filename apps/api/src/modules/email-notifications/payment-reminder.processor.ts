@@ -8,6 +8,7 @@ import {
   paymentReminderSubject,
   paymentReminderText,
 } from '../../common/mail/transactional-email.templates';
+import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailNotificationsService } from './email-notifications.service';
 import { PAYMENT_REMINDER_QUEUE } from './payment-reminder.constants';
@@ -20,6 +21,7 @@ export class PaymentReminderProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentPdf: DocumentPdfService,
   ) {
     super();
   }
@@ -121,6 +123,17 @@ export class PaymentReminderProcessor extends WorkerHost {
 
         if (!invoice.shop?.companyId) continue;
 
+        let attachments: Array<{ filename: string; content: Buffer }> | undefined;
+        try {
+          const pdf = await this.documentPdf.renderInvoicePdfById(invoice.id);
+          attachments = [{ filename: pdf.filename, content: pdf.buffer }];
+        } catch (err) {
+          this.logger.warn(
+            `Payment reminder skipped PDF for invoice ${invoice.invoiceNumber}: ${(err as Error).message}`,
+          );
+          continue;
+        }
+
         await this.mail.sendTenantMail(invoice.shop.companyId, {
           to: recipient,
           subject: prepared.subject,
@@ -129,6 +142,7 @@ export class PaymentReminderProcessor extends WorkerHost {
           cc: prepared.cc,
           bcc: prepared.bcc,
           fromName: content.companyName,
+          attachments,
         });
 
         await this.emailNotifications.logDelivery({

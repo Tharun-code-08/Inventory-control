@@ -391,6 +391,7 @@ export class EmailNotificationsService {
     title: string;
     message: string;
     companyName?: string;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
     dedupe?: {
       templateId: string;
       entityType: string;
@@ -439,6 +440,7 @@ export class EmailNotificationsService {
         text: internalAlertText(content),
         html: internalAlertHtml(content),
         fromName: content.companyName,
+        attachments: args.attachments,
       });
       if (args.dedupe) {
         await this.logDelivery({

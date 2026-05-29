@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   AuditAction,
   CostingMethod,
+  DocumentEmailTrigger,
   FulfillmentStatus,
   Prisma,
   SalesOrderStatus,
@@ -20,6 +21,11 @@ import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateSalesOrderDto, CreateSalesOrderItemDto } from './dto/create-sales-order.dto';
 import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { salesOrderCustomerDefaults } from '../email-notifications/email-notifications.outbound';
+import type { SalesOrderCustomerEmailContent } from '../../common/mail/transactional-email.templates';
+import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
+import { DocumentEmailService } from '../document-email/document-email.service';
 
 export type SalesOrderListQuery = {
   shop_id?: string;
@@ -40,6 +46,8 @@ export class SalesOrdersService {
     private readonly audit: AuditService,
     private readonly costing: CostingService,
     private readonly subscriptions: SubscriptionService,
+    private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   async list(user: RequestUser, query: SalesOrderListQuery = {}) {
@@ -315,8 +323,7 @@ export class SalesOrdersService {
       throw new BadRequestException(`Cannot confirm sales order in status ${so.status}`);
     }
 
-    return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      // Atomic state transition: only succeeds if the SO is still DRAFT.
+    const confirmed = await runSerializableTxWithRetry(this.prisma, async (tx) => {
       const updated = await tx.salesOrderHeader.updateMany({
         where: { id, status: SalesOrderStatus.DRAFT },
         data: { status: SalesOrderStatus.CONFIRMED, updatedById: user.id },
@@ -336,8 +343,133 @@ export class SalesOrdersService {
       );
       return tx.salesOrderHeader.findUniqueOrThrow({
         where: { id },
-        include: { customer: true, items: { include: { product: true } } },
+        include: {
+          customer: true,
+          shop: { select: { shopName: true } },
+          items: { include: { product: true } },
+        },
       });
+    });
+
+    await this.autoSendSalesOrderEmail(user, confirmed).catch(() => undefined);
+    return confirmed;
+  }
+
+  async sendToCustomer(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const order = await this.get(user, id);
+    if (order.status === SalesOrderStatus.DRAFT) {
+      throw new BadRequestException('Confirm the sales order before emailing it to the customer.');
+    }
+
+    const recipient = order.customer.email?.trim();
+    if (!recipient) {
+      throw new BadRequestException(
+        `Customer email is missing for "${order.customer.customerName}". Add an email on the customer record and try again.`,
+      );
+    }
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: order.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shop?.companyId) {
+      throw new BadRequestException('Shop not linked to a company');
+    }
+
+    const content = this.buildSalesOrderEmailContent(order, shop.company?.companyName ?? 'Company');
+    const defaults = salesOrderCustomerDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      order.shopId,
+      'sales_order_customer',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Sales order email notifications are disabled in settings.');
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    return this.documentEmail.sendSalesOrderEmail(user, {
+      salesOrderId: id,
+      companyId: shop.companyId,
+      shopId: order.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: order.soNumber,
+      trigger,
+    });
+  }
+
+  private buildSalesOrderEmailContent(
+    order: {
+      soNumber: string;
+      orderDate: Date;
+      expectedDate: Date | null;
+      totalValue: Prisma.Decimal | null;
+      currency: string;
+      shop?: { shopName: string } | null;
+      customer: { customerName: string };
+    },
+    companyName: string,
+  ): SalesOrderCustomerEmailContent {
+    const total =
+      order.totalValue != null
+        ? Number(order.totalValue)
+        : 0;
+    return {
+      customerName: order.customer.customerName,
+      soNumber: order.soNumber,
+      orderDate: formatEmailDate(order.orderDate),
+      expectedDate: formatEmailDate(order.expectedDate),
+      totalAmount: formatEmailMoney(total, order.currency || 'INR'),
+      shopName: order.shop?.shopName ?? '—',
+      companyName,
+    };
+  }
+
+  private async autoSendSalesOrderEmail(
+    user: RequestUser,
+    order: {
+      id: string;
+      shopId: string;
+      soNumber: string;
+      orderDate: Date;
+      expectedDate: Date | null;
+      totalValue: Prisma.Decimal | null;
+      currency: string;
+      shop?: { shopName: string } | null;
+      customer: { customerName: string; email: string | null };
+    },
+  ) {
+    const recipient = order.customer.email?.trim();
+    if (!recipient) return;
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: order.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shop?.companyId) return;
+
+    const content = this.buildSalesOrderEmailContent(order, shop.company?.companyName ?? 'Company');
+    const defaults = salesOrderCustomerDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      order.shopId,
+      'sales_order_customer',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) return;
+
+    await this.documentEmail.sendSalesOrderEmail(user, {
+      salesOrderId: order.id,
+      companyId: shop.companyId,
+      shopId: order.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: order.soNumber,
+      trigger: DocumentEmailTrigger.AUTO,
     });
   }
 

@@ -216,12 +216,15 @@ export function useConfirmPoCancel() {
 export function useSendPurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await api.post(`/purchase-orders/${id}/send`);
+    mutationFn: async ({ id, resend }: { id: string; resend?: boolean }) => {
+      const res = await api.post(
+        `/purchase-orders/${id}/send${resend ? '?resend=true' : ''}`,
+      );
       return res.data.data ?? res.data;
     },
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: poKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: ['document-email-history', 'purchase-order', id] });
     },
   });
 }

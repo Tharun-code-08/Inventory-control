@@ -65,6 +65,17 @@ export class SalesOrdersController {
   }
 
   @RequirePermission('shop:write')
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Email sales order to customer (with PDF attachment)' })
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.salesOrders.sendToCustomer(user, id, { resend: resend === 'true' });
+  }
+
+  @RequirePermission('shop:write')
   @Post(':id/fulfill')
   @ApiOperation({ summary: 'Fulfill a CONFIRMED sales order (issues stock)' })
   @ApiResponse({ status: 200, description: 'Sales order with status=FULFILLED.' })

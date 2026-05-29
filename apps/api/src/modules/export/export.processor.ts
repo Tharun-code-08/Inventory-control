@@ -5,11 +5,7 @@ import { Job } from 'bullmq';
 import ExcelJS from 'exceljs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { buildPoPdfDataFromRecord } from '../../common/pdf/build-po-pdf-data';
-import {
-  purchaseOrderPdfFilename,
-  renderPurchaseOrderPdfBuffer,
-} from '../../common/pdf/purchase-order-pdf';
+import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JobFailureService } from '../../common/queues/job-failure.service';
 import { MetricsService } from '../../common/observability/metrics.service';
@@ -27,6 +23,7 @@ export class ExportProcessor extends WorkerHost {
     private readonly config: ConfigService,
     private readonly failures: JobFailureService,
     private readonly metrics: MetricsService,
+    private readonly documentPdf: DocumentPdfService,
   ) {
     super();
   }
@@ -53,23 +50,10 @@ export class ExportProcessor extends WorkerHost {
     await fs.mkdir(dir, { recursive: true });
 
     if (job.data.type === 'po-pdf') {
-      const po = await this.prisma.purchaseOrderHeader.findUnique({
-        where: { id: job.data.purchaseOrderId },
-        include: { items: { include: { product: true } }, shop: { select: { shopName: true, companyId: true } } },
-      });
-      if (!po) {
-        throw new Error('Purchase order not found');
-      }
-      if (!po.shop.companyId) {
-        throw new Error('Shop not linked to a company');
-      }
-      const fileName = purchaseOrderPdfFilename(po.poNumber);
-      const outPath = path.join(dir, fileName);
-      const pdfBuffer = await renderPurchaseOrderPdfBuffer(
-        await buildPoPdfDataFromRecord(this.prisma, po, po.shop.companyId),
-      );
-      await fs.writeFile(outPath, pdfBuffer);
-      return { downloadUrl: `/api/v1/export/files/${fileName}`, fileName };
+      const pdfResult = await this.documentPdf.renderPurchaseOrderPdfById(job.data.purchaseOrderId);
+      const outPath = path.join(dir, pdfResult.filename);
+      await fs.writeFile(outPath, pdfResult.buffer);
+      return { downloadUrl: `/api/v1/export/files/${pdfResult.filename}`, fileName: pdfResult.filename };
     }
 
     if (job.data.type === 'report-xlsx') {

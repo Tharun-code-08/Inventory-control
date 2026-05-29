@@ -9,6 +9,7 @@ import {
   Post,
   UploadedFile,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -137,6 +138,17 @@ export class ReturnsController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.service.submitSupplierReturn(user, id);
+  }
+
+  @Post('supplier/:id/send')
+  @RequirePermission('shop:write')
+  @ApiOperation({ summary: 'Resend supplier return notice email (with PDF and images)' })
+  sendSupplier(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.service.sendSupplierReturnNotice(user, id, { resend: resend === 'true' });
   }
 
   @Post('supplier/:id/cancel')

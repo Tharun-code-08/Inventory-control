@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DocumentReferenceSelect, PageHeader } from '@/components/shared';
+import { DocumentRowActions } from '@/components/shared/DocumentRowActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -109,12 +110,13 @@ export function SupplierBillsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {bills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7}>No supplier bills found.</TableCell>
+                    <TableCell colSpan={8}>No supplier bills found.</TableCell>
                   </TableRow>
                 ) : (
                   bills.map((bill) => (
@@ -135,6 +137,9 @@ export function SupplierBillsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {Number(bill.paidValue ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <DocumentRowActions kind="supplier-bill" id={bill.id} />
                       </TableCell>
                     </TableRow>
                   ))

@@ -85,6 +85,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { CreatePageLayout, P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { DocumentDetailActions } from '@/components/shared/DocumentDetailActions';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { displayDocumentNumber } from '@/lib/document-display';
 
@@ -1108,16 +1109,24 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 </DialogDescription>
               </div>
               {viewingGR ? (
-                <Button variant="outline" size="sm" onClick={() => handleExportReceiptDetail(viewingGR)}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Export CSV
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleExportReceiptDetail(viewingGR)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
               ) : null}
             </div>
           </DialogHeader>
 
           {viewingGR && (
       <div className="space-y-4">
+        <DocumentDetailActions
+          kind="goods-receipt"
+          id={viewingGR.id}
+          canSend={viewingGR.status === 'POSTED'}
+          resend
+        />
         {poFlow ? <P2PFlowTimeline title={`PO-linked GR flow (${poQuery.data?.poNumber ?? ''})`} steps={poFlow} /> : null}
               <div className="surface-2 grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
                 <div>

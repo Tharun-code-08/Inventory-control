@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { CreatePageLayout, DocumentReferenceSelect, PageHeader } from '@/components/shared';
+import { DocumentRowActions } from '@/components/shared/DocumentRowActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -164,9 +165,9 @@ export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
           <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Invoice</TableHead><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Status</TableHead><TableHead>Total</TableHead><TableHead>Paid</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Invoice</TableHead><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Status</TableHead><TableHead>Total</TableHead><TableHead>Paid</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
-                {invoices.length === 0 ? <TableRow><TableCell colSpan={6}>No invoices found.</TableCell></TableRow> : invoices.map((inv) => (
+                {invoices.length === 0 ? <TableRow><TableCell colSpan={7}>No invoices found.</TableCell></TableRow> : invoices.map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell>{inv.invoiceNumber}</TableCell>
                     <TableCell>{new Date(inv.invoiceDate).toLocaleDateString()}</TableCell>
@@ -174,6 +175,7 @@ export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
                     <TableCell><StatusBadge status={inv.status} /></TableCell>
                     <TableCell>{Number(inv.totalValue ?? 0).toFixed(2)}</TableCell>
                     <TableCell>{Number(inv.paidValue ?? 0).toFixed(2)}</TableCell>
+                    <TableCell><DocumentRowActions kind="invoice" id={inv.id} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

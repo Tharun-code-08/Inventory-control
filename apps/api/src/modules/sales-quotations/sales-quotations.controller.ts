@@ -46,8 +46,12 @@ export class SalesQuotationsController {
 
   @RequirePermission('shop:write')
   @Post(':id/send')
-  send(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
-    return this.salesQuotations.send(user, id);
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.salesQuotations.sendEmail(user, id, { resend: resend === 'true' });
   }
 
   @RequirePermission('shop:write')

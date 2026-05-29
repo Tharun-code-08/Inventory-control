@@ -1,6 +1,7 @@
 import { Module, OnModuleInit, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from '../../common/mail/mail.module';
+import { PdfModule } from '../../common/pdf/pdf.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { EmailSendersModule } from '../email-senders/email-senders.module';
 import { EmailNotificationsController } from './email-notifications.controller';
@@ -10,7 +11,13 @@ import { PaymentReminderProcessor } from './payment-reminder.processor';
 import { PaymentReminderScheduler } from './payment-reminder.scheduler';
 
 @Module({
-  imports: [PrismaModule, MailModule, forwardRef(() => EmailSendersModule), BullModule.registerQueue({ name: PAYMENT_REMINDER_QUEUE })],
+  imports: [
+    PrismaModule,
+    MailModule,
+    PdfModule,
+    forwardRef(() => EmailSendersModule),
+    BullModule.registerQueue({ name: PAYMENT_REMINDER_QUEUE }),
+  ],
   controllers: [EmailNotificationsController],
   providers: [EmailNotificationsService, PaymentReminderProcessor, PaymentReminderScheduler],
   exports: [EmailNotificationsService],

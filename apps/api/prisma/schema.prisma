@@ -47,6 +47,7 @@ enum AuditAction {
   DELETE
   POST
   EXPORT
+  EMAIL
 }
 
 enum CostingMethod {
@@ -1075,6 +1076,48 @@ model EmailDeliveryLog {
 
   @@unique([templateId, entityType, entityId, recipient], map: "email_delivery_log_template_entity_recipient_key")
   @@map("email_delivery_log")
+}
+
+enum DocumentEmailStatus {
+  PENDING_PDF
+  PENDING_SEND
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum DocumentEmailTrigger {
+  AUTO
+  MANUAL
+  RESEND
+}
+
+model DocumentEmailOutbox {
+  id                 String               @id @default(uuid()) @db.Uuid
+  entityType         String               @map("entity_type")
+  entityId           String               @map("entity_id") @db.Uuid
+  documentNumber     String               @map("document_number")
+  templateId         String               @map("template_id")
+  companyId          String               @map("company_id") @db.Uuid
+  shopId             String?              @map("shop_id") @db.Uuid
+  recipient          String
+  attachmentFilename String?              @map("attachment_filename")
+  status             DocumentEmailStatus  @default(PENDING_PDF)
+  trigger            DocumentEmailTrigger @default(MANUAL)
+  attempts           Int                  @default(0)
+  retryCount         Int                  @default(0) @map("retry_count")
+  lastError          String?              @map("last_error")
+  nextRetryAt        DateTime?            @map("next_retry_at") @db.Timestamptz(6)
+  payloadJson        Json                 @map("payload_json")
+  sentAt             DateTime?            @map("sent_at") @db.Timestamptz(6)
+  sentById           String?              @map("sent_by_id") @db.Uuid
+  messageId          String?              @map("message_id")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([status, nextRetryAt])
+  @@map("document_email_outbox")
 }
 
 model EmailSenderDomain {

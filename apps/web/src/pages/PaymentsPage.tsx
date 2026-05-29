@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { DocumentReferenceSelect, PageHeader, P2PFlowTimeline } from '@/components/shared';
+import { DocumentRowActions } from '@/components/shared/DocumentRowActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -147,15 +148,16 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
           <CardHeader><CardTitle>Payments</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Date</TableHead><TableHead>Invoice</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Date</TableHead><TableHead>Invoice</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
-                {payments.length === 0 ? <TableRow><TableCell colSpan={5}>No payments found.</TableCell></TableRow> : payments.map((p) => (
+                {payments.length === 0 ? <TableRow><TableCell colSpan={6}>No payments found.</TableCell></TableRow> : payments.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>{p.receiptNumber}</TableCell>
                     <TableCell>{new Date(p.receiptDate).toLocaleDateString()}</TableCell>
                     <TableCell>{p.invoice?.invoiceNumber ?? '-'}</TableCell>
                     <TableCell>{Number(p.amount ?? 0).toFixed(2)}</TableCell>
                     <TableCell>{p.method ?? '-'}</TableCell>
+                    <TableCell><DocumentRowActions kind="payment" id={p.id} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

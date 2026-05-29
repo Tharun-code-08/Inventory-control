@@ -29,8 +29,24 @@ import {
   paymentReceivedHtml,
   paymentReceivedSubject,
   paymentReceivedText,
+  salesOrderCustomerHtml,
+  salesOrderCustomerSubject,
+  salesOrderCustomerText,
+  supplierBillIssuedHtml,
+  supplierBillIssuedSubject,
+  supplierBillIssuedText,
+  supplierPaymentRecordedHtml,
+  supplierPaymentRecordedSubject,
+  supplierPaymentRecordedText,
+  goodsReceiptSupplierHtml,
+  goodsReceiptSupplierSubject,
+  goodsReceiptSupplierText,
+  type GoodsReceiptSupplierEmailContent,
   type InvoiceCreatedEmailContent,
   type PaymentReceivedEmailContent,
+  type SalesOrderCustomerEmailContent,
+  type SupplierBillIssuedEmailContent,
+  type SupplierPaymentRecordedEmailContent,
 } from '../../common/mail/transactional-email.templates';
 import {
   userInviteHtml,
@@ -160,6 +176,74 @@ export function paymentReceivedDefaults(content: PaymentReceivedEmailContent) {
       amount_paid: content.amountPaid,
       balance_due: content.balanceDue,
       payment_type: content.paymentType,
+      company_name: content.companyName,
+    },
+  };
+}
+
+export function salesOrderCustomerDefaults(content: SalesOrderCustomerEmailContent) {
+  return {
+    subject: salesOrderCustomerSubject(content),
+    text: salesOrderCustomerText(content),
+    html: salesOrderCustomerHtml(content),
+    context: {
+      customer_name: content.customerName,
+      so_number: content.soNumber,
+      order_date: content.orderDate,
+      expected_date: content.expectedDate,
+      total_amount: content.totalAmount,
+      shop_name: content.shopName,
+      company_name: content.companyName,
+    },
+  };
+}
+
+export function supplierBillIssuedDefaults(content: SupplierBillIssuedEmailContent) {
+  return {
+    subject: supplierBillIssuedSubject(content),
+    text: supplierBillIssuedText(content),
+    html: supplierBillIssuedHtml(content),
+    context: {
+      supplier_name: content.supplierName,
+      bill_number: content.billNumber,
+      bill_date: content.billDate,
+      due_date: content.dueDate,
+      total_amount: content.totalAmount,
+      po_number: content.poNumber,
+      company_name: content.companyName,
+    },
+  };
+}
+
+export function supplierPaymentRecordedDefaults(content: SupplierPaymentRecordedEmailContent) {
+  return {
+    subject: supplierPaymentRecordedSubject(content),
+    text: supplierPaymentRecordedText(content),
+    html: supplierPaymentRecordedHtml(content),
+    context: {
+      supplier_name: content.supplierName,
+      bill_number: content.billNumber,
+      payment_number: content.paymentNumber,
+      amount_paid: content.amountPaid,
+      balance_due: content.balanceDue,
+      payment_type: content.paymentType,
+      company_name: content.companyName,
+    },
+  };
+}
+
+export function goodsReceiptSupplierDefaults(content: GoodsReceiptSupplierEmailContent) {
+  return {
+    subject: goodsReceiptSupplierSubject(content),
+    text: goodsReceiptSupplierText(content),
+    html: goodsReceiptSupplierHtml(content),
+    context: {
+      supplier_name: content.supplierName,
+      gr_number: content.grNumber,
+      gr_date: content.grDate,
+      shop_name: content.shopName,
+      total_value: content.totalAmount,
+      po_number: content.poNumber,
       company_name: content.companyName,
     },
   };

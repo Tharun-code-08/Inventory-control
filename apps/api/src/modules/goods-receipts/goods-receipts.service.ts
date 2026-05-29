@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, CostingMethod, DocumentEmailTrigger, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
+import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
+import type { GoodsReceiptSupplierEmailContent } from '../../common/mail/transactional-email.templates';
+import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
@@ -15,6 +18,8 @@ import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { UpdateGoodsReceiptDto } from './dto/update-goods-receipt.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { goodsReceiptSupplierDefaults } from '../email-notifications/email-notifications.outbound';
+import { DocumentEmailService } from '../document-email/document-email.service';
 
 @Injectable()
 export class GoodsReceiptsService {
@@ -25,6 +30,8 @@ export class GoodsReceiptsService {
     private readonly audit: AuditService,
     private readonly costing: CostingService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentPdf: DocumentPdfService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   private async assertStorageLocationsForShop(
@@ -383,7 +390,11 @@ export class GoodsReceiptsService {
 
       const posted = await tx.goodsReceiptHeader.findUniqueOrThrow({
         where: { id },
-        include: { items: { include: { product: true, storageLocation: true } }, shop: true },
+        include: {
+          items: { include: { product: true, storageLocation: true } },
+          shop: true,
+          purchaseOrder: { select: { poNumber: true } },
+        },
       });
       await this.audit.log(
         {
@@ -402,13 +413,170 @@ export class GoodsReceiptsService {
       );
       return posted;
     }).then(async (posted) => {
-      await this.emailNotifications.sendInternalAlert({
-        shopId: posted.shopId,
-        alertKey: 'goodsReceiptPosted',
-        title: `Goods receipt posted: ${posted.grNumber}`,
-        message: `${posted.supplierName} — ${posted.shop?.shopName ?? posted.shopId}`,
-      }).catch(() => undefined);
+      let alertAttachments: Array<{ filename: string; content: Buffer }> = [];
+      try {
+        const pdf = await this.documentPdf.renderGoodsReceiptPdfById(posted.id);
+        alertAttachments = [{ filename: pdf.filename, content: pdf.buffer }];
+      } catch {
+        // Internal alert still sends without attachment if PDF fails.
+      }
+
+      await this.emailNotifications
+        .sendInternalAlert({
+          shopId: posted.shopId,
+          alertKey: 'goodsReceiptPosted',
+          title: `Goods receipt posted: ${posted.grNumber}`,
+          message: `${posted.supplierName} — ${posted.shop?.shopName ?? posted.shopId}`,
+          attachments: alertAttachments.length ? alertAttachments : undefined,
+          dedupe: {
+            templateId: 'goods_receipt_posted',
+            entityType: 'goods-receipt',
+            entityId: posted.id,
+          },
+        })
+        .catch(() => undefined);
+
+      await this.autoSendGoodsReceiptEmail(user, posted).catch(() => undefined);
       return posted;
+    });
+  }
+
+  private buildGoodsReceiptEmailContent(
+    gr: {
+      grNumber: string;
+      grDate: Date;
+      supplierName: string;
+      totalValue: Prisma.Decimal | null;
+      shop: { shopName: string } | null;
+      purchaseOrder?: { poNumber: string } | null;
+    },
+    companyName: string,
+  ): GoodsReceiptSupplierEmailContent {
+    return {
+      supplierName: gr.supplierName,
+      grNumber: gr.grNumber,
+      grDate: formatEmailDate(gr.grDate),
+      shopName: gr.shop?.shopName ?? 'Plant',
+      totalAmount: formatEmailMoney(gr.totalValue ?? 0),
+      poNumber: gr.purchaseOrder?.poNumber ?? '—',
+      companyName,
+    };
+  }
+
+  async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const gr = await this.get(user, id);
+    if (gr.status !== DocumentStatus.POSTED) {
+      throw new BadRequestException('Only posted goods receipts can be emailed to the supplier');
+    }
+
+    const shopRow = await this.prisma.shop.findUnique({
+      where: { id: gr.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shopRow?.companyId) {
+      throw new BadRequestException('Shop not linked to a company');
+    }
+
+    const purchaseOrder = gr.purchaseOrderId
+      ? await this.prisma.purchaseOrderHeader.findUnique({
+          where: { id: gr.purchaseOrderId },
+          select: { poNumber: true },
+        })
+      : null;
+
+    const supplier = await this.prisma.supplier.findFirst({
+      where: {
+        companyId: shopRow.companyId,
+        supplierName: { equals: gr.supplierName.trim(), mode: 'insensitive' },
+      },
+      select: { email: true, supplierName: true },
+    });
+    const email = supplier?.email?.trim();
+    if (!email) {
+      throw new BadRequestException(
+        `Supplier email is missing for "${gr.supplierName}". Open Suppliers, add an email, and try again.`,
+      );
+    }
+
+    const content = this.buildGoodsReceiptEmailContent(
+      { ...gr, purchaseOrder, shop: gr.shop },
+      shopRow.company?.companyName ?? 'Company',
+    );
+    const defaults = goodsReceiptSupplierDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      gr.shopId,
+      'goods_receipt_supplier',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Goods receipt email notifications are disabled in settings.');
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    return this.documentEmail.sendGoodsReceiptEmail(user, {
+      grId: id,
+      companyId: shopRow.companyId,
+      shopId: gr.shopId,
+      recipient: email,
+      content,
+      prepared,
+      documentNumber: gr.grNumber,
+      trigger,
+    });
+  }
+
+  private async autoSendGoodsReceiptEmail(
+    user: RequestUser,
+    gr: {
+      id: string;
+      grNumber: string;
+      grDate: Date;
+      shopId: string;
+      supplierName: string;
+      totalValue: Prisma.Decimal | null;
+      shop: { shopName: string } | null;
+      purchaseOrder?: { poNumber: string } | null;
+    },
+  ) {
+    const shopRow = await this.prisma.shop.findUnique({
+      where: { id: gr.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shopRow?.companyId) return;
+
+    const supplier = await this.prisma.supplier.findFirst({
+      where: {
+        companyId: shopRow.companyId,
+        supplierName: { equals: gr.supplierName.trim(), mode: 'insensitive' },
+      },
+      select: { email: true },
+    });
+    const recipient = supplier?.email?.trim();
+    if (!recipient) return;
+
+    const content = this.buildGoodsReceiptEmailContent(
+      gr,
+      shopRow.company?.companyName ?? 'Company',
+    );
+    const defaults = goodsReceiptSupplierDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      gr.shopId,
+      'goods_receipt_supplier',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) return;
+
+    await this.documentEmail.sendGoodsReceiptEmail(user, {
+      grId: gr.id,
+      companyId: shopRow.companyId,
+      shopId: gr.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: gr.grNumber,
+      trigger: DocumentEmailTrigger.AUTO,
     });
   }
 

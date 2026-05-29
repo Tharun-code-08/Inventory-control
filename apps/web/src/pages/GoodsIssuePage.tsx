@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { DocumentDetailActions } from '@/components/shared/DocumentDetailActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -529,6 +530,7 @@ export function GoodsIssuePage() {
             </div>
           ) : detailGI ? (
             <div className="space-y-4">
+              <DocumentDetailActions kind="goods-issue" id={detailGI.id} canSend={false} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <p className="text-xs text-slate-500">Issue Type</p>

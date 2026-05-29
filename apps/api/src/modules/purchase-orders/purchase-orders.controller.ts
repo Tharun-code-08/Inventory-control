@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequireAnyPermission } from '../../common/decorators/require-any-permission.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
+import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
@@ -20,7 +20,7 @@ export class PurchaseOrdersController {
   constructor(
     private readonly service: PurchaseOrdersService,
     private readonly poCancel: PoCancelService,
-    @InjectQueue('exports') private readonly exportsQueue: Queue,
+    private readonly documentPdf: DocumentPdfService,
   ) {}
 
   @RequirePermission('purchase_order:read')
@@ -86,15 +86,27 @@ export class PurchaseOrdersController {
 
   @RequireAnyPermission('purchase_order:create', 'purchase_order:approve')
   @Post(':id/send')
-  send(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.sendToSupplier(user, id);
+  send(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Query('resend') resend?: string,
+  ) {
+    return this.service.sendToSupplier(user, id, { resend: resend === 'true' });
   }
 
-  @RequirePermission('report:export')
+  @RequirePermission('purchase_order:read')
   @Get(':id/export-pdf')
-  async exportPdf(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    await this.service.get(user, id);
-    const job = await this.exportsQueue.add('po-pdf', { type: 'po-pdf', purchaseOrderId: id }, { removeOnComplete: true });
-    return { jobId: job.id };
+  async exportPdf(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const result = await this.documentPdf.renderPurchaseOrderPdf(user, id);
+    res.set({
+      'Content-Type': result.contentType,
+      'Content-Disposition': `attachment; filename="${result.filename}"`,
+      'Content-Length': result.buffer.length,
+    });
+    res.send(result.buffer);
   }
 }

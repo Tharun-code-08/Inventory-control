@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, InvoiceStatus, Prisma, SalesOrderStatus } from '@prisma/client';
+import { AuditAction, DocumentEmailTrigger, InvoiceStatus, Prisma, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
@@ -7,13 +7,13 @@ import { asMoney, assertNonNegativeMoney, roundMoney } from '../../common/utils/
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
-import { MailService } from '../../common/mail/mail.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { SubscriptionService } from '../billing/subscription.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { invoiceCreatedDefaults } from '../email-notifications/email-notifications.outbound';
 import type { InvoiceCreatedEmailContent } from '../../common/mail/transactional-email.templates';
-import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
+import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
+import { DocumentEmailService } from '../document-email/document-email.service';
 
 export type InvoiceListQuery = {
   shop_id?: string;
@@ -33,7 +33,7 @@ export class InvoicesService {
     private readonly numbers: DocumentNumberService,
     private readonly subscriptions: SubscriptionService,
     private readonly emailNotifications: EmailNotificationsService,
-    private readonly mail: MailService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   async list(user: RequestUser, query: InvoiceListQuery = {}) {
@@ -164,12 +164,75 @@ export class InvoicesService {
 
       return invoice;
     }).then(async (invoice) => {
-      await this.sendInvoiceCreatedEmail(invoice).catch(() => undefined);
+      await this.autoSendInvoiceCreatedEmail(user, invoice).catch(() => undefined);
       return invoice;
     });
   }
 
-  private async sendInvoiceCreatedEmail(
+  async sendToCustomer(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const invoice = await this.get(user, id);
+    const recipient = invoice.customer.email?.trim();
+    if (!recipient) {
+      throw new BadRequestException(
+        `Customer email is missing for "${invoice.customer.customerName}". Add an email on the customer record and try again.`,
+      );
+    }
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: invoice.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shop?.companyId) {
+      throw new BadRequestException('Shop not linked to a company');
+    }
+
+    const content = this.buildInvoiceEmailContent(invoice, shop.company?.companyName ?? 'Company');
+    const defaults = invoiceCreatedDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      invoice.shopId,
+      'invoice_created',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Invoice email notifications are disabled in settings.');
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    return this.documentEmail.sendInvoiceEmail(user, {
+      invoiceId: id,
+      companyId: shop.companyId,
+      shopId: invoice.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: invoice.invoiceNumber,
+      trigger,
+    });
+  }
+
+  private buildInvoiceEmailContent(
+    invoice: {
+      invoiceNumber: string;
+      invoiceDate: Date;
+      dueDate: Date | null;
+      totalValue: Prisma.Decimal;
+      customer: { customerName: string };
+    },
+    companyName: string,
+  ): InvoiceCreatedEmailContent {
+    return {
+      customerName: invoice.customer.customerName,
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: formatEmailDate(invoice.invoiceDate),
+      dueDate: formatEmailDate(invoice.dueDate),
+      totalAmount: formatEmailMoney(invoice.totalValue),
+      companyName,
+    };
+  }
+
+  private async autoSendInvoiceCreatedEmail(
+    user: RequestUser,
     invoice: {
       id: string;
       shopId: string;
@@ -185,35 +248,11 @@ export class InvoicesService {
 
     const shop = await this.prisma.shop.findUnique({
       where: { id: invoice.shopId },
-      select: { shopName: true, companyId: true, company: { select: { companyName: true } } },
+      select: { companyId: true, company: { select: { companyName: true } } },
     });
+    if (!shop?.companyId) return;
 
-    const formatMoney = (value: Prisma.Decimal | number) =>
-      new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 2,
-      }).format(Number(value));
-
-    const content: InvoiceCreatedEmailContent = {
-      customerName: invoice.customer.customerName,
-      invoiceNumber: invoice.invoiceNumber,
-      invoiceDate: invoice.invoiceDate.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
-      dueDate: invoice.dueDate
-        ? invoice.dueDate.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          })
-        : '—',
-      totalAmount: formatMoney(invoice.totalValue),
-      companyName: shop?.company?.companyName ?? 'Softdigit Consulting',
-    };
-
+    const content = this.buildInvoiceEmailContent(invoice, shop.company?.companyName ?? 'Company');
     const defaults = invoiceCreatedDefaults(content);
     const prepared = await this.emailNotifications.prepareTemplateForShop(
       invoice.shopId,
@@ -223,32 +262,15 @@ export class InvoicesService {
     );
     if (!prepared.enabled) return;
 
-    if (!shop?.companyId) return;
-
-    const attachments = await tryRenderDocumentPdfAttachment(
-      {
-        title: 'Invoice',
-        documentNumber: invoice.invoiceNumber,
-        documentDate: content.invoiceDate,
-        partyLabel: 'Customer',
-        partyName: content.customerName,
-        companyName: content.companyName,
-        summaryLines: [
-          { label: 'Invoice Date', value: content.invoiceDate },
-          { label: 'Due Date', value: content.dueDate },
-          { label: 'Amount', value: content.totalAmount },
-        ],
-        footerNote: 'This document was generated by Retail IMS.',
-      },
-      'invoice',
-    );
-
-    await this.mail.sendInvoiceCreated({
+    await this.documentEmail.sendInvoiceEmail(user, {
+      invoiceId: invoice.id,
       companyId: shop.companyId,
-      to: recipient,
+      shopId: invoice.shopId,
+      recipient,
       content,
-      overrides: prepared,
-      attachments,
+      prepared,
+      documentNumber: invoice.invoiceNumber,
+      trigger: DocumentEmailTrigger.AUTO,
     });
   }
 

@@ -24,6 +24,8 @@ import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, AnimatedTableBody, P2PFlowTimeline, CreatePageLayout, type P2PStep } from '@/components/shared';
+import { DocumentEmailHistoryPanel } from '@/components/shared/DocumentEmailHistoryPanel';
+import { useDocumentEmailHistory } from '@/hooks/use-document-email-history';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,7 +92,7 @@ import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
 import { hasAnyPermission, hasPermission } from '@/lib/permissions';
 import { parsePoRemarks } from '@/lib/po-document';
 import { resolvePoDeliveryAddress, resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
-import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf';
+import { downloadDocumentPdf } from '@/lib/document-pdf';
 import { DEPARTMENT_OPTIONS } from '@/lib/po-form-options';
 import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
 import type { PoDocumentMeta } from '@/lib/po-document';
@@ -410,6 +412,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
+  const emailHistoryQuery = useDocumentEmailHistory('purchase-order', detailId);
   const { data: supplierBills = [] } = useSupplierBills({
     shopId: detailPO?.shopId,
     take: 100,
@@ -846,23 +849,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [form, productMap, shops],
   );
 
-  function handleDownloadPoPdf(po: PurchaseOrder) {
-    const supplier = suppliers.find((s) => s.supplierName === po.supplier);
-    const shop = shops.find((s) => s.id === po.shopId);
-    const document = sanitizePoDocumentTaxes(
-      resolvePoDocumentForPdf({
-        po,
-        company: companies[0],
-        supplier,
-        shop,
-      }),
-      productMap,
-    );
+  async function handleDownloadPoPdf(po: PurchaseOrder) {
     try {
-      downloadPurchaseOrderPdf(po, {
-        document,
-        buyerCompanyName: companies[0]?.companyName,
-      });
+      await downloadDocumentPdf('purchase-order', po.id);
       toast.success('PDF downloaded');
     } catch {
       toast.error('Could not generate PDF');
@@ -1041,8 +1030,18 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           return;
         }
         try {
-          await sendMut.mutateAsync(result.id);
-          toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
+          const sendResult = (await sendMut.mutateAsync({ id: result.id })) as {
+            queued?: boolean;
+            message?: string;
+          };
+          if (sendResult?.queued) {
+            toast.warning(
+              sendResult.message ??
+                `Purchase order ${result.poNumber} queued for email delivery (PDF pending).`,
+            );
+          } else {
+            toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
+          }
         } catch (sendErr: unknown) {
           if (isApiNotFound(sendErr)) {
             toast.warning(
@@ -1072,11 +1071,22 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   async function handleResendToSupplier(po: PurchaseOrder) {
     try {
-      const result = await sendMut.mutateAsync(po.id) as {
+      const result = await sendMut.mutateAsync({ id: po.id, resend: true }) as {
         to?: string;
         pdfAttached?: boolean;
+        sent?: boolean;
+        queued?: boolean;
+        message?: string;
+        emailStatus?: string;
       };
       const to = result?.to?.trim();
+      if (result?.queued) {
+        toast.warning(
+          result.message ??
+            `Purchase order ${po.poNumber} is queued for email delivery (PDF pending).`,
+        );
+        return;
+      }
       const pdfNote = result?.pdfAttached === false ? ' (PDF attachment could not be generated)' : '';
       toast.success(
         to
@@ -2297,6 +2307,11 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           ) : detailPO ? (
             <div className="space-y-4">
               <P2PFlowTimeline title="P2P progress" steps={lifecycleSteps(detailPO as PurchaseOrder)} />
+              <DocumentEmailHistoryPanel
+                summary={emailHistoryQuery.data?.summary}
+                history={emailHistoryQuery.data?.history}
+                isLoading={emailHistoryQuery.isLoading}
+              />
               <div className="grid gap-4 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Delivery Date</p>

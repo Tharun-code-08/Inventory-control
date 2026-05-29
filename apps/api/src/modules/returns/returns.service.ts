@@ -4,6 +4,7 @@ import {
   AuditAction,
   CostingMethod,
   CreditNoteStatus,
+  DocumentEmailTrigger,
   DocumentStatus,
   Prisma,
   ReturnStatus,
@@ -12,7 +13,6 @@ import {
 } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { buildSupplierReturnAckUrl } from '../../common/mail/portal-url';
-import { MailService } from '../../common/mail/mail.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { ReturnImageStorageService } from '../../common/upload/return-image-storage.service';
 import { assertNotFuture } from '../../common/utils/date-guards';
@@ -33,7 +33,7 @@ import { UpdateSupplierReturnDto } from './dto/update-supplier-return.dto';
 import { UploadSupplierReturnImageDto } from './dto/upload-supplier-return-image.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { returnNoticeDefaults } from '../email-notifications/email-notifications.outbound';
-import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
+import { DocumentEmailService } from '../document-email/document-email.service';
 
 const supplierReturnInclude = Prisma.validator<Prisma.SupplierReturnInclude>()({
   shop: {
@@ -129,10 +129,10 @@ export class ReturnsService {
     private readonly costing: CostingService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
-    private readonly mail: MailService,
     private readonly config: ConfigService,
     private readonly returnImages: ReturnImageStorageService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   // -- Customer returns -----------------------------------------------------
@@ -701,13 +701,6 @@ export class ReturnsService {
     const ackToken = randomBytes(24).toString('hex');
     const ackTokenHash = hashToken(ackToken);
     const acknowledgementUrl = buildSupplierReturnAckUrl(this.config, ackToken);
-    const attachments = await Promise.all(
-      ret.images.map(async (image) => ({
-        filename: image.originalFilename,
-        content: await this.returnImages.read(image.filePath),
-        contentType: image.mimeType,
-      })),
-    );
 
     const content = this.buildSupplierReturnEmailContent(ret, acknowledgementUrl);
     const defaults = returnNoticeDefaults(content);
@@ -724,29 +717,16 @@ export class ReturnsService {
       throw new BadRequestException('Shop is not linked to a company');
     }
 
-    const pdfAttachment = await tryRenderDocumentPdfAttachment(
-      {
-        title: 'Supplier Return Notice',
-        documentNumber: content.returnNumber,
-        partyLabel: 'Supplier',
-        partyName: content.supplierName,
-        companyName: content.companyName,
-        summaryLines: [
-          { label: 'Return Number', value: content.returnNumber },
-          { label: 'GR Number', value: content.grNumber },
-        ],
-      },
-      'return',
-    );
-    const allAttachments = [...(pdfAttachment ?? []), ...attachments];
-
-    const delivery = await this.mail.sendSupplierReturnNotice({
+    const delivery = await this.documentEmail.sendGoodsReturnEmail(user, {
+      returnId: id,
       companyId: ret.shop.companyId,
-      to: supplierEmail,
-      cc: ret.internalCcEmail?.trim() || undefined,
+      shopId: ret.shopId,
+      recipient: supplierEmail,
       content,
-      attachments: allAttachments,
-      overrides: prepared,
+      prepared,
+      documentNumber: ret.returnNumber,
+      trigger: DocumentEmailTrigger.AUTO,
+      cc: ret.internalCcEmail?.trim() || undefined,
     });
 
     return this.prisma.$transaction(async (tx) => {
@@ -755,9 +735,9 @@ export class ReturnsService {
         data: {
           status: ReturnStatus.SUBMITTED,
           submittedAt: new Date(),
-          emailSentAt: new Date(),
+          emailSentAt: delivery.sent ? new Date() : null,
           ackTokenHash,
-          emailMessageId: delivery.messageId || null,
+          emailMessageId: null,
           updatedById: user.id,
         },
         include: supplierReturnInclude,
@@ -779,6 +759,62 @@ export class ReturnsService {
 
       return updated;
     });
+  }
+
+  async sendSupplierReturnNotice(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const ret = await this.getSupplierReturnRecord(user, id);
+    if (ret.status === ReturnStatus.DRAFT) {
+      throw new BadRequestException('Submit the return before resending the notice email');
+    }
+    const supplierEmail = ret.supplier?.email?.trim();
+    if (!supplierEmail) {
+      throw new BadRequestException(
+        `Supplier "${ret.supplierName}" must have an email address before sending a return notice.`,
+      );
+    }
+    if (!ret.shop.companyId) {
+      throw new BadRequestException('Shop is not linked to a company');
+    }
+
+    const ackToken = randomBytes(24).toString('hex');
+    const acknowledgementUrl = buildSupplierReturnAckUrl(this.config, ackToken);
+    const content = this.buildSupplierReturnEmailContent(ret, acknowledgementUrl);
+    const defaults = returnNoticeDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      ret.shopId,
+      'supplier_return_notice',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Supplier return email notifications are disabled in settings.');
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    const delivery = await this.documentEmail.sendGoodsReturnEmail(user, {
+      returnId: id,
+      companyId: ret.shop.companyId,
+      shopId: ret.shopId,
+      recipient: supplierEmail,
+      content,
+      prepared,
+      documentNumber: ret.returnNumber,
+      trigger,
+      cc: ret.internalCcEmail?.trim() || undefined,
+    });
+
+    if (delivery.sent || delivery.queued) {
+      await this.prisma.supplierReturn.update({
+        where: { id },
+        data: {
+          ackTokenHash: hashToken(ackToken),
+          emailSentAt: delivery.sent ? new Date() : ret.emailSentAt,
+          updatedById: user.id,
+        },
+      });
+    }
+
+    return delivery;
   }
 
   async cancelSupplierReturn(user: RequestUser, id: string) {

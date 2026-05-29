@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, DocumentStatus, Prisma, SupplierBillStatus } from '@prisma/client';
+import { AuditAction, DocumentEmailTrigger, DocumentStatus, Prisma, SupplierBillStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import {
@@ -17,6 +17,11 @@ import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateSupplierBillDto } from './dto/create-supplier-bill.dto';
+import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
+import { supplierBillIssuedDefaults } from '../email-notifications/email-notifications.outbound';
+import type { SupplierBillIssuedEmailContent } from '../../common/mail/transactional-email.templates';
+import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
+import { DocumentEmailService } from '../document-email/document-email.service';
 
 export type SupplierBillListQuery = {
   shop_id?: string;
@@ -34,6 +39,8 @@ export class SupplierBillsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly numbers: DocumentNumberService,
+    private readonly emailNotifications: EmailNotificationsService,
+    private readonly documentEmail: DocumentEmailService,
   ) {}
 
   async list(user: RequestUser, query: SupplierBillListQuery = {}) {
@@ -98,7 +105,7 @@ export class SupplierBillsService {
     goodsReceiptId: string,
     dto: CreateSupplierBillDto = {},
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const bill = await this.prisma.$transaction(async (tx) => {
       const gr = await tx.goodsReceiptHeader.findUnique({
         where: { id: goodsReceiptId },
         include: {
@@ -221,6 +228,117 @@ export class SupplierBillsService {
       );
 
       return bill;
+    });
+
+    await this.autoSendSupplierBillEmail(user, bill).catch(() => undefined);
+    return bill;
+  }
+
+  async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    const bill = await this.get(user, id);
+    const recipient = bill.supplier.email?.trim();
+    if (!recipient) {
+      throw new BadRequestException(
+        `Supplier email is missing for "${bill.supplier.supplierName}". Add an email on the supplier record and try again.`,
+      );
+    }
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: bill.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shop?.companyId) {
+      throw new BadRequestException('Shop not linked to a company');
+    }
+
+    const content = this.buildSupplierBillEmailContent(bill, shop.company?.companyName ?? 'Company');
+    const defaults = supplierBillIssuedDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      bill.shopId,
+      'supplier_bill_issued',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) {
+      throw new BadRequestException('Supplier bill email notifications are disabled in settings.');
+    }
+
+    const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
+    return this.documentEmail.sendSupplierBillEmail(user, {
+      billId: id,
+      companyId: shop.companyId,
+      shopId: bill.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: bill.billNumber,
+      trigger,
+    });
+  }
+
+  private buildSupplierBillEmailContent(
+    bill: {
+      billNumber: string;
+      billDate: Date;
+      dueDate: Date | null;
+      totalValue: Prisma.Decimal;
+      supplier: { supplierName: string };
+      purchaseOrder?: { poNumber: string } | null;
+    },
+    companyName: string,
+  ): SupplierBillIssuedEmailContent {
+    return {
+      supplierName: bill.supplier.supplierName,
+      billNumber: bill.billNumber,
+      billDate: formatEmailDate(bill.billDate),
+      dueDate: formatEmailDate(bill.dueDate),
+      totalAmount: formatEmailMoney(bill.totalValue),
+      poNumber: bill.purchaseOrder?.poNumber ?? '—',
+      companyName,
+    };
+  }
+
+  private async autoSendSupplierBillEmail(
+    user: RequestUser,
+    bill: {
+      id: string;
+      shopId: string;
+      billNumber: string;
+      billDate: Date;
+      dueDate: Date | null;
+      totalValue: Prisma.Decimal;
+      supplier: { supplierName: string; email: string | null };
+      purchaseOrder?: { poNumber: string } | null;
+    },
+  ) {
+    const recipient = bill.supplier.email?.trim();
+    if (!recipient) return;
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: bill.shopId },
+      select: { companyId: true, company: { select: { companyName: true } } },
+    });
+    if (!shop?.companyId) return;
+
+    const content = this.buildSupplierBillEmailContent(bill, shop.company?.companyName ?? 'Company');
+    const defaults = supplierBillIssuedDefaults(content);
+    const prepared = await this.emailNotifications.prepareTemplateForShop(
+      bill.shopId,
+      'supplier_bill_issued',
+      { subject: defaults.subject, text: defaults.text, html: defaults.html },
+      defaults.context,
+    );
+    if (!prepared.enabled) return;
+
+    await this.documentEmail.sendSupplierBillEmail(user, {
+      billId: bill.id,
+      companyId: shop.companyId,
+      shopId: bill.shopId,
+      recipient,
+      content,
+      prepared,
+      documentNumber: bill.billNumber,
+      trigger: DocumentEmailTrigger.AUTO,
     });
   }
 }

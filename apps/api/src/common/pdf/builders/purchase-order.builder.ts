@@ -1,6 +1,16 @@
-import type { PrismaService } from '../../prisma/prisma.service';
-import { parsePoRemarks } from './po-remarks';
-import { formatPoPdfDate, formatPoPdfMoney, type PurchaseOrderPdfData } from './purchase-order-pdf';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { PrismaService } from '../../../prisma/prisma.service';
+import { parsePoRemarks } from '../po-remarks';
+import {
+  documentPdfFilename,
+  formatDocumentDate,
+  formatDocumentMoney,
+  splitAddressLines,
+} from '../document-pdf.formatters';
+import {
+  buildPurchaseOrderHtml,
+  type PurchaseOrderPdfViewModel,
+} from '../templates/purchase-order.template';
 
 type PoForPdf = {
   poNumber: string;
@@ -22,19 +32,11 @@ type PoForPdf = {
   }>;
 };
 
-function splitAddressLines(address?: string | null): string[] {
-  if (!address?.trim()) return [];
-  return address
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
-export async function buildPoPdfDataFromRecord(
+export async function buildPurchaseOrderPdfViewModel(
   prisma: PrismaService,
   po: PoForPdf,
   companyId: string,
-): Promise<PurchaseOrderPdfData> {
+): Promise<PurchaseOrderPdfViewModel> {
   const { humanRemarks, document } = parsePoRemarks(po.remarks ?? null);
   const [company, supplierRow, shop] = await Promise.all([
     prisma.company.findUnique({
@@ -89,11 +91,11 @@ export async function buildPoPdfDataFromRecord(
     return {
       code: i.product?.productCode ?? i.productId,
       description: i.lineDescription?.trim() || i.product?.description || '',
-      qty: Number.isInteger(qty) ? String(qty) : formatPoPdfMoney(qty),
-      unitPrice: formatPoPdfMoney(rate),
-      taxPercent: taxPercent > 0 ? `${formatPoPdfMoney(taxPercent)}%` : '0%',
-      taxAmount: formatPoPdfMoney(lineTaxAmount),
-      total: formatPoPdfMoney(lineTotal),
+      qty: Number.isInteger(qty) ? String(qty) : formatDocumentMoney(qty),
+      unitPrice: formatDocumentMoney(rate),
+      taxPercent: taxPercent > 0 ? `${formatDocumentMoney(taxPercent)}%` : '0%',
+      taxAmount: formatDocumentMoney(lineTaxAmount),
+      total: formatDocumentMoney(lineTotal),
     };
   });
 
@@ -119,22 +121,56 @@ export async function buildPoPdfDataFromRecord(
 
   return {
     poNumber: po.poNumber,
-    poDate: formatPoPdfDate(po.poDate),
+    poDate: formatDocumentDate(po.poDate),
     buyerName,
     buyerLines,
     supplierTitle,
     supplierLines,
     deliveryLines,
-    deliveryDate: formatPoPdfDate(po.poDate),
+    deliveryDate: formatDocumentDate(po.poDate),
     paymentTerms: document.paymentTerms ?? supplierRow?.paymentTerms ?? '—',
     requestedBy: document.requisitioner ?? '—',
     department: document.department ?? '—',
     lines,
     padRowCount,
     specialInstructions: humanRemarks || '—',
-    totalNet: formatPoPdfMoney(totalNet),
-    delivery: formatPoPdfMoney(deliveryAmt),
-    taxTotal: formatPoPdfMoney(vatAmt),
-    grandTotal: formatPoPdfMoney(grandTotal),
+    totalNet: formatDocumentMoney(totalNet),
+    delivery: formatDocumentMoney(deliveryAmt),
+    taxTotal: formatDocumentMoney(vatAmt),
+    grandTotal: formatDocumentMoney(grandTotal),
   };
+}
+
+export function purchaseOrderPdfFilename(poNumber: string): string {
+  return documentPdfFilename('purchase-order', poNumber);
+}
+
+export function renderPurchaseOrderHtml(viewModel: PurchaseOrderPdfViewModel): string {
+  return buildPurchaseOrderHtml(viewModel);
+}
+
+export async function resolvePurchaseOrderCompanyId(
+  prisma: PrismaService,
+  shopId: string,
+): Promise<string> {
+  const shopRow = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { companyId: true },
+  });
+  if (!shopRow?.companyId) {
+    throw new BadRequestException('Shop not linked to a company');
+  }
+  return shopRow.companyId;
+}
+
+export async function loadPurchaseOrderForPdf(prisma: PrismaService, id: string) {
+  const po = await prisma.purchaseOrderHeader.findUnique({
+    where: { id },
+    include: {
+      shop: { select: { shopName: true } },
+      items: { include: { product: { select: { productCode: true, description: true } } } },
+    },
+  });
+  if (!po) throw new NotFoundException('Purchase order not found');
+  return po;
 }
