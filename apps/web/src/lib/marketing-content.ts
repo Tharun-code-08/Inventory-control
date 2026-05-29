@@ -179,7 +179,7 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
       {
         id: 'po',
         label: 'Purchase orders',
-        imageSlot: slot('procurement-po', 'procurement-po.png', 'Purchase orders', 'Purchase order form', '1200×800'),
+        imageSlot: slot('procurement-po', 'procurement-po.png', 'Purchase orders', 'Purchase order form (placeholder)', '1200×800'),
       },
       {
         id: 'gr',
@@ -189,7 +189,7 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
       {
         id: 'portal',
         label: 'Supplier portal',
-        imageSlot: slot('procurement-supplier-portal', 'procurement-supplier-portal.png', 'Supplier portal', 'Supplier portal view', '1200×800'),
+        imageSlot: slot('procurement-supplier-portal', 'procurement-portal.png', 'Supplier portal', 'Supplier portal view (placeholder)', '1200×800'),
       },
     ],
   },
@@ -208,12 +208,12 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
       {
         id: 'invoices',
         label: 'Invoices',
-        imageSlot: slot('sales-invoices', 'sales-invoices.png', 'Invoices', 'Invoice list', '1200×800'),
+        imageSlot: slot('sales-invoices', 'sales-invoices.png', 'Invoices', 'Invoice list (placeholder)', '1200×800'),
       },
       {
         id: 'payments',
         label: 'Payments',
-        imageSlot: slot('sales-payments', 'sales-payments.png', 'Payments', 'Payment tracking', '1200×800'),
+        imageSlot: slot('sales-payments', 'sales-payments.png', 'Payments', 'Payment tracking (placeholder)', '1200×800'),
       },
       {
         id: 'dashboard',
