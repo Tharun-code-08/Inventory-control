@@ -104,6 +104,25 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   CANCELLED
+  SUSPENDED
+}
+
+enum LifecycleStage {
+  NEW
+  ACTIVE
+  ENGAGED
+  AT_RISK
+  RENEWAL_DUE
+  EXPIRED
+  TRIAL
+  TRIAL_EXPIRED
+}
+
+enum LifecycleCampaignStatus {
+  SCHEDULED
+  SENT
+  SKIPPED
+  FAILED
 }
 
 enum PasswordResetMethod {
@@ -143,6 +162,9 @@ model Company {
   trialStartsAt      DateTime?          @map("trial_starts_at") @db.Timestamptz(6)
   trialEndsAt        DateTime?          @map("trial_ends_at") @db.Timestamptz(6)
   subscriptionEndsAt DateTime?          @map("subscription_ends_at") @db.Timestamptz(6)
+  platformMarketingOptOut Boolean       @default(false) @map("platform_marketing_opt_out")
+  razorpaySubscriptionId String?        @map("razorpay_subscription_id")
+  paidActivatedAt    DateTime?          @map("paid_activated_at") @db.Timestamptz(6)
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById        String?            @map("created_by") @db.Uuid
@@ -151,6 +173,9 @@ model Company {
   shops                Shop[]
   suppliers            Supplier[]
   subscriptionPayments SubscriptionPayment[]
+  subscriptionInvoices SubscriptionInvoice[]
+  engagementSnapshots  CompanyEngagementSnapshot[]
+  lifecycleCampaigns   LifecycleCampaignEnrollment[]
   backupProviderCredentials BackupProviderCredential[]
   backupJobs           BackupJob[]
   backupArtifacts      BackupArtifact[]
@@ -281,12 +306,85 @@ model SubscriptionPayment {
   status            String           @default("pending")
   verifiedAt        DateTime?        @map("verified_at") @db.Timestamptz(6)
   consumedAt        DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  invoiceId         String?          @map("invoice_id") @db.Uuid
+  failureReason     String?          @map("failure_reason")
+  renewalAttempt    Int              @default(0) @map("renewal_attempt")
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  invoice SubscriptionInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
+  @@index([invoiceId])
   @@map("subscription_payments")
+}
+
+model SubscriptionInvoice {
+  id                     String           @id @default(uuid()) @db.Uuid
+  invoiceNumber          String           @unique @map("invoice_number")
+  companyId              String           @map("company_id") @db.Uuid
+  plan                   SubscriptionPlan
+  billingCycle           BillingCycle     @map("billing_cycle")
+  amountPaise            Int              @map("amount_paise")
+  taxPaise               Int              @default(0) @map("tax_paise")
+  totalPaise             Int              @map("total_paise")
+  currency               String           @default("INR")
+  gstNumber              String?          @map("gst_number")
+  billingAddressSnapshot Json?            @map("billing_address_snapshot")
+  issuedAt               DateTime         @default(now()) @map("issued_at") @db.Timestamptz(6)
+  pdfStorageKey          String?          @map("pdf_storage_key")
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payments SubscriptionPayment[]
+
+  @@index([companyId])
+  @@index([issuedAt])
+  @@map("subscription_invoices")
+}
+
+model CompanyEngagementSnapshot {
+  id                  String          @id @default(uuid()) @db.Uuid
+  companyId           String          @map("company_id") @db.Uuid
+  snapshotDate        DateTime        @map("snapshot_date") @db.Date
+  lifecycleStage      LifecycleStage  @map("lifecycle_stage")
+  lastLoginAt         DateTime?       @map("last_login_at") @db.Timestamptz(6)
+  loginCount30d       Int             @default(0) @map("login_count_30d")
+  featuresUsed        Json            @default("{}") @map("features_used")
+  productsCount       Int             @default(0) @map("products_count")
+  inventoryTxnCount   Int             @default(0) @map("inventory_txn_count")
+  teamMembersCount    Int             @default(0) @map("team_members_count")
+  reportsGenerated    Int             @default(0) @map("reports_generated")
+  trialProgressPct    Int             @default(0) @map("trial_progress_pct")
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, snapshotDate])
+  @@index([snapshotDate])
+  @@index([lifecycleStage])
+  @@map("company_engagement_snapshots")
+}
+
+model LifecycleCampaignEnrollment {
+  id                String                  @id @default(uuid()) @db.Uuid
+  companyId         String                  @map("company_id") @db.Uuid
+  campaignKey       String                  @map("campaign_key")
+  scheduledFor      DateTime?               @map("scheduled_for") @db.Timestamptz(6)
+  sentAt            DateTime?               @map("sent_at") @db.Timestamptz(6)
+  status            LifecycleCampaignStatus @default(SCHEDULED)
+  emailDeliveryLogId String?                @map("email_delivery_log_id") @db.Uuid
+  metadata          Json?
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, campaignKey])
+  @@index([campaignKey])
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("lifecycle_campaign_enrollments")
 }
 
 model UserInvitation {
@@ -1073,6 +1171,8 @@ model EmailDeliveryLog {
   entityId   String   @map("entity_id")
   recipient  String
   sentAt     DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+  clickCount Int      @default(0) @map("click_count")
+  openCount  Int      @default(0) @map("open_count")
 
   @@unique([templateId, entityType, entityId, recipient], map: "email_delivery_log_template_entity_recipient_key")
   @@map("email_delivery_log")

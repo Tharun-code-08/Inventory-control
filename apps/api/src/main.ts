@@ -74,7 +74,7 @@ async function bootstrap() {
   // are captured. No-op when SENTRY_DSN is unset.
   initSentry();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const httpLogger = new Logger('Http');
 
   // Drain SIGTERM/SIGINT through Nest's lifecycle so PrismaService.onModuleDestroy

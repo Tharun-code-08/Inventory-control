@@ -4,10 +4,13 @@ import {
   Controller,
   Get,
   HttpCode,
+  Param,
   Post,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -20,6 +23,8 @@ import {
   toSubscriptionPlan,
 } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
+import { SubscriptionInvoiceService } from '../subscription-lifecycle/subscription-invoice.service';
 import { CreateOrderDto, VerifyPaymentDto } from './dto/billing.dto';
 import { RazorpayService } from './razorpay.service';
 import { SubscriptionService } from './subscription.service';
@@ -31,6 +36,8 @@ export class BillingController {
     private readonly razorpay: RazorpayService,
     private readonly subscriptions: SubscriptionService,
     private readonly prisma: PrismaService,
+    private readonly lifecycle: LifecycleOrchestratorService,
+    private readonly invoices: SubscriptionInvoiceService,
   ) {}
 
   @Public()
@@ -133,7 +140,7 @@ export class BillingController {
     }
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { subscriptionPlan: true },
+      select: { subscriptionPlan: true, companyName: true },
     });
     if (!company) {
       throw new BadRequestException('Organisation not found');
@@ -151,6 +158,59 @@ export class BillingController {
       orderId,
       amountPaise: payment.amountPaise,
     });
+
+    const owner = await this.lifecycle.resolveOwnerEmail(companyId);
+    if (owner) {
+      void this.lifecycle.onSubscriptionActivated({
+        companyId,
+        ownerEmail: owner.email,
+        companyName: company.companyName,
+        plan: payment.plan,
+        billingCycle: payment.billingCycle,
+        amountPaise: payment.amountPaise,
+        paymentId: payment.id,
+      });
+    }
+
     return this.subscriptions.getSnapshotForUser(user);
+  }
+
+  @Post('marketing-opt-out')
+  @RequirePermission('billing:manage')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Opt out of platform marketing lifecycle emails' })
+  async marketingOptOut(@CurrentUser() user: RequestUser) {
+    const companyId = await this.subscriptions.resolveCompanyIdForUser(user);
+    if (!companyId) throw new BadRequestException('No organisation linked to this account');
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { platformMarketingOptOut: true },
+    });
+    return { ok: true };
+  }
+
+  @Get('invoices')
+  @RequirePermission('billing:manage')
+  @ApiOperation({ summary: 'List SaaS subscription invoices for current organisation' })
+  async listInvoices(@CurrentUser() user: RequestUser) {
+    const companyId = await this.subscriptions.resolveCompanyIdForUser(user);
+    if (!companyId) throw new BadRequestException('No organisation linked to this account');
+    return this.invoices.listForCompany(companyId);
+  }
+
+  @Get('invoices/:id/pdf')
+  @RequirePermission('billing:manage')
+  @ApiOperation({ summary: 'Download SaaS subscription invoice PDF' })
+  async downloadInvoicePdf(
+    @CurrentUser() user: RequestUser,
+    @Param('id') invoiceId: string,
+    @Res() res: Response,
+  ) {
+    const companyId = await this.subscriptions.resolveCompanyIdForUser(user);
+    if (!companyId) throw new BadRequestException('No organisation linked to this account');
+    const { buffer, filename } = await this.invoices.renderPdfBuffer(companyId, invoiceId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
   }
 }

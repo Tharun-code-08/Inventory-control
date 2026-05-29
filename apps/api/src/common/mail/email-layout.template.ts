@@ -14,11 +14,23 @@ export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): stri
 
   return `<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+<head>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .email-bg { background: #0f172a !important; }
+      .email-card { background: #1e293b !important; }
+      .email-body-text { color: #cbd5e1 !important; }
+      .email-muted { color: #94a3b8 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;" class="email-bg">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;" class="email-bg">
     <tr>
       <td align="center">
-        <table width="100%" style="max-width:${maxWidthPx}px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
+        <table width="100%" style="max-width:${maxWidthPx}px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);" class="email-card">
           <tr>
             <td style="background:linear-gradient(135deg,#312e81,#4338ca);padding:24px 28px;">
               <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">${brand}</p>
@@ -27,7 +39,7 @@ export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): stri
             </td>
           </tr>
           <tr>
-            <td style="padding:24px 28px;">
+            <td style="padding:24px 28px;" class="email-body-text">
               ${content.bodyHtml}
             </td>
           </tr>

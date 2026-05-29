@@ -81,4 +81,22 @@ export class RazorpayService {
     const expected = createHmac('sha256', secret).update(body).digest('hex');
     return expected === args.signature;
   }
+
+  verifyWebhookSignature(body: string | Buffer, signature: string): boolean {
+    const secret = this.config.get<string>('RAZORPAY_WEBHOOK_SECRET')?.trim();
+    if (!secret || !signature) return false;
+    const expected = createHmac('sha256', secret).update(body).digest('hex');
+    return expected === signature;
+  }
+
+  /** Phase 4: create Razorpay subscription for auto-renewal (stub). */
+  async createSubscription(_args: {
+    planId: string;
+    customerId?: string;
+    totalCount?: number;
+  }): Promise<{ subscriptionId: string } | null> {
+    if (!this.isConfigured()) return null;
+    this.logger.warn('Razorpay Subscriptions API not yet enabled — use manual renewal checkout');
+    return null;
+  }
 }

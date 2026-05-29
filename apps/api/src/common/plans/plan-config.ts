@@ -3,7 +3,25 @@ import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 export type PlanId = 'trial' | 'pro' | 'plus';
 export type BillingInterval = 'monthly' | 'yearly';
 
-export const TRIAL_DAYS = 7;
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw?.trim()) return fallback;
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value < 1) return fallback;
+  return Math.round(value);
+}
+
+/** Trial access duration in days (env: TRIAL_DAYS, default 7). */
+export function getTrialDays(): number {
+  return parsePositiveInt(process.env.TRIAL_DAYS, 7);
+}
+
+/** Nurture email horizon — may exceed trial access (env: TRIAL_NURTURE_DAYS, default 90). */
+export function getTrialNurtureDays(): number {
+  return parsePositiveInt(process.env.TRIAL_NURTURE_DAYS, 90);
+}
+
+/** @deprecated Use getTrialDays() for env-aware trial length. */
+export const TRIAL_DAYS = getTrialDays();
 
 export const PLAN_LIMITS = {
   TRIAL: { maxUsers: 2, maxWarehouses: 1, maxSkus: 100 },
@@ -68,7 +86,7 @@ export function subscriptionEndDate(plan: SubscriptionPlan, cycle: BillingCycle,
 
 export function trialEndDate(from = new Date()): Date {
   const end = new Date(from);
-  end.setDate(end.getDate() + TRIAL_DAYS);
+  end.setDate(end.getDate() + getTrialDays());
   return end;
 }
 

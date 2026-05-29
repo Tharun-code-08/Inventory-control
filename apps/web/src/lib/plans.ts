@@ -114,12 +114,14 @@ export function yearlySavingsLabel() {
 export type SubscriptionSnapshot = {
   plan: 'TRIAL' | 'PRO' | 'PLUS';
   billingCycle: 'MONTHLY' | 'YEARLY' | null;
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED';
   trialStartsAt: string | null;
   trialEndsAt: string | null;
   subscriptionEndsAt: string | null;
   daysLeftInTrial: number | null;
   isTrialExpired: boolean;
+  lifecycleStage: string | null;
+  trialProgressPct: number | null;
   limits: { maxUsers: number | null; maxWarehouses: number | null; maxSkus: number | null };
   features: {
     reports: boolean;

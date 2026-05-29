@@ -23,6 +23,7 @@ import {
 } from '../../common/plans/plan-config';
 import { MailService } from '../../common/mail/mail.service';
 import { RazorpayService } from '../billing/razorpay.service';
+import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService, type LoginContext } from './auth.service';
 import { SignupCompletePaidDto } from './dto/signup-complete-paid.dto';
@@ -83,6 +84,7 @@ export class SignupService {
     private readonly mail: MailService,
     private readonly auth: AuthService,
     private readonly razorpay: RazorpayService,
+    private readonly lifecycle: LifecycleOrchestratorService,
   ) {}
 
   private signupEnabled(): boolean {
@@ -701,6 +703,31 @@ export class SignupService {
       mfa,
       subscription,
     );
+
+    const paymentRecord =
+      payload.paymentOrderId
+        ? await this.prisma.subscriptionPayment.findUnique({
+            where: { razorpayOrderId: payload.paymentOrderId },
+          })
+        : null;
+
+    if (subscription?.plan === SubscriptionPlan.TRIAL) {
+      void this.lifecycle.onTrialStarted({
+        companyId: result.companyId,
+        ownerEmail: email,
+        companyName: payload.companyName,
+      });
+    } else if (subscription && paymentRecord) {
+      void this.lifecycle.onSubscriptionActivated({
+        companyId: result.companyId,
+        ownerEmail: email,
+        companyName: payload.companyName,
+        plan: subscription.plan,
+        billingCycle: subscription.billingCycle!,
+        amountPaise: paymentRecord.amountPaise,
+        paymentId: paymentRecord.id,
+      });
+    }
 
     const session = await this.auth.issueSessionForUser(result.user.id, ctx);
     this.logger.log(`Signup finalized for ${email} (${payload.companyName})`);

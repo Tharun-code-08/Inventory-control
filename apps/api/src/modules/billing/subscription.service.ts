@@ -17,6 +17,7 @@ import {
   subscriptionEndDate,
   subscriptionPlanTier,
   trialEndDate,
+  getTrialDays,
 } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -29,6 +30,8 @@ export type SubscriptionSnapshot = {
   subscriptionEndsAt: string | null;
   daysLeftInTrial: number | null;
   isTrialExpired: boolean;
+  lifecycleStage: string | null;
+  trialProgressPct: number | null;
   limits: {
     maxUsers: number | null;
     maxWarehouses: number | null;
@@ -70,7 +73,20 @@ export class SubscriptionService {
     if (!companyId) return null;
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) return null;
-    return this.toSnapshot(company);
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const snapshot = await this.prisma.companyEngagementSnapshot.findUnique({
+      where: { companyId_snapshotDate: { companyId, snapshotDate: today } },
+      select: { lifecycleStage: true, trialProgressPct: true },
+    });
+
+    const base = this.toSnapshot(company);
+    return {
+      ...base,
+      lifecycleStage: snapshot?.lifecycleStage ?? null,
+      trialProgressPct: snapshot?.trialProgressPct ?? null,
+    };
   }
 
   toSnapshot(company: {
@@ -106,6 +122,8 @@ export class SubscriptionService {
           ? Math.max(0, Math.ceil((trialEnds - now) / (24 * 60 * 60 * 1000)))
           : null,
       isTrialExpired,
+      lifecycleStage: null,
+      trialProgressPct: null,
       limits: {
         maxUsers: limits.maxUsers,
         maxWarehouses: limits.maxWarehouses,
@@ -136,7 +154,7 @@ export class SubscriptionService {
     const snap = this.toSnapshot(company);
     if (snap.isTrialExpired) {
       throw new ForbiddenException(
-        'Your 7-day trial has ended. Upgrade to Pro or Plus to continue using Retail IMS.',
+        `Your ${getTrialDays()}-day trial has ended. Upgrade to Pro or Plus to continue using Retail IMS.`,
       );
     }
     if (

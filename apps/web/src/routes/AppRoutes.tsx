@@ -81,6 +81,10 @@ const ReturnAcknowledgementPage = lazyPage(
 const NotificationsPage = lazyPage(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const HelpSupportPage = lazyPage(() => import('@/pages/HelpSupportPage'), 'HelpSupportPage');
 const UpgradePage = lazyPage(() => import('@/pages/UpgradePage'), 'UpgradePage');
+const PlatformSubscriptionsPage = lazyPage(
+  () => import('@/pages/PlatformSubscriptionsPage'),
+  'PlatformSubscriptionsPage',
+);
 
 function Protected({ children }: { children: React.ReactNode }) {
   const initialized = useAuthStore((s) => s.initialized);
@@ -366,6 +370,14 @@ export function AppRoutes() {
           />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />
+          <Route
+            path="/platform/subscriptions"
+            element={
+              <Protected>
+                <PlatformSubscriptionsPage />
+              </Protected>
+            }
+          />
           <Route path="/help" element={<Protected><HelpSupportPage /></Protected>} />
           <Route path="/profile" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

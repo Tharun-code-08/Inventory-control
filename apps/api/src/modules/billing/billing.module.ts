@@ -1,10 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BillingController } from './billing.controller';
+import { BillingWebhookController } from './billing-webhook.controller';
 import { RazorpayService } from './razorpay.service';
 import { SubscriptionService } from './subscription.service';
+import { SubscriptionLifecycleModule } from '../subscription-lifecycle/subscription-lifecycle.module';
 
 @Module({
-  controllers: [BillingController],
+  imports: [forwardRef(() => SubscriptionLifecycleModule)],
+  controllers: [BillingController, BillingWebhookController],
   providers: [RazorpayService, SubscriptionService],
   exports: [RazorpayService, SubscriptionService],
 })

@@ -49,6 +49,8 @@ import { ObservabilityModule } from './common/observability/observability.module
 import { FxModule } from './modules/fx/fx.module';
 import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { SubscriptionLifecycleModule } from './modules/subscription-lifecycle/subscription-lifecycle.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
@@ -126,6 +128,8 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     PrismaModule,
     MailModule,
     BillingModule,
+    SubscriptionLifecycleModule,
+    PlatformModule,
     PostalCodesModule,
     QueuesModule,
     UploadModule,
