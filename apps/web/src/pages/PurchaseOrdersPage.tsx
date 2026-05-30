@@ -465,7 +465,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     },
   });
 
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
+  const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'items' });
   const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
   const selectedStorageLocationId = form.watch('storageLocationId');
@@ -490,8 +490,34 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     '';
   const selectedRfq = sourceRfqId ? rfqMap.get(sourceRfqId) : undefined;
   const rfqPosRemaining = selectedRfq?.fulfillment?.posRemaining ?? null;
+  const hasDeliveryPlant = Boolean(
+    (selectedDeliveryPlantId || resolvedDeliveryPlantId || '').trim(),
+  );
+  const rfqBlocksNewLines =
+    sourceType === 'RFQ' &&
+    Boolean(sourceRfqId) &&
+    rfqPosRemaining != null &&
+    rfqPosRemaining <= 0;
   const canAddLineItems =
-    Boolean(resolvedDeliveryPlantId) && (rfqPosRemaining == null || rfqPosRemaining > 0);
+    hasDeliveryPlant && sourceType !== 'RFQ' && !rfqBlocksNewLines;
+  const lineItemsHint = !hasDeliveryPlant
+    ? 'Select a delivery plant first to add line items.'
+    : sourceType === 'RFQ' && sourceRfqId
+      ? rfqBlocksNewLines
+        ? 'This RFQ already has the maximum purchase orders allowed. Edit the lines below or open the existing PO.'
+        : 'Line items are loaded from the selected RFQ. Switch to Direct PO to add custom lines.'
+      : rfqBlocksNewLines
+        ? 'This RFQ already has the maximum purchase orders allowed.'
+        : null;
+
+  const resolveRfqItemIdForProduct = useCallback(
+    (productId: string | undefined): string | undefined => {
+      if (!productId?.trim() || sourceType !== 'RFQ' || !sourceRfqId) return undefined;
+      const rfq = rfqMap.get(sourceRfqId);
+      return rfq?.items?.find((line) => line.productId === productId)?.id;
+    },
+    [rfqMap, sourceRfqId, sourceType],
+  );
 
   const applyDeliveryAddressFromPlant = useCallback(
     (plantId?: string) => {
@@ -720,8 +746,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     setSourceType('RFQ');
     setSourceRfqId(rfqPrefill.rfqId ?? '');
     setSourceContractId('');
+    replace(items);
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, location.state, productMap, form, shops, user?.name, user?.shopId, navigate]);
+  }, [location.pathname, location.state, productMap, form, shops, user?.name, user?.shopId, navigate, replace]);
 
   type PoPrefillState = {
     poPrefill?: {
@@ -876,6 +903,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     const minStock = plantAssignment?.minStockLevel ?? 0;
     const suggestedQty = Math.max(0, minStock - currentStock);
     const defaultQty = suggestedQty > 0 ? suggestedQty : 1;
+    const rfqItemId = resolveRfqItemIdForProduct(productId);
 
     form.setValue(`items.${idx}.currentStock`, currentStock, { shouldDirty: true });
     form.setValue(`items.${idx}.minStock`, minStock, { shouldDirty: true });
@@ -888,6 +916,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       shouldDirty: true,
       shouldValidate: true,
     });
+    form.setValue(`items.${idx}.rfqItemId`, rfqItemId, { shouldDirty: true });
   }
 
   async function handleQuickSupplierCreate() {
@@ -954,15 +983,30 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             : description
               ? 'Service'
               : item.lineCategory?.trim() || '';
+          const rfqItemId =
+            item.rfqItemId?.trim() || resolveRfqItemIdForProduct(item.productId) || undefined;
           return {
             ...item,
             productId: hasProduct ? item.productId : '',
+            rfqItemId,
             lineDescription: description,
             lineCategory: category,
             taxPercent: effectivePoLineTaxPercent(item.productId ?? '', item.taxPercent, productMap),
           };
         }),
       };
+
+      if (sourceType === 'RFQ' && sourceRfqId) {
+        const missingRfqLink = normalizedValues.items.some(
+          (item) => item.productId?.trim() && !item.rfqItemId?.trim(),
+        );
+        if (missingRfqLink) {
+          toast.error(
+            'Each product line must match an RFQ item. Re-select the RFQ to reload lines.',
+          );
+          return;
+        }
+      }
       const deliveryShop = shops.find((s) => s.id === resolvedShopId);
       const payload = mapPoFormToCreatePayload({
         values: normalizedValues,
@@ -1218,7 +1262,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   const remainingLines =
                     rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
                   if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
-                    form.setValue('items', [defaultPoLineItem()]);
+                    replace([defaultPoLineItem()]);
                     toast.error('All RFQ lines are already allocated to purchase orders');
                     return;
                   }
@@ -1231,6 +1275,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       {
                         productId,
                         rfqItemId: line.rfqItemId,
+                        lineDescription: rfqItem?.product?.description ?? rfqItem?.description ?? '',
+                        lineCategory: rfqItem?.product?.category ?? '',
                         currentStock: 0,
                         minStock: 0,
                         suggestedQty: Number(line.remainingQty ?? 0),
@@ -1240,7 +1286,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       },
                     ];
                   });
-                  form.setValue('items', nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
+                  replace(nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
                 }}
               >
                 <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
@@ -1268,16 +1314,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   const contract = contracts.find((c) => c.id === id);
                   if (!contract) return;
                   form.setValue('supplier', contract.supplier?.supplierName ?? '');
-                  form.setValue(
-                    'items',
+                  replace(
                     ((contract as { items?: Array<{ productId?: string; quantity?: number; unitPrice?: number }> }).items ?? []).map(
                       (it) => ({
                         productId: it.productId ?? '',
+                        rfqItemId: undefined,
+                        lineDescription: '',
+                        lineCategory: '',
                         currentStock: 0,
                         minStock: 0,
                         suggestedQty: Number(it.quantity ?? 0),
                         orderQty: Number(it.quantity ?? 0),
                         rate: Number(it.unitPrice ?? 0),
+                        taxPercent: '' as string | number,
                       }),
                     ),
                   );
@@ -1640,9 +1689,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             <Plus className="h-3 w-3" /> Add Item
           </Button>
         </div>
-        {!canAddLineItems && (
+        {!canAddLineItems && lineItemsHint && (
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            Select a delivery plant first to add line items.
+            {lineItemsHint}
           </div>
         )}
 
@@ -1682,6 +1731,11 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
                 return (
                   <TableRow key={field.id}>
+                    <Controller
+                      control={form.control}
+                      name={`items.${idx}.rfqItemId`}
+                      render={({ field: rfqField }) => <input type="hidden" {...rfqField} value={rfqField.value ?? ''} />}
+                    />
                     {/* Product select */}
                     <TableCell className="overflow-hidden">
                       <Controller
@@ -1694,6 +1748,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               if (v === '__none__') {
                                 f.onChange('');
                                 form.setValue(`items.${idx}.lineCategory`, 'Service', { shouldDirty: true });
+                                form.setValue(`items.${idx}.rfqItemId`, undefined, { shouldDirty: true });
                                 return;
                               }
                               f.onChange(v);
