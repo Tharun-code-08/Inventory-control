@@ -25,6 +25,8 @@ import {
   salesQuotationHtml,
   salesQuotationSubject,
   salesQuotationText,
+  ensureSalesQuotationPortalCta,
+  ensureSalesQuotationPortalText,
   type SalesQuotationEmailContent,
 } from './sales-quotation.template';
 import {
@@ -585,11 +587,17 @@ export class MailService implements OnModuleInit {
     overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
     attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
+    const baseText = args.overrides?.text ?? salesQuotationText(args.content);
+    const baseHtml = args.overrides?.html ?? salesQuotationHtml(args.content);
     return this.sendTenantMail(args.companyId, {
       to: args.to,
       subject: args.overrides?.subject ?? salesQuotationSubject(args.content),
-      text: args.overrides?.text ?? salesQuotationText(args.content),
-      html: args.overrides?.html ?? salesQuotationHtml(args.content),
+      text: ensureSalesQuotationPortalText(baseText, args.content.portalUrl),
+      html: ensureSalesQuotationPortalCta(
+        baseHtml,
+        args.content.portalUrl,
+        args.content.isRevision ?? false,
+      ),
       cc: args.overrides?.cc,
       bcc: args.overrides?.bcc,
       fromName: args.content.companyName,

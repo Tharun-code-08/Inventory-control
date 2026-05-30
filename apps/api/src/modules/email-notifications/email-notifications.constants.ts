@@ -91,9 +91,9 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
     placeholders: ['customer_name', 'quote_number', 'quote_date', 'valid_until', 'total_amount', 'company_name', 'portal_url'],
     defaultSubject: 'Sales Quotation {{quote_number}} — {{company_name}}',
     defaultBodyText:
-      'Dear {{customer_name}},\n\nPlease find quotation {{quote_number}} dated {{quote_date}}.\nValid until: {{valid_until}}\nTotal: {{total_amount}}\n\nThank you,\n{{company_name}}',
+      'Dear {{customer_name}},\n\nPlease find quotation {{quote_number}} dated {{quote_date}}.\nValid until: {{valid_until}}\nTotal: {{total_amount}}\n\nReview and respond online:\n{{portal_url}}\n\nThank you,\n{{company_name}}',
     defaultBodyHtml:
-      '<p>Dear {{customer_name}},</p><p>Please find quotation <strong>{{quote_number}}</strong> dated {{quote_date}}.</p><p>Valid until: {{valid_until}}<br/>Total: {{total_amount}}</p><p>Thank you,<br/>{{company_name}}</p>',
+      '<p>Dear {{customer_name}},</p><p>Please find quotation <strong>{{quote_number}}</strong> dated {{quote_date}}.</p><p>Valid until: {{valid_until}}<br/>Total: {{total_amount}}</p><p style="margin:24px 0;text-align:center;"><a href="{{portal_url}}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 32px;border-radius:8px;">Review &amp; respond to quotation</a></p><p style="text-align:center;font-size:13px;color:#64748b;">Accept the quote or submit your target price — no login required.</p><p>Thank you,<br/>{{company_name}}</p>',
   },
   {
     id: 'supplier_return_notice',

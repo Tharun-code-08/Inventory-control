@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared/page-header';
-import { EmptyState, LoadingSkeleton, SearchInput } from '@/components/shared';
+import { EmptyState, LoadingSkeleton, SearchInput, CreatePageLayout } from '@/components/shared';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -272,12 +272,6 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const { data: editingOrder } = useSalesOrder(editingId ?? '', !!editingId);
 
   useEffect(() => {
-    if (!createOnly) return;
-    resetForm();
-    setEditingId(null);
-  }, [createOnly]);
-
-  useEffect(() => {
     const editOrderId = (location.state as { editOrderId?: string } | null)?.editOrderId;
     if (editOrderId) {
       setEditingId(editOrderId);
@@ -347,7 +341,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   };
 
   const handleExportSalesOrders = () => {
-    const ok = exportModuleCsv('sales-orders.csv', filteredOrders, [
+    const ok = exportModuleCsv('sales-orders.csv', filtered, [
       { header: 'SO Number', value: (order) => order.soNumber },
       { header: 'Order Date', value: (order) => csvDate(order.orderDate) },
       { header: 'Expected Date', value: (order) => csvDate(order.expectedDate) },
@@ -453,45 +447,281 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
     }
   };
 
-  const sheetMode = editingId ? 'edit' : 'create';
-
   const closeCreateSheet = () => {
-    if (createOnly) {
-      navigate('/sales');
-      return;
-    }
     setCreateOpen(false);
     setEditingId(null);
     resetForm();
   };
 
+  const orderGrandTotal = useMemo(
+    () =>
+      form.items.reduce(
+        (sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0),
+        0,
+      ),
+    [form.items],
+  );
+
+  const salesOrderForm = (
+    <div className="space-y-6">
+      <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+        <h3 className="text-sm font-semibold text-slate-900">Order Details</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Customer *</Label>
+            <Select
+              value={form.customerId}
+              onValueChange={(v) => setForm((p) => ({ ...p, customerId: v, quotationId: '' }))}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select customer" />
+              </SelectTrigger>
+              <SelectContent>
+                {customers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.customerName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Sales Quotation Ref</Label>
+            <Select
+              value={form.quotationId || 'none'}
+              onValueChange={(v) => {
+                if (v === 'none') {
+                  setForm((p) => ({ ...p, quotationId: '' }));
+                  return;
+                }
+                applyQuotation(v);
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Optional" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {customerQuotes.map((q) => (
+                  <SelectItem key={q.id} value={q.id}>
+                    {q.quoteNumber}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Delivery Date</Label>
+            <Input
+              type="date"
+              className="h-9"
+              value={form.expectedDate}
+              onChange={(e) => setForm((p) => ({ ...p, expectedDate: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Payment Terms</Label>
+            <Select
+              value={form.paymentTerms}
+              onValueChange={(v) => setForm((p) => ({ ...p, paymentTerms: v }))}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Net 30">Net 30</SelectItem>
+                <SelectItem value="Net 15">Net 15</SelectItem>
+                <SelectItem value="Due on receipt">Due on receipt</SelectItem>
+                <SelectItem value="COD">COD</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+        <h3 className="text-sm font-semibold text-slate-900">Fulfillment Location</h3>
+        <div className="space-y-2">
+          <Label>Customer Delivery Address</Label>
+          <Input
+            className="h-9"
+            value={form.deliveryAddress}
+            onChange={(e) => setForm((p) => ({ ...p, deliveryAddress: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Notes</Label>
+          <Input
+            className="h-9"
+            value={form.notes}
+            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Line items</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setForm((p) => ({ ...p, items: [...p.items, emptyLine()] }))}
+          >
+            + Add item
+          </Button>
+        </div>
+        {form.items.map((line, index) => {
+          const lineTotal = Number(line.quantity || 0) * Number(line.unitPrice || 0);
+          return (
+            <div key={index} className="grid grid-cols-12 gap-2 rounded-lg border p-2">
+              <div className="col-span-5">
+                <Select
+                  value={line.productId || 'none'}
+                  onValueChange={(v) => {
+                    if (v === 'none') return;
+                    const p = products.find((x) => x.id === v);
+                    setForm((prev) => ({
+                      ...prev,
+                      items: prev.items.map((row, i) =>
+                        i === index
+                          ? {
+                              ...row,
+                              productId: v,
+                              unitPrice: String(p?.sellingPrice ?? row.unitPrice),
+                              uom: p?.uom ?? row.uom,
+                            }
+                          : row,
+                      ),
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Product" />
+                  </SelectTrigger>
+                  <SelectContent className="max-w-[min(24rem,90vw)]">
+                    <SelectItem value="none" disabled>
+                      Select product
+                    </SelectItem>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.productCode} — {p.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  min="0.0001"
+                  className="h-8 text-xs"
+                  value={line.quantity}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      items: prev.items.map((row, i) =>
+                        i === index ? { ...row, quantity: e.target.value } : row,
+                      ),
+                    }))
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Input className="h-8 text-xs" value={line.uom} readOnly />
+              </div>
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  min="0"
+                  className="h-8 text-xs"
+                  value={line.unitPrice}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      items: prev.items.map((row, i) =>
+                        i === index ? { ...row, unitPrice: e.target.value } : row,
+                      ),
+                    }))
+                  }
+                />
+              </div>
+              <div className="col-span-1 flex items-center justify-end">
+                {form.items.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-red-600"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        items: prev.items.filter((_, i) => i !== index),
+                      }))
+                    }
+                  >
+                    ×
+                  </Button>
+                ) : (
+                  <span className="text-right text-xs tabular-nums text-slate-600">
+                    {formatAmount(lineTotal)}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+        <span className="font-medium text-slate-700">Estimated total</span>
+        <span className="font-semibold tabular-nums text-indigo-800">
+          {formatAmount(orderGrandTotal)}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-1">
+        <Button
+          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          disabled={createOrder.isPending || updateOrder.isPending}
+          onClick={onSave}
+        >
+          {createOrder.isPending ? 'Creating…' : 'Create Sales Order'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (createOnly) {
+    return (
+      <AppLayout active="Sales">
+        <CreatePageLayout
+          title="Create Sales Order"
+          description="Draft a customer sales order with one or more line items."
+          backTo="/sales"
+        >
+          {salesOrderForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout active="Sales">
-      <div className={cn('space-y-6', createOnly && 'create-page-shell p-4 sm:p-6')}>
+      <div className="space-y-6">
         <PageHeader
-          title={createOnly ? 'Create Sales Order' : 'Sales Orders'}
-          description={createOnly ? 'Fill in order details and line items' : 'Manage customer orders'}
+          title="Sales Orders"
+          description="Manage customer orders"
         >
-          {createOnly ? (
-            <Button variant="outline" onClick={() => navigate('/sales')} className="w-full sm:w-auto">
-              Back
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleExportSalesOrders}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create SO
-              </Button>
-            </>
-          )}
+          <Button variant="outline" onClick={handleExportSalesOrders}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create SO
+          </Button>
         </PageHeader>
-
-        {!createOnly && (
-          <>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <KpiCard
@@ -696,32 +926,22 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
             </Tabs>
           </CardContent>
         </Card>
-          </>
-        )}
       </div>
 
-      {/* Create / Edit */}
+      {/* Edit draft */}
       <Sheet
-        open={createOnly ? true : createOpen}
+        open={createOpen}
         onOpenChange={(open) => {
-          if (!createOnly) {
-            setCreateOpen(open);
-          }
+          setCreateOpen(open);
           if (!open) {
             closeCreateSheet();
           }
         }}
       >
-        <SheetContent
-          side="right"
-          className={cn(
-            'w-full overflow-y-auto',
-            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'sm:max-w-2xl',
-          )}
-        >
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle>{sheetMode === 'edit' ? 'Edit Sales Order' : 'Create Sales Order'}</SheetTitle>
-            <SheetDescription>Order details and line items</SheetDescription>
+            <SheetTitle>Edit Sales Order</SheetTitle>
+            <SheetDescription>Update order details and line items</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-6">
             <section className="space-y-4 rounded-xl border border-slate-200 p-4">
@@ -841,113 +1061,105 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {form.items.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-6 text-center text-slate-500">
-                          No items added
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      form.items.map((line, index) => {
-                        const product = products.find((p) => p.id === line.productId);
-                        const lineTotal =
-                          Number(line.quantity || 0) * Number(line.unitPrice || 0);
-                        return (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Select
-                                value={line.productId || 'none'}
-                                onValueChange={(v) => {
-                                  if (v === 'none') return;
-                                  const p = products.find((x) => x.id === v);
+                    {form.items.map((line, index) => {
+                      const product = products.find((p) => p.id === line.productId);
+                      const lineTotal =
+                        Number(line.quantity || 0) * Number(line.unitPrice || 0);
+                      return (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Select
+                              value={line.productId || 'none'}
+                              onValueChange={(v) => {
+                                if (v === 'none') return;
+                                const p = products.find((x) => x.id === v);
+                                setForm((prev) => ({
+                                  ...prev,
+                                  items: prev.items.map((row, i) =>
+                                    i === index
+                                      ? {
+                                          ...row,
+                                          productId: v,
+                                          unitPrice: String(p?.sellingPrice ?? row.unitPrice),
+                                          uom: p?.uom ?? row.uom,
+                                        }
+                                      : row,
+                                  ),
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Product" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Select…</SelectItem>
+                                {products.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.productCode} — {p.description}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {product && (
+                              <p className="mt-1 text-xs text-slate-500">{product.description}</p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0.0001"
+                              className="h-8 w-20"
+                              value={line.quantity}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  items: prev.items.map((row, i) =>
+                                    i === index ? { ...row, quantity: e.target.value } : row,
+                                  ),
+                                }))
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-8 w-24"
+                              value={line.unitPrice}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  items: prev.items.map((row, i) =>
+                                    i === index ? { ...row, unitPrice: e.target.value } : row,
+                                  ),
+                                }))
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">
+                            {formatAmount(lineTotal)}
+                          </TableCell>
+                          <TableCell>
+                            {form.items.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600"
+                                onClick={() =>
                                   setForm((prev) => ({
                                     ...prev,
-                                    items: prev.items.map((row, i) =>
-                                      i === index
-                                        ? {
-                                            ...row,
-                                            productId: v,
-                                            unitPrice: String(p?.sellingPrice ?? row.unitPrice),
-                                            uom: p?.uom ?? row.uom,
-                                          }
-                                        : row,
-                                    ),
-                                  }));
-                                }}
+                                    items: prev.items.filter((_, i) => i !== index),
+                                  }))
+                                }
                               >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue placeholder="Product" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Select…</SelectItem>
-                                  {products.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      {p.productCode} — {p.description}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {product && (
-                                <p className="mt-1 text-xs text-slate-500">{product.description}</p>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0.0001"
-                                className="h-8 w-20"
-                                value={line.quantity}
-                                onChange={(e) =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    items: prev.items.map((row, i) =>
-                                      i === index ? { ...row, quantity: e.target.value } : row,
-                                    ),
-                                  }))
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                className="h-8 w-24"
-                                value={line.unitPrice}
-                                onChange={(e) =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    items: prev.items.map((row, i) =>
-                                      i === index ? { ...row, unitPrice: e.target.value } : row,
-                                    ),
-                                  }))
-                                }
-                              />
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm">
-                              {formatAmount(lineTotal)}
-                            </TableCell>
-                            <TableCell>
-                              {form.items.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600"
-                                  onClick={() =>
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      items: prev.items.filter((_, i) => i !== index),
-                                    }))
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -962,7 +1174,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                 disabled={createOrder.isPending || updateOrder.isPending}
                 onClick={onSave}
               >
-                {sheetMode === 'edit' ? 'Update SO' : 'Create SO'}
+                {updateOrder.isPending ? 'Updating…' : 'Update SO'}
               </Button>
             </div>
           </div>

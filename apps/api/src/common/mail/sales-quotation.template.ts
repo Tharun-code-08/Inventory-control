@@ -25,6 +25,43 @@ export function salesQuotationSubject(content: SalesQuotationEmailContent): stri
   return `Sales Quotation ${content.quoteNumber} — ${content.companyName}`;
 }
 
+export function salesQuotationPortalCtaHtml(
+  portalUrl: string,
+  isRevision = false,
+): string {
+  return `<p style="margin:0 0 24px;text-align:center;">
+        <a href="${escapeHtml(portalUrl)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 32px;border-radius:8px;">
+          ${isRevision ? 'Review revised quotation' : 'Review &amp; respond to quotation'}
+        </a>
+      </p>
+      <p style="margin:0 0 20px;text-align:center;font-size:13px;color:#64748b;">
+        Accept the quote or submit your target price — no login required.
+      </p>`;
+}
+
+export function ensureSalesQuotationPortalCta(
+  html: string,
+  portalUrl: string | null | undefined,
+  isRevision = false,
+): string {
+  const url = portalUrl?.trim();
+  if (!url || html.includes(url)) return html;
+  const cta = salesQuotationPortalCtaHtml(url, isRevision);
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${cta}</body>`);
+  }
+  return `${cta}${html}`;
+}
+
+export function ensureSalesQuotationPortalText(
+  text: string,
+  portalUrl: string | null | undefined,
+): string {
+  const url = portalUrl?.trim();
+  if (!url || text.includes(url)) return text;
+  return `${text.replace(/\s*$/, '')}\n\nReview and respond online:\n${url}\n`;
+}
+
 export function salesQuotationText(content: SalesQuotationEmailContent): string {
   const lines = [
     `Dear ${content.customerName},`,
@@ -78,14 +115,7 @@ export function salesQuotationHtml(content: SalesQuotationEmailContent): string 
     : '';
 
   const portalBlock = content.portalUrl
-    ? `<p style="margin:0 0 24px;text-align:center;">
-        <a href="${escapeHtml(content.portalUrl)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 32px;border-radius:8px;">
-          ${content.isRevision ? 'Review revised quotation' : 'Review &amp; respond to quotation'}
-        </a>
-      </p>
-      <p style="margin:0 0 20px;text-align:center;font-size:13px;color:#64748b;">
-        Accept the quote or submit your target price — no login required.
-      </p>`
+    ? salesQuotationPortalCtaHtml(content.portalUrl, content.isRevision ?? false)
     : '';
 
   return `<!DOCTYPE html>
