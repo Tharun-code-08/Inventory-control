@@ -702,6 +702,20 @@ export class ReportsService {
     const shopArray = Prisma.sql`ARRAY[${Prisma.join(
       shopIds.map((id) => Prisma.sql`${id}::uuid`),
     )}]::uuid[]`;
+    const stockQty = Prisma.raw(`(${effectiveCurrentStockExpr('ss')})`);
+    const lastMovementAt = Prisma.raw(`
+COALESCE(
+  ss.last_movement_at,
+  (
+    SELECT MAX(sl.transaction_date::timestamptz)
+    FROM stock_ledger sl
+    WHERE sl.shop_id = pp.shop_id AND sl.product_id = pp.product_id
+  ),
+  pp.created_at
+)`);
+    const unitCost = Prisma.raw(
+      'COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)',
+    );
 
     const bucketRows = await this.prisma.$queryRaw<
       Array<{ bucket: string; item_count: string; total_value: string }>
@@ -712,9 +726,9 @@ export class ReportsService {
           p.id,
           p.product_code,
           p.description,
-          ss.current_stock,
-          COALESCE(ss.last_movement_at, pp.created_at) AS last_movement_at,
-          COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0) AS unit_cost
+          ${stockQty} AS current_stock,
+          ${lastMovementAt} AS last_movement_at,
+          ${unitCost} AS unit_cost
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
@@ -724,7 +738,7 @@ export class ReportsService {
         SELECT *,
           DATE_PART('day', NOW() - last_movement_at) AS age_days
         FROM base
-        WHERE COALESCE(current_stock, 0) > 0
+        WHERE current_stock > 0
       )
       SELECT
         CASE
@@ -767,10 +781,10 @@ export class ReportsService {
               pp.shop_id,
               p.product_code,
               p.description,
-              ss.current_stock,
-              COALESCE(ss.last_movement_at, pp.created_at) AS last_movement_at,
-              COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0) AS unit_cost,
-              DATE_PART('day', NOW() - COALESCE(ss.last_movement_at, pp.created_at)) AS age_days
+              ${stockQty} AS current_stock,
+              ${lastMovementAt} AS last_movement_at,
+              ${unitCost} AS unit_cost,
+              DATE_PART('day', NOW() - (${lastMovementAt})) AS age_days
             FROM product_plants pp
             JOIN products p ON p.id = pp.product_id AND p.is_active = true
             LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
@@ -780,12 +794,12 @@ export class ReportsService {
             product_code,
             description,
             shop_id,
-            COALESCE(current_stock, 0)::text AS current_stock,
+            current_stock::text AS current_stock,
             last_movement_at,
             age_days::int as age_days,
-            (COALESCE(current_stock, 0) * unit_cost)::text AS stock_value
+            (current_stock * unit_cost)::text AS stock_value
           FROM base
-          WHERE COALESCE(current_stock, 0) > 0
+          WHERE current_stock > 0
             AND CASE
               WHEN age_days <= 30 THEN '0-30'
               WHEN age_days <= 60 THEN '31-60'
