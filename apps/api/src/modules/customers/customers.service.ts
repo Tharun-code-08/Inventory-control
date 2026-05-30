@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -58,6 +63,17 @@ export class CustomersService {
     return { data: items, meta };
   }
 
+  private duplicateCustomerMessage(
+    existing: { customerName: string; customerCode: string },
+    context: 'name' | 'code',
+  ): string {
+    const label = `"${existing.customerName}" (${existing.customerCode})`;
+    if (context === 'name') {
+      return `Customer ${label} already exists for this plant. Open the Customers list to view or edit it.`;
+    }
+    return `Customer ${label} already exists for this plant. It may have been created during an earlier attempt — refresh the Customers list.`;
+  }
+
   async create(user: RequestUser, dto: CreateCustomerDto) {
     await repairOrphanShopsForUser(this.prisma, user);
     const shopId = dto.shopId ?? user.shopId;
@@ -74,35 +90,79 @@ export class CustomersService {
       );
     }
 
-    return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      const customerCode =
-        dto.customerCode?.trim() ||
-        (await this.numbers.nextConfiguredShopScopedNumber(tx, {
-          shopId,
-          docType: 'CUS',
-          date: new Date(),
-        }));
+    const customerName = dto.customerName.trim();
+    const manualCode = dto.customerCode?.trim();
 
-      return tx.customer.create({
-        data: {
-          customerCode,
-          customerName: dto.customerName,
-          email: dto.email?.toLowerCase?.() ?? null,
-          phone: dto.phone ?? null,
-          taxId: dto.taxId ?? null,
-          pan: dto.pan?.toUpperCase?.() ?? null,
-          street: dto.street ?? null,
-          city: dto.city ?? null,
-          state: dto.state ?? null,
-          postalCode: dto.postalCode ?? null,
-          country: dto.country ?? null,
-          shopId,
-          isActive: dto.isActive ?? true,
-          createdById: user.id,
-        },
-        include: { shop: true },
-      });
+    const existingByName = await this.prisma.customer.findFirst({
+      where: {
+        shopId,
+        customerName: { equals: customerName, mode: 'insensitive' },
+      },
+      select: { customerName: true, customerCode: true },
     });
+    if (existingByName) {
+      throw new ConflictException(this.duplicateCustomerMessage(existingByName, 'name'));
+    }
+
+    if (manualCode) {
+      const existingByCode = await this.prisma.customer.findFirst({
+        where: { shopId, customerCode: manualCode },
+        select: { customerName: true, customerCode: true },
+      });
+      if (existingByCode) {
+        throw new ConflictException(this.duplicateCustomerMessage(existingByCode, 'code'));
+      }
+    }
+
+    let attemptedCode = manualCode ?? '';
+
+    try {
+      return await runSerializableTxWithRetry(this.prisma, async (tx) => {
+        const customerCode =
+          attemptedCode ||
+          (await this.numbers.nextConfiguredShopScopedNumber(tx, {
+            shopId,
+            docType: 'CUS',
+            date: new Date(),
+          }));
+        attemptedCode = customerCode;
+
+        return tx.customer.create({
+          data: {
+            customerCode,
+            customerName,
+            email: dto.email?.toLowerCase?.() ?? null,
+            phone: dto.phone ?? null,
+            taxId: dto.taxId ?? null,
+            pan: dto.pan?.toUpperCase?.() ?? null,
+            street: dto.street ?? null,
+            city: dto.city ?? null,
+            state: dto.state ?? null,
+            postalCode: dto.postalCode ?? null,
+            country: dto.country ?? null,
+            shopId,
+            isActive: dto.isActive ?? true,
+            createdById: user.id,
+          },
+          include: { shop: true },
+        });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        attemptedCode
+      ) {
+        const existingByCode = await this.prisma.customer.findFirst({
+          where: { shopId, customerCode: attemptedCode },
+          select: { customerName: true, customerCode: true },
+        });
+        if (existingByCode) {
+          throw new ConflictException(this.duplicateCustomerMessage(existingByCode, 'code'));
+        }
+      }
+      throw error;
+    }
   }
 
   async get(user: RequestUser, id: string) {

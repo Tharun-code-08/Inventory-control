@@ -40,6 +40,8 @@ type EditableRow = DocumentSeriesUpdateRow & {
   currentSequence: number | null;
   isOverride: boolean;
   shopScoped: boolean;
+  /** Raw input while editing so values like "10" can be typed without snapping to 1. */
+  startingNumberInput: string;
 };
 
 function toEditableRows(rows: DocumentSeriesRow[]): EditableRow[] {
@@ -48,6 +50,7 @@ function toEditableRows(rows: DocumentSeriesRow[]): EditableRow[] {
     moduleLabel: row.moduleLabel,
     prefix: row.prefix,
     startingNumber: row.startingNumber,
+    startingNumberInput: String(row.startingNumber),
     padWidth: row.padWidth,
     restartPeriod: row.restartPeriod,
     shopScoped: row.shopScoped,
@@ -59,9 +62,16 @@ function toEditableRows(rows: DocumentSeriesRow[]): EditableRow[] {
   }));
 }
 
+function parseStartingNumber(raw: string, fallback = 1): number {
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
 function buildPreview(row: EditableRow): string {
   const prefix = (row.prefix ?? '').toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'DOC';
-  const padded = String(row.startingNumber ?? 1).padStart(row.padWidth ?? 5, '0');
+  const startingNumber = parseStartingNumber(row.startingNumberInput, row.startingNumber ?? 1);
+  const padded = String(startingNumber).padStart(row.padWidth ?? 5, '0');
   return `${prefix}-${padded}`;
 }
 
@@ -106,7 +116,7 @@ export function TransactionNumberSeriesSection() {
       const payload: DocumentSeriesUpdateRow[] = draft.map((row) => ({
         docType: row.docType,
         prefix: row.prefix,
-        startingNumber: row.startingNumber,
+        startingNumber: parseStartingNumber(row.startingNumberInput, row.startingNumber ?? 1),
         padWidth: row.padWidth,
         restartPeriod: row.restartPeriod,
         shopScoped: row.shopScoped,
@@ -236,15 +246,23 @@ export function TransactionNumberSeriesSection() {
                     <TableCell>
                       {editing ? (
                         <Input
-                          type="number"
-                          min={1}
-                          value={row.startingNumber}
-                          onChange={(e) =>
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={row.startingNumberInput}
+                          onChange={(e) => {
+                            const next = e.target.value.replace(/\D/g, '');
+                            updateDraftRow(row.docType, { startingNumberInput: next });
+                          }}
+                          onBlur={(e) => {
+                            const normalized = String(parseStartingNumber(e.target.value, 1));
                             updateDraftRow(row.docType, {
-                              startingNumber: Number(e.target.value) || 1,
-                            })
-                          }
+                              startingNumberInput: normalized,
+                              startingNumber: parseStartingNumber(normalized, 1),
+                            });
+                          }}
                           className="h-8 w-24"
+                          aria-label={`Starting number for ${row.moduleLabel}`}
                         />
                       ) : (
                         String(row.startingNumber).padStart(row.padWidth ?? 5, '0')

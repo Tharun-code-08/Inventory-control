@@ -29,7 +29,7 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
     if (nested503 && typeof nested503 === 'object' && nested503 !== null) {
       const msg = (nested503 as { message?: string }).message?.trim();
       if (msg) {
-        return appendRequestId(msg, nested503 as { requestId?: string });
+        return msg;
       }
     }
     return 'API server unavailable (503). Wait a moment and try again.';
@@ -60,25 +60,19 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
     }
     if (Array.isArray(msg)) return msg.filter(Boolean).join(', ');
     if (typeof msg === 'string' && msg.trim()) {
-      return appendRequestId(msg.trim(), nestedObj as { requestId?: string });
+      return msg.trim();
     }
   }
 
   const top = payload.message;
   if (Array.isArray(top)) {
-    return appendRequestId(top.filter(Boolean).join(', '), payload as { requestId?: string });
+    return top.filter(Boolean).join(', ');
   }
   if (typeof top === 'string' && top.trim()) {
-    return appendRequestId(top.trim(), payload as { requestId?: string });
+    return top.trim();
   }
 
   return fallback;
-}
-
-function appendRequestId(message: string, payload?: { requestId?: string }): string {
-  const requestId = payload?.requestId?.trim();
-  if (!requestId || message.includes(requestId)) return message;
-  return `${message} (ref: ${requestId})`;
 }
 
 /** Parse JSON (or plain text) error bodies returned as blobs from axios. */

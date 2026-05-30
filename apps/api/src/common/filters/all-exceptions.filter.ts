@@ -40,38 +40,49 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return null;
   }
 
-  private uniqueConstraintMessage(targets: string[]) {
-    const normalized = targets.map((target) => String(target).toLowerCase());
+  private normalizeConstraintTarget(target: string): string {
+    return String(target).toLowerCase().replace(/_/g, '');
+  }
 
-    if (normalized.includes('email')) {
+  private constraintTargetsInclude(targets: string[], ...needles: string[]): boolean {
+    const normalized = targets.map((target) => this.normalizeConstraintTarget(target));
+    return needles.every((needle) =>
+      normalized.some((target) => target.includes(needle.replace(/_/g, ''))),
+    );
+  }
+
+  private uniqueConstraintMessage(targets: string[]) {
+    const normalized = targets.map((target) => this.normalizeConstraintTarget(target));
+
+    if (normalized.some((target) => target.includes('email'))) {
       return 'A user with this email already exists';
     }
 
-    if (normalized.includes('product_code') && normalized.includes('shop_id')) {
+    if (this.constraintTargetsInclude(targets, 'productcode', 'shopid')) {
       return 'A product with this code already exists for the selected shop';
     }
 
-    if (normalized.includes('shop_number')) {
+    if (normalized.some((target) => target.includes('shopnumber'))) {
       return 'A plant with this code already exists';
     }
 
-    if (normalized.includes('rfq_number')) {
+    if (normalized.some((target) => target.includes('rfqnumber'))) {
       return 'RFQ number collision detected. Please retry creating the RFQ.';
     }
 
-    if (normalized.includes('idempotency_key')) {
+    if (normalized.some((target) => target.includes('idempotencykey'))) {
       return 'A record with this idempotency key already exists';
     }
 
-    if (normalized.includes('customer_code') && normalized.includes('shop_id')) {
-      return 'A customer with this code already exists for the selected shop';
+    if (this.constraintTargetsInclude(targets, 'customercode', 'shopid')) {
+      return 'A customer with this code already exists for the selected plant';
     }
 
-    if (normalized.includes('code') && normalized.includes('shop_id')) {
+    if (this.constraintTargetsInclude(targets, 'code', 'shopid')) {
       return 'A storage location with this code already exists for the selected plant';
     }
 
-    if (normalized.includes('return_number')) {
+    if (normalized.some((target) => target.includes('returnnumber'))) {
       return 'A return with this number already exists';
     }
 
