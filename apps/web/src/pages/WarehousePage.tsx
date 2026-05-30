@@ -107,23 +107,48 @@ function flattenStockRows(
 ): StockRow[] {
   const rows: StockRow[] = [];
   for (const product of products) {
+    const seenShopIds = new Set<string>();
+
     if (!product.plants?.length) {
-      rows.push({
-        key: `${product.id}-none`,
-        productId: product.id,
-        sku: product.productCode,
-        productName: product.description,
-        shopId: '',
-        storageLocationId: '',
-        plant: '-',
-        location: 'DEFAULT',
-        currentStock: Number(product.currentStock ?? product.totalStock ?? 0),
-        minStock: 0,
-        maxStock: null,
-      });
+      const stockByShop = product.stockByShop ?? {};
+      const shopIds = Object.keys(stockByShop);
+      if (shopIds.length === 0) {
+        rows.push({
+          key: `${product.id}-none`,
+          productId: product.id,
+          sku: product.productCode,
+          productName: product.description,
+          shopId: '',
+          storageLocationId: '',
+          plant: '-',
+          location: 'DEFAULT',
+          currentStock: Number(product.currentStock ?? product.totalStock ?? 0),
+          minStock: 0,
+          maxStock: null,
+        });
+        continue;
+      }
+      for (const shopId of shopIds) {
+        seenShopIds.add(shopId);
+        rows.push({
+          key: `${product.id}-${shopId}-ledger`,
+          productId: product.id,
+          sku: product.productCode,
+          productName: product.description,
+          shopId,
+          storageLocationId: '',
+          plant: shopNameById.get(shopId) ?? '-',
+          location: 'DEFAULT',
+          currentStock: Number(stockByShop[shopId] ?? 0),
+          minStock: 0,
+          maxStock: null,
+        });
+      }
       continue;
     }
+
     for (const plant of product.plants) {
+      seenShopIds.add(plant.shopId);
       const currentStock = Number(product.stockByShop?.[plant.shopId] ?? 0);
       rows.push({
         key: `${product.id}-${plant.shopId}-${plant.id ?? plant.storageLocationId ?? 'x'}`,
@@ -137,6 +162,23 @@ function flattenStockRows(
         currentStock,
         minStock: Number(plant.minStockLevel ?? 0),
         maxStock: plant.maxStockLevel == null ? null : Number(plant.maxStockLevel),
+      });
+    }
+
+    for (const [shopId, qty] of Object.entries(product.stockByShop ?? {})) {
+      if (seenShopIds.has(shopId)) continue;
+      rows.push({
+        key: `${product.id}-${shopId}-ledger`,
+        productId: product.id,
+        sku: product.productCode,
+        productName: product.description,
+        shopId,
+        storageLocationId: '',
+        plant: shopNameById.get(shopId) ?? '-',
+        location: 'DEFAULT',
+        currentStock: Number(qty ?? 0),
+        minStock: 0,
+        maxStock: null,
       });
     }
   }
@@ -256,8 +298,9 @@ export function WarehousePage() {
   }, [shopLocked, user?.shopId]);
   const listShopId = productListShopId(user, plantFilter);
   const productsQuery = useProducts({
+    companyCatalog: true,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
     shopId: listShopId,
   });

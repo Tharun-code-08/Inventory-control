@@ -84,6 +84,8 @@ import {
 import { AppLayout } from '@/components/AppLayout';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
+import { useShops } from '@/hooks/use-shops';
+import { isShopOnlyUser } from '@/lib/shop-scope';
 import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { displayDocumentNumber } from '@/lib/document-display';
@@ -183,7 +185,11 @@ function poSuggestedItems(po: PurchaseOrder) {
 
 export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean }) {
   const user = useAuthStore((s) => s.user);
+  const shopLocked = isShopOnlyUser(user);
   const shopId = user?.shopId ?? '';
+  const { data: shops = [] } = useShops();
+  const [receivingPlantId, setReceivingPlantId] = useState('');
+  const [submitMode, setSubmitMode] = useState<'draft' | 'post' | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -299,7 +305,12 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     () => eligiblePoList.find((po) => po.id === (watchedPurchaseOrderId || '')),
     [eligiblePoList, watchedPurchaseOrderId],
   );
-  const grShopId = user?.shopId ?? selectedPo?.shopId ?? poQuery.data?.shopId ?? '';
+  const grShopId =
+    receivingPlantId ||
+    user?.shopId ||
+    selectedPo?.shopId ||
+    poQuery.data?.shopId ||
+    '';
   const { data: storageLocations = [] } = useStorageLocations(grShopId || undefined);
   const defaultStorageLocationId = useMemo(
     () => storageLocations.find((loc) => loc.isActive)?.id ?? '',
@@ -313,6 +324,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const openCreate = () => {
     setEditingGR(null);
     const po = poQuery.data;
+    setReceivingPlantId(po?.shopId ?? user?.shopId ?? '');
     form.reset({
       supplierName: po?.supplier ?? '',
       grDate: todayISO(),
@@ -345,6 +357,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     if (!selectedPo) return;
 
     form.setValue('supplierName', selectedPo.supplier, { shouldDirty: true });
+    if (selectedPo.shopId) {
+      setReceivingPlantId(selectedPo.shopId);
+    }
     const suggestedItems = poSuggestedItems(selectedPo);
 
     if (suggestedItems.length > 0) {
@@ -430,6 +445,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
 
   const openEdit = (gr: GoodsReceipt) => {
     setEditingGR(gr);
+    setReceivingPlantId(gr.shopId ?? '');
     const existingItems = (gr.items ?? []).map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -462,25 +478,30 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     }
   };
 
-  const onSubmit = async (values: GRFormValues) => {
+  const onSubmit = async (values: GRFormValues, postAfter = false) => {
     try {
-      const resolvedShopId = user?.shopId ?? selectedPo?.shopId ?? poQuery.data?.shopId ?? '';
+      const resolvedShopId =
+        receivingPlantId || user?.shopId || selectedPo?.shopId || poQuery.data?.shopId || '';
       if (!resolvedShopId) {
-        toast.error('Select a purchase order linked to a plant/shop');
+        toast.error('Select the receiving plant');
         return;
       }
 
+      setSubmitMode(postAfter ? 'post' : 'draft');
+
+      const payloadItems = values.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        uom: item.uom,
+        purchaseRate: item.purchaseRate,
+        batchNumber: item.batchNumber?.trim() || undefined,
+        serialNumber: item.serialNumber?.trim() || undefined,
+        expiryDate: item.expiryDate,
+        storageLocationId: item.storageLocationId,
+      }));
+
+      let receiptId = editingGR?.id;
       if (editingGR) {
-        const payloadItems = values.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          uom: item.uom,
-          purchaseRate: item.purchaseRate,
-          batchNumber: item.batchNumber?.trim() || undefined,
-          serialNumber: item.serialNumber?.trim() || undefined,
-          expiryDate: item.expiryDate,
-          storageLocationId: item.storageLocationId,
-        }));
         await updateGR.mutateAsync({
           id: editingGR.id,
           shopId: resolvedShopId,
@@ -491,19 +512,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           remarks: values.remarks,
           items: payloadItems,
         });
-        toast.success('Goods receipt updated successfully');
       } else {
-        const payloadItems = values.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          uom: item.uom,
-          purchaseRate: item.purchaseRate,
-          batchNumber: item.batchNumber?.trim() || undefined,
-          serialNumber: item.serialNumber?.trim() || undefined,
-          expiryDate: item.expiryDate,
-          storageLocationId: item.storageLocationId,
-        }));
-        await createGR.mutateAsync({
+        const created = await createGR.mutateAsync({
           shopId: resolvedShopId,
           grDate: values.grDate,
           purchaseOrderId: values.purchaseOrderId || undefined,
@@ -512,8 +522,18 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           remarks: values.remarks,
           items: payloadItems,
         });
-        toast.success('Goods receipt created successfully');
+        receiptId = created.id;
       }
+
+      if (postAfter && receiptId) {
+        await postGR.mutateAsync(receiptId);
+        toast.success('Goods receipt posted — warehouse stock updated');
+      } else if (editingGR) {
+        toast.success('Goods receipt updated (still draft — post to update stock)');
+      } else {
+        toast.success('Saved as draft. Post the receipt to update warehouse stock.');
+      }
+
       if (createOnly) {
         navigate('/goods-receipts');
       } else {
@@ -521,17 +541,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
         setEditingGR(null);
       }
     } catch (err: unknown) {
-      const error = err as {
-        response?: { data?: { error?: { message?: string }; message?: string }; statusText?: string };
-        message?: string;
-      };
-      const msg =
-        error.response?.data?.error?.message ??
-        error.response?.data?.message ??
-        error.response?.statusText ??
-        error.message ??
-        'Something went wrong';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Failed to save goods receipt'));
+    } finally {
+      setSubmitMode(null);
     }
   };
 
@@ -557,7 +569,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     setDeleteTarget(null);
   };
 
-  const isMutating = createGR.isPending || updateGR.isPending;
+  const isMutating =
+    submitMode !== null || createGR.isPending || updateGR.isPending || postGR.isPending;
 
   return (
     <AppLayout active="Goods Receipts">
@@ -987,11 +1000,35 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           </SheetHeader>
 
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={form.handleSubmit((values) => onSubmit(values, false))}
             className="mt-6 space-y-5"
           >
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              Draft receipts do not update warehouse stock. Use <strong>Save &amp; Post</strong> to
+              increase on-hand quantity at the receiving plant.
+            </p>
             {/* Header fields */}
             <div className="grid gap-4 sm:grid-cols-3">
+              {!shopLocked && (
+                <div className="space-y-2 sm:col-span-3">
+                  <Label htmlFor="receivingPlant">Receiving plant *</Label>
+                  <Select
+                    value={grShopId}
+                    onValueChange={setReceivingPlantId}
+                  >
+                    <SelectTrigger id="receivingPlant">
+                      <SelectValue placeholder="Select plant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shops.map((shop) => (
+                        <SelectItem key={shop.id} value={shop.id}>
+                          {shop.shopNumber} — {shop.shopName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="purchaseOrderId">Purchase Order</Label>
                 <Controller
@@ -1246,12 +1283,22 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 variant="outline"
                 className="flex-1"
                 onClick={() => setSheetOpen(false)}
+                disabled={isMutating}
               >
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1" disabled={isMutating}>
-                {isMutating && <Loader2 className="h-4 w-4 animate-spin" />}
-                {editingGR ? 'Update Receipt' : 'Save as Draft'}
+              <Button type="submit" variant="outline" className="flex-1" disabled={isMutating}>
+                {submitMode === 'draft' && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editingGR ? 'Update Draft' : 'Save as Draft'}
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                disabled={isMutating}
+                onClick={() => void form.handleSubmit((values) => onSubmit(values, true))()}
+              >
+                {submitMode === 'post' && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save &amp; Post
               </Button>
             </div>
           </form>

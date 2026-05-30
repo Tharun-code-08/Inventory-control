@@ -104,6 +104,50 @@ export class GoodsReceiptsService {
     }
   }
 
+  /** Ensure warehouse can show on-hand qty at the receiving plant after posting. */
+  private async ensureProductPlantForReceipt(
+    tx: Prisma.TransactionClient,
+    user: RequestUser,
+    params: { productId: string; shopId: string; storageLocationId: string | null },
+  ) {
+    const existing = await tx.productPlant.findUnique({
+      where: {
+        productId_shopId: { productId: params.productId, shopId: params.shopId },
+      },
+    });
+    if (existing) {
+      if (!existing.storageLocationId && params.storageLocationId) {
+        await tx.productPlant.update({
+          where: { id: existing.id },
+          data: {
+            storageLocationId: params.storageLocationId,
+            updatedById: user.id,
+          },
+        });
+      }
+      return;
+    }
+
+    const template = await tx.productPlant.findFirst({
+      where: { productId: params.productId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    await tx.productPlant.create({
+      data: {
+        productId: params.productId,
+        shopId: params.shopId,
+        storageLocationId: params.storageLocationId,
+        openingStock: new Prisma.Decimal(0),
+        minStockLevel: template?.minStockLevel ?? new Prisma.Decimal(0),
+        maxStockLevel: template?.maxStockLevel ?? null,
+        reorderQty: template?.reorderQty ?? null,
+        isActive: true,
+        createdById: user.id,
+      },
+    });
+  }
+
   async list(
     user: RequestUser,
     query: { shop_id?: string; date_from?: string; date_to?: string; status?: DocumentStatus; cursor?: string; take?: number },
@@ -361,6 +405,11 @@ export class GoodsReceiptsService {
           ]
             .filter(Boolean)
             .join(' ') || undefined,
+        });
+        await this.ensureProductPlantForReceipt(tx, user, {
+          productId: line.productId,
+          shopId: fresh.shopId,
+          storageLocationId: line.storageLocationId,
         });
         await this.costing.recordInflow(tx, {
           shopId: fresh.shopId,
