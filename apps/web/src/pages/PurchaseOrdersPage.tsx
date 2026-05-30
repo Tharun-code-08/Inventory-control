@@ -146,7 +146,12 @@ const poItemSchema = z
   });
 
 const poFormSchema = z.object({
-  poDate: z.string().min(1, 'Date is required'),
+  poDate: z
+    .string()
+    .min(1, 'Date is required')
+    .refine((value) => value <= todayDateString(), {
+      message: 'PO date cannot be in the future',
+    }),
   priority: z.string().optional(),
   paymentTerms: z.string().optional(),
   supplier: z.string().min(1, 'Supplier is required'),
@@ -172,9 +177,8 @@ const CREATE_SUPPLIER_OPTION = '__create_supplier__';
 const PO_SELECT_TRIGGER = 'h-8 min-h-8 py-1 px-2 text-xs';
 const PO_SELECT_CONTENT = 'max-h-52 text-xs';
 
-function tomorrowDateString() {
+function todayDateString() {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -448,7 +452,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const form = useForm<POFormValues>({
     resolver: zodResolver(poFormSchema),
     defaultValues: {
-      poDate: tomorrowDateString(),
+      poDate: todayDateString(),
       priority: 'Medium',
       paymentTerms: 'Net 30',
       supplier: '',
@@ -648,7 +652,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const openCreate = useCallback(() => {
     setEditingPO(null);
     form.reset({
-      poDate: tomorrowDateString(),
+      poDate: todayDateString(),
         priority: 'Medium',
         paymentTerms: 'Net 30',
       supplier: '',
@@ -700,7 +704,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     }
     if (!user?.shopId) setSelectedShopId(rfqPrefill.shopId);
     form.reset({
-      poDate: tomorrowDateString(),
+      poDate: todayDateString(),
       priority: 'Medium',
       paymentTerms: 'Net 30',
       supplier: rfqPrefill.supplier ?? '',
@@ -763,7 +767,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     prefillAppliedRef.current = true;
     if (!user?.shopId) setSelectedShopId(prefill.shopId);
     form.reset({
-      poDate: tomorrowDateString(),
+      poDate: todayDateString(),
       priority: 'Medium',
       paymentTerms: 'Net 30',
       supplier: prefill.supplier ?? '',
@@ -1424,14 +1428,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
-            <Label htmlFor="poDate" className="text-xs">Delivery Date</Label>
+            <Label htmlFor="poDate" className="text-xs">PO Date</Label>
             <Input
               id="poDate"
               type="date"
-              min={tomorrowDateString()}
+              max={todayDateString()}
               className="h-8 text-xs"
               {...form.register('poDate')}
             />
+            <p className="text-[10px] text-muted-foreground">Date the order is issued (today or earlier)</p>
             {form.formState.errors.poDate && (
               <p className="text-[10px] text-destructive">{form.formState.errors.poDate.message}</p>
             )}
@@ -2081,7 +2086,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>PO Number</TableHead>
-                  <TableHead className="w-[112px]">Delivery Date</TableHead>
+                  <TableHead className="w-[112px]">PO Date</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead className="w-12 text-center">Items</TableHead>
                   <TableHead className="w-28 text-right">Gross Amount</TableHead>
@@ -2296,7 +2301,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               />
               <div className="grid gap-4 sm:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Delivery Date</p>
+                  <p className="text-xs text-muted-foreground">PO Date</p>
                   <p className="font-medium">{new Date(detailPO.poDate).toLocaleDateString()}</p>
                 </div>
                 <div>
