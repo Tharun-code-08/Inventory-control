@@ -220,9 +220,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const deleteGR = useDeleteGoodsReceipt();
 
   const { data: productsData } = useProducts({
-    shopId: shopId || undefined,
+    companyCatalog: true,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
 
