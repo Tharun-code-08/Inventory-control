@@ -385,20 +385,22 @@ export function WarehousePage() {
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return scopeFilteredRows;
-    return scopeFilteredRows.filter(
-      (row) =>
+    return scopeFilteredRows.filter((row) => {
+      const locationKey = row.storageLocationId || 'default';
+      const batchKey = row.shopId ? `${row.productId}:${row.shopId}:${locationKey}` : '';
+      const batch =
+        (batchKey ? warehouseExpiryMaps.batch.get(batchKey) : undefined) ??
+        (row.shopId ? batchByProductShop.get(`${row.productId}:${row.shopId}`) : '') ??
+        '';
+      return (
         row.sku.toLowerCase().includes(q) ||
         row.productName.toLowerCase().includes(q) ||
         row.plant.toLowerCase().includes(q) ||
         row.location.toLowerCase().includes(q) ||
-        (row.shopId
-          ? (batchByProductShop.get(`${row.productId}:${row.shopId}`) ?? '')
-          : ''
-        )
-          .toLowerCase()
-          .includes(q),
-    );
-  }, [scopeFilteredRows, search, batchByProductShop]);
+        batch.toLowerCase().includes(q)
+      );
+    });
+  }, [scopeFilteredRows, search, batchByProductShop, warehouseExpiryMaps.batch]);
 
   const productsInStock = useMemo(
     () => scopeFilteredRows.filter((row) => row.currentStock > 0).length,
@@ -435,8 +437,16 @@ export function WarehousePage() {
       { header: 'Location', value: (r) => r.location },
       {
         header: 'Batch',
-        value: (r) =>
-          r.shopId ? batchByProductShop.get(`${r.productId}:${r.shopId}`) ?? '' : '',
+        value: (r) => {
+          if (!r.shopId) return '';
+          const locationKey = r.storageLocationId || 'default';
+          const detailedKey = `${r.productId}:${r.shopId}:${locationKey}`;
+          return (
+            warehouseExpiryMaps.batch.get(detailedKey) ??
+            batchByProductShop.get(`${r.productId}:${r.shopId}`) ??
+            ''
+          );
+        },
       },
       {
         header: 'Expiry',
@@ -612,6 +622,7 @@ export function WarehousePage() {
               onExport={onExport}
               shopNumberById={shopNumberById}
               batchByProductShop={batchByProductShop}
+              batchByProductShopLocation={warehouseExpiryMaps.batch}
               expiryByProductShopLocation={warehouseExpiryMaps.expiry}
               shops={shops}
               showPlantFilter={isAdmin && shops.length > 0}
@@ -684,6 +695,7 @@ function StockTableSection({
   onExport,
   shopNumberById,
   batchByProductShop,
+  batchByProductShopLocation,
   expiryByProductShopLocation,
   shops,
   showPlantFilter,
@@ -701,6 +713,7 @@ function StockTableSection({
   onExport: () => void;
   shopNumberById: Map<string, string>;
   batchByProductShop: Map<string, string>;
+  batchByProductShopLocation: Map<string, string>;
   expiryByProductShopLocation: Map<string, string>;
   shops: Array<{ id: string; shopName: string; shopNumber: string }>;
   showPlantFilter: boolean;
@@ -800,16 +813,18 @@ function StockTableSection({
               rows.map((row) => {
                 const stock = stockBadgeVariant(row);
                 const belowMin = row.minStock > 0 && row.currentStock < row.minStock;
-                const batch =
-                  row.shopId
-                    ? batchByProductShop.get(`${row.productId}:${row.shopId}`)
-                    : undefined;
                 const locationKey = row.storageLocationId || 'default';
-                const expiryKey = row.shopId
+                const inventoryKey = row.shopId
                   ? `${row.productId}:${row.shopId}:${locationKey}`
                   : '';
-                const expiry = expiryKey
-                  ? expiryByProductShopLocation.get(expiryKey)
+                const batch = inventoryKey
+                  ? (batchByProductShopLocation.get(inventoryKey) ??
+                    (row.shopId
+                      ? batchByProductShop.get(`${row.productId}:${row.shopId}`)
+                      : undefined))
+                  : undefined;
+                const expiry = inventoryKey
+                  ? expiryByProductShopLocation.get(inventoryKey)
                   : undefined;
                 return (
                   <TableRow key={row.key}>

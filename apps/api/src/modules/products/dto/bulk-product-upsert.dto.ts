@@ -6,6 +6,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsOptional,
   IsString,
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { normalizeSpaces } from '../../../common/utils/normalize';
@@ -131,6 +133,18 @@ export class BulkProductUpsertRowDto {
   @Type(() => Number)
   @Min(0)
   openingStock!: number;
+
+  @ApiPropertyOptional({ description: 'Batch number (required when openingStock > 0).' })
+  @ValidateIf((row) => Number(row.openingStock) > 0)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  batchNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Expiry date YYYY-MM-DD (required when openingStock > 0).' })
+  @ValidateIf((row) => Number(row.openingStock) > 0)
+  @IsDateString()
+  expiryDate?: string;
 
   @ApiProperty()
   @Type(() => Number)

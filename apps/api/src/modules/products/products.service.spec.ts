@@ -149,14 +149,20 @@ describe('ProductsService bulk workflow', () => {
     prisma.__tx.stockSummary.findMany.mockResolvedValue([]);
     prisma.__tx.stockLedger.groupBy.mockResolvedValue([]);
 
-    const stock = { postMovement: jest.fn() };
+    const stock = {
+      postMovement: jest.fn(),
+      buildStockBalanceMap: jest.fn().mockResolvedValue(new Map()),
+    };
     const subscriptions = { assertSkuLimit: jest.fn().mockResolvedValue(undefined) };
+    const series = {
+      resolveEffectiveConfigInTx: jest.fn().mockResolvedValue({ useCategoryPrefix: true }),
+    };
     const service = new ProductsService(
       prisma as never,
       stock as never,
       subscriptions as never,
       {} as never,
-      {} as never,
+      series as never,
     );
 
     const result = await service.bulkUpsert(makeUser(), {
@@ -169,6 +175,8 @@ describe('ProductsService bulk workflow', () => {
           purchasePrice: 10,
           sellingPrice: 12,
           openingStock: 5,
+          batchNumber: 'BATCH-001',
+          expiryDate: '2027-12-31',
           minStockLevel: 1,
           shopNumber: 'S1',
         },
@@ -209,7 +217,12 @@ describe('ProductsService bulk workflow', () => {
     prisma.__tx.product.update.mockResolvedValue(undefined);
     prisma.__tx.productPlant.update.mockResolvedValue(undefined);
 
-    const stock = { postMovement: jest.fn().mockResolvedValue(undefined) };
+    const stock = {
+      postMovement: jest.fn().mockResolvedValue(undefined),
+      buildStockBalanceMap: jest.fn().mockResolvedValue(
+        new Map([['prod-1:shop-1', 2]]),
+      ),
+    };
     const subscriptions = { assertSkuLimit: jest.fn().mockResolvedValue(undefined) };
     const service = new ProductsService(
       prisma as never,
@@ -230,6 +243,8 @@ describe('ProductsService bulk workflow', () => {
           purchasePrice: 10,
           sellingPrice: 13,
           openingStock: 5,
+          batchNumber: 'BATCH-002',
+          expiryDate: '2027-06-30',
           minStockLevel: 2,
           shopNumber: 'S1',
         },

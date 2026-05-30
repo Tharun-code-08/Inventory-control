@@ -19,6 +19,8 @@ export type ProductPlantAssignment = {
   storageLocationId?: string | null;
   storageLocation?: { id: string; code: string; name: string } | null;
   openingStock: number;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
   minStockLevel: number;
   maxStockLevel?: number | null;
   reorderQty?: number | null;
@@ -88,6 +90,8 @@ export type CreateProductPayload = {
     shopId: string;
     storageLocationId?: string;
     openingStock: number;
+    batchNumber?: string;
+    expiryDate?: string;
     minStockLevel: number;
     maxStockLevel?: number;
     reorderQty?: number;
@@ -476,6 +480,8 @@ export type BulkProductImportRow = {
   purchasePrice: number;
   sellingPrice: number;
   openingStock: number;
+  batchNumber?: string;
+  expiryDate?: string;
   minStockLevel: number;
   maxStockLevel?: number;
   reorderQty?: number;

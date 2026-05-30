@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 /**
  * One plant assignment for a product. A product is stocked at zero or more
@@ -22,6 +32,18 @@ export class ProductPlantDto {
   @Type(() => Number)
   @Min(0)
   openingStock!: number;
+
+  @ApiPropertyOptional({ description: 'Batch number for opening stock (required when openingStock > 0).' })
+  @ValidateIf((plant) => Number(plant.openingStock) > 0)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  batchNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Expiry date for opening stock (YYYY-MM-DD, required when openingStock > 0).' })
+  @ValidateIf((plant) => Number(plant.openingStock) > 0)
+  @IsDateString()
+  expiryDate?: string;
 
   @ApiProperty({ description: 'Per-plant minimum stock level used by reorder alerts.' })
   @Type(() => Number)

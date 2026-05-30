@@ -600,7 +600,9 @@ model ProductPlant {
   productId         String   @map("product_id") @db.Uuid
   shopId            String   @map("shop_id") @db.Uuid
   storageLocationId String?  @map("storage_location_id") @db.Uuid
-  openingStock      Decimal  @default(0) @map("opening_stock") @db.Decimal(12, 3)
+  openingStock      Decimal   @default(0) @map("opening_stock") @db.Decimal(12, 3)
+  batchNumber       String?   @map("batch_number")
+  expiryDate        DateTime? @map("expiry_date") @db.Date
   minStockLevel     Decimal  @default(0) @map("min_stock_level") @db.Decimal(12, 3)
   maxStockLevel     Decimal? @map("max_stock_level") @db.Decimal(12, 3)
   reorderQty        Decimal? @map("reorder_qty") @db.Decimal(12, 3)

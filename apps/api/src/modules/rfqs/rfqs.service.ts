@@ -502,8 +502,8 @@ export class RfqsService {
   }) {
     const db = args.tx ?? this.prisma;
     if (args.tx) {
-      await args.tx.$executeRaw`SELECT id FROM rfq_header WHERE id = ${args.rfqId} FOR UPDATE`;
-      await args.tx.$executeRaw`SELECT id FROM rfq_items WHERE rfq_header_id = ${args.rfqId} FOR UPDATE`;
+      await args.tx.$executeRaw`SELECT id FROM rfq_header WHERE id = ${args.rfqId}::uuid FOR UPDATE`;
+      await args.tx.$executeRaw`SELECT id FROM rfq_items WHERE rfq_header_id = ${args.rfqId}::uuid FOR UPDATE`;
     }
 
     const rfq = await db.rfqHeader.findFirst({

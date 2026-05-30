@@ -70,6 +70,8 @@ export type ProductFormPlant = {
   shopId: string;
   storageLocationId?: string;
   openingStock: number;
+  batchNumber?: string;
+  expiryDate?: string;
   minStockLevel: number;
   maxStockLevel?: number | null;
   reorderQty?: number | null;
@@ -136,6 +138,8 @@ export function mapProductFormToPayload(args: {
         shopId: plant.shopId,
         storageLocationId: plant.storageLocationId?.trim() ? plant.storageLocationId : undefined,
         openingStock: Number(plant.openingStock ?? 0),
+        batchNumber: plant.batchNumber?.trim() ? plant.batchNumber.trim() : undefined,
+        expiryDate: plant.expiryDate?.trim() ? plant.expiryDate.trim() : undefined,
         minStockLevel: Number(plant.minStockLevel ?? 0),
         maxStockLevel:
           plant.maxStockLevel == null || plant.maxStockLevel === undefined

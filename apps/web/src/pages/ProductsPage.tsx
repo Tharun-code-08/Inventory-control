@@ -163,6 +163,8 @@ const PRODUCT_IMPORT_FIELD_ALIASES = {
   purchasePrice: ['Purchase Price', 'Cost Price'],
   sellingPrice: ['Selling Price', 'Sale Price'],
   openingStock: ['Opening Stock', 'Stock', 'Opening Qty', 'Opening Quantity'],
+  batchNumber: ['Batch Number', 'Batch', 'Batch No', 'Lot Number', 'Lot'],
+  expiryDate: ['Expiry Date', 'Expiry', 'Exp Date', 'Best Before', 'Use By Date'],
   minStockLevel: ['Min Stock Level', 'Min Stock', 'Minimum Stock'],
   maxStockLevel: ['Max Stock Level', 'Max Stock', 'Maximum Stock'],
   reorderQty: ['Reorder Qty', 'Reorder Quantity', 'Reorder Level'],
@@ -335,6 +337,8 @@ const productPlantSchema = z
     shopId: z.string().min(1, 'Plant is required'),
     storageLocationId: z.string().optional(),
     openingStock: z.coerce.number().min(0, 'Must be 0 or more'),
+    batchNumber: z.string().optional(),
+    expiryDate: z.string().optional(),
     minStockLevel: z.coerce.number().min(0, 'Must be 0 or more'),
     maxStockLevel: z
       .union([z.coerce.number().min(0), z.literal(''), z.null(), z.undefined()])
@@ -352,6 +356,19 @@ const productPlantSchema = z
     (plant) =>
       plant.maxStockLevel == null || plant.maxStockLevel >= plant.minStockLevel,
     { message: 'Max ≥ Min', path: ['maxStockLevel'] },
+  )
+  .refine(
+    (plant) =>
+      Number(plant.openingStock) <= 0 ||
+      (plant.batchNumber?.trim() && plant.expiryDate?.trim()),
+    { message: 'Batch and expiry are required when stock > 0', path: ['batchNumber'] },
+  )
+  .refine(
+    (plant) =>
+      Number(plant.openingStock) <= 0 ||
+      !plant.expiryDate?.trim() ||
+      /^\d{4}-\d{2}-\d{2}$/.test(plant.expiryDate.trim()),
+    { message: 'Use YYYY-MM-DD format', path: ['expiryDate'] },
   );
 
 const productSpecSchema = z.object({
@@ -387,6 +404,8 @@ const emptyPlant: FormShape['plants'][number] = {
   shopId: '',
   storageLocationId: '',
   openingStock: 0,
+  batchNumber: '',
+  expiryDate: '',
   minStockLevel: 0,
   maxStockLevel: null,
   reorderQty: null,
@@ -503,7 +522,7 @@ function PlantAssignmentRow({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[2fr_2fr_1fr_1fr_1fr]">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <div className="space-y-1">
           <Label className="text-xs">Plant *</Label>
           <Controller
@@ -573,6 +592,36 @@ function PlantAssignmentRow({
             render={({ field }) => (
               <PlantNumericInput
                 value={field.value ?? 0}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Batch No.</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.batchNumber`}
+            render={({ field }) => (
+              <Input
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                placeholder="Required if stock > 0"
+              />
+            )}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Expiry Date</Label>
+          <Controller
+            control={control}
+            name={`plants.${index}.expiryDate`}
+            render={({ field }) => (
+              <Input
+                type="date"
+                value={field.value ?? ''}
                 onChange={field.onChange}
               />
             )}
@@ -1000,6 +1049,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               shopId: plant.shopId,
               storageLocationId: plant.storageLocationId ?? '',
               openingStock: plant.openingStock,
+              batchNumber: plant.batchNumber ?? '',
+              expiryDate: plant.expiryDate ?? '',
               minStockLevel: plant.minStockLevel,
               maxStockLevel: plant.maxStockLevel ?? null,
               reorderQty: plant.reorderQty ?? null,
@@ -1046,6 +1097,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           shopId: p.shopId,
           storageLocationId: p.storageLocationId,
           openingStock: p.openingStock,
+          batchNumber: p.batchNumber,
+          expiryDate: p.expiryDate,
           minStockLevel: p.minStockLevel,
           maxStockLevel: p.maxStockLevel ?? null,
           reorderQty: p.reorderQty ?? null,
@@ -1222,6 +1275,24 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
     return Number(normalized);
   };
 
+  const parseImportDate = (value: unknown): string | undefined => {
+    if (value === '' || value === undefined || value === null) return undefined;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) {
+        return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+      }
+    }
+    const raw = String(value).trim();
+    if (!raw) return undefined;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmy) {
+      return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    }
+    return undefined;
+  };
+
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1324,6 +1395,22 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         if (!Number.isFinite(openingStock) || openingStock < 0) {
           throw new Error(`Row ${rowNumber}: Invalid Opening Stock`);
         }
+        const batchNumber = String(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.batchNumber) ?? '',
+        ).trim();
+        const expiryDate = parseImportDate(
+          getImportValue(row, PRODUCT_IMPORT_FIELD_ALIASES.expiryDate),
+        );
+        if (openingStock > 0) {
+          if (!batchNumber) {
+            throw new Error(`Row ${rowNumber}: Batch Number is required when Opening Stock > 0`);
+          }
+          if (!expiryDate) {
+            throw new Error(
+              `Row ${rowNumber}: Expiry Date is required when Opening Stock > 0 (YYYY-MM-DD)`,
+            );
+          }
+        }
         if (!Number.isFinite(minStockLevel) || minStockLevel < 0) {
           throw new Error(`Row ${rowNumber}: Invalid Min Stock Level`);
         }
@@ -1354,6 +1441,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           purchasePrice,
           sellingPrice,
           openingStock,
+          batchNumber: batchNumber || undefined,
+          expiryDate,
           minStockLevel,
           maxStockLevel,
           reorderQty,

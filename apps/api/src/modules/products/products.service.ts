@@ -85,14 +85,43 @@ export class ProductsService {
     }
   }
 
+  private plantBatchExpiryFields(plant: Pick<ProductPlantDto, 'batchNumber' | 'expiryDate'>) {
+    const batchNumber = plant.batchNumber?.trim() || null;
+    const expiryRaw = plant.expiryDate?.trim();
+    return {
+      batchNumber,
+      expiryDate: expiryRaw ? new Date(`${expiryRaw}T00:00:00.000Z`) : null,
+    };
+  }
+
+  private openingStockRemarks(plant: Pick<ProductPlantDto, 'batchNumber' | 'expiryDate'>): string {
+    const batchNumber = plant.batchNumber?.trim();
+    const expiryDate = plant.expiryDate?.trim();
+    const parts = ['Opening stock'];
+    if (batchNumber) parts.push(`batch:${batchNumber}`);
+    if (expiryDate) parts.push(`expiry:${expiryDate}`);
+    return parts.join(' | ');
+  }
+
   /** Decode the per-plant decimals returned by Prisma into plain numbers. */
-  private decoratePlant<T extends { openingStock: Prisma.Decimal; minStockLevel: Prisma.Decimal; maxStockLevel: Prisma.Decimal | null; reorderQty: Prisma.Decimal | null }>(plant: T) {
+  private decoratePlant<
+    T extends {
+      openingStock: Prisma.Decimal;
+      minStockLevel: Prisma.Decimal;
+      maxStockLevel: Prisma.Decimal | null;
+      reorderQty: Prisma.Decimal | null;
+      batchNumber?: string | null;
+      expiryDate?: Date | null;
+    },
+  >(plant: T) {
     return {
       ...plant,
       openingStock: Number(plant.openingStock),
       minStockLevel: Number(plant.minStockLevel),
       maxStockLevel: plant.maxStockLevel == null ? null : Number(plant.maxStockLevel),
       reorderQty: plant.reorderQty == null ? null : Number(plant.reorderQty),
+      batchNumber: plant.batchNumber ?? null,
+      expiryDate: plant.expiryDate ? plant.expiryDate.toISOString().slice(0, 10) : null,
     };
   }
 
@@ -344,6 +373,7 @@ export class ProductsService {
               shopId: plant.shopId,
               storageLocationId: plant.storageLocationId ?? null,
               openingStock: new Prisma.Decimal(plant.openingStock ?? 0),
+              ...this.plantBatchExpiryFields(plant),
               minStockLevel: new Prisma.Decimal(plant.minStockLevel ?? 0),
               maxStockLevel:
                 plant.maxStockLevel === undefined ? null : new Prisma.Decimal(plant.maxStockLevel),
@@ -376,7 +406,7 @@ export class ProductsService {
             productId: product.id,
             inQty: Number(plant.openingStock),
             outQty: 0,
-            remarks: 'Opening stock',
+            remarks: this.openingStockRemarks(plant),
             userId: user.id,
           });
         }
@@ -532,6 +562,7 @@ export class ProductsService {
               where: { id: prior.id },
               data: {
                 storageLocationId: incoming.storageLocationId ?? null,
+                ...this.plantBatchExpiryFields(incoming),
                 minStockLevel: new Prisma.Decimal(incoming.minStockLevel ?? 0),
                 maxStockLevel:
                   incoming.maxStockLevel === undefined
@@ -552,6 +583,7 @@ export class ProductsService {
                 shopId: incoming.shopId,
                 storageLocationId: incoming.storageLocationId ?? null,
                 openingStock: new Prisma.Decimal(incoming.openingStock ?? 0),
+                ...this.plantBatchExpiryFields(incoming),
                 minStockLevel: new Prisma.Decimal(incoming.minStockLevel ?? 0),
                 maxStockLevel:
                   incoming.maxStockLevel === undefined
@@ -624,7 +656,7 @@ export class ProductsService {
               productId: id,
               inQty: Number(incoming.openingStock),
               outQty: 0,
-              remarks: 'Opening stock',
+              remarks: this.openingStockRemarks(incoming),
               userId: user.id,
             });
           }
@@ -1002,6 +1034,8 @@ export class ProductsService {
       shopId: shop.id,
       storageLocationId: storageLocationId ?? undefined,
       openingStock: Number(row.openingStock ?? 0),
+      batchNumber: row.batchNumber,
+      expiryDate: row.expiryDate,
       minStockLevel: Number(row.minStockLevel ?? 0),
       maxStockLevel: row.maxStockLevel,
       reorderQty: row.reorderQty,
@@ -1037,6 +1071,7 @@ export class ProductsService {
                 shopId: shop.id,
                 storageLocationId,
                 openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+                ...this.plantBatchExpiryFields(row),
                 minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
                 maxStockLevel:
                   row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
@@ -1059,7 +1094,7 @@ export class ProductsService {
             productId: created.id,
             inQty: Number(row.openingStock ?? 0),
             outQty: 0,
-            remarks: 'Bulk import opening stock',
+            remarks: this.openingStockRemarks(row),
             userId: user.id,
           });
         }
@@ -1177,6 +1212,7 @@ export class ProductsService {
           data: {
             storageLocationId: resolvedStorageLocationId,
             openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+            ...this.plantBatchExpiryFields(row),
             minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
             maxStockLevel:
               row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
@@ -1192,6 +1228,7 @@ export class ProductsService {
             shopId: shop.id,
             storageLocationId: resolvedStorageLocationId,
             openingStock: new Prisma.Decimal(row.openingStock ?? 0),
+            ...this.plantBatchExpiryFields(row),
             minStockLevel: new Prisma.Decimal(row.minStockLevel ?? 0),
             maxStockLevel:
               row.maxStockLevel === undefined ? null : new Prisma.Decimal(row.maxStockLevel),
