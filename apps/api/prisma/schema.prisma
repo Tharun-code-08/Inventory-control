@@ -524,6 +524,7 @@ model User {
   role            Role             @relation(fields: [roleId], references: [id])
   shop            Shop?            @relation(fields: [shopId], references: [id])
   sentInvitations UserInvitation[] @relation("UserInvitationsSent")
+  reportSavedFilters ReportSavedFilter[]
 
   auditLogs             AuditLog[]
   sessions              Session[]
@@ -552,6 +553,20 @@ model Session {
   @@index([userId, revokedAt])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model ReportSavedFilter {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  reportType String   @map("report_type")
+  name       String
+  filterJson Json     @map("filter_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reportType])
+  @@map("report_saved_filters")
 }
 
 model Product {

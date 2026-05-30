@@ -9,6 +9,15 @@ export type ReportFilters = {
   dateTo?: string;
   page?: number;
   limit?: number;
+  poNumber?: string;
+  supplier?: string;
+  poStatus?: string;
+  orderNumber?: string;
+  customer?: string;
+  salesStatus?: string;
+  grNumber?: string;
+  grStatus?: string;
+  agingBucket?: string;
 };
 
 export type ExportReportPayload = ReportFilters & {
@@ -25,6 +34,15 @@ export const reportKeys = {
   giRegister: (filters: ReportFilters) => [...reportKeys.all, 'gi-register', filters] as const,
   stockLedger: (filters: ReportFilters) => [...reportKeys.all, 'stock-ledger', filters] as const,
   shopSummary: (filters: ReportFilters) => [...reportKeys.all, 'shop-summary', filters] as const,
+  overview: (filters: ReportFilters) => [...reportKeys.all, 'overview', filters] as const,
+  poSummary: (filters: ReportFilters) => [...reportKeys.all, 'po-summary', filters] as const,
+  salesSummary: (filters: ReportFilters) => [...reportKeys.all, 'sales-summary', filters] as const,
+  executiveSummary: (filters: ReportFilters) =>
+    [...reportKeys.all, 'executive-summary', filters] as const,
+  inventoryAging: (filters: ReportFilters) =>
+    [...reportKeys.all, 'inventory-aging', filters] as const,
+  rfqSummary: (filters: ReportFilters) => [...reportKeys.all, 'rfq-summary', filters] as const,
+  savedFilters: (reportType?: string) => [...reportKeys.all, 'saved-filters', reportType] as const,
 };
 
 function toNumber(value: unknown): number {
@@ -111,6 +129,7 @@ function normalizeShopSummaryRows(rows: Array<Record<string, unknown>>) {
     lowStockCount: toNumber(row.low_stock_count ?? row.lowStockCount),
     totalGR: toNumber(row.total_gr ?? row.totalGR),
     totalGI: toNumber(row.total_gi ?? row.totalGI),
+    salesValue: toNumber(row.sales_value ?? row.salesValue),
   }));
 }
 
@@ -166,7 +185,10 @@ export function useGrRegister(filters: ReportFilters = {}) {
   return useQuery({
     queryKey: reportKeys.grRegister(filters),
     queryFn: async () => {
-      const res = await api.get(`/reports/gr-register?${buildParams(filters)}`);
+      const params = buildParams(filters);
+      if (filters.grNumber) params.set('gr_number', filters.grNumber);
+      if (filters.grStatus) params.set('status', filters.grStatus);
+      const res = await api.get(`/reports/gr-register?${params}`);
       const rows = Array.isArray(res.data.data) ? res.data.data : [];
       return normalizeGrRows(rows);
     },
@@ -202,6 +224,106 @@ export function useShopSummary(filters: ReportFilters = {}) {
       const res = await api.get(`/reports/shop-summary?${buildParams(filters)}`);
       const rows = Array.isArray(res.data.data) ? res.data.data : [];
       return normalizeShopSummaryRows(rows);
+    },
+  });
+}
+
+export function useReportsOverview(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.overview(filters),
+    queryFn: async () => {
+      const res = await api.get(`/reports/analytics/overview?${buildParams(filters)}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function usePoSummary(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.poSummary(filters),
+    queryFn: async () => {
+      const params = buildParams(filters);
+      if (filters.poNumber) params.set('po_number', filters.poNumber);
+      if (filters.supplier) params.set('supplier', filters.supplier);
+      if (filters.poStatus) params.set('status', filters.poStatus);
+      const res = await api.get(`/reports/po-summary?${params}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function useSalesSummary(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.salesSummary(filters),
+    queryFn: async () => {
+      const params = buildParams(filters);
+      if (filters.orderNumber) params.set('order_number', filters.orderNumber);
+      if (filters.customer) params.set('customer', filters.customer);
+      if (filters.salesStatus) params.set('status', filters.salesStatus);
+      const res = await api.get(`/reports/sales-summary?${params}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function useExecutiveSummary(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.executiveSummary(filters),
+    queryFn: async () => {
+      const res = await api.get(`/reports/executive-summary?${buildParams(filters)}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function useInventoryAging(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.inventoryAging(filters),
+    queryFn: async () => {
+      const params = buildParams(filters);
+      if (filters.agingBucket) params.set('bucket', filters.agingBucket);
+      const res = await api.get(`/reports/inventory-aging?${params}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function useRfqSummary(filters: ReportFilters = {}) {
+  return useQuery({
+    queryKey: reportKeys.rfqSummary(filters),
+    queryFn: async () => {
+      const res = await api.get(`/reports/rfq-summary?${buildParams(filters)}`);
+      return res.data.data ?? {};
+    },
+  });
+}
+
+export function useSavedFilters(reportType?: string) {
+  return useQuery({
+    queryKey: reportKeys.savedFilters(reportType),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (reportType) params.set('report_type', reportType);
+      const res = await api.get(`/reports/saved-filters?${params.toString()}`);
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+}
+
+export function useCreateSavedFilter() {
+  return useMutation({
+    mutationFn: async (payload: { reportType: string; name: string; filterJson: Record<string, unknown> }) => {
+      const res = await api.post('/reports/saved-filters', payload);
+      return res.data.data;
+    },
+  });
+}
+
+export function useDeleteSavedFilter() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/reports/saved-filters/${id}`);
+      return res.data.data;
     },
   });
 }

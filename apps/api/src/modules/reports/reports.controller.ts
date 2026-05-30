@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -7,6 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { ExportReportDto } from './dto/export-report.dto';
+import { CreateSavedFilterDto } from './dto/create-saved-filter.dto';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
@@ -17,6 +18,71 @@ export class ReportsController {
     private readonly reports: ReportsService,
     @InjectQueue('exports') private readonly exportsQueue: Queue,
   ) {}
+
+  @RequirePermission('report:view')
+  @Get('analytics/overview')
+  overview(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+  ) {
+    return this.reports.analyticsOverview(user, {
+      shop_id: shopId,
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+  }
+
+  @RequirePermission('report:view')
+  @Get('po-summary')
+  poSummary(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('po_number') poNumber?: string,
+    @Query('supplier') supplier?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reports.purchaseOrderSummary(user, {
+      shop_id: shopId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      po_number: poNumber,
+      supplier,
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @RequirePermission('report:view')
+  @Get('sales-summary')
+  salesSummary(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('order_number') orderNumber?: string,
+    @Query('customer') customer?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reports.salesOrderSummary(user, {
+      shop_id: shopId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      order_number: orderNumber,
+      customer,
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
 
   @RequirePermission('report:view')
   @Get('inventory')
@@ -68,13 +134,35 @@ export class ReportsController {
 
   @RequirePermission('report:view')
   @Get('gr-register')
-  gr(@CurrentUser() user: RequestUser, @Query('date_from') dateFrom: string, @Query('date_to') dateTo: string, @Query('shop_id') shopId?: string) {
-    return this.reports.grRegister(user, dateFrom, dateTo, shopId);
+  gr(
+    @CurrentUser() user: RequestUser,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('shop_id') shopId?: string,
+    @Query('gr_number') grNumber?: string,
+    @Query('status') status?: string,
+    @Query('product_id') productId?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.reports.grRegister(user, {
+      date_from: dateFrom,
+      date_to: dateTo,
+      shop_id: shopId,
+      gr_number: grNumber,
+      status,
+      product_id: productId,
+      category,
+    });
   }
 
   @RequirePermission('report:view')
   @Get('gi-register')
-  gi(@CurrentUser() user: RequestUser, @Query('date_from') dateFrom: string, @Query('date_to') dateTo: string, @Query('shop_id') shopId?: string) {
+  gi(
+    @CurrentUser() user: RequestUser,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('shop_id') shopId?: string,
+  ) {
     return this.reports.giRegister(user, dateFrom, dateTo, shopId);
   }
 
@@ -92,8 +180,71 @@ export class ReportsController {
 
   @RequirePermission('report:view')
   @Get('shop-summary')
-  shopSummary(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
-    return this.reports.shopSummary(user, shopId);
+  shopSummary(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+  ) {
+    return this.reports.shopSummary(user, { shop_id: shopId, date_from: dateFrom, date_to: dateTo });
+  }
+
+  @RequirePermission('report:view')
+  @Get('executive-summary')
+  executiveSummary(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+  ) {
+    return this.reports.executiveSummary(user, {
+      shop_id: shopId,
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+  }
+
+  @RequirePermission('report:view')
+  @Get('inventory-aging')
+  inventoryAging(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('bucket') bucket?: string,
+  ) {
+    return this.reports.inventoryAging(user, { shop_id: shopId, bucket });
+  }
+
+  @RequirePermission('report:view')
+  @Get('rfq-summary')
+  rfqSummary(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+  ) {
+    return this.reports.rfqSummary(user, { shop_id: shopId, date_from: dateFrom, date_to: dateTo });
+  }
+
+  @RequirePermission('report:view')
+  @Get('saved-filters')
+  savedFilters(@CurrentUser() user: RequestUser, @Query('report_type') reportType?: string) {
+    return this.reports.listSavedFilters(user, reportType);
+  }
+
+  @RequirePermission('report:view')
+  @Post('saved-filters')
+  createSavedFilter(@CurrentUser() user: RequestUser, @Body() body: CreateSavedFilterDto) {
+    return this.reports.createSavedFilter(user, {
+      reportType: body.reportType,
+      name: body.name,
+      filterJson: body.filterJson,
+    });
+  }
+
+  @RequirePermission('report:view')
+  @Delete('saved-filters/:id')
+  deleteSavedFilter(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.reports.deleteSavedFilter(user, id);
   }
 
   @RequirePermission('report:export')
