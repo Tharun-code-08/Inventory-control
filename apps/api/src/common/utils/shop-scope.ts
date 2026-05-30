@@ -15,6 +15,8 @@ function isShopScopedRole(role: RoleName): boolean {
   return SHOP_SCOPED_ROLES.has(role);
 }
 
+export { isShopScopedRole };
+
 /** Organisation-wide plant visibility for tenant admins (Owner, Admin, etc.). */
 export function tenantCompanyShopWhere(actor: RequestUser): Prisma.ShopWhereInput | null {
   if (!actor.companyId || isShopScopedRole(actor.role)) return null;

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { shopListWhere } from '../../common/utils/shop-scope';
+import { repairOrphanShopsForUser } from '../../common/utils/shop-access';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
@@ -17,19 +18,7 @@ export class ShopsService {
 
   /** Attach orphaned plants (missing company) to the creator's organisation. */
   private async repairOrphanShops(user: RequestUser) {
-    if (!user.companyId) return;
-    const companyUsers = await this.prisma.user.findMany({
-      where: { shop: { companyId: user.companyId } },
-      select: { id: true },
-    });
-    const creatorIds = [...new Set([user.id, ...companyUsers.map((row) => row.id)])];
-    await this.prisma.shop.updateMany({
-      where: {
-        companyId: null,
-        createdById: { in: creatorIds },
-      },
-      data: { companyId: user.companyId },
-    });
+    await repairOrphanShopsForUser(this.prisma, user);
   }
 
   private async assertPlantAccess(user: RequestUser, shopId: string) {

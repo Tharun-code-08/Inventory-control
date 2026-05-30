@@ -3,6 +3,7 @@ import { AuditAction, Prisma, PurchaseOrderStatus, TaxPreference, TransactionTyp
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
+import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -239,7 +240,7 @@ export class ProductsService {
     const skip = (page - 1) * limit;
     const companyId = requireCompanyId(user);
     const shopId = query.shop_id;
-    if (query.shop_id) assertShopScope(user, query.shop_id);
+    if (query.shop_id) await verifyShopInTenant(this.prisma, user, query.shop_id);
     const tenantShopIds = shopIdsForUser(user);
     const plantScope = query.company_catalog
       ? { shop: { companyId } }

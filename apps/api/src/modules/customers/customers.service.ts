@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { repairOrphanShopsForUser, verifyShopInTenant } from '../../common/utils/shop-access';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -58,12 +59,23 @@ export class CustomersService {
   }
 
   async create(user: RequestUser, dto: CreateCustomerDto) {
+    await repairOrphanShopsForUser(this.prisma, user);
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
-    assertShopScope(user, shopId);
+    await verifyShopInTenant(this.prisma, user, shopId);
+
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { companyId: true },
+    });
+    if (!shop?.companyId) {
+      throw new BadRequestException(
+        'This plant is not linked to your organisation yet. Refresh the Plants page and try again.',
+      );
+    }
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      const customerCode =
+      let customerCode =
         dto.customerCode?.trim() ||
         (await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId,
@@ -71,38 +83,65 @@ export class CustomersService {
           date: new Date(),
         }));
 
-      return tx.customer.create({
-        data: {
-          customerCode,
-          customerName: dto.customerName,
-          email: dto.email?.toLowerCase?.() ?? null,
-          phone: dto.phone ?? null,
-          taxId: dto.taxId ?? null,
-          pan: dto.pan?.toUpperCase?.() ?? null,
-          street: dto.street ?? null,
-          city: dto.city ?? null,
-          state: dto.state ?? null,
-          postalCode: dto.postalCode ?? null,
-          country: dto.country ?? null,
-          shopId,
-          isActive: dto.isActive ?? true,
-          createdById: user.id,
-        },
-        include: { shop: true },
-      });
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await tx.customer.create({
+            data: {
+              customerCode,
+              customerName: dto.customerName,
+              email: dto.email?.toLowerCase?.() ?? null,
+              phone: dto.phone ?? null,
+              taxId: dto.taxId ?? null,
+              pan: dto.pan?.toUpperCase?.() ?? null,
+              street: dto.street ?? null,
+              city: dto.city ?? null,
+              state: dto.state ?? null,
+              postalCode: dto.postalCode ?? null,
+              country: dto.country ?? null,
+              shopId,
+              isActive: dto.isActive ?? true,
+              createdById: user.id,
+            },
+            include: { shop: true },
+          });
+        } catch (err) {
+          const isDuplicateCode =
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === 'P2002' &&
+            dto.customerCode?.trim();
+          if (isDuplicateCode) {
+            throw new BadRequestException(
+              `Customer code "${customerCode}" already exists for this plant`,
+            );
+          }
+          const canRetry =
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === 'P2002' &&
+            !dto.customerCode?.trim() &&
+            attempt < 2;
+          if (!canRetry) throw err;
+          customerCode = await this.numbers.nextConfiguredShopScopedNumber(tx, {
+            shopId,
+            docType: 'CUS',
+            date: new Date(),
+          });
+        }
+      }
+
+      throw new BadRequestException('Could not allocate a unique customer code. Try again.');
     });
   }
 
   async get(user: RequestUser, id: string) {
     const item = await this.prisma.customer.findUnique({ where: { id }, include: { shop: true } });
     if (!item) throw new NotFoundException('Customer not found');
-    assertShopScope(user, item.shopId);
+    await verifyShopInTenant(this.prisma, user, item.shopId);
     return item;
   }
 
   async update(user: RequestUser, id: string, dto: UpdateCustomerDto) {
     const existing = await this.get(user, id);
-    if (dto.shopId) assertShopScope(user, dto.shopId);
+    if (dto.shopId) await verifyShopInTenant(this.prisma, user, dto.shopId);
     return this.prisma.customer.update({
       where: { id },
       data: {

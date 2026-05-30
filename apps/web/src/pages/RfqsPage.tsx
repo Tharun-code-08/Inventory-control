@@ -159,14 +159,20 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
   );
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
+    companyCatalog: true,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
-  const products = useMemo(
-    () => extractProductRows(productsQuery.data),
-    [productsQuery.data],
-  );
+  const products = useMemo(() => {
+    const rows = extractProductRows(productsQuery.data);
+    if (!resolvedShopId) return rows;
+    return rows.filter((product) =>
+      product.plants.some(
+        (plant) => plant.shopId === resolvedShopId && plant.isActive !== false,
+      ),
+    );
+  }, [productsQuery.data, resolvedShopId]);
   const selectedSuppliers = useMemo(
     () => suppliers.filter((supplier) => form.supplierIds.includes(supplier.id)),
     [suppliers, form.supplierIds],
@@ -581,7 +587,9 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                 <SelectContent className="max-w-[min(24rem,90vw)]">
                   {products.length === 0 ? (
                     <SelectItem value="__none" disabled>
-                      No products for this plant
+                      {productsQuery.isLoading
+                        ? 'Loading products…'
+                        : 'No products assigned to this plant'}
                     </SelectItem>
                   ) : (
                     products.map((p) => (
@@ -628,6 +636,12 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             </div>
           </div>
         ))}
+        {resolvedShopId && !productsQuery.isLoading && products.length === 0 ? (
+          <p className="text-xs text-amber-700">
+            No products are assigned to this plant. Open Products, edit your item, and add this plant
+            under plant assignments.
+          </p>
+        ) : null}
       </div>
 
       <Button
