@@ -135,15 +135,18 @@ export class ReportsService {
       shopIds.map((id) => Prisma.sql`${id}::uuid`),
     )}]::uuid[]`;
 
-    const stockExpr = effectiveCurrentStockExpr('ss');
+    const stockQty = Prisma.raw(`(${effectiveCurrentStockExpr('ss')})`);
+    const unitCost = Prisma.raw(
+      'COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)',
+    );
     const [stockRows, poAgg, salesAgg, grCount, soCount] = await Promise.all([
       this.prisma.$queryRaw<
         Array<{ stock_value: string | null; low_stock_count: string | null }>
       >(Prisma.sql`
         SELECT
-          COALESCE(SUM((${stockExpr}) * p.purchase_price), 0)::text AS stock_value,
+          COALESCE(SUM(${stockQty} * ${unitCost}), 0)::text AS stock_value,
           COALESCE(SUM(CASE
-            WHEN pp.min_stock_level > 0 AND (${stockExpr}) <= pp.min_stock_level
+            WHEN pp.min_stock_level > 0 AND ${stockQty} <= pp.min_stock_level
             THEN 1 ELSE 0 END), 0)::text AS low_stock_count
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
@@ -413,14 +416,20 @@ export class ReportsService {
   }
 
   private async sumStockValue(shopIds: string[]) {
-    const stockExpr = effectiveCurrentStockExpr('ss');
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
+    const stockQty = Prisma.raw(`(${effectiveCurrentStockExpr('ss')})`);
+    const unitCost = Prisma.raw(
+      'COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)',
+    );
     const rows = await this.prisma.$queryRaw<Array<{ total_value: string | null }>>(
       Prisma.sql`
-        SELECT COALESCE(SUM((${stockExpr}) * p.purchase_price), 0)::text AS total_value
+        SELECT COALESCE(SUM(${stockQty} * ${unitCost}), 0)::text AS total_value
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-        WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
+        WHERE pp.is_active = true AND pp.shop_id = ANY(${shopArray})
       `,
     );
     const row = rows[0] ?? { total_value: '0' };
@@ -428,15 +437,18 @@ export class ReportsService {
   }
 
   private async countLowStock(shopIds: string[]) {
-    const stockExpr = effectiveCurrentStockExpr('ss');
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
+    const stockQty = Prisma.raw(`(${effectiveCurrentStockExpr('ss')})`);
     const rows = await this.prisma.$queryRaw<Array<{ low_count: string | null }>>(
       Prisma.sql`
         SELECT COALESCE(SUM(CASE
-          WHEN pp.min_stock_level > 0 AND (${stockExpr}) <= pp.min_stock_level
+          WHEN pp.min_stock_level > 0 AND ${stockQty} <= pp.min_stock_level
           THEN 1 ELSE 0 END), 0)::text AS low_count
         FROM product_plants pp
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-        WHERE pp.is_active = true AND pp.shop_id = ANY(${shopIds}::uuid[])
+        WHERE pp.is_active = true AND pp.shop_id = ANY(${shopArray})
       `,
     );
     const row = rows[0] ?? { low_count: '0' };
@@ -487,6 +499,9 @@ export class ReportsService {
   }
 
   private async openPoValue(shopIds: string[], from: Date, to: Date) {
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
     const rows = await this.prisma.$queryRaw<Array<{ open_value: string | null }>>(
       Prisma.sql`
         SELECT COALESCE(SUM(GREATEST(
@@ -500,7 +515,7 @@ export class ReportsService {
           WHERE status = 'POSTED'
           GROUP BY purchase_order_id
         ) gr ON gr.purchase_order_id = po.id
-        WHERE po.shop_id = ANY(${shopIds}::uuid[])
+        WHERE po.shop_id = ANY(${shopArray})
           AND po.status = 'CONFIRMED'
           AND po.po_date BETWEEN ${from} AND ${to}
       `,
@@ -1037,6 +1052,10 @@ export class ReportsService {
     const shopArray = Prisma.sql`ARRAY[${Prisma.join(
       shopIds.map((id) => Prisma.sql`${id}::uuid`),
     )}]::uuid[]`;
+    const stockQty = Prisma.raw(`(${effectiveCurrentStockExpr('ss')})`);
+    const unitCost = Prisma.raw(
+      'COALESCE(NULLIF(ss.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)',
+    );
     const rows = await this.prisma.$queryRaw<
       {
         shop_id: string;
@@ -1052,9 +1071,9 @@ export class ReportsService {
       SELECT sh.id as shop_id,
              sh.shop_name,
              COUNT(DISTINCT p.id)::int as sku_count,
-             SUM((${effectiveCurrentStockExpr('ss')}) * p.purchase_price) as stock_value,
+             SUM(${stockQty} * ${unitCost}) as stock_value,
              SUM(CASE
-               WHEN pp.min_stock_level > 0 AND (${effectiveCurrentStockExpr('ss')}) <= pp.min_stock_level
+               WHEN pp.min_stock_level > 0 AND ${stockQty} <= pp.min_stock_level
                THEN 1 ELSE 0 END)::int as low_stock_count,
              COALESCE((
                SELECT COUNT(*) FROM goods_receipt_header gr
