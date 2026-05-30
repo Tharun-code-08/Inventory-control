@@ -55,6 +55,7 @@ import {
 } from '@/lib/bid-comparison';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatInr } from '@/lib/format-money';
 import { csvDate, csvList, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { formatSupplierReference } from '@/lib/document-display';
 import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
@@ -70,14 +71,6 @@ function formatDate(value?: string | null): string {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
 }
 
 function quoteTotal(items: QuotationItem[] | undefined): number {
@@ -164,7 +157,7 @@ function ResponseRow({
             <p className="text-xs text-slate-500">{quote.supplier.email}</p>
           )}
         </TableCell>
-        <TableCell className="font-medium tabular-nums">{formatMoney(total)}</TableCell>
+        <TableCell className="font-medium tabular-nums">{formatInr(total)}</TableCell>
         <TableCell className="text-sm text-slate-600">
           {leadDays != null ? `${leadDays} days` : '—'}
         </TableCell>
@@ -212,8 +205,8 @@ function ResponseRow({
                       )}
                     </TableCell>
                     <TableCell>{Number(line.quantity)}</TableCell>
-                    <TableCell>{formatMoney(Number(line.unitPrice))}</TableCell>
-                    <TableCell>{formatMoney(Number(line.lineValue))}</TableCell>
+                    <TableCell>{formatInr(Number(line.unitPrice))}</TableCell>
+                    <TableCell>{formatInr(Number(line.lineValue))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -813,7 +806,7 @@ export function RfqDetailPage() {
                 <div className="space-y-1">
                   <p className="font-semibold text-slate-900">{plan.supplierName}</p>
                   <p className="text-sm text-slate-600">
-                    {formatMoney(plan.totalValue)} · Lead:{' '}
+                    {formatInr(plan.totalValue)} · Lead:{' '}
                     {plan.leadTimeDays != null ? `${plan.leadTimeDays} days` : '—'} ·{' '}
                     {plan.itemCount} item{plan.itemCount === 1 ? '' : 's'} allocated
                   </p>

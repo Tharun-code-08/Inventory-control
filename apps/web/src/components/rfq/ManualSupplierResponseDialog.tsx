@@ -27,6 +27,7 @@ import {
   type CreateQuotationPayload,
 } from '@/hooks/use-quotations';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatInr } from '@/lib/format-money';
 
 type ManualLine = {
   rfqItemId: string;
@@ -50,14 +51,6 @@ function buildQuotationNotes(leadTimeDays: string, notes: string): string | unde
   const extra = notes.trim();
   if (extra) parts.push(extra);
   return parts.length > 0 ? parts.join('\n') : undefined;
-}
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
 }
 
 function linesFromRfq(rfq: Rfq): ManualLine[] {
@@ -194,7 +187,7 @@ export function ManualSupplierResponseDialog({
                       />
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      {formatMoney(lineTotal)}
+                      {formatInr(lineTotal)}
                     </TableCell>
                   </TableRow>
                 );
@@ -204,7 +197,7 @@ export function ManualSupplierResponseDialog({
         </div>
 
         <div className="flex justify-end text-sm font-semibold text-slate-900">
-          Grand total: <span className="ml-2 text-indigo-700">{formatMoney(grandTotal)}</span>
+          Grand total: <span className="ml-2 text-indigo-700">{formatInr(grandTotal)}</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

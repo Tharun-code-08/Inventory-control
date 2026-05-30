@@ -151,6 +151,8 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
   const [items, setItems] = useState([
     { productId: '', quantity: '1', uom: 'UNIT', specifications: '' },
   ]);
+  const [submitMode, setSubmitMode] = useState<'draft' | 'send' | null>(null);
+  const isSubmitting = submitMode !== null;
 
   const resolvedShopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
@@ -337,14 +339,14 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
     setPendingSupplierId('');
   };
 
-  const onCreate = async () => {
+  const buildCreatePayload = () => {
     if (!form.title.trim()) {
       toast.error('Title is required');
-      return;
+      return null;
     }
     if (form.supplierIds.length === 0) {
       toast.error('Select at least one supplier');
-      return;
+      return null;
     }
     const normalizedItems = items
       .filter((item) => item.productId)
@@ -356,31 +358,17 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
       }));
     if (normalizedItems.length === 0) {
       toast.error('Add at least one product');
-      return;
+      return null;
     }
 
-    try {
-      await createRfq.mutateAsync({
-        shopId: user?.shopId ?? shops[0]?.id ?? undefined,
-        title: form.title.trim(),
-        deadline: form.deadline || undefined,
-        notes: form.notes || undefined,
-        suppliers: form.supplierIds,
-        items: normalizedItems,
-      });
-      toast.success(
-        `RFQ created for ${form.supplierIds.length} supplier${form.supplierIds.length === 1 ? '' : 's'}`,
-      );
-      if (createOnly) {
-        navigate('/rfqs');
-      }
-      resetCreateForm();
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-          ?.message ?? 'Failed to create RFQ';
-      toast.error(msg);
-    }
+    return {
+      shopId: user?.shopId ?? shops[0]?.id ?? undefined,
+      title: form.title.trim(),
+      deadline: form.deadline || undefined,
+      notes: form.notes || undefined,
+      suppliers: form.supplierIds,
+      items: normalizedItems,
+    };
   };
 
   function toastEmailResult(
@@ -398,6 +386,48 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
       { duration: 8000 },
     );
   }
+
+  const finishCreateFlow = () => {
+    if (createOnly) {
+      navigate('/rfqs');
+    }
+    resetCreateForm();
+  };
+
+  const onCreateDraft = async () => {
+    const payload = buildCreatePayload();
+    if (!payload) return;
+
+    setSubmitMode('draft');
+    try {
+      await createRfq.mutateAsync(payload);
+      toast.success(
+        `RFQ saved as draft for ${form.supplierIds.length} supplier${form.supplierIds.length === 1 ? '' : 's'}`,
+      );
+      finishCreateFlow();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to save RFQ draft'));
+    } finally {
+      setSubmitMode(null);
+    }
+  };
+
+  const onCreateAndSend = async () => {
+    const payload = buildCreatePayload();
+    if (!payload) return;
+
+    setSubmitMode('send');
+    try {
+      const created = await createRfq.mutateAsync(payload);
+      const result = await sendRfq.mutateAsync(created.id);
+      toastEmailResult(created.rfqNumber, result.emailDelivery?.results, 'sent');
+      finishCreateFlow();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to create and send RFQ'));
+    } finally {
+      setSubmitMode(null);
+    }
+  };
 
   const onSend = async (r: Rfq) => {
     try {
@@ -602,13 +632,23 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
         ))}
       </div>
 
-      <Button
-        className="w-full bg-indigo-600 hover:bg-indigo-700"
-        disabled={createRfq.isPending}
-        onClick={onCreate}
-      >
-        {createRfq.isPending ? 'Creating…' : 'Create RFQ'}
-      </Button>
+      <div className="flex flex-col gap-2 pt-1">
+        <Button
+          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          disabled={isSubmitting}
+          onClick={onCreateDraft}
+        >
+          {submitMode === 'draft' ? 'Saving draft…' : 'Create as Draft'}
+        </Button>
+        <Button
+          className="w-full"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={onCreateAndSend}
+        >
+          {submitMode === 'send' ? 'Confirming and sending…' : 'Confirm and send'}
+        </Button>
+      </div>
     </div>
   );
 
