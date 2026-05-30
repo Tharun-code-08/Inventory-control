@@ -40,26 +40,7 @@ export const PLAN_PRICING = {
   },
 } as const;
 
-/** Original Plus pricing — restore by clearing BILLING_DEMO_PLUS_PRICE_INR. */
-export const PLUS_PRICING_ORIGINAL = PLAN_PRICING.plus;
-
-function demoPlusPriceInr(): number | null {
-  const raw = process.env.BILLING_DEMO_PLUS_PRICE_INR?.trim();
-  if (!raw) return null;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 1) return null;
-  return Math.round(value);
-}
-
-export function isDemoPlusPricing(): boolean {
-  return demoPlusPriceInr() != null;
-}
-
 export function orderAmountPaise(plan: Exclude<PlanId, 'trial'>, interval: BillingInterval): number {
-  if (plan === 'plus') {
-    const demo = demoPlusPriceInr();
-    if (demo != null) return demo * 100;
-  }
   const pricing = PLAN_PRICING[plan][interval];
   return 'paiseTotal' in pricing ? pricing.paiseTotal : pricing.paise;
 }

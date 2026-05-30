@@ -87,24 +87,10 @@ export const UPGRADE_HIGHLIGHTS = [
 ] as const;
 
 export function planPrice(plan: Exclude<PlanId, 'trial'>, interval: BillingInterval) {
-  const demoPlus = demoPlusPriceInr();
-  if (plan === 'plus' && demoPlus != null) return demoPlus;
   if (interval === 'monthly') {
     return PLAN_CATALOG[plan].monthlyDisplay;
   }
   return plan === 'pro' ? 349 : 549;
-}
-
-function demoPlusPriceInr(): number | null {
-  const raw = import.meta.env.VITE_BILLING_DEMO_PLUS_PRICE_INR?.trim();
-  if (!raw) return null;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 1) return null;
-  return Math.round(value);
-}
-
-export function isDemoPlusPricing(): boolean {
-  return demoPlusPriceInr() != null;
 }
 
 export function yearlySavingsLabel() {

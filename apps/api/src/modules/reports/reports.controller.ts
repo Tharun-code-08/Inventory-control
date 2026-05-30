@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -237,7 +238,7 @@ export class ReportsController {
     return this.reports.createSavedFilter(user, {
       reportType: body.reportType,
       name: body.name,
-      filterJson: body.filterJson,
+      filterJson: body.filterJson as Prisma.InputJsonValue,
     });
   }
 

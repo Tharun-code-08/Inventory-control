@@ -9,7 +9,6 @@ import {
   UPGRADE_HIGHLIGHTS,
   planPrice,
   yearlySavingsLabel,
-  isDemoPlusPricing,
   subscriptionPlanTier,
   type BillingInterval,
   type PlanId,
@@ -58,7 +57,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
     // In-app upgrade: payment link or Razorpay checkout modal.
     if (plan === 'trial') return;
 
-    const useHostedPaymentLink = (plan === 'pro' || plan === 'plus') && !(plan === 'plus' && isDemoPlusPricing());
+    const useHostedPaymentLink = plan === 'pro' || plan === 'plus';
     if (useHostedPaymentLink) {
       if (openRazorpayPaymentLink(plan)) {
         toast.message('Complete payment on Razorpay. Your plan updates after payment is confirmed.');
@@ -197,7 +196,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   ) : (
                     <p className="text-4xl font-bold text-slate-900">
                       ₹{price}
-                      {plan.originalMonthly && billing === 'monthly' && !(planId === 'plus' && isDemoPlusPricing()) ? (
+                      {plan.originalMonthly && billing === 'monthly' ? (
                         <span className="ml-2 text-lg font-medium text-slate-500 line-through">
                           ₹{plan.originalMonthly}
                         </span>

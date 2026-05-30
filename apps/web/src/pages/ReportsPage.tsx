@@ -248,7 +248,7 @@ function ExecutiveSummaryTab({ filters }: Pick<TabShellProps, 'filters'>) {
               <span className="font-medium">{data?.systemHealth?.pendingOutboxCount ?? 0}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Draft POs > 30d</span>
+              <span className="text-muted-foreground">Draft POs {'>'} 30d</span>
               <span className="font-medium">{data?.systemHealth?.staleDraftCount ?? 0}</span>
             </div>
           </CardContent>
