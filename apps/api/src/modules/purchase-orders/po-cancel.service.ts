@@ -36,18 +36,7 @@ export class PoCancelService {
     const trimmedReason = reason?.trim();
     if (!trimmedReason) throw new BadRequestException('Cancellation reason is required');
 
-    const po = await this.purchaseOrders.get(user, poId);
-    if (po.status === PurchaseOrderStatus.CANCELLED) {
-      throw new BadRequestException('Purchase order is already cancelled');
-    }
-    if (po.status !== PurchaseOrderStatus.DRAFT && po.status !== PurchaseOrderStatus.CONFIRMED) {
-      throw new BadRequestException('Only DRAFT or CONFIRMED purchase orders can be cancelled');
-    }
-
-    const postedReceiptQty = (po.receiptProgress ?? []).some((line) => Number(line.receivedQty) > 0);
-    if (postedReceiptQty) {
-      throw new BadRequestException('Cannot cancel a purchase order with posted goods receipts');
-    }
+    const po = await this.purchaseOrders.assertCancelAllowed(user, poId);
 
     const account = await this.prisma.user.findUnique({
       where: { id: user.id },

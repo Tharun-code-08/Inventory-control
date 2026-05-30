@@ -170,6 +170,7 @@ export class QuotationsService {
       await this.rfqs.assertCanCreatePoFromRfq({
         rfqId: quote.rfqId,
         shopId: quote.shopId,
+        supplierName: quote.supplier.supplierName,
         items: selectedItems.map(({ item, orderQty }) => ({
           rfqItemId: item.rfqItemId!,
           orderQty,
@@ -177,6 +178,19 @@ export class QuotationsService {
       });
     }
     return this.prisma.$transaction(async (tx) => {
+      if (quote.rfqId) {
+        await this.rfqs.assertCanCreatePoFromRfq({
+          tx,
+          rfqId: quote.rfqId,
+          shopId: quote.shopId,
+          supplierName: quote.supplier.supplierName,
+          items: selectedItems.map(({ item, orderQty }) => ({
+            rfqItemId: item.rfqItemId!,
+            orderQty,
+          })),
+        });
+      }
+
       let contract = await tx.contractHeader.findFirst({ where: { quotationId: quote.id } });
       if (!contract) {
         const contractNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {

@@ -67,6 +67,19 @@ export type PurchaseOrderListResponse = {
   meta?: PurchaseOrderListMeta;
 };
 
+export type PurchaseOrderEmailDelivery = {
+  sent?: boolean;
+  queued?: boolean;
+  message?: string;
+  to?: string;
+  pdfAttached?: boolean;
+  emailStatus?: string;
+};
+
+export type CreatePurchaseOrderResult = PurchaseOrder & {
+  emailDelivery?: PurchaseOrderEmailDelivery;
+};
+
 export type CreatePurchaseOrderPayload = {
   shopId: string;
   poDate: string;
@@ -90,7 +103,9 @@ export type CreatePurchaseOrderPayload = {
   }>;
 };
 
-export type UpdatePurchaseOrderPayload = Partial<CreatePurchaseOrderPayload>;
+export type UpdatePurchaseOrderPayload = Partial<CreatePurchaseOrderPayload> & {
+  ifUnmodifiedSince?: string;
+};
 
 export const poKeys = {
   all: ['purchase-orders'] as const,
@@ -140,7 +155,7 @@ export function useCreatePurchaseOrder() {
   return useMutation({
     mutationFn: async (payload: CreatePurchaseOrderPayload) => {
       const res = await api.post('/purchase-orders', payload);
-      return res.data.data as PurchaseOrder;
+      return res.data.data as CreatePurchaseOrderResult;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: poKeys.lists() });
@@ -151,8 +166,10 @@ export function useCreatePurchaseOrder() {
 export function useUpdatePurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }: UpdatePurchaseOrderPayload & { id: string }) => {
-      const res = await api.patch(`/purchase-orders/${id}`, payload);
+    mutationFn: async ({ id, ifUnmodifiedSince, ...payload }: UpdatePurchaseOrderPayload & { id: string }) => {
+      const res = await api.patch(`/purchase-orders/${id}`, { ...payload, ifUnmodifiedSince }, {
+        headers: ifUnmodifiedSince ? { 'If-Unmodified-Since': ifUnmodifiedSince } : undefined,
+      });
       return res.data.data as PurchaseOrder;
     },
     onSuccess: (_data, variables) => {

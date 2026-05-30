@@ -773,6 +773,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const prefillAppliedRef = useRef(false);
   const newRouteInitializedRef = useRef(false);
+  const submitIdempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (location.pathname !== '/purchase-orders/new') {
@@ -956,11 +957,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     return /cannot\s+post/i.test(msg);
   }
 
-  function rejectsSendToSupplierOnCreate(e: unknown): boolean {
-    const msg = apiErrorMessage(e) ?? '';
-    return msg.includes('sendToSupplier');
-  }
-
   async function handleSubmit(values: POFormValues, sendNow = false) {
     try {
       const resolvedShopId = values.deliveryPlantId || shopId;
@@ -1025,61 +1021,37 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         }
       }
 
-      const idempotencyKey =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `po-${Date.now()}`;
-      const createBase = { ...payload, idempotencyKey, confirmOnSend: sendNow };
-
-      let result: Awaited<ReturnType<typeof createMut.mutateAsync>> | undefined;
-
-      if (sendNow) {
-        try {
-          result = await createMut.mutateAsync({ ...createBase, sendToSupplier: true });
-          toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
-          if (createOnly) {
-            navigate('/purchase-orders');
-            return;
-          }
-          setSheetOpen(false);
-          form.reset();
-          setDetailId(result.id);
-          return;
-        } catch (e: unknown) {
-          if (!rejectsSendToSupplierOnCreate(e)) {
-            throw e;
-          }
-        }
+      if (!submitIdempotencyKeyRef.current) {
+        submitIdempotencyKeyRef.current =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `po-${Date.now()}`;
       }
+      const idempotencyKey = submitIdempotencyKeyRef.current;
+      const createPayload = {
+        ...payload,
+        idempotencyKey,
+        confirmOnSend: sendNow,
+        ...(sendNow ? { sendToSupplier: true } : {}),
+      };
 
-      result = await createMut.mutateAsync(createBase);
+      const result = await createMut.mutateAsync(createPayload);
+      submitIdempotencyKeyRef.current = null;
 
       if (sendNow) {
-        if (!result.id) {
-          toast.error('Purchase order was created but could not be sent.');
-          return;
-        }
-        try {
-          const sendResult = (await sendMut.mutateAsync({ id: result.id })) as {
-            queued?: boolean;
-            message?: string;
-          };
-          if (sendResult?.queued) {
-            toast.warning(
-              sendResult.message ??
-                `Purchase order ${result.poNumber} queued for email delivery (PDF pending).`,
-            );
-          } else {
-            toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
-          }
-        } catch (sendErr: unknown) {
-          if (isApiNotFound(sendErr)) {
-            toast.warning(
-              `Purchase order ${result.poNumber} was saved as draft, but email could not be sent. Redeploy the API (POST /purchase-orders/:id/send) and try again from the PO detail view.`,
-            );
-          } else {
-            toast.error(apiErrorMessage(sendErr) ?? 'Purchase order saved, but email failed');
-          }
+        const emailDelivery = result.emailDelivery;
+        if (emailDelivery?.queued) {
+          toast.warning(
+            emailDelivery.message ??
+              `Purchase order ${result.poNumber} queued for email delivery (PDF pending).`,
+          );
+        } else if (emailDelivery?.sent === false) {
+          toast.warning(
+            emailDelivery.message ??
+              `Purchase order ${result.poNumber} saved, but email could not be sent. Retry from the PO detail view.`,
+          );
+        } else {
+          toast.success(`Purchase order ${result.poNumber} emailed to supplier`);
         }
       } else {
         toast.success(`Purchase order ${result.poNumber} saved as draft`);

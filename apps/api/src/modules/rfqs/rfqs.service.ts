@@ -1,9 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DocumentStatus, Prisma, PurchaseOrderStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditAction, DocumentStatus, Prisma, PurchaseOrderStatus } from '@prisma/client';
+import { assertRfqAction } from '../../common/state-machines/assert-action';
+import { assertRfqTransition } from '../../common/state-machines/assert-transition';
+import {
+  buildDocumentActionAudit,
+  buildStatusTransitionAudit,
+} from '../../common/state-machines/document-audit';
+import { RfqAction } from '../../common/state-machines/document-actions';
+import { AuditService } from '../audit/audit.service';
 import { MailService, type RfqInviteDeliverySummary } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { shopListWhere } from '../../common/utils/shop-scope';
 import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
 import { UpdateRfqDto } from './dto/update-rfq.dto';
@@ -13,6 +21,16 @@ import { EmailNotificationsService } from '../email-notifications/email-notifica
 import { rfqInviteDefaults } from '../email-notifications/email-notifications.outbound';
 import { tryRenderDocumentPdfAttachment } from '../../common/pdf/document-email-pdf';
 
+function isUniqueViolationForFields(error: unknown, fields: string[]): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return false;
+  }
+  const target = Array.isArray((error.meta as { target?: unknown })?.target)
+    ? ((error.meta as { target?: unknown[] }).target ?? [])
+    : [];
+  return fields.some((field) => target.includes(field));
+}
+
 @Injectable()
 export class RfqsService {
   constructor(
@@ -21,6 +39,7 @@ export class RfqsService {
     private readonly mail: MailService,
     private readonly subscriptions: SubscriptionService,
     private readonly emailNotifications: EmailNotificationsService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(user: RequestUser) {
@@ -77,42 +96,53 @@ export class RfqsService {
         throw new BadRequestException('Invalid shopId');
       }
 
-      const rfqNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
-        shopId,
-        docType: 'RFQ',
-        date: rfqDate,
-      });
-
-      return tx.rfqHeader.create({
-        data: {
-          rfqNumber,
-          rfqDate,
-          deadline: dto.deadline ? new Date(dto.deadline) : null,
-          title: dto.title,
-          notes: dto.notes ?? null,
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const rfqNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId,
-          status: DocumentStatus.DRAFT,
-          createdById: user.id,
-          suppliers: {
-            create: (dto.suppliers ?? []).map((supplierId: string) => ({ supplierId })),
-          },
-          items: {
-            create: (dto.items ?? []).map((item: CreateRfqItemDto) => ({
-              productId: item.productId ?? null,
-              description: item.description ?? null,
-              quantity: new Prisma.Decimal(item.quantity ?? 0),
-              uom: item.uom ?? 'UNIT',
-              specifications: item.specifications ?? null,
+          docType: 'RFQ',
+          date: rfqDate,
+        });
+        try {
+          return await tx.rfqHeader.create({
+            data: {
+              rfqNumber,
+              rfqDate,
+              deadline: dto.deadline ? new Date(dto.deadline) : null,
+              title: dto.title,
+              notes: dto.notes ?? null,
+              shopId,
+              status: DocumentStatus.DRAFT,
               createdById: user.id,
-            })),
-          },
-        },
-        include: {
-          shop: true,
-          suppliers: { include: { supplier: true } },
-          items: { include: { product: true } },
-        },
-      });
+              suppliers: {
+                create: (dto.suppliers ?? []).map((supplierId: string) => ({ supplierId })),
+              },
+              items: {
+                create: (dto.items ?? []).map((item: CreateRfqItemDto) => ({
+                  productId: item.productId ?? null,
+                  description: item.description ?? null,
+                  quantity: new Prisma.Decimal(item.quantity ?? 0),
+                  uom: item.uom ?? 'UNIT',
+                  specifications: item.specifications ?? null,
+                  createdById: user.id,
+                })),
+              },
+            },
+            include: {
+              shop: true,
+              suppliers: { include: { supplier: true } },
+              items: { include: { product: true } },
+            },
+          });
+        } catch (error) {
+          const canRetry =
+            attempt < maxAttempts &&
+            isUniqueViolationForFields(error, ['rfq_number', 'rfqNumber']);
+          if (canRetry) continue;
+          throw error;
+        }
+      }
+      throw new BadRequestException('Unable to reserve a unique RFQ number. Please retry.');
     });
   }
 
@@ -126,7 +156,7 @@ export class RfqsService {
       },
     });
     if (!rfq) throw new NotFoundException('RFQ not found');
-    assertShopScope(user, rfq.shopId);
+    await verifyShopInTenant(this.prisma, user, rfq.shopId);
     await this.subscriptions.assertFeatureForShop(rfq.shopId, 'rfqs');
     const fulfillment = await this.buildFulfillmentSummary(rfq.id, rfq.items);
     return { ...rfq, fulfillment };
@@ -134,8 +164,23 @@ export class RfqsService {
 
   async update(user: RequestUser, id: string, dto: UpdateRfqDto) {
     const existing = await this.get(user, id);
+    assertRfqAction(existing.status, RfqAction.EDIT);
     await this.subscriptions.assertFeatureForShop(existing.shopId, 'rfqs');
+    const expectedUpdatedAt = dto.ifUnmodifiedSince ? new Date(dto.ifUnmodifiedSince) : null;
+    if (expectedUpdatedAt && Number.isNaN(expectedUpdatedAt.getTime())) {
+      throw new BadRequestException('Invalid optimistic lock timestamp');
+    }
     return this.prisma.$transaction(async (tx) => {
+      if (expectedUpdatedAt) {
+        const claimed = await tx.rfqHeader.updateMany({
+          where: { id, updatedAt: expectedUpdatedAt },
+          data: { updatedById: user.id },
+        });
+        if (claimed.count === 0) {
+          throw new ConflictException('RFQ has been modified by another user. Refresh and try again.');
+        }
+      }
+
       await tx.rfqSupplier.deleteMany({ where: { rfqId: id } });
       await tx.rfqItem.deleteMany({ where: { rfqHeaderId: id } });
       const updated = await tx.rfqHeader.update({
@@ -240,6 +285,8 @@ export class RfqsService {
 
   async send(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
+    const isFirstSend = existing.status === DocumentStatus.DRAFT;
+    assertRfqAction(existing.status, isFirstSend ? RfqAction.POST : RfqAction.SEND);
     const suppliers = existing.suppliers ?? [];
 
     if (suppliers.length === 0) {
@@ -276,39 +323,77 @@ export class RfqsService {
 
     this.assertEmailDelivery(emailDelivery);
 
-    const wasDraft = existing.status === DocumentStatus.DRAFT;
-    const rfq = wasDraft
-      ? await this.prisma.rfqHeader.update({
-          where: { id },
-          data: {
-            status: DocumentStatus.POSTED,
-            postedAt: new Date(),
-            updatedById: user.id,
-            notes: `${existing.notes ?? ''}\n[Sent ${new Date().toISOString()}]`.trim(),
-          },
-          include: {
-            shop: true,
-            suppliers: { include: { supplier: true } },
-            items: { include: { product: true } },
-          },
-        })
-      : await this.prisma.rfqHeader.findUniqueOrThrow({
-          where: { id },
-          include: {
-            shop: true,
-            suppliers: { include: { supplier: true } },
-            items: { include: { product: true } },
-          },
-        });
+    if (isFirstSend) {
+      assertRfqTransition(existing.status, DocumentStatus.POSTED);
+      const transitioned = await this.prisma.rfqHeader.updateMany({
+        where: { id, status: DocumentStatus.DRAFT },
+        data: {
+          status: DocumentStatus.POSTED,
+          postedAt: new Date(),
+          updatedById: user.id,
+          notes: `${existing.notes ?? ''}\n[Sent ${new Date().toISOString()}]`.trim(),
+        },
+      });
+      if (transitioned.count === 0) {
+        throw new BadRequestException('RFQ is not in DRAFT state');
+      }
+      const rfq = await this.prisma.rfqHeader.findUniqueOrThrow({
+        where: { id },
+        include: {
+          shop: true,
+          suppliers: { include: { supplier: true } },
+          items: { include: { product: true } },
+        },
+      });
+      await this.audit.log(
+        buildStatusTransitionAudit({
+          userId: user.id,
+          entityType: 'RFQ',
+          entityId: id,
+          fromStatus: DocumentStatus.DRAFT,
+          toStatus: DocumentStatus.POSTED,
+          action: AuditAction.POST,
+        }),
+      );
+      await this.audit.log(
+        buildDocumentActionAudit({
+          userId: user.id,
+          entityType: 'RFQ',
+          entityId: id,
+          action: 'POST_RFQ',
+          result: 'success',
+          detail: { recipients: emailDelivery.sent },
+        }),
+      );
+      return { ...rfq, emailDelivery };
+    }
+
+    await this.audit.log(
+      buildDocumentActionAudit({
+        userId: user.id,
+        entityType: 'RFQ',
+        entityId: id,
+        action: 'SEND_RFQ',
+        result: 'success',
+        detail: { recipients: emailDelivery.sent },
+      }),
+    );
+
+    const rfq = await this.prisma.rfqHeader.findUniqueOrThrow({
+      where: { id },
+      include: {
+        shop: true,
+        suppliers: { include: { supplier: true } },
+        items: { include: { product: true } },
+      },
+    });
 
     return { ...rfq, emailDelivery };
   }
 
   async resendInvites(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
-    if (existing.status !== DocumentStatus.POSTED) {
-      throw new BadRequestException('Only sent RFQs can resend supplier invitations');
-    }
+    assertRfqAction(existing.status, RfqAction.SEND);
 
     const suppliers = existing.suppliers ?? [];
     if (suppliers.length === 0) {
@@ -342,6 +427,17 @@ export class RfqsService {
     });
 
     this.assertEmailDelivery(emailDelivery);
+
+    await this.audit.log(
+      buildDocumentActionAudit({
+        userId: user.id,
+        entityType: 'RFQ',
+        entityId: id,
+        action: 'SEND_RFQ',
+        result: 'success',
+        detail: { recipients: emailDelivery.sent, resend: true },
+      }),
+    );
 
     return { ...existing, emailDelivery };
   }
@@ -400,47 +496,75 @@ export class RfqsService {
     rfqId: string;
     shopId: string;
     items: Array<{ rfqItemId: string; orderQty: number }>;
+    supplierName?: string | null;
+    excludePoHeaderId?: string;
+    tx?: Prisma.TransactionClient;
   }) {
-    const rfq = await this.prisma.rfqHeader.findUnique({
-      where: { id: args.rfqId },
+    const db = args.tx ?? this.prisma;
+    if (args.tx) {
+      await args.tx.$executeRaw`SELECT id FROM rfq_header WHERE id = ${args.rfqId} FOR UPDATE`;
+      await args.tx.$executeRaw`SELECT id FROM rfq_items WHERE rfq_header_id = ${args.rfqId} FOR UPDATE`;
+    }
+
+    const rfq = await db.rfqHeader.findFirst({
+      where: { id: args.rfqId, shopId: args.shopId },
       select: { id: true, shopId: true, status: true },
     });
     if (!rfq) {
-      throw new NotFoundException('RFQ not found');
+      throw new NotFoundException('RFQ not found for the selected plant');
     }
-    if (rfq.shopId !== args.shopId) {
-      throw new BadRequestException('Purchase order must use the same plant as the RFQ');
-    }
-    if (rfq.status !== DocumentStatus.POSTED) {
-      throw new BadRequestException('RFQ must be sent before creating a purchase order');
+    assertRfqAction(rfq.status, RfqAction.CREATE_PO);
+
+    if (args.supplierName?.trim()) {
+      const expectedSupplier = args.supplierName.trim().toLowerCase();
+      const rfqSuppliers = await db.rfqSupplier.findMany({
+        where: { rfqId: args.rfqId },
+        select: { supplier: { select: { supplierName: true } } },
+      });
+      if (
+        rfqSuppliers.length > 0 &&
+        !rfqSuppliers.some(
+          (row) => row.supplier?.supplierName?.trim().toLowerCase() === expectedSupplier,
+        )
+      ) {
+        throw new BadRequestException('Purchase order supplier must match one of the RFQ suppliers');
+      }
     }
 
-    const fulfillment = await this.buildFulfillmentSummary(args.rfqId);
+    const fulfillment = await this.buildFulfillmentSummary(args.rfqId, undefined, {
+      tx: args.tx,
+      excludePoHeaderId: args.excludePoHeaderId,
+    });
     if (fulfillment.posCreated >= fulfillment.maxPos) {
       throw new BadRequestException('All RFQ lines are already allocated to purchase orders');
     }
 
     const linesMap = new Map(fulfillment.lines.map((l) => [l.rfqItemId, l]));
+    const requestedByItem = new Map<string, number>();
     for (const line of args.items) {
-      const ref = linesMap.get(line.rfqItemId);
-      if (!ref) {
+      const key = line.rfqItemId?.trim();
+      if (!key) {
         throw new BadRequestException('Invalid rfqItemId on purchase order line');
       }
       if (line.orderQty <= 0) {
         throw new BadRequestException('Order quantity must be greater than zero');
       }
-      if (line.orderQty > ref.remainingQty) {
+      requestedByItem.set(key, (requestedByItem.get(key) ?? 0) + line.orderQty);
+    }
+
+    for (const [rfqItemId, orderQty] of requestedByItem.entries()) {
+      const ref = linesMap.get(rfqItemId);
+      if (!ref) {
+        throw new BadRequestException('Invalid rfqItemId on purchase order line');
+      }
+      if (orderQty > ref.remainingQty) {
         throw new BadRequestException(
           `Requested quantity exceeds remaining RFQ quantity for item ${ref.productId ?? ref.rfqItemId}`,
         );
       }
     }
 
-    const hasRemainingLine = args.items.some((line) => {
-      const ref = linesMap.get(line.rfqItemId);
-      return ref && ref.remainingQty > 0;
-    });
-    if (!hasRemainingLine) {
+    if (requestedByItem.size === 0) {
       throw new BadRequestException('No remaining RFQ quantity available for purchase order');
     }
   }
@@ -448,10 +572,12 @@ export class RfqsService {
   private async buildFulfillmentSummary(
     rfqId: string,
     items?: Array<{ id: string; quantity: Prisma.Decimal; productId?: string | null }>,
+    options?: { tx?: Prisma.TransactionClient; excludePoHeaderId?: string },
   ) {
+    const db = options?.tx ?? this.prisma;
     const rfqItems =
       items ??
-      (await this.prisma.rfqItem.findMany({
+      (await db.rfqItem.findMany({
         where: { rfqHeaderId: rfqId },
         select: { id: true, productId: true, quantity: true },
       }));
@@ -460,10 +586,14 @@ export class RfqsService {
     const poLines =
       rfqItemIds.length === 0
         ? []
-        : await this.prisma.purchaseOrderItem.findMany({
+        : await db.purchaseOrderItem.findMany({
             where: {
               rfqItemId: { in: rfqItemIds },
-              header: { rfqId, status: { not: PurchaseOrderStatus.CANCELLED } },
+              header: {
+                rfqId,
+                status: { not: PurchaseOrderStatus.CANCELLED },
+                ...(options?.excludePoHeaderId ? { id: { not: options.excludePoHeaderId } } : {}),
+              },
             },
             select: { rfqItemId: true, orderQty: true },
           });
@@ -493,8 +623,12 @@ export class RfqsService {
     const linesFullyOrdered = lines.filter((l) => l.remainingQty === 0).length;
     const linesRemaining = totalLines - linesFullyOrdered;
     const maxPos = totalLines;
-    const posCreated = await this.prisma.purchaseOrderHeader.count({
-      where: { rfqId, status: { not: PurchaseOrderStatus.CANCELLED } },
+    const posCreated = await db.purchaseOrderHeader.count({
+      where: {
+        rfqId,
+        status: { not: PurchaseOrderStatus.CANCELLED },
+        ...(options?.excludePoHeaderId ? { id: { not: options.excludePoHeaderId } } : {}),
+      },
     });
     const posRemaining = Math.max(0, maxPos - posCreated);
 

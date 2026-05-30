@@ -25,6 +25,7 @@ import type {
   SupplierBillIssuedEmailContent,
   SupplierPaymentRecordedEmailContent,
 } from '../../common/mail/transactional-email.templates';
+import { auditRequestMetadata } from '../../common/utils/audit-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReturnImageStorageService } from '../../common/upload/return-image-storage.service';
@@ -110,17 +111,21 @@ export class DocumentEmailService {
       overrides: args.prepared,
     };
 
-    return this.enqueueDocumentEmail(user, {
-      entityType: 'purchase-order',
-      entityId: args.poId,
-      documentNumber: args.documentNumber,
-      templateId: 'purchase_order_supplier',
-      companyId: args.companyId,
-      shopId: args.shopId,
-      recipient: args.recipient,
-      payload,
-      trigger: args.trigger,
-    });
+    return this.enqueueDocumentEmail(
+      user,
+      {
+        entityType: 'purchase-order',
+        entityId: args.poId,
+        documentNumber: args.documentNumber,
+        templateId: 'purchase_order_supplier',
+        companyId: args.companyId,
+        shopId: args.shopId,
+        recipient: args.recipient,
+        payload,
+        trigger: args.trigger,
+      },
+      { asyncOnly: true },
+    );
   }
 
   async sendInvoiceEmail(
@@ -350,6 +355,7 @@ export class DocumentEmailService {
       payload: DocumentEmailPayload;
       trigger: DocumentEmailTrigger;
     },
+    options?: { asyncOnly?: boolean },
   ): Promise<DocumentEmailSendResult> {
     const outbox = await this.prisma.documentEmailOutbox.create({
       data: {
@@ -366,6 +372,29 @@ export class DocumentEmailService {
         sentById: user.id,
       },
     });
+
+    if (options?.asyncOnly) {
+      await this.queue.add(
+        'retry',
+        { outboxId: outbox.id },
+        {
+          jobId: `document-email-${outbox.id}-0`,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      return {
+        sent: false,
+        queued: true,
+        to: args.recipient,
+        attachment: null,
+        pdfAttached: false,
+        emailStatus: 'pending_pdf',
+        outboxId: outbox.id,
+        message:
+          'Document saved. Supplier email is queued and will be sent automatically with PDF attachment.',
+      };
+    }
 
     try {
       return await this.processOutbox(outbox.id, user.id);
@@ -761,6 +790,7 @@ export class DocumentEmailService {
         attachmentFilename: attachmentFilename ?? null,
         status: outcome,
         error: errorMessage ?? null,
+        ...auditRequestMetadata(),
         poNumber: payload?.kind === 'purchase-order' ? payload.content.poNumber : undefined,
         invoiceNumber: payload?.kind === 'invoice' ? payload.content.invoiceNumber : undefined,
         receiptNumber: payload?.kind === 'payment' ? payload.content.receiptNumber : undefined,

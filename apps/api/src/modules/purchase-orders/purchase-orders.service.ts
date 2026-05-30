@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
@@ -6,6 +6,15 @@ import { DocumentEmailService } from '../document-email/document-email.service';
 import { DocumentEmailTrigger } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { verifyShopInTenant } from '../../common/utils/shop-access';
+import { auditRequestMetadata } from '../../common/utils/audit-context';
+import { assertPoAction } from '../../common/state-machines/assert-action';
+import { assertPoTransition } from '../../common/state-machines/assert-transition';
+import {
+  buildDocumentActionAudit,
+  buildStatusTransitionAudit,
+} from '../../common/state-machines/document-audit';
+import { PurchaseOrderAction } from '../../common/state-machines/document-actions';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { AuditService } from '../audit/audit.service';
@@ -40,6 +49,16 @@ const ITEM_WITH_PRODUCT = {
   },
 } as const;
 
+function isUniqueViolationForFields(error: unknown, fields: string[]): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return false;
+  }
+  const target = Array.isArray((error.meta as { target?: unknown })?.target)
+    ? ((error.meta as { target?: unknown[] }).target ?? [])
+    : [];
+  return fields.some((field) => target.includes(field));
+}
+
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
@@ -62,6 +81,76 @@ export class PurchaseOrdersService {
   private shopScopedServiceCode(shopNumber: string) {
     const safe = shopNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'GEN';
     return `SVC-${safe}`;
+  }
+
+  private auditMeta() {
+    return auditRequestMetadata();
+  }
+
+  private async getPoDownstreamLinks(poId: string) {
+    const [goodsReceiptCount, supplierBillCount, supplierPaymentCount, supplierReturnCount] =
+      await Promise.all([
+        this.prisma.goodsReceiptHeader.count({ where: { purchaseOrderId: poId } }),
+        this.prisma.supplierBillHeader.count({ where: { purchaseOrderId: poId } }),
+        this.prisma.supplierPayment.count({
+          where: { supplierBill: { purchaseOrderId: poId } },
+        }),
+        this.prisma.supplierReturn.count({ where: { purchaseOrderId: poId } }),
+      ]);
+    return {
+      goodsReceiptCount,
+      supplierBillCount,
+      supplierPaymentCount,
+      supplierReturnCount,
+      hasFinancialLinks:
+        goodsReceiptCount > 0 ||
+        supplierBillCount > 0 ||
+        supplierPaymentCount > 0 ||
+        supplierReturnCount > 0,
+    };
+  }
+
+  private async assertPoMutationAllowed(args: {
+    poId: string;
+    action: 'update' | 'cancel';
+    existing: ReturnType<PurchaseOrdersService['serialize']>;
+    dto?: UpdatePurchaseOrderDto;
+  }) {
+    const links = await this.getPoDownstreamLinks(args.poId);
+    if (!links.hasFinancialLinks) return;
+
+    if (args.action === 'cancel') {
+      const parts: string[] = [];
+      if (links.goodsReceiptCount > 0) parts.push(`${links.goodsReceiptCount} goods receipt(s)`);
+      if (links.supplierBillCount > 0) parts.push(`${links.supplierBillCount} supplier bill(s)`);
+      if (links.supplierPaymentCount > 0) parts.push(`${links.supplierPaymentCount} payment(s)`);
+      if (links.supplierReturnCount > 0) parts.push(`${links.supplierReturnCount} supplier return(s)`);
+      throw new BadRequestException(
+        `Cannot cancel this purchase order because downstream documents exist: ${parts.join(', ')}.`,
+      );
+    }
+
+    const dto = args.dto ?? {};
+    if (dto.supplier?.trim() && dto.supplier.trim() !== args.existing.supplier) {
+      throw new BadRequestException(
+        'Cannot change supplier because this purchase order is linked to goods receipts, bills, or payments.',
+      );
+    }
+    if (dto.rfqId !== undefined && (dto.rfqId ?? null) !== (args.existing.rfqId ?? null)) {
+      throw new BadRequestException(
+        'Cannot change RFQ link because this purchase order is linked to goods receipts, bills, or payments.',
+      );
+    }
+    if (dto.items) {
+      throw new BadRequestException(
+        'Cannot change line items because this purchase order is linked to goods receipts, bills, or payments.',
+      );
+    }
+    if (dto.shopId && dto.shopId !== args.existing.shopId) {
+      throw new BadRequestException(
+        'Cannot change delivery plant because this purchase order is linked to goods receipts, bills, or payments.',
+      );
+    }
   }
 
   private async resolvePoLineProduct(
@@ -424,26 +513,13 @@ export class PurchaseOrdersService {
 
   async create(user: RequestUser, dto: CreatePurchaseOrderDto) {
     assertShopScope(user, dto.shopId);
+    await verifyShopInTenant(this.prisma, user, dto.shopId);
     const shop = await this.prisma.shop.findUnique({
       where: { id: dto.shopId },
       select: { companyId: true },
     });
     if (shop?.companyId) {
       await this.subscriptions.assertFeature(shop.companyId, 'purchase_orders');
-    }
-    if (dto.rfqId) {
-      const missingRfqItem = dto.items.find((line) => !line.rfqItemId);
-      if (missingRfqItem) {
-        throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
-      }
-      await this.rfqs.assertCanCreatePoFromRfq({
-        rfqId: dto.rfqId,
-        shopId: dto.shopId,
-        items: dto.items.map((line) => ({
-          rfqItemId: line.rfqItemId!,
-          orderQty: line.orderQty,
-        })),
-      });
     }
     const poDate = new Date(dto.poDate);
     assertNotFuture(poDate, 'PO date');
@@ -463,53 +539,102 @@ export class PurchaseOrdersService {
         if (prior) return this.serialize(this.withLifecycle(prior as any));
       }
 
+      if (dto.rfqId) {
+        const missingRfqItem = dto.items.find((line) => !line.rfqItemId);
+        if (missingRfqItem) {
+          throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
+        }
+        await this.rfqs.assertCanCreatePoFromRfq({
+          tx,
+          rfqId: dto.rfqId,
+          shopId: dto.shopId,
+          supplierName: dto.supplier,
+          items: dto.items.map((line) => ({
+            rfqItemId: line.rfqItemId!,
+            orderQty: line.orderQty,
+          })),
+        });
+      }
+
       const manualNumber = dto.poNumber?.trim();
       if (manualNumber) {
         const exists = await tx.purchaseOrderHeader.findUnique({ where: { poNumber: manualNumber } });
         if (exists) throw new BadRequestException('PO number already exists');
       }
-      const poNumber =
-        manualNumber ||
-        (await this.numbers.nextConfiguredShopScopedNumber(tx, {
-          shopId: dto.shopId,
-          docType: 'PO',
-          date: poDate,
-        }));
-
       const { lines, total } = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
-
-      const created = await tx.purchaseOrderHeader.create({
-        data: {
-          poNumber,
-          poDate,
-          shopId: dto.shopId,
-          rfqId: dto.rfqId ?? null,
-          contractId: dto.contractId ?? null,
-          supplier: dto.supplier.trim(),
-          remarks: dto.remarks?.trim(),
-          status: dto.confirmOnSend ? PurchaseOrderStatus.CONFIRMED : PurchaseOrderStatus.DRAFT,
-          totalValue: total,
-          createdById: user.id,
-          items: { create: lines },
-        },
-        include: { items: ITEM_WITH_PRODUCT, shop: true },
-      });
+      let created: any = null;
+      const maxAttempts = manualNumber ? 1 : 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const poNumber =
+          manualNumber ||
+          (await this.numbers.nextConfiguredShopScopedNumber(tx, {
+            shopId: dto.shopId,
+            docType: 'PO',
+            date: poDate,
+          }));
+        try {
+          created = await tx.purchaseOrderHeader.create({
+            data: {
+              poNumber,
+              poDate,
+              shopId: dto.shopId,
+              rfqId: dto.rfqId ?? null,
+              contractId: dto.contractId ?? null,
+              supplier: dto.supplier.trim(),
+              remarks: dto.remarks?.trim(),
+              status: dto.confirmOnSend ? PurchaseOrderStatus.CONFIRMED : PurchaseOrderStatus.DRAFT,
+              totalValue: total,
+              createdById: user.id,
+              items: { create: lines },
+            },
+            include: { items: ITEM_WITH_PRODUCT, shop: true },
+          });
+          break;
+        } catch (error) {
+          const canRetry =
+            !manualNumber &&
+            attempt < maxAttempts &&
+            isUniqueViolationForFields(error, ['po_number', 'poNumber']);
+          if (canRetry) continue;
+          throw error;
+        }
+      }
+      if (!created) {
+        throw new BadRequestException('Unable to reserve a unique PO number. Please retry.');
+      }
       await this.audit.log(
         {
           userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'PURCHASE_ORDER',
           entityId: created.id,
+          ...this.auditMeta(),
           newValues: {
             poNumber: created.poNumber,
             shopId: created.shopId,
             supplier: created.supplier,
+            rfqId: created.rfqId ?? null,
             totalValue: created.totalValue?.toString() ?? null,
             itemCount: created.items.length,
+            status: created.status,
           },
         },
         tx,
       );
+      if (created.status === PurchaseOrderStatus.CONFIRMED) {
+        await this.audit.log(
+          buildStatusTransitionAudit({
+            userId: user.id,
+            entityType: 'PURCHASE_ORDER',
+            entityId: created.id,
+            fromStatus: PurchaseOrderStatus.DRAFT,
+            toStatus: PurchaseOrderStatus.CONFIRMED,
+            reason: dto.confirmOnSend ? 'confirmOnSend' : null,
+            action: AuditAction.POST,
+          }),
+          tx,
+        );
+      }
       await setIdempotentResult(
         tx,
         dto.idempotencyKey,
@@ -533,38 +658,68 @@ export class PurchaseOrdersService {
       },
     });
     if (!po) throw new NotFoundException('Not found');
-    assertShopScope(user, po.shopId);
+    await verifyShopInTenant(this.prisma, user, po.shopId);
     return this.serialize(this.withLifecycle(po as any));
   }
 
   async update(user: RequestUser, id: string, dto: UpdatePurchaseOrderDto) {
     const existing = await this.get(user, id);
-    if (existing.status !== PurchaseOrderStatus.DRAFT) throw new BadRequestException('Only DRAFT can be edited');
-    if (dto.shopId) assertShopScope(user, dto.shopId);
+    assertPoAction(existing.status, PurchaseOrderAction.EDIT);
+    if (dto.shopId) {
+      assertShopScope(user, dto.shopId);
+      await verifyShopInTenant(this.prisma, user, dto.shopId);
+    }
+    const expectedUpdatedAt = dto.ifUnmodifiedSince ? new Date(dto.ifUnmodifiedSince) : null;
+    if (expectedUpdatedAt && Number.isNaN(expectedUpdatedAt.getTime())) {
+      throw new BadRequestException('Invalid optimistic lock timestamp');
+    }
 
     const nextRfqId = dto.rfqId ?? existing.rfqId ?? null;
-    if (nextRfqId && dto.items) {
-      const missingRfqItem = dto.items.find((line) => !line.rfqItemId);
-      if (missingRfqItem) {
-        throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
-      }
-      await this.rfqs.assertCanCreatePoFromRfq({
-        rfqId: nextRfqId,
-        shopId: dto.shopId ?? existing.shopId,
-        items: dto.items.map((line) => ({
-          rfqItemId: line.rfqItemId!,
-          orderQty: line.orderQty ?? 0,
-        })),
-      });
-    }
+    await this.assertPoMutationAllowed({ poId: id, action: 'update', existing, dto });
 
     const poDate = dto.poDate ? new Date(dto.poDate) : new Date(existing.poDate);
     assertNotFuture(poDate, 'PO date');
 
     return this.prisma.$transaction(async (tx) => {
+      if (expectedUpdatedAt) {
+        const claimed = await tx.purchaseOrderHeader.updateMany({
+          where: { id, updatedAt: expectedUpdatedAt },
+          data: { updatedById: user.id },
+        });
+        if (claimed.count === 0) {
+          throw new ConflictException(
+            'Purchase order has been modified by another user. Refresh and try again.',
+          );
+        }
+      }
+
+      const shopId = dto.shopId ?? existing.shopId;
+      if (nextRfqId) {
+        const validationLines = (dto.items ?? existing.items).map((line) => ({
+          rfqItemId: line.rfqItemId ?? undefined,
+          orderQty: Number(line.orderQty ?? 0),
+        }));
+        const missingRfqItem = validationLines.find((line) => !line.rfqItemId);
+        if (missingRfqItem) {
+          throw new BadRequestException('rfqItemId is required on each line when rfqId is provided');
+        }
+        await this.rfqs.assertCanCreatePoFromRfq({
+          tx,
+          rfqId: nextRfqId,
+          shopId,
+          supplierName: dto.supplier ?? existing.supplier,
+          excludePoHeaderId: id,
+          items: validationLines.map((line) => ({
+            rfqItemId: line.rfqItemId!,
+            orderQty: line.orderQty,
+          })),
+        });
+      } else if ((dto.items ?? []).some((line) => Boolean(line.rfqItemId))) {
+        throw new BadRequestException('rfqItemId can only be used when rfqId is provided');
+      }
+
       if (dto.items) {
         await tx.purchaseOrderItem.deleteMany({ where: { poHeaderId: id } });
-        const shopId = dto.shopId ?? existing.shopId;
         const { lines, total } = await this.buildPoLineCreates(tx, shopId, user.id, dto.items);
         await tx.purchaseOrderItem.createMany({
           data: lines.map((line) => ({ ...line, poHeaderId: id })),
@@ -584,6 +739,27 @@ export class PurchaseOrdersService {
         },
         include: { items: ITEM_WITH_PRODUCT },
       });
+      await this.audit.log({
+        userId: user.id,
+        action: AuditAction.UPDATE,
+        entityType: 'PURCHASE_ORDER',
+        entityId: updated.id,
+        ...this.auditMeta(),
+        oldValues: {
+          poDate: existing.poDate,
+          shopId: existing.shopId,
+          rfqId: existing.rfqId ?? null,
+          supplier: existing.supplier,
+          remarks: existing.remarks ?? null,
+        },
+        newValues: {
+          poDate: updated.poDate.toISOString(),
+          shopId: updated.shopId,
+          rfqId: updated.rfqId ?? null,
+          supplier: updated.supplier,
+          remarks: updated.remarks ?? null,
+        },
+      });
       return this.serialize(this.withLifecycle(updated as any));
     });
   }
@@ -591,7 +767,8 @@ export class PurchaseOrdersService {
   async confirm(user: RequestUser, id: string, idempotencyKey?: string) {
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CONFIRMED) return po;
-    if (po.status !== PurchaseOrderStatus.DRAFT) throw new BadRequestException('Invalid status');
+    assertPoAction(po.status, PurchaseOrderAction.CONFIRM);
+    assertPoTransition(po.status, PurchaseOrderStatus.CONFIRMED);
     const idempotencyScope = this.idempotencyScope(user);
     return this.prisma.$transaction(async (tx) => {
       const cacheKey = idempotencyKey ? `${id}:${idempotencyKey}` : undefined;
@@ -618,14 +795,14 @@ export class PurchaseOrdersService {
         include: { items: ITEM_WITH_PRODUCT },
       });
       await this.audit.log(
-        {
+        buildStatusTransitionAudit({
           userId: user.id,
-          action: AuditAction.POST,
           entityType: 'PURCHASE_ORDER',
           entityId: updated.id,
-          oldValues: { status: po.status },
-          newValues: { status: updated.status },
-        },
+          fromStatus: po.status,
+          toStatus: updated.status,
+          action: AuditAction.POST,
+        }),
         tx,
       );
       await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, idempotencyScope);
@@ -636,6 +813,9 @@ export class PurchaseOrdersService {
   async cancel(user: RequestUser, id: string, idempotencyKey?: string) {
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CANCELLED) return po;
+    assertPoAction(po.status, PurchaseOrderAction.CANCEL);
+    assertPoTransition(po.status, PurchaseOrderStatus.CANCELLED);
+    await this.assertPoMutationAllowed({ poId: id, action: 'cancel', existing: po });
     const hasPostedReceipt = (po.receiptProgress ?? []).some((line) => Number(line.receivedQty) > 0);
     if (hasPostedReceipt) {
       throw new BadRequestException('Cannot cancel a purchase order with posted goods receipts');
@@ -653,11 +833,14 @@ export class PurchaseOrdersService {
       }
 
       const transitioned = await tx.purchaseOrderHeader.updateMany({
-        where: { id, status: { not: PurchaseOrderStatus.CANCELLED } },
+        where: {
+          id,
+          status: { in: [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.CONFIRMED] },
+        },
         data: { status: PurchaseOrderStatus.CANCELLED, updatedById: user.id },
       });
       if (transitioned.count === 0) {
-        throw new BadRequestException('Purchase order is already cancelled');
+        throw new BadRequestException('Purchase order cannot be cancelled in its current state');
       }
 
       const updated = await tx.purchaseOrderHeader.findUniqueOrThrow({
@@ -665,14 +848,14 @@ export class PurchaseOrdersService {
         include: { items: ITEM_WITH_PRODUCT },
       });
       await this.audit.log(
-        {
+        buildStatusTransitionAudit({
           userId: user.id,
-          action: AuditAction.UPDATE,
           entityType: 'PURCHASE_ORDER',
           entityId: updated.id,
-          oldValues: { status: po.status },
-          newValues: { status: updated.status },
-        },
+          fromStatus: po.status,
+          toStatus: updated.status,
+          reason: 'cancel',
+        }),
         tx,
       );
       await setIdempotentResult(tx, cacheKey, { poId: updated.id }, user.id, idempotencyScope);
@@ -724,8 +907,55 @@ export class PurchaseOrdersService {
     };
   }
 
+  async assertCancelAllowed(user: RequestUser, poId: string) {
+    const po = await this.get(user, poId);
+    if (po.status === PurchaseOrderStatus.CANCELLED) {
+      throw new BadRequestException('Purchase order is already cancelled');
+    }
+    assertPoAction(po.status, PurchaseOrderAction.CANCEL);
+    await this.assertPoMutationAllowed({ poId, action: 'cancel', existing: po });
+    return po;
+  }
+
+  async sendToSupplierSafe(user: RequestUser, id: string, options?: { resend?: boolean }) {
+    try {
+      return await this.sendToSupplier(user, id, options);
+    } catch (err) {
+      const message =
+        err instanceof BadRequestException
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Email could not be queued';
+      try {
+        await this.audit.log(
+          buildDocumentActionAudit({
+            userId: user.id,
+            entityType: 'PURCHASE_ORDER',
+            entityId: id,
+            action: options?.resend ? 'RESEND_PO' : 'SEND_PO',
+            result: 'failure',
+            detail: { message },
+          }),
+        );
+      } catch {
+        // Best-effort action audit; do not mask the original failure payload.
+      }
+      return {
+        sent: false,
+        queued: false,
+        to: '',
+        attachment: null,
+        pdfAttached: false,
+        emailStatus: 'failed',
+        message,
+      };
+    }
+  }
+
   async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
     const po = await this.get(user, id);
+    assertPoAction(po.status, PurchaseOrderAction.SEND);
     const shopRow = await this.prisma.shop.findUnique({
       where: { id: po.shopId },
       select: { companyId: true, company: { select: { companyName: true } } },
@@ -764,7 +994,7 @@ export class PurchaseOrdersService {
 
     const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
 
-    return this.documentEmail.sendPurchaseOrderEmail(user, {
+    const result = await this.documentEmail.sendPurchaseOrderEmail(user, {
       poId: id,
       companyId: shopRow.companyId,
       shopId: po.shopId,
@@ -774,6 +1004,23 @@ export class PurchaseOrdersService {
       documentNumber: po.poNumber,
       trigger,
     });
+
+    await this.audit.log(
+      buildDocumentActionAudit({
+        userId: user.id,
+        entityType: 'PURCHASE_ORDER',
+        entityId: id,
+        action: options?.resend ? 'RESEND_PO' : 'SEND_PO',
+        result: 'success',
+        detail: {
+          queued: result.queued ?? false,
+          sent: result.sent ?? false,
+          recipient: email,
+        },
+      }),
+    );
+
+    return result;
   }
 }
 

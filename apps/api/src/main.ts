@@ -119,6 +119,14 @@ async function bootstrap() {
       // breadcrumbs) can reuse the same trace id. Otherwise drop it; we don't
       // synthesize a fake trace just to mirror back.
       const traceparent = parseTraceparent(req.headers['traceparent'] as string | undefined);
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const ipAddress =
+        (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : undefined) ||
+        req.ip ||
+        req.socket.remoteAddress ||
+        null;
+      const userAgent =
+        typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null;
 
       req.requestId = requestId;
       req.traceparent = traceparent;
@@ -128,7 +136,9 @@ async function bootstrap() {
       }
       const startedAt = Date.now();
 
-      RequestContextStore.run({ requestId, traceparent, userId: null, shopId: null }, () => {
+      RequestContextStore.run(
+        { requestId, traceparent, userId: null, shopId: null, ipAddress, userAgent },
+        () => {
         res.on('finish', () => {
           const finalUserId = (req as { user?: { id?: string } }).user?.id ?? null;
           const finalShopId = (req as { user?: { shopId?: string | null } }).user?.shopId ?? null;

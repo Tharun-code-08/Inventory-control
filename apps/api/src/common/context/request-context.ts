@@ -11,6 +11,8 @@ export type RequestContext = {
   traceparent?: string | null;
   userId?: string | null;
   shopId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();

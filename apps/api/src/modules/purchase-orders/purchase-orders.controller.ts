@@ -41,12 +41,18 @@ export class PurchaseOrdersController {
     @Body() dto: CreatePurchaseOrderDto,
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ) {
-    const payload = { ...dto, idempotencyKey: dto.idempotencyKey ?? idempotencyKey };
+    const payload = {
+      ...dto,
+      idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
+      // Keep create+send behavior deterministic by confirming before send.
+      confirmOnSend: dto.confirmOnSend ?? dto.sendToSupplier ?? false,
+    };
     const po = await this.service.create(user, payload);
-    if (dto.sendToSupplier) {
-      await this.service.sendToSupplier(user, po.id);
+    if (!dto.sendToSupplier) {
+      return po;
     }
-    return po;
+    const emailDelivery = await this.service.sendToSupplierSafe(user, po.id);
+    return { ...po, emailDelivery };
   }
 
   @RequirePermission('purchase_order:read')
@@ -57,8 +63,16 @@ export class PurchaseOrdersController {
 
   @RequirePermission('purchase_order:create')
   @Patch(':id')
-  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdatePurchaseOrderDto) {
-    return this.service.update(user, id, dto);
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePurchaseOrderDto,
+    @Headers('if-unmodified-since') ifUnmodifiedSince?: string,
+  ) {
+    return this.service.update(user, id, {
+      ...dto,
+      ifUnmodifiedSince: dto.ifUnmodifiedSince ?? ifUnmodifiedSince,
+    });
   }
 
   @RequirePermission('purchase_order:create')

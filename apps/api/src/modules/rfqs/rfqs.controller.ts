@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -45,8 +45,16 @@ export class RfqsController {
 
   @RequirePermission('rfq:write')
   @Patch(':id')
-  update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdateRfqDto) {
-    return this.rfqs.update(user, id, dto);
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateRfqDto,
+    @Headers('if-unmodified-since') ifUnmodifiedSince?: string,
+  ) {
+    return this.rfqs.update(user, id, {
+      ...dto,
+      ifUnmodifiedSince: dto.ifUnmodifiedSince ?? ifUnmodifiedSince,
+    });
   }
 
   @RequirePermission('rfq:write')
