@@ -158,21 +158,15 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
     form.shopId,
   );
   const productsQuery = useProducts({
-    shopId: resolvedShopId || undefined,
     companyCatalog: true,
     isActive: true,
     limit: 500,
     page: 1,
   });
-  const products = useMemo(() => {
-    const rows = extractProductRows(productsQuery.data);
-    if (!resolvedShopId) return rows;
-    return rows.filter((product) =>
-      product.plants.some(
-        (plant) => plant.shopId === resolvedShopId && plant.isActive !== false,
-      ),
-    );
-  }, [productsQuery.data, resolvedShopId]);
+  const products = useMemo(
+    () => extractProductRows(productsQuery.data),
+    [productsQuery.data],
+  );
   const selectedSuppliers = useMemo(
     () => suppliers.filter((supplier) => form.supplierIds.includes(supplier.id)),
     [suppliers, form.supplierIds],
@@ -344,10 +338,6 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
   };
 
   const onCreate = async () => {
-    if (!resolvedShopId) {
-      toast.error('Please select a plant');
-      return;
-    }
     if (!form.title.trim()) {
       toast.error('Title is required');
       return;
@@ -371,7 +361,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
 
     try {
       await createRfq.mutateAsync({
-        shopId: resolvedShopId,
+        shopId: user?.shopId ?? shops[0]?.id ?? undefined,
         title: form.title.trim(),
         deadline: form.deadline || undefined,
         notes: form.notes || undefined,
@@ -458,30 +448,6 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))}
           />
         </div>
-        {!user?.shopId && (
-          <div className="space-y-1">
-            <Label className="text-xs">Plant *</Label>
-            <Select
-              value={form.shopId || resolvedShopId}
-              onValueChange={(value) => {
-                setForm((p) => ({ ...p, shopId: value }));
-                syncPreferredOrgId(value, functionalCookiesEnabled);
-                setItems([{ productId: '', quantity: '1', uom: 'UNIT', specifications: '' }]);
-              }}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Plant" />
-              </SelectTrigger>
-              <SelectContent>
-                {shops.map((shop) => (
-                  <SelectItem key={shop.id} value={shop.id}>
-                    {shop.shopName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
         <div className="space-y-2 sm:col-span-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs">Suppliers *</Label>
@@ -587,9 +553,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                 <SelectContent className="max-w-[min(24rem,90vw)]">
                   {products.length === 0 ? (
                     <SelectItem value="__none" disabled>
-                      {productsQuery.isLoading
-                        ? 'Loading products…'
-                        : 'No products assigned to this plant'}
+                      {productsQuery.isLoading ? 'Loading products…' : 'No products found'}
                     </SelectItem>
                   ) : (
                     products.map((p) => (
@@ -636,12 +600,6 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             </div>
           </div>
         ))}
-        {resolvedShopId && !productsQuery.isLoading && products.length === 0 ? (
-          <p className="text-xs text-amber-700">
-            No products are assigned to this plant. Open Products, edit your item, and add this plant
-            under plant assignments.
-          </p>
-        ) : null}
       </div>
 
       <Button

@@ -4,6 +4,7 @@ import { MailService, type RfqInviteDeliverySummary } from '../../common/mail/ma
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
 import { UpdateRfqDto } from './dto/update-rfq.dto';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -41,10 +42,30 @@ export class RfqsService {
     return withFulfillment;
   }
 
+  private async resolveRfqShopId(user: RequestUser, shopId?: string | null): Promise<string> {
+    if (shopId) {
+      await verifyShopInTenant(this.prisma, user, shopId);
+      return shopId;
+    }
+    if (user.shopId) {
+      await verifyShopInTenant(this.prisma, user, user.shopId);
+      return user.shopId;
+    }
+    if (user.companyId) {
+      const shop = await this.prisma.shop.findFirst({
+        where: { companyId: user.companyId, isActive: true },
+        orderBy: { shopNumber: 'asc' },
+        select: { id: true },
+      });
+      if (shop) return shop.id;
+    }
+    throw new BadRequestException(
+      'No plant is available for RFQ numbering. Add a plant under Master Data first.',
+    );
+  }
+
   async create(user: RequestUser, dto: CreateRfqDto) {
-    const shopId = dto.shopId ?? user.shopId;
-    if (!shopId) throw new BadRequestException('shopId is required');
-    assertShopScope(user, shopId);
+    const shopId = await this.resolveRfqShopId(user, dto.shopId ?? user.shopId);
     await this.subscriptions.assertFeatureForShop(shopId, 'rfqs');
     const rfqDate = dto.rfqDate ? new Date(dto.rfqDate) : new Date();
     return this.prisma.$transaction(async (tx) => {

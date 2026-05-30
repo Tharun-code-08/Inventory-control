@@ -75,7 +75,7 @@ export class CustomersService {
     }
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      let customerCode =
+      const customerCode =
         dto.customerCode?.trim() ||
         (await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId,
@@ -83,52 +83,25 @@ export class CustomersService {
           date: new Date(),
         }));
 
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          return await tx.customer.create({
-            data: {
-              customerCode,
-              customerName: dto.customerName,
-              email: dto.email?.toLowerCase?.() ?? null,
-              phone: dto.phone ?? null,
-              taxId: dto.taxId ?? null,
-              pan: dto.pan?.toUpperCase?.() ?? null,
-              street: dto.street ?? null,
-              city: dto.city ?? null,
-              state: dto.state ?? null,
-              postalCode: dto.postalCode ?? null,
-              country: dto.country ?? null,
-              shopId,
-              isActive: dto.isActive ?? true,
-              createdById: user.id,
-            },
-            include: { shop: true },
-          });
-        } catch (err) {
-          const isDuplicateCode =
-            err instanceof Prisma.PrismaClientKnownRequestError &&
-            err.code === 'P2002' &&
-            dto.customerCode?.trim();
-          if (isDuplicateCode) {
-            throw new BadRequestException(
-              `Customer code "${customerCode}" already exists for this plant`,
-            );
-          }
-          const canRetry =
-            err instanceof Prisma.PrismaClientKnownRequestError &&
-            err.code === 'P2002' &&
-            !dto.customerCode?.trim() &&
-            attempt < 2;
-          if (!canRetry) throw err;
-          customerCode = await this.numbers.nextConfiguredShopScopedNumber(tx, {
-            shopId,
-            docType: 'CUS',
-            date: new Date(),
-          });
-        }
-      }
-
-      throw new BadRequestException('Could not allocate a unique customer code. Try again.');
+      return tx.customer.create({
+        data: {
+          customerCode,
+          customerName: dto.customerName,
+          email: dto.email?.toLowerCase?.() ?? null,
+          phone: dto.phone ?? null,
+          taxId: dto.taxId ?? null,
+          pan: dto.pan?.toUpperCase?.() ?? null,
+          street: dto.street ?? null,
+          city: dto.city ?? null,
+          state: dto.state ?? null,
+          postalCode: dto.postalCode ?? null,
+          country: dto.country ?? null,
+          shopId,
+          isActive: dto.isActive ?? true,
+          createdById: user.id,
+        },
+        include: { shop: true },
+      });
     });
   }
 

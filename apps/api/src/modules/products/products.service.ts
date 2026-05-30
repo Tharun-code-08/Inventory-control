@@ -235,7 +235,7 @@ export class ProductsService {
       company_catalog?: boolean;
     },
   ) {
-    const limit = clampTake(query.limit);
+    const limit = query.limit ? Math.min(500, Math.max(1, query.limit)) : clampTake(query.limit);
     const page = query.page && query.page > 0 ? query.page : 1;
     const skip = (page - 1) * limit;
     const companyId = requireCompanyId(user);
