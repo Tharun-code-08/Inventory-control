@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
+import { PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -203,30 +204,18 @@ export function RfqComparePage() {
   return (
     <AppLayout active="RFQs">
       <div className="space-y-6">
-        <div>
+        <PageHeader title="Bid comparison" description={`${rfq.rfqNumber} — ${rfq.title}`}>
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 mb-2 text-slate-600"
+            className="-ml-2 text-slate-600"
             onClick={() => navigate(`/rfqs/${id}`)}
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back to RFQ
           </Button>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                Bid comparison
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                {rfq.rfqNumber} — {rfq.title}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status="Evaluation" />
-            </div>
-          </div>
-        </div>
+          <StatusBadge status="Evaluation" />
+        </PageHeader>
 
         {bids.length === 0 ? (
           <Card>

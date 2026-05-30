@@ -30,6 +30,7 @@ import { useDocumentTitleOverride } from '@/hooks/use-document-title-override';
 import { useDocumentEmailHistory } from '@/hooks/use-document-email-history';
 import { useSendDocumentEmail } from '@/hooks/use-document-send';
 import { DocumentEmailHistoryPanel } from '@/components/shared/DocumentEmailHistoryPanel';
+import { PageHeader } from '@/components/shared';
 import { downloadDocumentPdf } from '@/lib/document-pdf';
 import { cn } from '@/lib/cn';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -212,70 +213,59 @@ export function SalesOrderDetailPage() {
   return (
     <AppLayout active="Sales">
       <div className="space-y-6">
-        <Link
-          to="/sales"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-indigo-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Sales Orders
-        </Link>
-
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              {order.soNumber}
-            </h1>
-            <StatusBadge status={order.status} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={onExportCsv}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Export CSV
+        <PageHeader title={order.soNumber}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/sales')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Sales Orders
+          </Button>
+          <StatusBadge status={order.status} />
+          <Button variant="outline" onClick={onExportCsv}>
+            <FileDown className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={onDownloadPdf}>
+            <FileDown className="mr-2 h-4 w-4" />
+            Download PDF
+          </Button>
+          {order.status !== 'DRAFT' && (
+            <Button variant="outline" onClick={onSendEmail} disabled={sendEmail.isPending}>
+              <Send className="mr-2 h-4 w-4" />
+              {sendEmail.isPending ? 'Sending…' : 'Email customer'}
             </Button>
-            <Button variant="outline" onClick={onDownloadPdf}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Download PDF
-            </Button>
-            {order.status !== 'DRAFT' && (
-              <Button variant="outline" onClick={onSendEmail} disabled={sendEmail.isPending}>
-                <Send className="mr-2 h-4 w-4" />
-                {sendEmail.isPending ? 'Sending…' : 'Email customer'}
+          )}
+          <Button variant="outline" onClick={onCreateInvoice} disabled={createInvoice.isPending}>
+            <FileText className="mr-2 h-4 w-4" />
+            Generate Invoice
+          </Button>
+          {order.status === 'DRAFT' && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/sales', { state: { editOrderId: order.id } })}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
               </Button>
-            )}
-            <Button variant="outline" onClick={onCreateInvoice} disabled={createInvoice.isPending}>
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Invoice
-            </Button>
-            {order.status === 'DRAFT' && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/sales', { state: { editOrderId: order.id } })}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-                <Button
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                  disabled={confirmOrder.isPending}
-                  onClick={onConfirm}
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Confirm Order
-                </Button>
-              </>
-            )}
-            {order.status === 'CONFIRMED' && (
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700"
-                disabled={fulfillOrder.isPending}
-                onClick={onFulfill}
+                disabled={confirmOrder.isPending}
+                onClick={onConfirm}
               >
-                Fulfill Order
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Confirm Order
               </Button>
-            )}
-          </div>
-        </div>
+            </>
+          )}
+          {order.status === 'CONFIRMED' && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={fulfillOrder.isPending}
+              onClick={onFulfill}
+            >
+              Fulfill Order
+            </Button>
+          )}
+        </PageHeader>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard label="Customer" value={order.customer?.customerName ?? '—'} />

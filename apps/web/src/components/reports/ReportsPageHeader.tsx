@@ -1,6 +1,8 @@
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
+import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 
 type ReportsPageHeaderProps = {
   title: string;
@@ -28,12 +30,16 @@ export function ReportsPageHeader({
   onRefresh,
   isRefreshing,
 }: ReportsPageHeaderProps) {
+  const { items, subtitle } = useBreadcrumbs();
+  const resolvedDescription = description ?? subtitle;
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+      <div className="min-w-0">
+        {items.length > 0 ? <Breadcrumbs items={items} className="mb-2" /> : null}
         <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-        {description ? (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        {resolvedDescription ? (
+          <p className="mt-1 text-sm text-muted-foreground">{resolvedDescription}</p>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

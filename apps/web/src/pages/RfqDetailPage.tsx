@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { ConfirmDialog } from '@/components/shared';
+import { ConfirmDialog, PageHeader } from '@/components/shared';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -460,78 +460,70 @@ export function RfqDetailPage() {
     <AppLayout active="RFQs">
       <div className="space-y-6">
         <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-2 mb-2 text-slate-600"
-            onClick={() => navigate('/rfqs')}
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back
-          </Button>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                {rfq.rfqNumber}
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">{rfq.title}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportDetail}>
-                <FileDown className="mr-1.5 h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button variant="outline" size="sm" disabled>
-                <ClipboardList className="mr-1.5 h-4 w-4" />
-                Evaluation
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-indigo-200 text-indigo-700"
-                onClick={() => navigate(`/rfqs/${id}/compare`)}
-              >
-                <ArrowLeftRight className="mr-1.5 h-4 w-4" />
-                Compare bids
-              </Button>
-              {quotations.length > 0 && (
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={acceptQuote.isPending || isCreatingAll}
-                  onClick={() => {
-                    if (allocationPlans.length === 0) {
-                      toast.error('Save allocations in Compare bids before creating a PO');
-                      return;
-                    }
-                    if (!allocationValidation.valid) {
-                      toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
-                      return;
-                    }
-                    setPoDialogOpen(true);
-                  }}
-                >
-                  <ShoppingCart className="mr-1.5 h-4 w-4" />
-                  Create PO
-                </Button>
-              )}
+          <PageHeader title={rfq.rfqNumber} description={rfq.title}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 text-slate-600"
+              onClick={() => navigate('/rfqs')}
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Back
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportDetail}>
+              <FileDown className="mr-1.5 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="sm" disabled>
+              <ClipboardList className="mr-1.5 h-4 w-4" />
+              Evaluation
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-indigo-200 text-indigo-700"
+              onClick={() => navigate(`/rfqs/${id}/compare`)}
+            >
+              <ArrowLeftRight className="mr-1.5 h-4 w-4" />
+              Compare bids
+            </Button>
+            {quotations.length > 0 && (
               <Button
                 size="sm"
-                variant="outline"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                disabled={!canDeleteRfq || deleteRfq.isPending}
-                title={
-                  !canDeleteRfq
-                    ? 'Remove linked quotations or contracts before deleting'
-                    : 'Delete RFQ'
-                }
-                onClick={() => setDeleteOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={acceptQuote.isPending || isCreatingAll}
+                onClick={() => {
+                  if (allocationPlans.length === 0) {
+                    toast.error('Save allocations in Compare bids before creating a PO');
+                    return;
+                  }
+                  if (!allocationValidation.valid) {
+                    toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
+                    return;
+                  }
+                  setPoDialogOpen(true);
+                }}
               >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                Delete
+                <ShoppingCart className="mr-1.5 h-4 w-4" />
+                Create PO
               </Button>
-            </div>
-          </div>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              disabled={!canDeleteRfq || deleteRfq.isPending}
+              title={
+                !canDeleteRfq
+                  ? 'Remove linked quotations or contracts before deleting'
+                  : 'Delete RFQ'
+              }
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Delete
+            </Button>
+          </PageHeader>
           {rfq.fulfillment && (
             <Card className="mt-4 border-indigo-100 bg-indigo-50/60">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-indigo-900">
