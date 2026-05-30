@@ -23,7 +23,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       msg.includes('document_series_config') ||
       msg.includes('document_email_outbox') ||
       msg.includes('email_delivery_log') ||
-      msg.includes('email_sender')
+      msg.includes('email_sender') ||
+      msg.includes('idempotency_keys') ||
+      msg.includes('idempotency_key')
     ) {
       return 'Database schema is out of date. On the API server run: cd apps/api && npx prisma migrate deploy';
     }
@@ -213,6 +215,50 @@ export class AllExceptionsFilter implements ExceptionFilter {
           },
         });
       }
+
+      const schemaMessage = this.schemaDriftMessage(exception);
+      if (schemaMessage) {
+        return response.status(503).json({
+          success: false,
+          error: {
+            code: 'SCHEMA_OUT_OF_DATE',
+            message: schemaMessage,
+            requestId,
+          },
+        });
+      }
+
+      return response.status(400).json({
+        success: false,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: `Database operation failed (${exception.code}). Please retry or contact support.`,
+          requestId,
+        },
+      });
+    }
+
+    if (exception instanceof Prisma.PrismaClientUnknownRequestError) {
+      const schemaMessage = this.schemaDriftMessage(exception);
+      if (schemaMessage) {
+        return response.status(503).json({
+          success: false,
+          error: {
+            code: 'SCHEMA_OUT_OF_DATE',
+            message: schemaMessage,
+            requestId,
+          },
+        });
+      }
+
+      return response.status(400).json({
+        success: false,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'Database operation failed. Please retry or contact support.',
+          requestId,
+        },
+      });
     }
 
     if (exception instanceof Prisma.PrismaClientValidationError) {

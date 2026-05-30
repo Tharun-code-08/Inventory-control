@@ -37,3 +37,32 @@ export async function setIdempotentResult(
     create: { key: composed, scope: scope ?? null, result: value, userId: userId ?? null, expiresAt },
   });
 }
+
+/** Read cached idempotency result without failing the caller when storage is unavailable. */
+export async function tryGetIdempotentResult<T>(
+  tx: Prisma.TransactionClient,
+  key: string | undefined,
+  scope?: string,
+): Promise<T | null> {
+  try {
+    return await getIdempotentResult<T>(tx, key, scope);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist idempotency result without failing the caller when storage is unavailable. */
+export async function trySetIdempotentResult(
+  tx: Prisma.TransactionClient,
+  key: string | undefined,
+  value: Prisma.InputJsonValue,
+  userId?: string,
+  scope?: string,
+  ttlSeconds?: number,
+) {
+  try {
+    await setIdempotentResult(tx, key, value, userId, scope, ttlSeconds);
+  } catch {
+    // PO/payment create should succeed even if idempotency storage is missing or misconfigured.
+  }
+}

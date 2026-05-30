@@ -22,7 +22,12 @@ import { SubscriptionService } from '../billing/subscription.service';
 import { RfqsService } from '../rfqs/rfqs.service';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { purchaseOrderDefaults } from '../email-notifications/email-notifications.outbound';
-import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
+import {
+  getIdempotentResult,
+  setIdempotentResult,
+  tryGetIdempotentResult,
+  trySetIdempotentResult,
+} from '../../common/utils/idempotency';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
@@ -76,6 +81,10 @@ export class PurchaseOrdersService {
     if (user.companyId) return `company:${user.companyId}`;
     if (user.shopId) return `shop:${user.shopId}`;
     return 'global';
+  }
+
+  private createIdempotencyKey(idempotencyKey?: string) {
+    return idempotencyKey?.trim() ? `po:create:${idempotencyKey.trim()}` : undefined;
   }
 
   private shopScopedServiceCode(shopNumber: string) {
@@ -270,6 +279,7 @@ export class PurchaseOrdersService {
       const line = items[i];
       const meta = resolved[i];
       if (line.orderQty <= 0) throw new BadRequestException('Order qty must be > 0');
+      if (line.rate <= 0) throw new BadRequestException('Rate must be > 0');
       const product = productMap.get(meta.productId);
       if (!product) throw new BadRequestException('Invalid product');
       const currentStock = summaryMap.get(meta.productId) ?? new Prisma.Decimal(0);
@@ -524,11 +534,12 @@ export class PurchaseOrdersService {
     const poDate = new Date(dto.poDate);
     assertNotFuture(poDate, 'PO date');
     const idempotencyScope = this.idempotencyScope(user);
+    const idempotencyCacheKey = this.createIdempotencyKey(dto.idempotencyKey);
 
     return this.prisma.$transaction(async (tx) => {
-      const existing = await getIdempotentResult<{ poId: string }>(
+      const existing = await tryGetIdempotentResult<{ poId: string }>(
         tx,
-        dto.idempotencyKey ? `po:create:${dto.idempotencyKey}` : undefined,
+        idempotencyCacheKey,
         idempotencyScope,
       );
       if (existing?.poId) {
@@ -635,9 +646,9 @@ export class PurchaseOrdersService {
           tx,
         );
       }
-      await setIdempotentResult(
+      await trySetIdempotentResult(
         tx,
-        dto.idempotencyKey,
+        idempotencyCacheKey,
         { poId: created.id },
         user.id,
         idempotencyScope,

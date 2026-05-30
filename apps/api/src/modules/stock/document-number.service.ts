@@ -39,7 +39,9 @@ export class DocumentNumberService {
       select: { shopNumber: true, companyId: true },
     });
     if (!shop?.companyId) {
-      throw new BadRequestException('Invalid shopId');
+      throw new BadRequestException(
+        'Plant is not linked to a company. Open Settings → Plants and ensure the plant belongs to your organisation.',
+      );
     }
 
     const config = await this.series.resolveEffectiveConfigInTx(
@@ -70,7 +72,9 @@ export class DocumentNumberService {
       select: { companyId: true },
     });
     if (!shop?.companyId) {
-      throw new BadRequestException('Invalid shopId');
+      throw new BadRequestException(
+        'Plant is not linked to a company. Open Settings → Plants and ensure the plant belongs to your organisation.',
+      );
     }
 
     const config = await this.series.resolveEffectiveConfigInTx(
@@ -98,7 +102,9 @@ export class DocumentNumberService {
       select: { shopNumber: true, companyId: true },
     });
     if (!shop?.companyId) {
-      throw new BadRequestException('Invalid shopId');
+      throw new BadRequestException(
+        'Plant is not linked to a company. Open Settings → Plants and ensure the plant belongs to your organisation.',
+      );
     }
 
     const config = await this.series.resolveEffectiveConfigInTx(
