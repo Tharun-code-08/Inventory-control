@@ -8,6 +8,8 @@ export type ShopCompanyContext = {
   companyLines: string[];
   shopName: string;
   shopLines: string[];
+  shopEmail?: string | null;
+  shopGstin?: string | null;
 };
 
 export async function loadShopCompanyContext(
@@ -19,6 +21,8 @@ export async function loadShopCompanyContext(
     select: {
       shopName: true,
       address: true,
+      email: true,
+      taxId: true,
       companyId: true,
       company: { select: { companyName: true, address: true } },
     },
@@ -28,7 +32,11 @@ export async function loadShopCompanyContext(
   }
 
   const companyName = shop.company?.companyName ?? shop.shopName ?? 'Company';
-  const companyLines = splitAddressLines(shop.company?.address ?? shop.address);
+  const companyLines = buildCompanyPartyLines({
+    address: shop.company?.address ?? shop.address,
+    gstin: shop.taxId,
+    email: shop.email,
+  });
 
   return {
     companyId: shop.companyId,
@@ -36,7 +44,20 @@ export async function loadShopCompanyContext(
     companyLines,
     shopName: shop.shopName,
     shopLines: splitAddressLines(shop.address),
+    shopEmail: shop.email,
+    shopGstin: shop.taxId,
   };
+}
+
+export function buildCompanyPartyLines(args: {
+  address?: string | null;
+  gstin?: string | null;
+  email?: string | null;
+}): string[] {
+  const lines = splitAddressLines(args.address);
+  if (args.gstin?.trim()) lines.push(`GSTIN: ${args.gstin.trim()}`);
+  if (args.email?.trim()) lines.push(`Email: ${args.email.trim()}`);
+  return lines;
 }
 
 export function customerPartyLines(customer: {
@@ -58,7 +79,7 @@ export function customerPartyLines(customer: {
     cityLine,
     customer.phone ? `Tel: ${customer.phone}` : '',
     customer.email ?? '',
-    customer.taxId ? `Tax ID: ${customer.taxId}` : '',
+    customer.taxId ? `GSTIN: ${customer.taxId}` : '',
     customer.pan ? `PAN: ${customer.pan}` : '',
   ].filter(Boolean);
 }

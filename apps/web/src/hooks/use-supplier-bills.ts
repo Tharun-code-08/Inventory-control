@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 
-export type SupplierBillStatus = 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'VOID';
+export type SupplierBillStatus = 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'VOID';
 
 export type SupplierBill = {
   id: string;
@@ -78,6 +78,19 @@ export function useCreateSupplierBillFromGr() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.lists() });
       qc.invalidateQueries({ queryKey: ['supplier-payments'] });
+    },
+  });
+}
+
+export function useVoidSupplierBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const res = await api.post(`/supplier-bills/${id}/void`, { reason });
+      return res.data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.lists() });
     },
   });
 }

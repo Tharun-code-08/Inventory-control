@@ -5,6 +5,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import type { RequestUser } from '../../common/types/request-user';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { ListSupplierPaymentsDto } from './dto/list-supplier-payments.dto';
+import { ReverseSupplierPaymentDto } from './dto/reverse-supplier-payment.dto';
 import { SupplierPaymentsService } from './supplier-payments.service';
 
 @ApiTags('supplier-payments')
@@ -47,6 +48,18 @@ export class SupplierPaymentsController {
       ...dto,
       idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
     });
+  }
+
+  @RequirePermission('shop:write')
+  @Post(':id/reverse')
+  @ApiOperation({ summary: 'Reverse a supplier payment and restore bill balance' })
+  @ApiResponse({ status: 409, description: 'Concurrent bill update; retry reversal.' })
+  reverse(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ReverseSupplierPaymentDto,
+  ) {
+    return this.supplierPayments.reverse(user, id, dto);
   }
 
   @RequirePermission('shop:write')

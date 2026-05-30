@@ -63,3 +63,22 @@ export function useCreateSupplierPayment() {
     },
   });
 }
+
+export function useReverseSupplierPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const res = await api.post(`/supplier-payments/${id}/reverse`, { reason });
+      return res.data.data as {
+        ok: boolean;
+        supplierBillId: string;
+        paidValue: string;
+        status: string;
+      };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.all });
+      qc.invalidateQueries({ queryKey: ['supplier-bills'] });
+    },
+  });
+}

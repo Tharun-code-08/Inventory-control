@@ -9,11 +9,19 @@ import { asMoney, assertNonNegativeMoney, assertPositiveMoney, roundMoney } from
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
+import { ReverseSupplierPaymentDto } from './dto/reverse-supplier-payment.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { supplierPaymentRecordedDefaults } from '../email-notifications/email-notifications.outbound';
 import type { SupplierPaymentRecordedEmailContent } from '../../common/mail/transactional-email.templates';
 import { formatEmailMoney } from '../../common/mail/email-formatters';
 import { DocumentEmailService } from '../document-email/document-email.service';
+import { assertSupplierBillAction } from '../../common/state-machines/assert-action';
+import { assertSupplierBillReversalTransition, assertSupplierBillTransition } from '../../common/state-machines/assert-transition';
+import { SupplierBillAction, SupplierPaymentAction } from '../../common/state-machines/document-actions';
+import {
+  buildDocumentActionAudit,
+  buildStatusTransitionAudit,
+} from '../../common/state-machines/document-audit';
 
 @Injectable()
 export class SupplierPaymentsService {
@@ -85,6 +93,7 @@ export class SupplierPaymentsService {
       if (bill.status === SupplierBillStatus.VOID) {
         throw new BadRequestException('Cannot pay a voided supplier bill');
       }
+      assertSupplierBillAction(bill.status, SupplierBillAction.RECORD_PAYMENT);
 
       const openBalance = roundMoney(asMoney(bill.totalValue).sub(bill.paidValue));
       assertNonNegativeMoney(openBalance, 'Supplier bill open balance');
@@ -98,6 +107,10 @@ export class SupplierPaymentsService {
       const status = newPaid.greaterThanOrEqualTo(bill.totalValue)
         ? SupplierBillStatus.PAID
         : SupplierBillStatus.PARTIALLY_PAID;
+
+      if (status !== bill.status) {
+        assertSupplierBillTransition(bill.status, status);
+      }
 
       const updated = await tx.supplierBillHeader.updateMany({
         where: { id: bill.id, paidValue: bill.paidValue },
@@ -148,9 +161,39 @@ export class SupplierPaymentsService {
             paymentNumber: payment.paymentNumber,
             supplierBillId: payment.supplierBillId,
             amount: payment.amount.toString(),
-            status,
+            billStatus: status,
           },
         },
+        tx,
+      );
+
+      if (status !== bill.status) {
+        await this.audit.log(
+          buildStatusTransitionAudit({
+            userId: user.id,
+            entityType: 'SUPPLIER_BILL',
+            entityId: bill.id,
+            fromStatus: bill.status,
+            toStatus: status,
+            reason: 'paymentRecorded',
+          }),
+          tx,
+        );
+      }
+
+      await this.audit.log(
+        buildDocumentActionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_PAYMENT',
+          entityId: payment.id,
+          action: 'RECORD_SUPPLIER_PAYMENT',
+          result: 'success',
+          detail: {
+            supplierBillId: bill.id,
+            amount: payment.amount.toString(),
+            billStatus: status,
+          },
+        }),
         tx,
       );
 
@@ -166,6 +209,95 @@ export class SupplierPaymentsService {
     }).then(async (payment) => {
       await this.autoSendSupplierPaymentEmail(user, payment).catch(() => undefined);
       return payment;
+    });
+  }
+
+  async reverse(user: RequestUser, id: string, dto: ReverseSupplierPaymentDto = {}) {
+    const reason = dto.reason?.trim() || null;
+
+    return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const payment = await tx.supplierPayment.findUnique({
+        where: { id },
+        include: { supplierBill: true },
+      });
+      if (!payment) throw new NotFoundException('Supplier payment not found');
+      assertShopScope(user, payment.shopId);
+
+      const bill = payment.supplierBill;
+      if (bill.status === SupplierBillStatus.VOID) {
+        throw new BadRequestException('Cannot reverse a payment on a voided supplier bill');
+      }
+
+      const newPaid = roundMoney(asMoney(bill.paidValue).sub(payment.amount));
+      if (newPaid.lt(0)) {
+        throw new BadRequestException('Payment reversal would make the bill paid value negative');
+      }
+
+      const newStatus = newPaid.eq(0)
+        ? SupplierBillStatus.ISSUED
+        : newPaid.greaterThanOrEqualTo(bill.totalValue)
+          ? SupplierBillStatus.PAID
+          : SupplierBillStatus.PARTIALLY_PAID;
+
+      if (newStatus !== bill.status) {
+        assertSupplierBillReversalTransition(bill.status, newStatus);
+      }
+
+      const updatedBill = await tx.supplierBillHeader.updateMany({
+        where: { id: bill.id, paidValue: bill.paidValue },
+        data: {
+          paidValue: newPaid,
+          status: newStatus,
+          updatedById: user.id,
+        },
+      });
+      if (updatedBill.count === 0) {
+        throw new ConflictException(
+          'Supplier bill was modified concurrently. Refresh and retry the reversal.',
+        );
+      }
+
+      await tx.supplierPayment.delete({ where: { id } });
+
+      if (newStatus !== bill.status) {
+        await this.audit.log(
+          buildStatusTransitionAudit({
+            userId: user.id,
+            entityType: 'SUPPLIER_BILL',
+            entityId: bill.id,
+            fromStatus: bill.status,
+            toStatus: newStatus,
+            reason: reason ?? 'paymentReversed',
+          }),
+          tx,
+        );
+      }
+
+      await this.audit.log(
+        buildDocumentActionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_PAYMENT',
+          entityId: payment.id,
+          action: SupplierPaymentAction.REVERSE,
+          result: 'success',
+          detail: {
+            supplierBillId: bill.id,
+            amount: payment.amount.toString(),
+            reason,
+            billStatus: newStatus,
+            paidValue: newPaid.toString(),
+          },
+        }),
+        tx,
+      );
+
+      return {
+        ok: true,
+        reversedPaymentId: payment.id,
+        supplierBillId: bill.id,
+        paidValue: newPaid.toString(),
+        status: newStatus,
+      };
     });
   }
 

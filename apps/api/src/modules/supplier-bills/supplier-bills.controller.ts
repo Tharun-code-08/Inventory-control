@@ -5,6 +5,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import type { RequestUser } from '../../common/types/request-user';
 import { CreateSupplierBillDto } from './dto/create-supplier-bill.dto';
 import { ListSupplierBillsDto } from './dto/list-supplier-bills.dto';
+import { VoidSupplierBillDto } from './dto/void-supplier-bill.dto';
 import { SupplierBillsService } from './supplier-bills.service';
 
 @ApiTags('supplier-bills')
@@ -37,6 +38,18 @@ export class SupplierBillsController {
   @ApiOperation({ summary: 'Get a supplier bill by id' })
   get(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.supplierBills.get(user, id);
+  }
+
+  @RequirePermission('shop:write')
+  @Post(':id/void')
+  @ApiOperation({ summary: 'Void an unpaid issued supplier bill' })
+  @ApiResponse({ status: 400, description: 'Bill has payments or is not in ISSUED status.' })
+  voidBill(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: VoidSupplierBillDto,
+  ) {
+    return this.supplierBills.voidBill(user, id, dto);
   }
 
   @RequirePermission('shop:write')

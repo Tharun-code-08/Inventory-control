@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useCreateSupplierPayment, useSupplierPayments } from '@/hooks/use-supplier-payments';
+import { useCreateSupplierPayment, useReverseSupplierPayment, useSupplierPayments } from '@/hooks/use-supplier-payments';
 import { useSupplierBills } from '@/hooks/use-supplier-bills';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -20,6 +20,7 @@ export function SupplierPaymentsPage() {
   const { data: payments = [], refetch } = useSupplierPayments();
   const { data: bills = [] } = useSupplierBills({ shopId, take: 100 });
   const createPayment = useCreateSupplierPayment();
+  const reversePayment = useReverseSupplierPayment();
   const [form, setForm] = useState({
     supplierBillId: '',
     amount: '0',
@@ -32,6 +33,18 @@ export function SupplierPaymentsPage() {
   const totalValue = Number(selectedBill?.totalValue ?? 0);
   const paidValue = Number(selectedBill?.paidValue ?? 0);
   const openBalance = Math.max(totalValue - paidValue, 0);
+
+  const onReverse = async (paymentId: string) => {
+    if (!window.confirm('Reverse this payment and restore the bill balance?')) return;
+    const reason = window.prompt('Reason for reversal (optional):') ?? undefined;
+    try {
+      await reversePayment.mutateAsync({ id: paymentId, reason: reason?.trim() || undefined });
+      toast.success('Payment reversed');
+      refetch();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to reverse payment'));
+    }
+  };
 
   const onCreate = async () => {
     if (!form.supplierBillId) {
@@ -74,7 +87,7 @@ export function SupplierPaymentsPage() {
             <div className="space-y-2">
               <Label>Supplier bill</Label>
               <DocumentReferenceSelect
-                items={bills}
+                items={bills.filter((bill) => bill.status !== 'VOID' && bill.status !== 'PAID')}
                 value={form.supplierBillId}
                 onValueChange={(supplierBillId) =>
                   setForm((p) => ({ ...p, supplierBillId }))
@@ -161,7 +174,18 @@ export function SupplierPaymentsPage() {
                       </TableCell>
                       <TableCell>{payment.method ?? '-'}</TableCell>
                       <TableCell>
-                        <DocumentRowActions kind="supplier-payment" id={payment.id} />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={reversePayment.isPending}
+                            onClick={() => onReverse(payment.id)}
+                          >
+                            Reverse
+                          </Button>
+                          <DocumentRowActions kind="supplier-payment" id={payment.id} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

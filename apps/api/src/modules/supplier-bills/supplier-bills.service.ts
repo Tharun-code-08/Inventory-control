@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, DocumentEmailTrigger, DocumentStatus, Prisma, SupplierBillStatus } from '@prisma/client';
+import { AuditAction, DocumentEmailTrigger, Prisma, SupplierBillStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import {
@@ -22,6 +22,15 @@ import { supplierBillIssuedDefaults } from '../email-notifications/email-notific
 import type { SupplierBillIssuedEmailContent } from '../../common/mail/transactional-email.templates';
 import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
 import { DocumentEmailService } from '../document-email/document-email.service';
+import { assertGrAction, assertSupplierBillAction } from '../../common/state-machines/assert-action';
+import { GrAction, SupplierBillAction } from '../../common/state-machines/document-actions';
+import {
+  buildDocumentActionAudit,
+  buildStatusTransitionAudit,
+} from '../../common/state-machines/document-audit';
+import { assertSupplierBillMutationAllowed, grHasOpenBill } from '../../common/utils/procurement-downstream';
+import { assertSupplierBillTransition } from '../../common/state-machines/assert-transition';
+import { VoidSupplierBillDto } from './dto/void-supplier-bill.dto';
 
 export type SupplierBillListQuery = {
   shop_id?: string;
@@ -106,6 +115,8 @@ export class SupplierBillsService {
     dto: CreateSupplierBillDto = {},
   ) {
     const bill = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'gr-bill:' + goodsReceiptId}::text))`;
+
       const gr = await tx.goodsReceiptHeader.findUnique({
         where: { id: goodsReceiptId },
         include: {
@@ -118,14 +129,9 @@ export class SupplierBillsService {
       if (!gr) throw new NotFoundException('Goods receipt not found');
       assertShopScope(user, gr.shopId);
 
-      if (gr.status !== DocumentStatus.POSTED) {
-        throw new BadRequestException('Only POSTED goods receipts can be billed');
-      }
+      assertGrAction(gr.status, GrAction.CREATE_BILL);
 
-      const hasOpenBill = gr.supplierBills.some(
-        (bill) => bill.status !== SupplierBillStatus.VOID,
-      );
-      if (hasOpenBill) {
+      if (await grHasOpenBill(tx, gr.id)) {
         throw new ConflictException('This goods receipt has already been billed');
       }
 
@@ -222,8 +228,32 @@ export class SupplierBillsService {
             totalValue: bill.totalValue.toString(),
             goodsReceiptId: bill.goodsReceiptId,
             purchaseOrderId: bill.purchaseOrderId,
+            status: bill.status,
           },
         },
+        tx,
+      );
+      await this.audit.log(
+        buildStatusTransitionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_BILL',
+          entityId: bill.id,
+          fromStatus: SupplierBillStatus.DRAFT,
+          toStatus: SupplierBillStatus.ISSUED,
+          reason: 'createFromGoodsReceipt',
+          action: AuditAction.POST,
+        }),
+        tx,
+      );
+      await this.audit.log(
+        buildDocumentActionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_BILL',
+          entityId: bill.id,
+          action: 'CREATE_BILL_FROM_GR',
+          result: 'success',
+          detail: { goodsReceiptId: gr.id },
+        }),
         tx,
       );
 
@@ -236,6 +266,7 @@ export class SupplierBillsService {
 
   async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
     const bill = await this.get(user, id);
+    assertSupplierBillAction(bill.status, SupplierBillAction.SEND);
     const recipient = bill.supplier.email?.trim();
     if (!recipient) {
       throw new BadRequestException(
@@ -264,7 +295,7 @@ export class SupplierBillsService {
     }
 
     const trigger = options?.resend ? DocumentEmailTrigger.RESEND : DocumentEmailTrigger.MANUAL;
-    return this.documentEmail.sendSupplierBillEmail(user, {
+    const result = await this.documentEmail.sendSupplierBillEmail(user, {
       billId: id,
       companyId: shop.companyId,
       shopId: bill.shopId,
@@ -273,6 +304,85 @@ export class SupplierBillsService {
       prepared,
       documentNumber: bill.billNumber,
       trigger,
+    });
+
+    await this.audit.log(
+      buildDocumentActionAudit({
+        userId: user.id,
+        entityType: 'SUPPLIER_BILL',
+        entityId: id,
+        action: options?.resend ? 'RESEND_SUPPLIER_BILL' : 'SEND_SUPPLIER_BILL',
+        result: 'success',
+        detail: { recipient, queued: result.queued ?? false },
+      }),
+    );
+
+    return result;
+  }
+
+  async voidBill(user: RequestUser, id: string, dto: VoidSupplierBillDto = {}) {
+    const bill = await this.get(user, id);
+    if (bill.status === SupplierBillStatus.VOID) return bill;
+
+    assertSupplierBillAction(bill.status, SupplierBillAction.VOID);
+    await assertSupplierBillMutationAllowed(this.prisma, { billId: id, action: 'void' });
+    assertSupplierBillTransition(bill.status, SupplierBillStatus.VOID);
+
+    const reason = dto.reason?.trim() || null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.supplierBillHeader.updateMany({
+        where: {
+          id,
+          status: SupplierBillStatus.ISSUED,
+          paidValue: new Prisma.Decimal(0),
+        },
+        data: {
+          status: SupplierBillStatus.VOID,
+          updatedById: user.id,
+          ...(reason ? { remarks: reason } : {}),
+        },
+      });
+      if (transitioned.count === 0) {
+        throw new BadRequestException(
+          'Only unpaid issued supplier bills can be voided',
+        );
+      }
+
+      const updated = await tx.supplierBillHeader.findUniqueOrThrow({
+        where: { id },
+        include: {
+          supplier: true,
+          purchaseOrder: true,
+          goodsReceipt: true,
+          items: { include: { product: true } },
+        },
+      });
+
+      await this.audit.log(
+        buildStatusTransitionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_BILL',
+          entityId: id,
+          fromStatus: SupplierBillStatus.ISSUED,
+          toStatus: SupplierBillStatus.VOID,
+          reason,
+        }),
+        tx,
+      );
+      await this.audit.log(
+        buildDocumentActionAudit({
+          userId: user.id,
+          entityType: 'SUPPLIER_BILL',
+          entityId: id,
+          action: 'VOID_SUPPLIER_BILL',
+          result: 'success',
+          detail: { reason },
+        }),
+        tx,
+      );
+
+      return updated;
     });
   }
 

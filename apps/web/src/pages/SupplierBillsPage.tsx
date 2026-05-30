@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useCreateSupplierBillFromGr, useSupplierBills } from '@/hooks/use-supplier-bills';
+import { useCreateSupplierBillFromGr, useSupplierBills, useVoidSupplierBill } from '@/hooks/use-supplier-bills';
 import { useGoodsReceipts } from '@/hooks/use-goods-receipts';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -21,6 +21,7 @@ export function SupplierBillsPage() {
   const { data: bills = [], refetch } = useSupplierBills({ shopId, take: 100 });
   const { data: grData } = useGoodsReceipts({ status: 'POSTED', shopId, limit: 100 });
   const createFromGr = useCreateSupplierBillFromGr();
+  const voidBill = useVoidSupplierBill();
   const [form, setForm] = useState({
     grId: '',
     dueDate: '',
@@ -28,6 +29,17 @@ export function SupplierBillsPage() {
   });
 
   const postedGrs = grData?.items ?? [];
+
+  const onVoidBill = async (billId: string) => {
+    const reason = window.prompt('Reason for voiding this bill (optional):') ?? undefined;
+    try {
+      await voidBill.mutateAsync({ id: billId, reason: reason?.trim() || undefined });
+      toast.success('Supplier bill voided');
+      refetch();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to void supplier bill'));
+    }
+  };
 
   const onCreate = async () => {
     if (!form.grId.trim()) {
@@ -139,7 +151,20 @@ export function SupplierBillsPage() {
                         {Number(bill.paidValue ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <DocumentRowActions kind="supplier-bill" id={bill.id} />
+                        <div className="flex items-center justify-end gap-2">
+                          {bill.status === 'ISSUED' && Number(bill.paidValue ?? 0) === 0 ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={voidBill.isPending}
+                              onClick={() => onVoidBill(bill.id)}
+                            >
+                              Void
+                            </Button>
+                          ) : null}
+                          <DocumentRowActions kind="supplier-bill" id={bill.id} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

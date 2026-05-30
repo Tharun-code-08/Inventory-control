@@ -12,3 +12,21 @@ export enum RfqAction {
   SEND = 'SEND',
   CREATE_PO = 'CREATE_PO',
 }
+
+export enum GrAction {
+  EDIT = 'EDIT',
+  DELETE = 'DELETE',
+  POST = 'POST',
+  SEND = 'SEND',
+  CREATE_BILL = 'CREATE_BILL',
+}
+
+export enum SupplierBillAction {
+  SEND = 'SEND',
+  RECORD_PAYMENT = 'RECORD_PAYMENT',
+  VOID = 'VOID',
+}
+
+export enum SupplierPaymentAction {
+  REVERSE = 'REVERSE',
+}

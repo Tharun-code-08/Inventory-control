@@ -64,6 +64,7 @@ import { cn } from '@/lib/cn';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
 import { uiSurfaces } from '@/lib/ui-surfaces';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { CreatePageLayout } from '@/components/shared';
 import { DocumentDetailActions } from '@/components/shared/DocumentDetailActions';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
@@ -88,12 +89,33 @@ function extractProductRows(raw: unknown): Product[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw as Product[];
   if (typeof raw === 'object') {
-    const source = raw as { items?: Product[]; data?: Product[] };
+    const source = raw as { items?: Product[]; data?: Product[]; rows?: Product[] };
     if (Array.isArray(source.items)) return source.items;
     if (Array.isArray(source.data)) return source.data;
+    if (Array.isArray(source.rows)) return source.rows;
   }
   return [];
 }
+
+function formatProductLabel(product: Product): string {
+  const code = product.productCode?.trim() || '—';
+  const name = product.description?.trim();
+  return name ? `${code} — ${name}` : code;
+}
+
+type QuoteLine = {
+  productId: string;
+  quantity: string;
+  unitPrice: string;
+  uom: string;
+};
+
+const emptyQuoteLine = (): QuoteLine => ({
+  productId: '',
+  quantity: '1',
+  unitPrice: '0',
+  uom: 'UNIT',
+});
 
 function formatQuoteDate(value?: string | null): string {
   if (!value) return '—';
@@ -205,7 +227,6 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
   const resendQuote = useResendSalesQuotation();
   const cancelQuote = useCancelSalesQuotation();
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [viewQuote, setViewQuote] = useState<SalesQuotation | null>(null);
   const [reviseOpen, setReviseOpen] = useState(false);
   const [reviseTarget, setReviseTarget] = useState<SalesQuotation | null>(null);
@@ -217,10 +238,10 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
     customerId: '',
     validUntil: '',
     shopId: '',
-    productId: '',
-    quantity: '1',
-    unitPrice: '0',
   });
+  const [items, setItems] = useState<QuoteLine[]>([emptyQuoteLine()]);
+  const [submitMode, setSubmitMode] = useState<'draft' | 'send' | null>(null);
+  const isSubmitting = submitMode !== null;
 
   const resolvedShopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
@@ -230,7 +251,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
   const products = useMemo(() => extractProductRows(productsQuery.data), [productsQuery.data]);
@@ -275,68 +296,138 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
   );
 
   const resetCreateForm = () => {
-    setCreateOpen(false);
     setForm({
       customerId: '',
       validUntil: '',
-      shopId: '',
-      productId: '',
-      quantity: '1',
-      unitPrice: '0',
+      shopId: user?.shopId ? form.shopId : resolvedShopId,
     });
+    setItems([emptyQuoteLine()]);
+    setSubmitMode(null);
+  };
+
+  const finishCreateFlow = () => {
     if (createOnly) {
       navigate('/quotations');
     }
+    resetCreateForm();
   };
-
-  useEffect(() => {
-    if (!createOnly) return;
-    setForm({
-      customerId: '',
-      validUntil: '',
-      shopId: '',
-      productId: '',
-      quantity: '1',
-      unitPrice: '0',
-    });
-  }, [createOnly]);
 
   useEffect(() => {
     syncPreferredOrgId(user?.shopId ? null : resolvedShopId, functionalCookiesEnabled);
   }, [functionalCookiesEnabled, resolvedShopId, user?.shopId]);
 
-  const onCreate = async (andSend: boolean) => {
-    if (!form.customerId || !form.productId) {
-      toast.error('Select a customer and product.');
-      return;
+  useEffect(() => {
+    const validIds = new Set(products.map((p) => p.id));
+    setItems((prev) =>
+      prev.map((row) =>
+        row.productId && !validIds.has(row.productId) ? { ...row, productId: '' } : row,
+      ),
+    );
+  }, [products]);
+
+  const addItemRow = () => {
+    setItems((prev) => [...prev, emptyQuoteLine()]);
+  };
+
+  const removeItemRow = (index: number) => {
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateItemRow = (
+    index: number,
+    key: keyof QuoteLine,
+    value: string,
+  ) => {
+    setItems((prev) =>
+      prev.map((row, idx) => {
+        if (idx !== index) return row;
+        if (key === 'productId') {
+          const selected = products.find((p) => p.id === value);
+          return {
+            ...row,
+            productId: value,
+            uom: selected?.uom || row.uom,
+            unitPrice: String(selected?.sellingPrice ?? selected?.purchasePrice ?? 0),
+          };
+        }
+        return { ...row, [key]: value };
+      }),
+    );
+  };
+
+  const createGrandTotal = useMemo(
+    () =>
+      items.reduce((sum, line) => {
+        const qty = Number(line.quantity) || 0;
+        const price = Number(line.unitPrice) || 0;
+        return sum + qty * price;
+      }, 0),
+    [items],
+  );
+
+  const buildCreatePayload = () => {
+    if (!form.customerId) {
+      toast.error('Customer is required');
+      return null;
     }
-    if (andSend && !selectedCustomer?.email?.trim()) {
+    if (createOnly && !resolvedShopId) {
+      toast.error('No plant available for this quotation');
+      return null;
+    }
+    const normalizedItems = items
+      .filter((item) => item.productId)
+      .map((item) => ({
+        productId: item.productId,
+        quantity: Math.max(0.001, Number(item.quantity || 1)),
+        unitPrice: Number(item.unitPrice) || 0,
+        uom: item.uom || 'UNIT',
+      }));
+    if (normalizedItems.length === 0) {
+      toast.error('Add at least one product');
+      return null;
+    }
+    return {
+      shopId: resolvedShopId || undefined,
+      customerId: form.customerId,
+      validUntil: form.validUntil || undefined,
+      items: normalizedItems,
+    };
+  };
+
+  const onCreateDraft = async () => {
+    const payload = buildCreatePayload();
+    if (!payload) return;
+
+    setSubmitMode('draft');
+    try {
+      await createQuote.mutateAsync(payload);
+      toast.success('Quotation saved as draft');
+      finishCreateFlow();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to create quotation'));
+    } finally {
+      setSubmitMode(null);
+    }
+  };
+
+  const onCreateAndSend = async () => {
+    const payload = buildCreatePayload();
+    if (!payload) return;
+    if (!selectedCustomer?.email?.trim()) {
       toast.error('Customer has no email. Add an email on the customer profile before sending.');
       return;
     }
+
+    setSubmitMode('send');
     try {
-      const created = await createQuote.mutateAsync({
-        shopId: resolvedShopId || undefined,
-        customerId: form.customerId,
-        validUntil: form.validUntil || undefined,
-        items: [
-          {
-            productId: form.productId,
-            quantity: Number(form.quantity),
-            unitPrice: Number(form.unitPrice),
-            uom: 'UNIT',
-          },
-        ],
-      });
-      if (andSend) {
-        const sent = await sendQuote.mutateAsync(created.id);
-        toast.success(quotationSentToast(sent.emailDelivery), { duration: 8000 });
-      } else {
-        toast.success('Quotation created');
-      }
-      resetCreateForm();
+      const created = await createQuote.mutateAsync(payload);
+      const sent = await sendQuote.mutateAsync(created.id);
+      toast.success(quotationSentToast(sent.emailDelivery), { duration: 8000 });
+      finishCreateFlow();
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, andSend ? 'Failed to create and send quotation' : 'Failed to create quotation'));
+      toast.error(getApiErrorMessage(err, 'Failed to create and send quotation'));
+    } finally {
+      setSubmitMode(null);
     }
   };
 
@@ -377,7 +468,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
   }
 
   function handleExportQuoteList() {
-    const ok = exportModuleCsv('sales-quotations.csv', filteredQuotations, [
+    const ok = exportModuleCsv('sales-quotations.csv', filtered, [
       { header: 'Quote Number', value: (quote) => quote.quoteNumber },
       { header: 'Quote Date', value: (quote) => csvDate(quote.quoteDate) },
       { header: 'Valid Until', value: (quote) => csvDate(quote.validUntil) },
@@ -490,40 +581,207 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
     }
   }
 
-  return (
-    <AppLayout active="Quotations">
-      <div className={cn('space-y-6', createOnly && 'create-page-shell p-4 sm:p-6')}>
-        <PageHeader
-          title={createOnly ? 'Create Quote' : 'Sales Quotations'}
-          description={
-            createOnly
-              ? 'New customer quotation with at least one line'
-              : 'Create and manage customer quotations'
-          }
+  const quoteCreateForm = (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {!user?.shopId && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label className="text-xs">Plant</Label>
+            <Select
+              value={form.shopId || resolvedShopId}
+              onValueChange={(v) => {
+                setForm((p) => ({ ...p, shopId: v }));
+                syncPreferredOrgId(v, functionalCookiesEnabled);
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select plant" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.shopName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Customer *</Label>
+          <Select
+            value={form.customerId}
+            onValueChange={(v) => setForm((p) => ({ ...p, customerId: v }))}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select customer" />
+            </SelectTrigger>
+            <SelectContent>
+              {customers.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.customerName}
+                  {c.email ? ` (${c.email})` : ' — no email'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Valid until</Label>
+          <Input
+            type="date"
+            className="h-9"
+            value={form.validUntil}
+            onChange={(e) => setForm((p) => ({ ...p, validUntil: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      {selectedCustomer && !selectedCustomer.email?.trim() && (
+        <p className="text-xs text-amber-700">
+          This customer has no email — add one under Customers before using Send.
+        </p>
+      )}
+
+      <div className="space-y-2 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Line items</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
+            + Add item
+          </Button>
+        </div>
+        {items.map((item, index) => (
+          <div key={index} className="grid grid-cols-12 gap-2 rounded-lg border p-2">
+            <div className="col-span-5">
+              <Select
+                value={item.productId}
+                onValueChange={(v) => updateItemRow(index, 'productId', v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Product" />
+                </SelectTrigger>
+                <SelectContent className="max-w-[min(24rem,90vw)]">
+                  {products.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      {productsQuery.isLoading ? 'Loading products…' : 'No products found'}
+                    </SelectItem>
+                  ) : (
+                    products.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {formatProductLabel(p)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Input
+                type="number"
+                min="0.001"
+                step="any"
+                className="h-8 text-xs"
+                value={item.quantity}
+                onChange={(e) => updateItemRow(index, 'quantity', e.target.value)}
+              />
+            </div>
+            <div className="col-span-2">
+              <Input className="h-8 text-xs" value={item.uom} readOnly />
+            </div>
+            <div className="col-span-2">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                className="h-8 text-xs"
+                value={item.unitPrice}
+                onChange={(e) => updateItemRow(index, 'unitPrice', e.target.value)}
+              />
+            </div>
+            <div className="col-span-1 flex items-center">
+              {items.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => removeItemRow(index)}
+                >
+                  ×
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+        <span className="font-medium text-slate-700">Estimated total</span>
+        <span className="font-semibold tabular-nums text-indigo-800">
+          {formatAmount(createGrandTotal)}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-1">
+        <Button
+          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          disabled={isSubmitting}
+          onClick={onCreateDraft}
         >
-          {createOnly ? (
-            <Button variant="outline" onClick={() => navigate('/quotations')} className="w-full sm:w-auto">
-              Back
-            </Button>
+          {submitMode === 'draft' ? 'Saving draft…' : 'Save as Draft'}
+        </Button>
+        <Button
+          className="w-full"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={onCreateAndSend}
+        >
+          {submitMode === 'send' ? (
+            'Creating and sending…'
           ) : (
             <>
-              <Button variant="outline" onClick={handleExportQuoteList}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button
-                className="bg-indigo-600 shadow-md hover:bg-indigo-700"
-                onClick={() => navigate('/quotations/new')}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Create Quote
-              </Button>
+              <Send className="mr-2 h-4 w-4" />
+              Create &amp; Send
             </>
           )}
-        </PageHeader>
+        </Button>
+      </div>
+    </div>
+  );
 
-        {!createOnly && (
-          <>
+  if (createOnly) {
+    return (
+      <AppLayout active="Quotations">
+        <CreatePageLayout
+          title="Create Quote"
+          description="Draft a customer quotation with one or more line items. Send by email when the customer profile has an address on file."
+          backTo="/quotations"
+        >
+          {quoteCreateForm}
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout active="Quotations">
+      <div className="space-y-6">
+        <PageHeader
+          title="Sales Quotations"
+          description="Create and manage customer quotations"
+        >
+          <Button variant="outline" onClick={handleExportQuoteList}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+            onClick={() => navigate('/quotations/new')}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Quote
+          </Button>
+        </PageHeader>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
@@ -786,161 +1044,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
             </Tabs>
           </CardContent>
         </Card>
-          </>
-        )}
       </div>
-
-      <Sheet
-        open={createOnly ? true : createOpen}
-        onOpenChange={(open) => {
-          if (!createOnly) {
-            setCreateOpen(open);
-          }
-          if (!open) {
-            resetCreateForm();
-          }
-        }}
-      >
-        <SheetContent
-          className={cn(
-            'overflow-y-auto',
-            createOnly ? 'border-l-0 sm:w-full sm:max-w-none' : 'sm:max-w-md',
-          )}
-        >
-          <SheetHeader>
-            <SheetTitle>Create Quote</SheetTitle>
-            <SheetDescription>New customer quotation with at least one line.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
-            {!user?.shopId && (
-              <div className="space-y-2">
-                <Label>Plant</Label>
-                <Select
-                  value={form.shopId || resolvedShopId}
-                  onValueChange={(v) => {
-                    setForm((p) => ({ ...p, shopId: v }));
-                    syncPreferredOrgId(v, functionalCookiesEnabled);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select plant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shops.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.shopName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <Select
-                value={form.customerId}
-                onValueChange={(v) => setForm((p) => ({ ...p, customerId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.customerName}
-                      {c.email ? ` (${c.email})` : ' — no email'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Valid until</Label>
-              <Input
-                type="date"
-                value={form.validUntil}
-                onChange={(e) => setForm((p) => ({ ...p, validUntil: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Product</Label>
-              <Select
-                value={form.productId}
-                onValueChange={(v) => {
-                  const p = products.find((x) => x.id === v);
-                  setForm((prev) => ({
-                    ...prev,
-                    productId: v,
-                    unitPrice: String(p?.sellingPrice ?? p?.purchasePrice ?? 0),
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.productCode} — {p.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min="0.001"
-                  step="any"
-                  value={form.quantity}
-                  onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Unit price</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={form.unitPrice}
-                  onChange={(e) => setForm((p) => ({ ...p, unitPrice: e.target.value }))}
-                />
-              </div>
-            </div>
-            {selectedCustomer && !selectedCustomer.email?.trim() && (
-              <p className="text-xs text-amber-700">
-                This customer has no email — add one under Customers before using Send.
-              </p>
-            )}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={createQuote.isPending || sendQuote.isPending}
-                onClick={() => onCreate(false)}
-              >
-                {createQuote.isPending ? 'Creating…' : 'Save as Draft'}
-              </Button>
-              <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                disabled={createQuote.isPending || sendQuote.isPending}
-                onClick={() => onCreate(true)}
-              >
-                {createQuote.isPending || sendQuote.isPending ? (
-                  'Sending…'
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Create &amp; Send
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       <Sheet open={!!viewQuote} onOpenChange={(open) => !open && setViewQuote(null)}>
         <SheetContent className="overflow-y-auto sm:max-w-xl">

@@ -20,6 +20,11 @@ import { UpdateGoodsReceiptDto } from './dto/update-goods-receipt.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { goodsReceiptSupplierDefaults } from '../email-notifications/email-notifications.outbound';
 import { DocumentEmailService } from '../document-email/document-email.service';
+import { assertGrAction } from '../../common/state-machines/assert-action';
+import { assertGrTransition } from '../../common/state-machines/assert-transition';
+import { GrAction } from '../../common/state-machines/document-actions';
+import { buildStatusTransitionAudit } from '../../common/state-machines/document-audit';
+import { assertGrMutationAllowed } from '../../common/utils/procurement-downstream';
 
 @Injectable()
 export class GoodsReceiptsService {
@@ -278,9 +283,8 @@ export class GoodsReceiptsService {
 
   async update(user: RequestUser, id: string, dto: UpdateGoodsReceiptDto) {
     const existing = await this.get(user, id);
-    if (existing.status !== DocumentStatus.DRAFT) {
-      throw new BadRequestException('Only DRAFT goods receipts can be edited');
-    }
+    assertGrAction(existing.status, GrAction.EDIT);
+    await assertGrMutationAllowed(this.prisma, { grId: id, action: 'update' });
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
     const grDate = dto.grDate ? new Date(dto.grDate) : existing.grDate;
@@ -297,6 +301,26 @@ export class GoodsReceiptsService {
     }
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const nextPoId = dto.purchaseOrderId ?? existing.purchaseOrderId;
+      const nextItems =
+        dto.items ??
+        existing.items.map((line) => ({
+          productId: line.productId,
+          quantity: Number(line.quantity),
+        }));
+
+      if (nextPoId && (dto.purchaseOrderId !== undefined || dto.items)) {
+        await this.validateAgainstPurchaseOrder(
+          tx,
+          id,
+          nextPoId,
+          nextItems.map((line) => ({
+            productId: line.productId,
+            quantity: new Prisma.Decimal(line.quantity),
+          })),
+        );
+      }
+
       if (dto.items) {
         await tx.goodsReceiptItem.deleteMany({ where: { grHeaderId: id } });
       }
@@ -306,6 +330,7 @@ export class GoodsReceiptsService {
         data: {
           grDate,
           shopId: dto.shopId ?? undefined,
+          purchaseOrderId: dto.purchaseOrderId ?? undefined,
           supplierName: dto.supplierName?.trim(),
           supplierRef: dto.supplierRef?.trim(),
           remarks: dto.remarks?.trim(),
@@ -339,6 +364,8 @@ export class GoodsReceiptsService {
     if (header.status === DocumentStatus.POSTED) {
       throw new DocumentAlreadyPostedException();
     }
+    assertGrAction(header.status, GrAction.POST);
+    assertGrTransition(header.status, DocumentStatus.POSTED);
     const grDate = header.grDate;
     assertNotFuture(grDate);
 
@@ -446,18 +473,14 @@ export class GoodsReceiptsService {
         },
       });
       await this.audit.log(
-        {
+        buildStatusTransitionAudit({
           userId: user.id,
-          action: AuditAction.POST,
           entityType: 'GOODS_RECEIPT',
           entityId: posted.id,
-          newValues: {
-            grNumber: posted.grNumber,
-            status: posted.status,
-            totalValue: posted.totalValue?.toString() ?? null,
-            itemCount: posted.items.length,
-          },
-        },
+          fromStatus: DocumentStatus.DRAFT,
+          toStatus: DocumentStatus.POSTED,
+          action: AuditAction.POST,
+        }),
         tx,
       );
       return posted;
@@ -514,9 +537,7 @@ export class GoodsReceiptsService {
 
   async sendToSupplier(user: RequestUser, id: string, options?: { resend?: boolean }) {
     const gr = await this.get(user, id);
-    if (gr.status !== DocumentStatus.POSTED) {
-      throw new BadRequestException('Only posted goods receipts can be emailed to the supplier');
-    }
+    assertGrAction(gr.status, GrAction.SEND);
 
     const shopRow = await this.prisma.shop.findUnique({
       where: { id: gr.shopId },
@@ -657,9 +678,8 @@ export class GoodsReceiptsService {
 
   async remove(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
-    if (existing.status !== DocumentStatus.DRAFT) {
-      throw new BadRequestException('Only DRAFT goods receipts can be deleted');
-    }
+    assertGrAction(existing.status, GrAction.DELETE);
+    await assertGrMutationAllowed(this.prisma, { grId: id, action: 'delete' });
     await this.prisma.goodsReceiptHeader.delete({ where: { id } });
     return { ok: true };
   }

@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { DocumentStatus, PurchaseOrderStatus } from '@prisma/client';
-import { PurchaseOrderAction, RfqAction } from './document-actions';
-import { assertPoAction, assertRfqAction } from './assert-action';
-import { assertPoTransition, assertRfqTransition } from './assert-transition';
+import { DocumentStatus, PurchaseOrderStatus, SupplierBillStatus } from '@prisma/client';
+import { GrAction, PurchaseOrderAction, RfqAction, SupplierBillAction } from './document-actions';
+import { assertGrAction, assertPoAction, assertRfqAction, assertSupplierBillAction } from './assert-action';
+import { assertGrTransition, assertPoTransition, assertRfqTransition, assertSupplierBillReversalTransition, assertSupplierBillTransition } from './assert-transition';
 
 describe('PO state machine', () => {
   it('allows DRAFT -> CONFIRMED and DRAFT -> CANCELLED', () => {
@@ -74,5 +74,56 @@ describe('RFQ state machine', () => {
     expect(() => assertRfqAction(DocumentStatus.DRAFT, RfqAction.CREATE_PO)).toThrow(
       BadRequestException,
     );
+  });
+});
+
+describe('GR state machine', () => {
+  it('allows DRAFT -> POSTED', () => {
+    expect(() => assertGrTransition(DocumentStatus.DRAFT, DocumentStatus.POSTED)).not.toThrow();
+  });
+
+  it('allows CREATE_BILL only on POSTED goods receipts', () => {
+    expect(() => assertGrAction(DocumentStatus.POSTED, GrAction.CREATE_BILL)).not.toThrow();
+    expect(() => assertGrAction(DocumentStatus.DRAFT, GrAction.CREATE_BILL)).toThrow(
+      BadRequestException,
+    );
+  });
+});
+
+describe('Supplier bill state machine', () => {
+  it('allows ISSUED -> PARTIALLY_PAID and PAID', () => {
+    expect(() =>
+      assertSupplierBillTransition(
+        SupplierBillStatus.ISSUED,
+        SupplierBillStatus.PARTIALLY_PAID,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertSupplierBillTransition(SupplierBillStatus.ISSUED, SupplierBillStatus.PAID),
+    ).not.toThrow();
+  });
+
+  it('allows payment recording only on ISSUED or PARTIALLY_PAID bills', () => {
+    expect(() =>
+      assertSupplierBillAction(SupplierBillStatus.ISSUED, SupplierBillAction.RECORD_PAYMENT),
+    ).not.toThrow();
+    expect(() =>
+      assertSupplierBillAction(SupplierBillStatus.PAID, SupplierBillAction.RECORD_PAYMENT),
+    ).toThrow(BadRequestException);
+  });
+
+  it('allows reversal transitions back to open bill states', () => {
+    expect(() =>
+      assertSupplierBillReversalTransition(
+        SupplierBillStatus.PAID,
+        SupplierBillStatus.PARTIALLY_PAID,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertSupplierBillReversalTransition(
+        SupplierBillStatus.PARTIALLY_PAID,
+        SupplierBillStatus.ISSUED,
+      ),
+    ).not.toThrow();
   });
 });

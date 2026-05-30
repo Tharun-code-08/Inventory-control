@@ -1,8 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { DocumentStatus, PurchaseOrderStatus } from '@prisma/client';
-import { PurchaseOrderAction, RfqAction } from './document-actions';
+import { DocumentStatus, PurchaseOrderStatus, SupplierBillStatus } from '@prisma/client';
+import { GrAction, PurchaseOrderAction, RfqAction, SupplierBillAction } from './document-actions';
+import { GR_ACTIONS } from './gr.state-machine';
 import { PO_ACTIONS } from './po.state-machine';
 import { RFQ_ACTIONS } from './rfq.state-machine';
+import { SUPPLIER_BILL_ACTIONS } from './supplier-bill.state-machine';
 
 export function assertPoAction(
   status: PurchaseOrderStatus,
@@ -21,6 +23,27 @@ export function assertRfqAction(status: DocumentStatus, action: RfqAction): void
   if (!allowed.includes(status)) {
     throw new BadRequestException(
       `RFQ action ${action} is not allowed in status ${status}`,
+    );
+  }
+}
+
+export function assertGrAction(status: DocumentStatus, action: GrAction): void {
+  const allowed = GR_ACTIONS[action] ?? [];
+  if (!allowed.includes(status)) {
+    throw new BadRequestException(
+      `Goods receipt action ${action} is not allowed in status ${status}`,
+    );
+  }
+}
+
+export function assertSupplierBillAction(
+  status: SupplierBillStatus,
+  action: SupplierBillAction,
+): void {
+  const allowed = SUPPLIER_BILL_ACTIONS[action] ?? [];
+  if (!allowed.includes(status)) {
+    throw new BadRequestException(
+      `Supplier bill action ${action} is not allowed in status ${status}`,
     );
   }
 }
