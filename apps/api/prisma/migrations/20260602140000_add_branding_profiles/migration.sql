@@ -5,8 +5,15 @@ CREATE TYPE "BrandingMode" AS ENUM ('LIVE', 'SNAPSHOT');
 CREATE TYPE "MediaAssetType" AS ENUM ('LOGO', 'STAMP', 'SIGNATURE', 'LETTERHEAD', 'WATERMARK');
 
 -- AlterTable
-ALTER TABLE "companies" ADD COLUMN "branding_profile_id" UUID;
-ALTER TABLE "shops" ADD COLUMN "branding_profile_id" UUID;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL THEN
+    ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "branding_profile_id" UUID;
+  END IF;
+  IF to_regclass('public.shops') IS NOT NULL THEN
+    ALTER TABLE "shops" ADD COLUMN IF NOT EXISTS "branding_profile_id" UUID;
+  END IF;
+END $$;
 
 -- CreateTable
 CREATE TABLE "branding_profiles" (
@@ -59,87 +66,101 @@ CREATE INDEX "media_assets_branding_profile_id_idx" ON "media_assets"("branding_
 -- CreateIndex
 CREATE INDEX "media_assets_type_active_idx" ON "media_assets"("type", "active");
 
--- AlterTable
-ALTER TABLE "rfq_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'LIVE',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "goods_receipt_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "goods_issue_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "purchase_order_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "sales_quote_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'LIVE',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "sales_order_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "invoice_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "payment_receipts"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "supplier_returns"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "supplier_bill_header"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
-
--- AlterTable
-ALTER TABLE "supplier_payments"
-  ADD COLUMN "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
-  ADD COLUMN "branding_snapshot" JSONB,
-  ADD COLUMN "branding_version" INTEGER,
-  ADD COLUMN "template_version" INTEGER NOT NULL DEFAULT 1;
+-- AlterTable (guarded: document tables may not exist on fresh CI databases)
+DO $$
+BEGIN
+  IF to_regclass('public.rfq_header') IS NOT NULL THEN
+    ALTER TABLE "rfq_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'LIVE',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.goods_receipt_header') IS NOT NULL THEN
+    ALTER TABLE "goods_receipt_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.goods_issue_header') IS NOT NULL THEN
+    ALTER TABLE "goods_issue_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.purchase_order_header') IS NOT NULL THEN
+    ALTER TABLE "purchase_order_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.sales_quote_header') IS NOT NULL THEN
+    ALTER TABLE "sales_quote_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'LIVE',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.sales_order_header') IS NOT NULL THEN
+    ALTER TABLE "sales_order_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.invoice_header') IS NOT NULL THEN
+    ALTER TABLE "invoice_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.payment_receipts') IS NOT NULL THEN
+    ALTER TABLE "payment_receipts"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.supplier_returns') IS NOT NULL THEN
+    ALTER TABLE "supplier_returns"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.supplier_bill_header') IS NOT NULL THEN
+    ALTER TABLE "supplier_bill_header"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+  IF to_regclass('public.supplier_payments') IS NOT NULL THEN
+    ALTER TABLE "supplier_payments"
+      ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT',
+      ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB,
+      ADD COLUMN IF NOT EXISTS "branding_version" INTEGER,
+      ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "companies"
-  ADD CONSTRAINT "companies_branding_profile_id_fkey"
-  FOREIGN KEY ("branding_profile_id") REFERENCES "branding_profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.branding_profiles') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'companies_branding_profile_id_fkey'
+     ) THEN
+    ALTER TABLE "companies"
+      ADD CONSTRAINT "companies_branding_profile_id_fkey"
+      FOREIGN KEY ("branding_profile_id") REFERENCES "branding_profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "shops"
@@ -172,9 +193,18 @@ ALTER TABLE "branding_profiles"
   FOREIGN KEY ("letterhead_asset_id") REFERENCES "media_assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "media_assets"
-  ADD CONSTRAINT "media_assets_company_id_fkey"
-  FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.media_assets') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'media_assets_company_id_fkey'
+     ) THEN
+    ALTER TABLE "media_assets"
+      ADD CONSTRAINT "media_assets_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "media_assets"

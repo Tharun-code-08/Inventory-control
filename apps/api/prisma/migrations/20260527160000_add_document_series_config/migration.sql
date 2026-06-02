@@ -39,7 +39,18 @@ ON "document_series_config" ("company_id", "shop_id", "doc_type")
 WHERE "shop_id" IS NOT NULL;
 
 -- AddForeignKey
-ALTER TABLE "document_series_config" ADD CONSTRAINT "document_series_config_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.document_series_config') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'document_series_config_company_id_fkey'
+     ) THEN
+    ALTER TABLE "document_series_config"
+      ADD CONSTRAINT "document_series_config_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "document_series_config" ADD CONSTRAINT "document_series_config_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE CASCADE ON UPDATE CASCADE;

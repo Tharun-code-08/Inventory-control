@@ -1,17 +1,41 @@
--- CreateEnum
-CREATE TYPE "BackupProvider" AS ENUM ('MANUAL', 'GOOGLE_DRIVE');
+-- Company backup / restore tables
 
--- CreateEnum
-CREATE TYPE "BackupJobStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED');
+CREATE TABLE IF NOT EXISTS "companies" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "company_code" TEXT NOT NULL,
+  "company_name" TEXT NOT NULL,
+  "address" TEXT,
+  "is_active" BOOLEAN NOT NULL DEFAULT true,
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "created_by" UUID,
+  "updated_by" UUID,
+  CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
+);
 
--- CreateEnum
-CREATE TYPE "RestoreJobStatus" AS ENUM ('PENDING', 'DRY_RUN_COMPLETED', 'RUNNING', 'COMPLETED', 'FAILED');
+CREATE UNIQUE INDEX IF NOT EXISTS "companies_company_code_key" ON "companies"("company_code");
 
--- CreateEnum
-CREATE TYPE "RestoreMode" AS ENUM ('TENANT_REPLACE', 'FULL_DB');
+DO $$ BEGIN
+  CREATE TYPE "BackupProvider" AS ENUM ('MANUAL', 'GOOGLE_DRIVE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateTable
-CREATE TABLE "backup_provider_credentials" (
+DO $$ BEGIN
+  CREATE TYPE "BackupJobStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "RestoreJobStatus" AS ENUM ('PENDING', 'DRY_RUN_COMPLETED', 'RUNNING', 'COMPLETED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "RestoreMode" AS ENUM ('TENANT_REPLACE', 'FULL_DB');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "backup_provider_credentials" (
     "id" UUID NOT NULL,
     "company_id" UUID NOT NULL,
     "provider" "BackupProvider" NOT NULL DEFAULT 'GOOGLE_DRIVE',
@@ -24,8 +48,7 @@ CREATE TABLE "backup_provider_credentials" (
     CONSTRAINT "backup_provider_credentials_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "backup_jobs" (
+CREATE TABLE IF NOT EXISTS "backup_jobs" (
     "id" UUID NOT NULL,
     "company_id" UUID NOT NULL,
     "status" "BackupJobStatus" NOT NULL DEFAULT 'PENDING',
@@ -39,8 +62,7 @@ CREATE TABLE "backup_jobs" (
     CONSTRAINT "backup_jobs_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "backup_artifacts" (
+CREATE TABLE IF NOT EXISTS "backup_artifacts" (
     "id" UUID NOT NULL,
     "company_id" UUID NOT NULL,
     "backup_job_id" UUID,
@@ -56,8 +78,7 @@ CREATE TABLE "backup_artifacts" (
     CONSTRAINT "backup_artifacts_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "restore_jobs" (
+CREATE TABLE IF NOT EXISTS "restore_jobs" (
     "id" UUID NOT NULL,
     "company_id" UUID NOT NULL,
     "artifact_id" UUID NOT NULL,
@@ -74,35 +95,90 @@ CREATE TABLE "restore_jobs" (
     CONSTRAINT "restore_jobs_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "backup_provider_credentials_company_id_provider_key" ON "backup_provider_credentials"("company_id", "provider");
+CREATE UNIQUE INDEX IF NOT EXISTS "backup_provider_credentials_company_id_provider_key" ON "backup_provider_credentials"("company_id", "provider");
 
--- CreateIndex
-CREATE UNIQUE INDEX "backup_artifacts_backup_job_id_key" ON "backup_artifacts"("backup_job_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "backup_artifacts_backup_job_id_key" ON "backup_artifacts"("backup_job_id");
 
--- CreateIndex
-CREATE INDEX "backup_artifacts_company_id_created_at_idx" ON "backup_artifacts"("company_id", "created_at");
+CREATE INDEX IF NOT EXISTS "backup_artifacts_company_id_created_at_idx" ON "backup_artifacts"("company_id", "created_at");
 
--- CreateIndex
-CREATE INDEX "backup_jobs_company_id_created_at_idx" ON "backup_jobs"("company_id", "created_at");
+CREATE INDEX IF NOT EXISTS "backup_jobs_company_id_created_at_idx" ON "backup_jobs"("company_id", "created_at");
 
--- CreateIndex
-CREATE INDEX "restore_jobs_company_id_created_at_idx" ON "restore_jobs"("company_id", "created_at");
+CREATE INDEX IF NOT EXISTS "restore_jobs_company_id_created_at_idx" ON "restore_jobs"("company_id", "created_at");
 
--- AddForeignKey
-ALTER TABLE "backup_provider_credentials" ADD CONSTRAINT "backup_provider_credentials_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.backup_provider_credentials') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'backup_provider_credentials_company_id_fkey'
+     ) THEN
+    ALTER TABLE "backup_provider_credentials"
+      ADD CONSTRAINT "backup_provider_credentials_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "backup_jobs" ADD CONSTRAINT "backup_jobs_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.backup_jobs') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'backup_jobs_company_id_fkey'
+     ) THEN
+    ALTER TABLE "backup_jobs"
+      ADD CONSTRAINT "backup_jobs_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "backup_artifacts" ADD CONSTRAINT "backup_artifacts_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.backup_artifacts') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'backup_artifacts_company_id_fkey'
+     ) THEN
+    ALTER TABLE "backup_artifacts"
+      ADD CONSTRAINT "backup_artifacts_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "backup_artifacts" ADD CONSTRAINT "backup_artifacts_backup_job_id_fkey" FOREIGN KEY ("backup_job_id") REFERENCES "backup_jobs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.backup_jobs') IS NOT NULL
+     AND to_regclass('public.backup_artifacts') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'backup_artifacts_backup_job_id_fkey'
+     ) THEN
+    ALTER TABLE "backup_artifacts"
+      ADD CONSTRAINT "backup_artifacts_backup_job_id_fkey"
+      FOREIGN KEY ("backup_job_id") REFERENCES "backup_jobs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "restore_jobs" ADD CONSTRAINT "restore_jobs_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.restore_jobs') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'restore_jobs_company_id_fkey'
+     ) THEN
+    ALTER TABLE "restore_jobs"
+      ADD CONSTRAINT "restore_jobs_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "restore_jobs" ADD CONSTRAINT "restore_jobs_artifact_id_fkey" FOREIGN KEY ("artifact_id") REFERENCES "backup_artifacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.backup_artifacts') IS NOT NULL
+     AND to_regclass('public.restore_jobs') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'restore_jobs_artifact_id_fkey'
+     ) THEN
+    ALTER TABLE "restore_jobs"
+      ADD CONSTRAINT "restore_jobs_artifact_id_fkey"
+      FOREIGN KEY ("artifact_id") REFERENCES "backup_artifacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

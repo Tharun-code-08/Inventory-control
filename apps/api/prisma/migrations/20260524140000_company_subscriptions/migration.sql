@@ -1,4 +1,21 @@
 -- Company subscription / trial fields for SaaS billing
+
+-- Baseline companies table (not created in init migration)
+CREATE TABLE IF NOT EXISTS "companies" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "company_code" TEXT NOT NULL,
+  "company_name" TEXT NOT NULL,
+  "address" TEXT,
+  "is_active" BOOLEAN NOT NULL DEFAULT true,
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "created_by" UUID,
+  "updated_by" UUID,
+  CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "companies_company_code_key" ON "companies"("company_code");
+
 DO $$ BEGIN
   CREATE TYPE "SubscriptionPlan" AS ENUM ('TRIAL', 'PRO', 'PLUS');
 EXCEPTION WHEN duplicate_object THEN NULL;

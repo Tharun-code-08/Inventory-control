@@ -64,10 +64,31 @@ CREATE INDEX "email_sender_identities_company_id_is_primary_idx" ON "email_sende
 CREATE INDEX "email_sender_verifications_sender_id_expires_at_idx" ON "email_sender_verifications"("sender_id", "expires_at");
 
 -- AddForeignKey
-ALTER TABLE "email_sender_domains" ADD CONSTRAINT "email_sender_domains_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.email_sender_domains') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'email_sender_domains_company_id_fkey'
+     ) THEN
+    ALTER TABLE "email_sender_domains"
+      ADD CONSTRAINT "email_sender_domains_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "email_sender_identities" ADD CONSTRAINT "email_sender_identities_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.email_sender_identities') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'email_sender_identities_company_id_fkey'
+     ) THEN
+    ALTER TABLE "email_sender_identities"
+      ADD CONSTRAINT "email_sender_identities_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "email_sender_identities" ADD CONSTRAINT "email_sender_identities_domain_id_fkey" FOREIGN KEY ("domain_id") REFERENCES "email_sender_domains"("id") ON DELETE SET NULL ON UPDATE CASCADE;

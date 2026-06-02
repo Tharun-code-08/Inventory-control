@@ -20,10 +20,15 @@ CREATE TYPE "LifecycleCampaignStatus" AS ENUM (
 
 ALTER TYPE "SubscriptionStatus" ADD VALUE IF NOT EXISTS 'SUSPENDED';
 
-ALTER TABLE "companies"
-  ADD COLUMN IF NOT EXISTS "platform_marketing_opt_out" BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS "razorpay_subscription_id" TEXT,
-  ADD COLUMN IF NOT EXISTS "paid_activated_at" TIMESTAMPTZ(6);
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL THEN
+    ALTER TABLE "companies"
+      ADD COLUMN IF NOT EXISTS "platform_marketing_opt_out" BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS "razorpay_subscription_id" TEXT,
+      ADD COLUMN IF NOT EXISTS "paid_activated_at" TIMESTAMPTZ(6);
+  END IF;
+END $$;
 
 ALTER TABLE "subscription_payments"
   ADD COLUMN IF NOT EXISTS "invoice_id" UUID,
@@ -102,16 +107,43 @@ ALTER TABLE "subscription_payments"
   ADD CONSTRAINT "subscription_payments_invoice_id_fkey"
   FOREIGN KEY ("invoice_id") REFERENCES "subscription_invoices"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "subscription_invoices"
-  ADD CONSTRAINT "subscription_invoices_company_id_fkey"
-  FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.subscription_invoices') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'subscription_invoices_company_id_fkey'
+     ) THEN
+    ALTER TABLE "subscription_invoices"
+      ADD CONSTRAINT "subscription_invoices_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE "company_engagement_snapshots"
-  ADD CONSTRAINT "company_engagement_snapshots_company_id_fkey"
-  FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.company_engagement_snapshots') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'company_engagement_snapshots_company_id_fkey'
+     ) THEN
+    ALTER TABLE "company_engagement_snapshots"
+      ADD CONSTRAINT "company_engagement_snapshots_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE "lifecycle_campaign_enrollments"
-  ADD CONSTRAINT "lifecycle_campaign_enrollments_company_id_fkey"
-  FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.companies') IS NOT NULL
+     AND to_regclass('public.lifecycle_campaign_enrollments') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'lifecycle_campaign_enrollments_company_id_fkey'
+     ) THEN
+    ALTER TABLE "lifecycle_campaign_enrollments"
+      ADD CONSTRAINT "lifecycle_campaign_enrollments_company_id_fkey"
+      FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "subscription_payments_invoice_id_idx" ON "subscription_payments"("invoice_id");
