@@ -96,12 +96,19 @@ export class BrandingProfileService {
         logoAssetId = null;
       }
 
+      const logoChanged = Boolean(logo) || input.removeLogo;
       const updateData: Prisma.BrandingProfileUpdateInput = {
         footerText: input.footerText ?? undefined,
         email: input.email ?? undefined,
         phone: input.phone ?? undefined,
         website: input.website ?? undefined,
-        logoAssetId,
+        ...(logoChanged
+          ? {
+              logoAsset: logoAssetId
+                ? { connect: { id: logoAssetId } }
+                : { disconnect: true },
+            }
+          : {}),
         brandingVersion: { increment: 1 },
         updatedById: user.id,
       };
@@ -165,12 +172,19 @@ export class BrandingProfileService {
         logoAssetId = null;
       }
 
+      const logoChanged = Boolean(logo) || input.removeLogo;
       const updateData: Prisma.BrandingProfileUpdateInput = {
         footerText: input.footerText ?? undefined,
         email: input.email ?? undefined,
         phone: input.phone ?? undefined,
         website: input.website ?? undefined,
-        logoAssetId,
+        ...(logoChanged
+          ? {
+              logoAsset: logoAssetId
+                ? { connect: { id: logoAssetId } }
+                : { disconnect: true },
+            }
+          : {}),
         brandingVersion: { increment: 1 },
         updatedById: user.id,
       };
