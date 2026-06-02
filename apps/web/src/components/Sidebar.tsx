@@ -384,7 +384,7 @@ export function Sidebar({
           </button>
 
           {dropdownOpen && (
-            <div className="absolute bottom-full left-2 right-2 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="absolute bottom-full left-2 right-2 z-50 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
               <div className="border-b border-slate-200 px-4 py-3">
                 <div className="text-sm font-medium text-slate-900">{user?.name}</div>
                 <div className="text-xs text-slate-500">{user?.email}</div>
