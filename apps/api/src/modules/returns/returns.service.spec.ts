@@ -147,7 +147,6 @@ function makeService() {
   const costing = { recordOutflow: jest.fn(), recordInflow: jest.fn() } as any;
   const numbers = { nextNumber: jest.fn() } as any;
   const audit = { log: jest.fn() } as any;
-  const mail = { sendSupplierReturnNotice: jest.fn() } as any;
   const config = {
     get: jest.fn((key: string, fallback?: string) => {
       if (key === 'PUBLIC_WEB_URL') return 'http://localhost:5173';
@@ -160,19 +159,32 @@ function makeService() {
     read: jest.fn(),
   } as any;
 
+  const emailNotifications = {
+    prepareTemplateForShop: jest.fn().mockResolvedValue({
+      enabled: true,
+      subject: 'Return notice',
+      text: 'Return notice text',
+      html: '<p>Return notice</p>',
+      context: {},
+    }),
+  } as any;
+  const documentEmail = {
+    sendGoodsReturnEmail: jest.fn().mockResolvedValue({ sent: true }),
+  } as any;
+
   const service = new ReturnsService(
     prisma,
     stock,
     costing,
     numbers,
     audit,
-    mail,
     config,
     returnImages,
-    { prepareTemplateForShop: jest.fn() } as any,
+    emailNotifications,
+    documentEmail,
   );
 
-  return { service, prisma, tx, stock, costing, numbers, audit, mail, returnImages };
+  return { service, prisma, tx, stock, costing, numbers, audit, returnImages, emailNotifications, documentEmail };
 }
 
 describe('ReturnsService', () => {

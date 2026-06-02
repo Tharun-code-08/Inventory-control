@@ -126,6 +126,13 @@ function makeRazorpay() {
   };
 }
 
+function makeLifecycle() {
+  return {
+    onTrialStarted: jest.fn(),
+    onSubscriptionActivated: jest.fn(),
+  };
+}
+
 describe('SignupService staged signup flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -142,6 +149,7 @@ describe('SignupService staged signup flow', () => {
       makeMail() as never,
       auth as never,
       makeRazorpay() as never,
+      makeLifecycle() as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);
@@ -201,6 +209,7 @@ describe('SignupService staged signup flow', () => {
       makeMail() as never,
       auth as never,
       razorpay as never,
+      makeLifecycle() as never,
     );
 
     prisma.signupVerification.findFirst.mockResolvedValue({
@@ -277,6 +286,7 @@ describe('SignupService staged signup flow', () => {
       makeMail() as never,
       auth as never,
       makeRazorpay() as never,
+      makeLifecycle() as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);
@@ -369,6 +379,7 @@ describe('SignupService staged signup flow', () => {
       makeMail() as never,
       auth as never,
       makeRazorpay() as never,
+      makeLifecycle() as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);

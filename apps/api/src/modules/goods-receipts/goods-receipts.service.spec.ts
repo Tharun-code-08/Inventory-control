@@ -17,6 +17,12 @@ function makeService() {
     storageLocation: {
       findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 'shop-1', isActive: true }),
     },
+    productPlant: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
   } as any;
 
   const prisma = {
@@ -30,7 +36,7 @@ function makeService() {
   } as any;
 
   const stock = { postMovementOnce: jest.fn() } as any;
-  const numbers = { nextNumber: jest.fn() } as any;
+  const numbers = { nextConfiguredShopScopedNumber: jest.fn() } as any;
   const audit = { log: jest.fn() } as any;
   const costing = { recordInflow: jest.fn() } as any;
 
@@ -144,6 +150,12 @@ function buildTx(overrides: Record<string, any> = {}) {
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
     },
+    productPlant: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     ...overrides,
   };
 }
@@ -162,7 +174,7 @@ function makePrisma(tx: any) {
 
 const auditFactory = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
 const numbersFactory = (n = 'GR-202605-00001') =>
-  ({ nextNumber: jest.fn().mockResolvedValue(n) }) as any;
+  ({ nextConfiguredShopScopedNumber: jest.fn().mockResolvedValue(n) }) as any;
 const stockFactory = () =>
   ({ postMovementOnce: jest.fn().mockResolvedValue(undefined) }) as any;
 const costingFactory = () =>

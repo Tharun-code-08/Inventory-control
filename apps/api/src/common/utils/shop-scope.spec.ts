@@ -32,7 +32,12 @@ describe('shop-scope helpers', () => {
 
   test('storageLocationListWhere scopes by company', () => {
     const where = storageLocationListWhere(tenantUser(), undefined);
-    expect(where).toEqual({ shop: { companyId: 'co-1' } });
+    expect(where).toEqual({
+      OR: [
+        { shop: { companyId: 'co-1' } },
+        { shop: { companyId: null, createdById: 'u1' } },
+      ],
+    });
   });
 
   test('companyListWhere scopes to actor company', () => {

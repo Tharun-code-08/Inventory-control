@@ -1,5 +1,10 @@
 import type { Prisma } from '@prisma/client';
-import { getIdempotentResult, setIdempotentResult } from './idempotency';
+import {
+  getIdempotentResult,
+  setIdempotentResult,
+  tryGetIdempotentResult,
+  trySetIdempotentResult,
+} from './idempotency';
 
 function makeTx(impl: { findUnique?: jest.Mock; upsert?: jest.Mock }) {
   return {
@@ -66,6 +71,22 @@ describe('idempotency helpers', () => {
       const expiresAt = arg.create.expiresAt as Date;
       expect(expiresAt).toBeInstanceOf(Date);
       expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 60 * 1000 - 50);
+    });
+  });
+
+  describe('tryGetIdempotentResult', () => {
+    it('returns null when the lookup throws', async () => {
+      const findUnique = jest.fn().mockRejectedValue(new Error('db down'));
+      const tx = makeTx({ findUnique });
+      await expect(tryGetIdempotentResult(tx, 'k1', 'scope')).resolves.toBeNull();
+    });
+  });
+
+  describe('trySetIdempotentResult', () => {
+    it('swallows persistence errors', async () => {
+      const upsert = jest.fn().mockRejectedValue(new Error('db down'));
+      const tx = makeTx({ upsert });
+      await expect(trySetIdempotentResult(tx, 'k1', { ok: true })).resolves.toBeUndefined();
     });
   });
 });

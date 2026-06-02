@@ -61,8 +61,8 @@ function makePrisma(tx: any) {
 
 const audit = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
 const numbers = (n = 'SO-HQ001-202605-00001') => {
-  const nextShopScopedNumber = jest.fn().mockResolvedValue(n);
-  return { nextNumber: nextShopScopedNumber, nextShopScopedNumber } as any;
+  const nextConfiguredShopScopedNumber = jest.fn().mockResolvedValue(n);
+  return { nextConfiguredShopScopedNumber } as any;
 };
 const stock = () => ({ postMovementOnce: jest.fn().mockResolvedValue(undefined) }) as any;
 const costing = () =>
@@ -107,7 +107,7 @@ describe('SalesOrdersService.create', () => {
       ],
     } as any);
 
-    expect(numbersSvc.nextNumber).toHaveBeenCalledTimes(1);
+    expect(numbersSvc.nextConfiguredShopScopedNumber).toHaveBeenCalledTimes(1);
     expect(tx.salesOrderHeader.create).toHaveBeenCalledTimes(1);
     const data = tx.salesOrderHeader.create.mock.calls[0][0].data;
     expect(data.soNumber).toBe('SO-202605-00001');

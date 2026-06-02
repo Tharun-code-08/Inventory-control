@@ -43,7 +43,7 @@ function makeService(tx: ReturnType<typeof buildTx>) {
     resolveBalance: jest.fn().mockResolvedValue(new Prisma.Decimal(10)),
   } as any;
   const numbers = {
-    nextShopScopedNumber: jest.fn().mockResolvedValue('GI-202605-00001'),
+    nextConfiguredShopScopedNumber: jest.fn().mockResolvedValue('GI-202605-00001'),
   } as any;
   const audit = { log: jest.fn() } as any;
   const inventoryLots = { consumeFifo: jest.fn() } as any;
