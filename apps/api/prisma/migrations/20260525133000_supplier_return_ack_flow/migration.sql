@@ -52,45 +52,50 @@ CREATE INDEX IF NOT EXISTS "supplier_return_images_return_item_id_idx" ON "suppl
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'supplier_returns_supplier_id_fkey'
-  ) THEN
+  IF to_regclass('public.suppliers') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'supplier_returns_supplier_id_fkey'
+    ) THEN
     ALTER TABLE "supplier_returns"
       ADD CONSTRAINT "supplier_returns_supplier_id_fkey"
       FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'supplier_returns_goods_receipt_id_fkey'
-  ) THEN
+  IF to_regclass('public.goods_receipt_header') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'supplier_returns_goods_receipt_id_fkey'
+    ) THEN
     ALTER TABLE "supplier_returns"
       ADD CONSTRAINT "supplier_returns_goods_receipt_id_fkey"
       FOREIGN KEY ("goods_receipt_id") REFERENCES "goods_receipt_header"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_items_goods_receipt_item_id_fkey'
-  ) THEN
+  IF to_regclass('public.goods_receipt_items') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_items_goods_receipt_item_id_fkey'
+    ) THEN
     ALTER TABLE "supplier_return_items"
       ADD CONSTRAINT "supplier_return_items_goods_receipt_item_id_fkey"
       FOREIGN KEY ("goods_receipt_item_id") REFERENCES "goods_receipt_items"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_images_return_id_fkey'
-  ) THEN
+  IF to_regclass('public.supplier_returns') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_images_return_id_fkey'
+    ) THEN
     ALTER TABLE "supplier_return_images"
       ADD CONSTRAINT "supplier_return_images_return_id_fkey"
       FOREIGN KEY ("return_id") REFERENCES "supplier_returns"("id")
       ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_images_return_item_id_fkey'
-  ) THEN
+  IF to_regclass('public.supplier_return_items') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'supplier_return_images_return_item_id_fkey'
+    ) THEN
     ALTER TABLE "supplier_return_images"
       ADD CONSTRAINT "supplier_return_images_return_item_id_fkey"
       FOREIGN KEY ("return_item_id") REFERENCES "supplier_return_items"("id")
