@@ -487,7 +487,8 @@ export class SignupService {
     };
   }
 
-  async verifySignup(dto: SignupVerifyDto): Promise<SignupVerifyResult> {
+  async verifySignup(dto: SignupVerifyDto, _ctx: LoginContext): Promise<SignupVerifyResult> {
+    void _ctx;
     this.assertSignupEnabled();
 
     const email = dto.email.toLowerCase().trim();
@@ -557,7 +558,11 @@ export class SignupService {
     };
   }
 
-  async completePaidSignup(dto: SignupCompletePaidDto): Promise<SignupMfaChallengeResult> {
+  async completePaidSignup(
+    dto: SignupCompletePaidDto,
+    _ctx: LoginContext,
+  ): Promise<SignupMfaChallengeResult> {
+    void _ctx;
     this.assertSignupEnabled();
 
     const { pending, payload, email } = await this.loadPendingByToken(dto.token);
