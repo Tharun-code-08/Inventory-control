@@ -1,17 +1,34 @@
 -- GR line expiry + storage location
-ALTER TABLE "goods_receipt_items" ADD COLUMN IF NOT EXISTS "expiry_date" DATE;
-ALTER TABLE "goods_receipt_items" ADD COLUMN IF NOT EXISTS "storage_location_id" UUID;
-ALTER TABLE "goods_receipt_items"
-  ADD CONSTRAINT "goods_receipt_items_storage_location_id_fkey"
-  FOREIGN KEY ("storage_location_id") REFERENCES "storage_locations"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.goods_receipt_items') IS NOT NULL THEN
+    ALTER TABLE "goods_receipt_items" ADD COLUMN IF NOT EXISTS "expiry_date" DATE;
+    ALTER TABLE "goods_receipt_items" ADD COLUMN IF NOT EXISTS "storage_location_id" UUID;
+  END IF;
+  IF to_regclass('public.goods_receipt_items') IS NOT NULL
+     AND to_regclass('public.storage_locations') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'goods_receipt_items_storage_location_id_fkey'
+     ) THEN
+    ALTER TABLE "goods_receipt_items"
+      ADD CONSTRAINT "goods_receipt_items_storage_location_id_fkey"
+      FOREIGN KEY ("storage_location_id") REFERENCES "storage_locations"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "goods_receipt_items_storage_location_id_idx"
   ON "goods_receipt_items"("storage_location_id");
 
 -- Shop-scoped customer codes
-ALTER TABLE "customers" DROP CONSTRAINT IF EXISTS "customers_customer_code_key";
-CREATE UNIQUE INDEX IF NOT EXISTS "customers_shop_id_customer_code_key"
-  ON "customers"("shop_id", "customer_code");
+DO $$
+BEGIN
+  IF to_regclass('public.customers') IS NOT NULL THEN
+    ALTER TABLE "customers" DROP CONSTRAINT IF EXISTS "customers_customer_code_key";
+    CREATE UNIQUE INDEX IF NOT EXISTS "customers_shop_id_customer_code_key"
+      ON "customers"("shop_id", "customer_code");
+  END IF;
+END $$;
 
 -- Transaction types for stock transfer
 ALTER TYPE "TransactionType" ADD VALUE IF NOT EXISTS 'STOCK_TRANSFER_OUT';
@@ -37,9 +54,20 @@ CREATE TABLE IF NOT EXISTS "po_cancel_verifications" (
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "po_cancel_verifications_pkey" PRIMARY KEY ("id")
 );
-ALTER TABLE "po_cancel_verifications"
-  ADD CONSTRAINT "po_cancel_verifications_po_id_fkey"
-  FOREIGN KEY ("po_id") REFERENCES "purchase_order_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.purchase_order_header') IS NOT NULL
+     AND to_regclass('public.po_cancel_verifications') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'po_cancel_verifications_po_id_fkey'
+     ) THEN
+    ALTER TABLE "po_cancel_verifications"
+      ADD CONSTRAINT "po_cancel_verifications_po_id_fkey"
+      FOREIGN KEY ("po_id") REFERENCES "purchase_order_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "po_cancel_verifications_po_id_user_id_idx"
   ON "po_cancel_verifications"("po_id", "user_id");
 CREATE INDEX IF NOT EXISTS "po_cancel_verifications_expires_at_idx"
@@ -65,19 +93,49 @@ CREATE TABLE IF NOT EXISTS "supplier_bill_header" (
   "updated_by" UUID,
   CONSTRAINT "supplier_bill_header_pkey" PRIMARY KEY ("id")
 );
+
 CREATE UNIQUE INDEX IF NOT EXISTS "supplier_bill_header_bill_number_key" ON "supplier_bill_header"("bill_number");
-ALTER TABLE "supplier_bill_header"
-  ADD CONSTRAINT "supplier_bill_header_shop_id_fkey"
-  FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "supplier_bill_header"
-  ADD CONSTRAINT "supplier_bill_header_supplier_id_fkey"
-  FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "supplier_bill_header"
-  ADD CONSTRAINT "supplier_bill_header_purchase_order_id_fkey"
-  FOREIGN KEY ("purchase_order_id") REFERENCES "purchase_order_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "supplier_bill_header"
-  ADD CONSTRAINT "supplier_bill_header_goods_receipt_id_fkey"
-  FOREIGN KEY ("goods_receipt_id") REFERENCES "goods_receipt_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.shops') IS NOT NULL
+     AND to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_header_shop_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_header"
+      ADD CONSTRAINT "supplier_bill_header_shop_id_fkey"
+      FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.suppliers') IS NOT NULL
+     AND to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_header_supplier_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_header"
+      ADD CONSTRAINT "supplier_bill_header_supplier_id_fkey"
+      FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.purchase_order_header') IS NOT NULL
+     AND to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_header_purchase_order_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_header"
+      ADD CONSTRAINT "supplier_bill_header_purchase_order_id_fkey"
+      FOREIGN KEY ("purchase_order_id") REFERENCES "purchase_order_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.goods_receipt_header') IS NOT NULL
+     AND to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_header_goods_receipt_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_header"
+      ADD CONSTRAINT "supplier_bill_header_goods_receipt_id_fkey"
+      FOREIGN KEY ("goods_receipt_id") REFERENCES "goods_receipt_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "supplier_bill_header_shop_id_bill_date_idx"
   ON "supplier_bill_header"("shop_id", "bill_date");
 CREATE INDEX IF NOT EXISTS "supplier_bill_header_shop_id_status_bill_date_idx"
@@ -96,12 +154,29 @@ CREATE TABLE IF NOT EXISTS "supplier_bill_items" (
   "line_value" DECIMAL(14,2) NOT NULL,
   CONSTRAINT "supplier_bill_items_pkey" PRIMARY KEY ("id")
 );
-ALTER TABLE "supplier_bill_items"
-  ADD CONSTRAINT "supplier_bill_items_bill_header_id_fkey"
-  FOREIGN KEY ("bill_header_id") REFERENCES "supplier_bill_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "supplier_bill_items"
-  ADD CONSTRAINT "supplier_bill_items_product_id_fkey"
-  FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND to_regclass('public.supplier_bill_items') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_items_bill_header_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_items"
+      ADD CONSTRAINT "supplier_bill_items_bill_header_id_fkey"
+      FOREIGN KEY ("bill_header_id") REFERENCES "supplier_bill_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.products') IS NOT NULL
+     AND to_regclass('public.supplier_bill_items') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_bill_items_product_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_bill_items"
+      ADD CONSTRAINT "supplier_bill_items_product_id_fkey"
+      FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "supplier_bill_items_bill_header_id_idx" ON "supplier_bill_items"("bill_header_id");
 
 CREATE TABLE IF NOT EXISTS "supplier_payments" (
@@ -120,13 +195,31 @@ CREATE TABLE IF NOT EXISTS "supplier_payments" (
   "updated_by" UUID,
   CONSTRAINT "supplier_payments_pkey" PRIMARY KEY ("id")
 );
+
 CREATE UNIQUE INDEX IF NOT EXISTS "supplier_payments_payment_number_key" ON "supplier_payments"("payment_number");
-ALTER TABLE "supplier_payments"
-  ADD CONSTRAINT "supplier_payments_supplier_bill_id_fkey"
-  FOREIGN KEY ("supplier_bill_id") REFERENCES "supplier_bill_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "supplier_payments"
-  ADD CONSTRAINT "supplier_payments_shop_id_fkey"
-  FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.supplier_bill_header') IS NOT NULL
+     AND to_regclass('public.supplier_payments') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_payments_supplier_bill_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_payments"
+      ADD CONSTRAINT "supplier_payments_supplier_bill_id_fkey"
+      FOREIGN KEY ("supplier_bill_id") REFERENCES "supplier_bill_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.shops') IS NOT NULL
+     AND to_regclass('public.supplier_payments') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'supplier_payments_shop_id_fkey'
+     ) THEN
+    ALTER TABLE "supplier_payments"
+      ADD CONSTRAINT "supplier_payments_shop_id_fkey"
+      FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "supplier_payments_shop_id_payment_date_idx" ON "supplier_payments"("shop_id", "payment_date");
 CREATE INDEX IF NOT EXISTS "supplier_payments_supplier_bill_id_idx" ON "supplier_payments"("supplier_bill_id");
 
@@ -148,19 +241,49 @@ CREATE TABLE IF NOT EXISTS "stock_transfer_header" (
   "updated_by" UUID,
   CONSTRAINT "stock_transfer_header_pkey" PRIMARY KEY ("id")
 );
+
 CREATE UNIQUE INDEX IF NOT EXISTS "stock_transfer_header_transfer_number_key" ON "stock_transfer_header"("transfer_number");
-ALTER TABLE "stock_transfer_header"
-  ADD CONSTRAINT "stock_transfer_header_from_shop_id_fkey"
-  FOREIGN KEY ("from_shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "stock_transfer_header"
-  ADD CONSTRAINT "stock_transfer_header_to_shop_id_fkey"
-  FOREIGN KEY ("to_shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "stock_transfer_header"
-  ADD CONSTRAINT "stock_transfer_header_from_storage_location_id_fkey"
-  FOREIGN KEY ("from_storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "stock_transfer_header"
-  ADD CONSTRAINT "stock_transfer_header_to_storage_location_id_fkey"
-  FOREIGN KEY ("to_storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.shops') IS NOT NULL
+     AND to_regclass('public.stock_transfer_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_header_from_shop_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_header"
+      ADD CONSTRAINT "stock_transfer_header_from_shop_id_fkey"
+      FOREIGN KEY ("from_shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.shops') IS NOT NULL
+     AND to_regclass('public.stock_transfer_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_header_to_shop_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_header"
+      ADD CONSTRAINT "stock_transfer_header_to_shop_id_fkey"
+      FOREIGN KEY ("to_shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.storage_locations') IS NOT NULL
+     AND to_regclass('public.stock_transfer_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_header_from_storage_location_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_header"
+      ADD CONSTRAINT "stock_transfer_header_from_storage_location_id_fkey"
+      FOREIGN KEY ("from_storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.storage_locations') IS NOT NULL
+     AND to_regclass('public.stock_transfer_header') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_header_to_storage_location_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_header"
+      ADD CONSTRAINT "stock_transfer_header_to_storage_location_id_fkey"
+      FOREIGN KEY ("to_storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "stock_transfer_header_from_shop_id_transfer_date_idx"
   ON "stock_transfer_header"("from_shop_id", "transfer_date");
 CREATE INDEX IF NOT EXISTS "stock_transfer_header_to_shop_id_transfer_date_idx"
@@ -175,10 +298,27 @@ CREATE TABLE IF NOT EXISTS "stock_transfer_items" (
   "uom" TEXT NOT NULL,
   CONSTRAINT "stock_transfer_items_pkey" PRIMARY KEY ("id")
 );
-ALTER TABLE "stock_transfer_items"
-  ADD CONSTRAINT "stock_transfer_items_transfer_id_fkey"
-  FOREIGN KEY ("transfer_id") REFERENCES "stock_transfer_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "stock_transfer_items"
-  ADD CONSTRAINT "stock_transfer_items_product_id_fkey"
-  FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF to_regclass('public.stock_transfer_header') IS NOT NULL
+     AND to_regclass('public.stock_transfer_items') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_items_transfer_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_items"
+      ADD CONSTRAINT "stock_transfer_items_transfer_id_fkey"
+      FOREIGN KEY ("transfer_id") REFERENCES "stock_transfer_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF to_regclass('public.products') IS NOT NULL
+     AND to_regclass('public.stock_transfer_items') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_transfer_items_product_id_fkey'
+     ) THEN
+    ALTER TABLE "stock_transfer_items"
+      ADD CONSTRAINT "stock_transfer_items_product_id_fkey"
+      FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "stock_transfer_items_transfer_id_idx" ON "stock_transfer_items"("transfer_id");
