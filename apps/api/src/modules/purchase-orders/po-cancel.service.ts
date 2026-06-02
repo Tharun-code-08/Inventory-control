@@ -4,7 +4,6 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PurchaseOrderStatus, Prisma } from '@prisma/client';
 import { createHash, randomInt } from 'crypto';
 import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';

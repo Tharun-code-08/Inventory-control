@@ -13,6 +13,10 @@ export class InventoryLotService {
     _productId: string,
     _quantity: Prisma.Decimal,
   ): Promise<void> {
+    void _tx;
+    void _shopId;
+    void _productId;
+    void _quantity;
     // No-op until lot tracking tables are enabled.
   }
 }

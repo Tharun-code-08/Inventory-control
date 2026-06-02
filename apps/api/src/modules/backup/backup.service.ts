@@ -19,7 +19,7 @@ import {
 import { Queue } from 'bullmq';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomBytes } from 'crypto';
 import type { RequestUser } from '../../common/types/request-user';
 import { sha256Hex } from '../../common/utils/secret-crypto';
 import { SubscriptionService } from '../billing/subscription.service';

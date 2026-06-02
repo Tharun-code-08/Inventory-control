@@ -13,7 +13,6 @@ import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto'
 import { BulkProductUpsertDto, BulkProductUpsertRowDto } from './dto/bulk-product-upsert.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
-import { ProductSpecificationDto } from './dto/product-specification.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 const PRODUCT_INCLUDE = {

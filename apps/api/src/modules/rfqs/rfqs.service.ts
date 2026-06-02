@@ -297,7 +297,6 @@ export class RfqsService {
       throw new BadRequestException('Shop is not linked to a company');
     }
 
-    const companyName = existing.shop.shopName;
     const attachments = await this.buildRfqPdfAttachments(existing);
 
     const config = await this.emailNotifications.resolveConfigForShop(existing.shopId);

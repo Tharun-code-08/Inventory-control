@@ -15,7 +15,6 @@ import {
   planAllowsFeature,
   PLAN_LIMITS,
   subscriptionEndDate,
-  subscriptionPlanTier,
   trialEndDate,
   getTrialDays,
 } from '../../common/plans/plan-config';

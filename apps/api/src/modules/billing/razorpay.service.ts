@@ -95,6 +95,7 @@ export class RazorpayService {
     customerId?: string;
     totalCount?: number;
   }): Promise<{ subscriptionId: string } | null> {
+    void _args;
     if (!this.isConfigured()) return null;
     this.logger.warn('Razorpay Subscriptions API not yet enabled — use manual renewal checkout');
     return null;

@@ -7,7 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
+import { shopListWhere } from '../../common/utils/shop-scope';
 import { repairOrphanShopsForUser, verifyShopInTenant } from '../../common/utils/shop-access';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { DocumentNumberService } from '../stock/document-number.service';

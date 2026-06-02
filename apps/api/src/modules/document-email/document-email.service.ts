@@ -450,6 +450,7 @@ export class DocumentEmailService {
       pdfFilename = pdfResult.filename;
     } catch (err) {
       const message = (err as Error).message ?? 'PDF generation failed';
+      const cause = err instanceof Error ? err : undefined;
       await this.prisma.documentEmailOutbox.update({
         where: { id: outboxId },
         data: {
@@ -460,7 +461,7 @@ export class DocumentEmailService {
       if (userId) {
         await this.writeAudit(userId, row, 'failed', message, payload);
       }
-      throw new Error(message);
+      throw new Error(message, { cause });
     }
 
     await this.prisma.documentEmailOutbox.update({
@@ -518,6 +519,7 @@ export class DocumentEmailService {
       };
     } catch (err) {
       const message = (err as Error).message ?? 'Email send failed';
+      const cause = err instanceof Error ? err : undefined;
       await this.prisma.documentEmailOutbox.update({
         where: { id: outboxId },
         data: {
@@ -528,7 +530,7 @@ export class DocumentEmailService {
       if (userId) {
         await this.writeAudit(userId, row, 'failed', message, payload);
       }
-      throw new Error(message);
+      throw new Error(message, { cause });
     }
   }
 

@@ -29,6 +29,7 @@ export class CompaniesService {
   }
 
   async create(user: RequestUser, dto: CreateCompanyDto) {
+    void dto;
     if (companyIdForUser(user)) {
       throw new BadRequestException(
         'Your organisation already exists. Update your company profile instead of creating another.',

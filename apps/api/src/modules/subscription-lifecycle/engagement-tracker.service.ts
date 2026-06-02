@@ -5,7 +5,7 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
 } from '@prisma/client';
-import { getTrialDays, getTrialNurtureDays } from '../../common/plans/plan-config';
+import { getTrialNurtureDays } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   LIFECYCLE_CAMPAIGNS,

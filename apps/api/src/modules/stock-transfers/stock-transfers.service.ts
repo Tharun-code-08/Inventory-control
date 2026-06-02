@@ -13,8 +13,6 @@ import { AuditService } from '../audit/audit.service';
 import type { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import type { ListStockTransfersDto } from './dto/list-stock-transfers.dto';
 
-type Line = { productId: string; quantity: number; uom: string };
-
 type StockTransferListRow = Prisma.StockTransferHeaderGetPayload<{
   include: {
     fromShop: true;

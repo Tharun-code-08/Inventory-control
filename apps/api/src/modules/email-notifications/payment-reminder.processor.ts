@@ -27,6 +27,7 @@ export class PaymentReminderProcessor extends WorkerHost {
   }
 
   async process(_job: Job) {
+    void _job;
     if (!this.mail.isConfigured()) {
       this.logger.warn('Payment reminder job skipped: SMTP not configured');
       return { sent: 0, skipped: 'SMTP not configured' };

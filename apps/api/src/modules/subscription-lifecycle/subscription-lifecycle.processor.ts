@@ -23,6 +23,7 @@ export class SubscriptionLifecycleProcessor extends WorkerHost {
   }
 
   async process(_job: Job) {
+    void _job;
     if (!this.mail.isConfigured()) {
       this.logger.warn('Lifecycle job skipped: SMTP not configured');
       return { sent: 0, skipped: 'SMTP not configured' };

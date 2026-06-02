@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, MediaAssetType, Prisma } from '@prisma/client';
 import type { RequestUser } from '../types/request-user';
 import { PrismaService } from '../../prisma/prisma.service';

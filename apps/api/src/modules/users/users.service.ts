@@ -12,12 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import type { RequestUser } from '../../common/types/request-user';
 import { MailService } from '../../common/mail/mail.service';
-import {
-  userInviteHtml,
-  userInviteSubject,
-  userInviteText,
-  type UserInviteEmailContent,
-} from '../../common/mail/user-invite.template';
+import { type UserInviteEmailContent } from '../../common/mail/user-invite.template';
 import { buildUserInviteAcceptUrl } from '../../common/mail/portal-url';
 import { assertUserInTenant, shopIdsForUser, userListWhere } from '../../common/utils/shop-scope';
 import { PrismaService } from '../../prisma/prisma.service';

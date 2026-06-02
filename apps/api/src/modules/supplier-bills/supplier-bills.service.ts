@@ -12,7 +12,7 @@ import {
   assertSupplierInTenant,
   shopListWhere,
 } from '../../common/utils/shop-scope';
-import { asMoney, assertNonNegativeMoney, roundMoney } from '../../common/utils/money';
+import { assertNonNegativeMoney, roundMoney } from '../../common/utils/money';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';

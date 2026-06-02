@@ -16,7 +16,7 @@ export class LocalStorageProvider implements StorageProvider {
     return path.join(this.baseDir(), 'branding');
   }
 
-  async writeBuffer(assetKey: string, buffer: Buffer, _options?: StorageWriteOptions): Promise<StorageWriteResult> {
+  async writeBuffer(assetKey: string, buffer: Buffer): Promise<StorageWriteResult> {
     const target = path.join(this.brandingDir(), assetKey);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, buffer, { mode: 0o644 });
