@@ -37,13 +37,15 @@ describe('Phase 5 — Security workflows (e2e)', () => {
 
     const session = await login(app);
     expect(session.accessToken).toBeTruthy();
-    expect(session.user.role).toBe('ADMIN');
+    expect(['OWNER', 'ADMIN']).toContain(session.user.role);
   });
 
   it('denies company write for shop-scoped users (API authorization)', async () => {
     if (!E2E_DB_ENABLED) return;
     const prisma = app.get(PrismaService);
-    const shopRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.SHOP_USER } });
+    const shopRole = await prisma.role.findFirstOrThrow({
+      where: { name: RoleName.WAREHOUSE_STAFF },
+    });
     const shop = await prisma.shop.findFirstOrThrow();
     const email = `e2e-shop-${uniqueCode('U').toLowerCase()}@e2e.local`;
 

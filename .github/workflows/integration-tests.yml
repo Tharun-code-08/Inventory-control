@@ -52,7 +52,7 @@ jobs:
       - run: npm install
       - run: npm run prisma:generate --workspace=api
       - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-      - run: npx prisma db seed --schema apps/api/prisma/schema.prisma
+      - run: npm run db:seed --workspace=api
       - run: npm run test:e2e:workflows --workspace=api -- --runInBand
 
   playwright-mobile:
@@ -103,7 +103,7 @@ jobs:
       - run: npm run prisma:generate --workspace=api
       - run: |
           npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-          npx prisma db seed --schema apps/api/prisma/schema.prisma
+          npm run db:seed --workspace=api
       - run: npm run build
       - run: npx playwright install chromium --with-deps
         working-directory: apps/web

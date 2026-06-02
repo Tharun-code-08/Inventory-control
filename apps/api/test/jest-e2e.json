@@ -1,6 +1,7 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": "..",
+  "globalSetup": "<rootDir>/test/global-setup-e2e.ts",
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
   "transform": {
