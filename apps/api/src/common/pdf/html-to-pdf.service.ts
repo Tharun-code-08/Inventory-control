@@ -43,11 +43,10 @@ async function launchBrowser(): Promise<Browser> {
     });
   } catch (err) {
     const message = (err as Error).message ?? 'Unknown error';
-    const cause = err instanceof Error ? err : undefined;
     throw new Error(
       `PDF engine failed to start Chromium${executablePath ? ` (${executablePath})` : ''}: ${message}. ` +
         'Install Chromium/Chrome on the server or set PUPPETEER_EXECUTABLE_PATH.',
-      { cause },
+      { cause: err },
     );
   }
 }
@@ -100,8 +99,7 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
     return buffer;
   } catch (err) {
     const message = (err as Error).message ?? 'PDF render failed';
-    const cause = err instanceof Error ? err : undefined;
-    throw new Error(`Could not render PDF: ${message}`, { cause });
+    throw new Error(`Could not render PDF: ${message}`, { cause: err });
   } finally {
     await page.close().catch(() => undefined);
   }

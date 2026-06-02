@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { StorageProvider, StoragePublicUrlOptions, StorageWriteOptions, StorageWriteResult } from './storage-provider';
+import type { StorageProvider, StoragePublicUrlOptions, StorageWriteResult } from './storage-provider';
 
 @Injectable()
 export class LocalStorageProvider implements StorageProvider {
