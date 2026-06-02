@@ -85,14 +85,24 @@ CREATE INDEX IF NOT EXISTS "purchase_order_items_product_id_idx"
   ON "purchase_order_items" ("product_id");
 
 -- invoice_header
-CREATE INDEX IF NOT EXISTS "invoice_header_shop_id_status_invoice_date_idx"
-  ON "invoice_header" ("shop_id", "status", "invoice_date");
-CREATE INDEX IF NOT EXISTS "invoice_header_sales_order_id_idx"
-  ON "invoice_header" ("sales_order_id");
+DO $$
+BEGIN
+  IF to_regclass('public.invoice_header') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS "invoice_header_shop_id_status_invoice_date_idx"
+      ON "invoice_header" ("shop_id", "status", "invoice_date");
+    CREATE INDEX IF NOT EXISTS "invoice_header_sales_order_id_idx"
+      ON "invoice_header" ("sales_order_id");
+  END IF;
+END $$;
 
 -- payment_receipts
-CREATE INDEX IF NOT EXISTS "payment_receipts_invoice_id_idx"
-  ON "payment_receipts" ("invoice_id");
+DO $$
+BEGIN
+  IF to_regclass('public.payment_receipts') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS "payment_receipts_invoice_id_idx"
+      ON "payment_receipts" ("invoice_id");
+  END IF;
+END $$;
 
 -- audit_log
 CREATE INDEX IF NOT EXISTS "audit_log_user_id_created_at_idx"
