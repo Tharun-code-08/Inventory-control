@@ -25,7 +25,11 @@ END $$;
 -- Shops (company scoped)
 DO $$
 BEGIN
-  IF to_regclass('public.shops') IS NOT NULL THEN
+  IF to_regclass('public.shops') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_shops_company ON shops;
     CREATE POLICY rls_shops_company ON shops
@@ -39,7 +43,11 @@ END $$;
 -- Storage locations (shop -> company)
 DO $$
 BEGIN
-  IF to_regclass('public.storage_locations') IS NOT NULL THEN
+  IF to_regclass('public.storage_locations') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE storage_locations ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_storage_locations_company ON storage_locations;
     CREATE POLICY rls_storage_locations_company ON storage_locations
@@ -57,7 +65,11 @@ END $$;
 -- Suppliers (company scoped)
 DO $$
 BEGIN
-  IF to_regclass('public.suppliers') IS NOT NULL THEN
+  IF to_regclass('public.suppliers') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'suppliers' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_suppliers_company ON suppliers;
     CREATE POLICY rls_suppliers_company ON suppliers
@@ -71,7 +83,11 @@ END $$;
 -- Users (shop -> company)
 DO $$
 BEGIN
-  IF to_regclass('public.users') IS NOT NULL THEN
+  IF to_regclass('public.users') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE users ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_users_company ON users;
     CREATE POLICY rls_users_company ON users
@@ -89,7 +105,11 @@ END $$;
 -- Customers (shop -> company)
 DO $$
 BEGIN
-  IF to_regclass('public.customers') IS NOT NULL THEN
+  IF to_regclass('public.customers') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_customers_company ON customers;
     CREATE POLICY rls_customers_company ON customers
@@ -107,7 +127,11 @@ END $$;
 -- Goods receipts
 DO $$
 BEGIN
-  IF to_regclass('public.goods_receipt_header') IS NOT NULL THEN
+  IF to_regclass('public.goods_receipt_header') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE goods_receipt_header ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_gr_company ON goods_receipt_header;
     CREATE POLICY rls_gr_company ON goods_receipt_header
@@ -125,7 +149,11 @@ END $$;
 -- Goods issues
 DO $$
 BEGIN
-  IF to_regclass('public.goods_issue_header') IS NOT NULL THEN
+  IF to_regclass('public.goods_issue_header') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE goods_issue_header ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_gi_company ON goods_issue_header;
     CREATE POLICY rls_gi_company ON goods_issue_header
@@ -143,7 +171,11 @@ END $$;
 -- Purchase orders
 DO $$
 BEGIN
-  IF to_regclass('public.purchase_order_header') IS NOT NULL THEN
+  IF to_regclass('public.purchase_order_header') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE purchase_order_header ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_po_company ON purchase_order_header;
     CREATE POLICY rls_po_company ON purchase_order_header
@@ -161,7 +193,11 @@ END $$;
 -- Sales orders
 DO $$
 BEGIN
-  IF to_regclass('public.sales_order_header') IS NOT NULL THEN
+  IF to_regclass('public.sales_order_header') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE sales_order_header ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_so_company ON sales_order_header;
     CREATE POLICY rls_so_company ON sales_order_header
@@ -179,7 +215,11 @@ END $$;
 -- Invoices
 DO $$
 BEGIN
-  IF to_regclass('public.invoice_header') IS NOT NULL THEN
+  IF to_regclass('public.invoice_header') IS NOT NULL
+     AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+    ) THEN
     ALTER TABLE invoice_header ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS rls_inv_company ON invoice_header;
     CREATE POLICY rls_inv_company ON invoice_header
