@@ -13,11 +13,24 @@ jobs:
         working-directory: retail-ims
     steps:
       - uses: actions/checkout@v4
+      - name: Pre-debug cache
+        run: |
+          echo "HOME=$HOME"
+          env | sort | grep -i npm || true
+          env | sort | grep -i cache || true
+      - name: Ensure npm cache path
+        run: |
+          echo "NPM_CONFIG_CACHE=$HOME/.npm" >> $GITHUB_ENV
+          echo "npm_config_cache=$HOME/.npm" >> $GITHUB_ENV
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: retail-ims/package-lock.json
+          cache-dependency-path: package-lock.json
+      - name: Debug npm cache
+        run: |
+          npm config get cache
+          env | sort | grep -i cache || true
       - name: Install
         run: npm ci
       - name: Generate Prisma client
