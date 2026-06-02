@@ -9,8 +9,13 @@ ALTER TABLE "users" ADD COLUMN "failed_login_count" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "users" ADD COLUMN "locked_until" TIMESTAMPTZ(6);
 CREATE INDEX "users_deleted_at_idx" ON "users" ("deleted_at");
 
-ALTER TABLE "suppliers" ADD COLUMN "deleted_at" TIMESTAMPTZ(6);
-CREATE INDEX "suppliers_deleted_at_idx" ON "suppliers" ("deleted_at");
+DO $$
+BEGIN
+  IF to_regclass('public.suppliers') IS NOT NULL THEN
+    ALTER TABLE "suppliers" ADD COLUMN "deleted_at" TIMESTAMPTZ(6);
+    CREATE INDEX "suppliers_deleted_at_idx" ON "suppliers" ("deleted_at");
+  END IF;
+END $$;
 
 CREATE TABLE "sessions" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
