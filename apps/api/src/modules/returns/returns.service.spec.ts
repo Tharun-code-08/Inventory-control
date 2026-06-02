@@ -241,7 +241,7 @@ describe('ReturnsService', () => {
   });
 
   it('submits a supplier return email without posting stock movements', async () => {
-    const { service, prisma, tx, stock, mail, returnImages } = makeService();
+    const { service, prisma, tx, stock, returnImages, emailNotifications, documentEmail } = makeService();
     const draft = makeBaseReturn(ReturnStatus.DRAFT);
     prisma.supplierReturn.findUnique.mockResolvedValue(draft);
     tx.supplierReturn.update.mockResolvedValue({
@@ -250,7 +250,14 @@ describe('ReturnsService', () => {
       submittedAt: new Date(),
       emailSentAt: new Date(),
     });
-    mail.sendSupplierReturnNotice.mockResolvedValue({ messageId: 'mail-1' });
+    emailNotifications.prepareTemplateForShop.mockResolvedValue({
+      enabled: true,
+      subject: 'Return notice',
+      text: 'Return notice text',
+      html: '<p>Return notice</p>',
+      context: {},
+    });
+    documentEmail.sendGoodsReturnEmail.mockResolvedValue({ sent: true });
     returnImages.read.mockResolvedValue(Buffer.from('image'));
 
     const result = await service.submitSupplierReturn(
@@ -258,7 +265,7 @@ describe('ReturnsService', () => {
       'ret-1',
     );
 
-    expect(mail.sendSupplierReturnNotice).toHaveBeenCalledTimes(1);
+    expect(documentEmail.sendGoodsReturnEmail).toHaveBeenCalledTimes(1);
     expect(stock.postMovementOnce).not.toHaveBeenCalled();
     expect(result.status).toBe(ReturnStatus.SUBMITTED);
   });
