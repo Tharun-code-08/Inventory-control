@@ -137,47 +137,52 @@ CREATE TABLE "fx_rates" (
 CREATE UNIQUE INDEX "fx_rates_base_quote_as_of_key" ON "fx_rates" ("base", "quote", "as_of");
 CREATE INDEX "fx_rates_base_quote_as_of_idx" ON "fx_rates" ("base", "quote", "as_of");
 
-CREATE TABLE "customer_returns" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "return_number" TEXT NOT NULL,
-  "return_date" DATE NOT NULL,
-  "shop_id" UUID NOT NULL,
-  "customer_id" UUID NOT NULL,
-  "invoice_id" UUID,
-  "sales_order_id" UUID,
-  "reason" TEXT,
-  "remarks" TEXT,
-  "status" "ReturnStatus" NOT NULL DEFAULT 'DRAFT',
-  "total_value" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  "posted_at" TIMESTAMPTZ(6),
-  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "created_by" UUID,
-  "updated_by" UUID,
-  CONSTRAINT "customer_returns_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "customer_returns_shop_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id"),
-  CONSTRAINT "customer_returns_customer_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id"),
-  CONSTRAINT "customer_returns_invoice_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id"),
-  CONSTRAINT "customer_returns_so_fkey" FOREIGN KEY ("sales_order_id") REFERENCES "sales_order_header"("id")
-);
-CREATE UNIQUE INDEX "customer_returns_return_number_key" ON "customer_returns" ("return_number");
-CREATE INDEX "customer_returns_shop_date_idx" ON "customer_returns" ("shop_id", "return_date");
-CREATE INDEX "customer_returns_customer_idx" ON "customer_returns" ("customer_id");
-CREATE INDEX "customer_returns_invoice_idx" ON "customer_returns" ("invoice_id");
+DO $$
+BEGIN
+  IF to_regclass('public.customers') IS NOT NULL THEN
+    CREATE TABLE "customer_returns" (
+      "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+      "return_number" TEXT NOT NULL,
+      "return_date" DATE NOT NULL,
+      "shop_id" UUID NOT NULL,
+      "customer_id" UUID NOT NULL,
+      "invoice_id" UUID,
+      "sales_order_id" UUID,
+      "reason" TEXT,
+      "remarks" TEXT,
+      "status" "ReturnStatus" NOT NULL DEFAULT 'DRAFT',
+      "total_value" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      "posted_at" TIMESTAMPTZ(6),
+      "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "created_by" UUID,
+      "updated_by" UUID,
+      CONSTRAINT "customer_returns_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "customer_returns_shop_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id"),
+      CONSTRAINT "customer_returns_customer_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id"),
+      CONSTRAINT "customer_returns_invoice_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id"),
+      CONSTRAINT "customer_returns_so_fkey" FOREIGN KEY ("sales_order_id") REFERENCES "sales_order_header"("id")
+    );
+    CREATE UNIQUE INDEX "customer_returns_return_number_key" ON "customer_returns" ("return_number");
+    CREATE INDEX "customer_returns_shop_date_idx" ON "customer_returns" ("shop_id", "return_date");
+    CREATE INDEX "customer_returns_customer_idx" ON "customer_returns" ("customer_id");
+    CREATE INDEX "customer_returns_invoice_idx" ON "customer_returns" ("invoice_id");
 
-CREATE TABLE "customer_return_items" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "return_id" UUID NOT NULL,
-  "product_id" UUID NOT NULL,
-  "quantity" DECIMAL(12, 3) NOT NULL,
-  "uom" TEXT NOT NULL,
-  "unit_price" DECIMAL(12, 2) NOT NULL,
-  "line_value" DECIMAL(14, 2) NOT NULL,
-  CONSTRAINT "customer_return_items_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "customer_return_items_return_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id") ON DELETE CASCADE,
-  CONSTRAINT "customer_return_items_product_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id")
-);
-CREATE INDEX "customer_return_items_return_idx" ON "customer_return_items" ("return_id");
+    CREATE TABLE "customer_return_items" (
+      "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+      "return_id" UUID NOT NULL,
+      "product_id" UUID NOT NULL,
+      "quantity" DECIMAL(12, 3) NOT NULL,
+      "uom" TEXT NOT NULL,
+      "unit_price" DECIMAL(12, 2) NOT NULL,
+      "line_value" DECIMAL(14, 2) NOT NULL,
+      CONSTRAINT "customer_return_items_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "customer_return_items_return_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id") ON DELETE CASCADE,
+      CONSTRAINT "customer_return_items_product_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id")
+    );
+    CREATE INDEX "customer_return_items_return_idx" ON "customer_return_items" ("return_id");
+  END IF;
+END $$;
 
 CREATE TABLE "supplier_returns" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -217,29 +222,34 @@ CREATE TABLE "supplier_return_items" (
 );
 CREATE INDEX "supplier_return_items_return_idx" ON "supplier_return_items" ("return_id");
 
-CREATE TABLE "credit_notes" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "credit_number" TEXT NOT NULL,
-  "credit_date" DATE NOT NULL,
-  "shop_id" UUID NOT NULL,
-  "customer_id" UUID NOT NULL,
-  "invoice_id" UUID,
-  "return_id" UUID,
-  "status" "CreditNoteStatus" NOT NULL DEFAULT 'DRAFT',
-  "amount" DECIMAL(14, 2) NOT NULL,
-  "applied_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  "remarks" TEXT,
-  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "created_by" UUID,
-  "updated_by" UUID,
-  CONSTRAINT "credit_notes_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "credit_notes_shop_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id"),
-  CONSTRAINT "credit_notes_customer_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id"),
-  CONSTRAINT "credit_notes_invoice_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id"),
-  CONSTRAINT "credit_notes_return_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id")
-);
-CREATE UNIQUE INDEX "credit_notes_credit_number_key" ON "credit_notes" ("credit_number");
-CREATE UNIQUE INDEX "credit_notes_return_id_key" ON "credit_notes" ("return_id");
-CREATE INDEX "credit_notes_shop_date_idx" ON "credit_notes" ("shop_id", "credit_date");
-CREATE INDEX "credit_notes_customer_idx" ON "credit_notes" ("customer_id");
+DO $$
+BEGIN
+  IF to_regclass('public.customers') IS NOT NULL THEN
+    CREATE TABLE "credit_notes" (
+      "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+      "credit_number" TEXT NOT NULL,
+      "credit_date" DATE NOT NULL,
+      "shop_id" UUID NOT NULL,
+      "customer_id" UUID NOT NULL,
+      "invoice_id" UUID,
+      "return_id" UUID,
+      "status" "CreditNoteStatus" NOT NULL DEFAULT 'DRAFT',
+      "amount" DECIMAL(14, 2) NOT NULL,
+      "applied_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      "remarks" TEXT,
+      "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "created_by" UUID,
+      "updated_by" UUID,
+      CONSTRAINT "credit_notes_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "credit_notes_shop_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id"),
+      CONSTRAINT "credit_notes_customer_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id"),
+      CONSTRAINT "credit_notes_invoice_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id"),
+      CONSTRAINT "credit_notes_return_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id")
+    );
+    CREATE UNIQUE INDEX "credit_notes_credit_number_key" ON "credit_notes" ("credit_number");
+    CREATE UNIQUE INDEX "credit_notes_return_id_key" ON "credit_notes" ("return_id");
+    CREATE INDEX "credit_notes_shop_date_idx" ON "credit_notes" ("shop_id", "credit_date");
+    CREATE INDEX "credit_notes_customer_idx" ON "credit_notes" ("customer_id");
+  END IF;
+END $$;
