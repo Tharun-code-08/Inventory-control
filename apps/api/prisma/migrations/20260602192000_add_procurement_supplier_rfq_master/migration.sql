@@ -48,12 +48,67 @@ CREATE TABLE IF NOT EXISTS "suppliers" (
   CONSTRAINT "suppliers_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "suppliers_supplier_code_key" ON "suppliers"("supplier_code");
-CREATE INDEX IF NOT EXISTS "suppliers_company_id_idx" ON "suppliers"("company_id");
-CREATE INDEX IF NOT EXISTS "suppliers_supplier_name_idx" ON "suppliers"("supplier_name");
-CREATE INDEX IF NOT EXISTS "suppliers_deleted_at_idx" ON "suppliers"("deleted_at");
-CREATE INDEX IF NOT EXISTS "suppliers_display_name_idx" ON "suppliers"("display_name");
-CREATE INDEX IF NOT EXISTS "suppliers_gstin_idx" ON "suppliers"("gstin");
+-- Table may already exist without vendor-profile columns (CREATE TABLE IF NOT EXISTS skips).
+DO $$
+BEGIN
+  IF to_regclass('public.suppliers') IS NOT NULL THEN
+    ALTER TABLE "suppliers"
+      ADD COLUMN IF NOT EXISTS "company_id" UUID,
+      ADD COLUMN IF NOT EXISTS "tax_id" TEXT,
+      ADD COLUMN IF NOT EXISTS "vat_number" TEXT,
+      ADD COLUMN IF NOT EXISTS "rating" INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS "categories" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      ADD COLUMN IF NOT EXISTS "contact_person" TEXT,
+      ADD COLUMN IF NOT EXISTS "email" TEXT,
+      ADD COLUMN IF NOT EXISTS "phone" TEXT,
+      ADD COLUMN IF NOT EXISTS "street" TEXT,
+      ADD COLUMN IF NOT EXISTS "city" TEXT,
+      ADD COLUMN IF NOT EXISTS "state" TEXT,
+      ADD COLUMN IF NOT EXISTS "postal_code" TEXT,
+      ADD COLUMN IF NOT EXISTS "country" TEXT,
+      ADD COLUMN IF NOT EXISTS "payment_terms" TEXT,
+      ADD COLUMN IF NOT EXISTS "bank_name" TEXT,
+      ADD COLUMN IF NOT EXISTS "account_number" TEXT,
+      ADD COLUMN IF NOT EXISTS "routing_number" TEXT,
+      ADD COLUMN IF NOT EXISTS "iban" TEXT,
+      ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ(6),
+      ADD COLUMN IF NOT EXISTS "display_name" TEXT,
+      ADD COLUMN IF NOT EXISTS "company_name" TEXT,
+      ADD COLUMN IF NOT EXISTS "salutation" TEXT,
+      ADD COLUMN IF NOT EXISTS "first_name" TEXT,
+      ADD COLUMN IF NOT EXISTS "last_name" TEXT,
+      ADD COLUMN IF NOT EXISTS "gstin" TEXT,
+      ADD COLUMN IF NOT EXISTS "gst_treatment" "GstTreatment",
+      ADD COLUMN IF NOT EXISTS "source_of_supply" TEXT,
+      ADD COLUMN IF NOT EXISTS "pan" TEXT,
+      ADD COLUMN IF NOT EXISTS "msme_registered" BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'INR',
+      ADD COLUMN IF NOT EXISTS "tds_section" TEXT,
+      ADD COLUMN IF NOT EXISTS "remarks" TEXT,
+      ADD COLUMN IF NOT EXISTS "work_phone" TEXT,
+      ADD COLUMN IF NOT EXISTS "mobile_phone" TEXT,
+      ADD COLUMN IF NOT EXISTS "language" TEXT DEFAULT 'English';
+
+    CREATE UNIQUE INDEX IF NOT EXISTS "suppliers_supplier_code_key" ON "suppliers"("supplier_code");
+    CREATE INDEX IF NOT EXISTS "suppliers_company_id_idx" ON "suppliers"("company_id");
+    CREATE INDEX IF NOT EXISTS "suppliers_supplier_name_idx" ON "suppliers"("supplier_name");
+    CREATE INDEX IF NOT EXISTS "suppliers_deleted_at_idx" ON "suppliers"("deleted_at");
+
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'suppliers' AND column_name = 'display_name'
+    ) THEN
+      CREATE INDEX IF NOT EXISTS "suppliers_display_name_idx" ON "suppliers"("display_name");
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'suppliers' AND column_name = 'gstin'
+    ) THEN
+      CREATE INDEX IF NOT EXISTS "suppliers_gstin_idx" ON "suppliers"("gstin");
+    END IF;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
