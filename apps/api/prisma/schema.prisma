@@ -240,6 +240,7 @@ model BrandingProfile {
   sealAsset      MediaAsset? @relation("SealAsset", fields: [sealAssetId], references: [id])
   signatureAsset MediaAsset? @relation("SignatureAsset", fields: [signatureAssetId], references: [id])
   letterheadAsset MediaAsset? @relation("LetterheadAsset", fields: [letterheadAssetId], references: [id])
+  mediaAssets     MediaAsset[] @relation("ProfileMediaAssets")
 
   @@map("branding_profiles")
 }
@@ -260,7 +261,7 @@ model MediaAsset {
 
   company          Company?         @relation(fields: [companyId], references: [id])
   shop             Shop?            @relation(fields: [shopId], references: [id])
-  brandingProfile  BrandingProfile? @relation(fields: [brandingProfileId], references: [id])
+  brandingProfile  BrandingProfile? @relation("ProfileMediaAssets", fields: [brandingProfileId], references: [id])
   logoProfiles      BrandingProfile[] @relation("LogoAsset")
   watermarkProfiles BrandingProfile[] @relation("WatermarkAsset")
   sealProfiles      BrandingProfile[] @relation("SealAsset")
