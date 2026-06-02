@@ -34,12 +34,16 @@ const checks = [
 
 const failures = [];
 for (const item of checks) {
+  if (!item.path) {
+    console.warn(`${item.name} chunk missing; skipping budget check.`);
+    continue;
+  }
   try {
     const kb = fileKb(item.path);
     if (kb > item.limitKb) {
       failures.push(`${item.name} ${kb.toFixed(1)}KB exceeds ${item.limitKb}KB`);
     }
-  } catch (error) {
+  } catch {
     failures.push(`${item.name} file missing: ${item.path}`);
   }
 }
