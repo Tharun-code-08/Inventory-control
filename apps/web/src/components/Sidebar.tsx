@@ -217,6 +217,7 @@ export function Sidebar({
   }
 
   const avatar = animalAvatarForUser(user);
+  const avatarUrl = user?.avatarUrl ?? null;
 
   return (
     <>
@@ -230,9 +231,17 @@ export function Sidebar({
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
             <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br', avatar.bgClass)}>
               <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
-              <span aria-label={`${avatar.kind} avatar`} role="img" className="text-5xl">
-                {avatar.emoji}
-              </span>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`${user?.name ?? 'User'} avatar`}
+                  className="h-24 w-24 rounded-full object-cover"
+                />
+              ) : (
+                <span aria-label={`${avatar.kind} avatar`} role="img" className="text-5xl">
+                  {avatar.emoji}
+                </span>
+              )}
             </div>
             <div className="space-y-1">
               <p className="text-base font-semibold text-white">Signing you out securely</p>
@@ -353,7 +362,15 @@ export function Sidebar({
             className="sidebar-item flex w-full items-center gap-3 rounded-lg px-3 py-2.5"
           >
             <div className={cn('avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm', avatar.bgClass)}>
-              <span aria-label={`${avatar.kind} avatar`} role="img">{avatar.emoji}</span>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`${user?.name ?? 'User'} avatar`}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <span aria-label={`${avatar.kind} avatar`} role="img">{avatar.emoji}</span>
+              )}
             </div>
             {showLabels && (
               <>

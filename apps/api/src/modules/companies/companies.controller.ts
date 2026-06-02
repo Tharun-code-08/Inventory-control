@@ -1,8 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
+import { brandingMulterOptions } from '../../common/branding/branding-multer.options';
+import { UpdateBrandingProfileDto } from '../../common/branding/dto/update-branding-profile.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
@@ -35,6 +38,24 @@ export class CompaniesController {
   @Patch(':id')
   update(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: UpdateCompanyDto) {
     return this.companies.update(user, id, dto);
+  }
+
+  @RequirePermission('company:write')
+  @Patch(':id/branding')
+  @UseInterceptors(FileInterceptor('logo', brandingMulterOptions))
+  updateBranding(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateBrandingProfileDto,
+    @UploadedFile() logo?: Express.Multer.File,
+  ) {
+    return this.companies.updateBranding(user, id, dto, logo);
+  }
+
+  @RequirePermission('company:read')
+  @Get(':id/branding')
+  getBranding(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.companies.getBranding(user, id);
   }
 
   @RequirePermission('company:write')

@@ -25,6 +25,8 @@ export type GstSalesDocumentViewModel = {
   placeOfSupply?: string;
   companyName: string;
   companyLines: string[];
+  brandingLogoUrl?: string | null;
+  brandingInitials?: string | null;
   partyName: string;
   partyLines: string[];
   subject?: string;
@@ -60,6 +62,9 @@ const GST_SALES_DOCUMENT_TEMPLATE = Handlebars.compile(`<!doctype html>
       padding: 12mm 14mm;
     }
     .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 10px; }
+    .company { display: flex; align-items: flex-start; gap: 10px; }
+    .brand-mark { width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1; font-weight: 700; color: ${BLUE}; font-size: 14pt; overflow: hidden; }
+    .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
     .company .name { font-weight: 700; font-size: 11pt; margin-bottom: 4px; }
     .company p { margin: 0 0 2px; line-height: 1.35; }
     .title-block { text-align: right; min-width: 46%; }
@@ -145,8 +150,15 @@ const GST_SALES_DOCUMENT_TEMPLATE = Handlebars.compile(`<!doctype html>
 <body>
   <div class="top">
     <div class="company">
-      <div class="name">{{companyName}}</div>
-      {{#each companyLines}}<p>{{this}}</p>{{/each}}
+      {{#if brandingLogoUrl}}
+        <div class="brand-mark"><img src="{{brandingLogoUrl}}" alt="{{companyName}} logo" /></div>
+      {{else}}
+        <div class="brand-mark">{{brandingInitials}}</div>
+      {{/if}}
+      <div>
+        <div class="name">{{companyName}}</div>
+        {{#each companyLines}}<p>{{this}}</p>{{/each}}
+      </div>
     </div>
     <div class="title-block">
       <h1 class="doc-title">{{documentTitle}}</h1>
@@ -246,6 +258,8 @@ export function buildGstSalesDocumentHtml(model: GstSalesDocumentViewModel): str
     padRows,
     showBankDetails: (model.bankDetails ?? []).length > 0,
     bankDetails: (model.bankDetails ?? []).map(escapeHtml),
+    brandingLogoUrl: model.brandingLogoUrl,
+    brandingInitials: escapeHtml(model.brandingInitials ?? ''),
     companyName: escapeHtml(model.companyName),
     documentTitle: escapeHtml(model.documentTitle),
     documentNumber: escapeHtml(model.documentNumber),

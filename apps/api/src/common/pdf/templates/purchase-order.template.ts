@@ -19,6 +19,8 @@ export type PurchaseOrderPdfViewModel = {
   poDate: string;
   buyerName: string;
   buyerLines: string[];
+  brandingLogoUrl?: string | null;
+  brandingInitials?: string | null;
   supplierTitle: string;
   supplierLines: string[];
   deliveryLines: string[];
@@ -52,6 +54,9 @@ const PURCHASE_ORDER_TEMPLATE = Handlebars.compile(`<!doctype html>
       padding: 14mm 16mm;
     }
     .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .buyer { display: flex; align-items: flex-start; gap: 10px; }
+    .brand-mark { width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1; font-weight: 700; color: ${BLUE}; font-size: 14pt; overflow: hidden; }
+    .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
     .buyer .name { font-weight: 700; font-size: 11pt; margin-bottom: 4px; }
     .buyer p { margin: 0 0 2px; line-height: 1.35; }
     .title-block { text-align: right; min-width: 42%; }
@@ -146,8 +151,15 @@ const PURCHASE_ORDER_TEMPLATE = Handlebars.compile(`<!doctype html>
 <body>
   <div class="top">
     <div class="buyer">
-      <div class="name">{{buyerName}}</div>
-      {{#each buyerLines}}<p>{{this}}</p>{{/each}}
+      {{#if brandingLogoUrl}}
+        <div class="brand-mark"><img src="{{brandingLogoUrl}}" alt="{{buyerName}} logo" /></div>
+      {{else}}
+        <div class="brand-mark">{{brandingInitials}}</div>
+      {{/if}}
+      <div>
+        <div class="name">{{buyerName}}</div>
+        {{#each buyerLines}}<p>{{this}}</p>{{/each}}
+      </div>
     </div>
     <div class="title-block">
       <h1 class="po-title">PURCHASE ORDER</h1>

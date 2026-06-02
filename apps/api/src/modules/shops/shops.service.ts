@@ -8,12 +8,17 @@ import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { BrandingProfileService } from '../../common/branding/branding-profile.service';
+import { BrandingResolverService } from '../../common/branding/branding-resolver.service';
+import type { UpdateBrandingProfileDto } from '../../common/branding/dto/update-branding-profile.dto';
 
 @Injectable()
 export class ShopsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionService,
+    private readonly branding: BrandingProfileService,
+    private readonly brandingResolver: BrandingResolverService,
   ) {}
 
   /** Attach orphaned plants (missing company) to the creator's organisation. */
@@ -117,8 +122,8 @@ export class ShopsService {
 
   async update(user: RequestUser, id: string, dto: UpdateShopDto) {
     await this.assertPlantAccess(user, id);
-    await this.get(user, id);
-    return this.prisma.shop.update({
+    const current = await this.get(user, id);
+    const updated = await this.prisma.shop.update({
       where: { id },
       data: {
         shopNumber: dto.shopNumber,
@@ -134,6 +139,37 @@ export class ShopsService {
       },
       include: { company: true },
     });
+    const hasBrandingChange =
+      (dto.shopName !== undefined && dto.shopName !== current.shopName) ||
+      (dto.address !== undefined && dto.address !== current.address) ||
+      (dto.taxId !== undefined && dto.taxId !== current.taxId) ||
+      (dto.email !== undefined && dto.email?.toLowerCase().trim() !== current.email) ||
+      (dto.mobile !== undefined && dto.mobile !== current.mobile);
+    if (hasBrandingChange) {
+      await this.branding.bumpBrandingVersionForShop(id, user);
+    }
+    return updated;
+  }
+
+  async updateBranding(
+    user: RequestUser,
+    id: string,
+    dto: UpdateBrandingProfileDto,
+    logo?: Express.Multer.File,
+  ) {
+    await this.assertPlantAccess(user, id);
+    await this.get(user, id);
+    return this.branding.updateShopBranding(user, id, dto, logo);
+  }
+
+  async getBranding(user: RequestUser, id: string) {
+    await this.assertPlantAccess(user, id);
+    await this.get(user, id);
+    const profile = await this.brandingResolver.resolveForShop(id);
+    return {
+      profile,
+      health: this.brandingResolver.buildHealth(profile),
+    };
   }
 
   /**

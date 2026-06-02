@@ -12,6 +12,7 @@ export type Shop = {
   mobile: string;
   email: string;
   companyId?: string | null;
+  brandingProfileId?: string | null;
   company?: {
     id: string;
     companyCode: string;

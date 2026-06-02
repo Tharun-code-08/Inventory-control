@@ -8,6 +8,7 @@ export type Company = {
   companyName: string;
   address?: string | null;
   isActive: boolean;
+  brandingProfileId?: string | null;
 };
 
 export const companyKeys = {

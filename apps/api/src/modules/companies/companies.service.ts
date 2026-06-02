@@ -9,10 +9,17 @@ import {
 } from '../../common/utils/shop-scope';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { BrandingProfileService } from '../../common/branding/branding-profile.service';
+import { BrandingResolverService } from '../../common/branding/branding-resolver.service';
+import type { UpdateBrandingProfileDto } from '../../common/branding/dto/update-branding-profile.dto';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly branding: BrandingProfileService,
+    private readonly brandingResolver: BrandingResolverService,
+  ) {}
 
   async list(user: RequestUser) {
     return this.prisma.company.findMany({
@@ -40,8 +47,8 @@ export class CompaniesService {
   }
 
   async update(user: RequestUser, id: string, dto: UpdateCompanyDto) {
-    await this.get(user, id);
-    return this.prisma.company.update({
+    const current = await this.get(user, id);
+    const updated = await this.prisma.company.update({
       where: { id },
       data: {
         companyCode: dto.companyCode,
@@ -51,6 +58,31 @@ export class CompaniesService {
         updatedById: user.id,
       },
     });
+    const nameChanged = dto.companyName !== undefined && dto.companyName !== current.companyName;
+    const addressChanged = dto.address !== undefined && dto.address !== current.address;
+    if (nameChanged || addressChanged) {
+      await this.branding.bumpBrandingVersionForCompany(id, user);
+    }
+    return updated;
+  }
+
+  async updateBranding(
+    user: RequestUser,
+    id: string,
+    dto: UpdateBrandingProfileDto,
+    logo?: Express.Multer.File,
+  ) {
+    await this.get(user, id);
+    return this.branding.updateCompanyBranding(user, id, dto, logo);
+  }
+
+  async getBranding(user: RequestUser, id: string) {
+    await this.get(user, id);
+    const profile = await this.brandingResolver.resolveForCompany(id);
+    return {
+      profile,
+      health: this.brandingResolver.buildHealth(profile),
+    };
   }
 
   async remove(user: RequestUser, id: string) {

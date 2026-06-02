@@ -20,6 +20,7 @@ import {
   Cookie,
   DatabaseBackup,
   SlidersHorizontal,
+  Paintbrush,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,6 +99,7 @@ import {
   SYSTEM_ROLES,
   assignableRolesForActor,
 } from '@/lib/system-roles';
+import { useCompanies } from '@/hooks/use-companies';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -685,6 +687,14 @@ function UsersTab() {
     },
   });
 
+  const initialsForUser = (name?: string | null) => {
+    if (!name) return 'NA';
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0]?.[0] ?? 'N';
+    const second = parts[1]?.[0] ?? parts[0]?.[1] ?? 'A';
+    return `${first}${second}`.toUpperCase();
+  };
+
   const openCreate = () => {
     setEditingUser(null);
     form.reset({
@@ -815,7 +825,22 @@ function UsersTab() {
           ) : (
             (users ?? []).map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-3">
+                    {u.avatarUrl ? (
+                      <img
+                        src={u.avatarUrl}
+                        alt={`${u.name} avatar`}
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                        {initialsForUser(u.name)}
+                      </div>
+                    )}
+                    <span>{u.name}</span>
+                  </div>
+                </TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="capitalize">
@@ -1091,6 +1116,221 @@ function UsersTab() {
   );
 }
 
+// --- Branding Tab ---
+
+function BrandingTab() {
+  const user = useAuthStore((s) => s.user);
+  const { data: companies = [] } = useCompanies();
+  const { data: shops = [] } = useShops();
+  const company = companies.find((c) => c.id === user?.companyId) ?? companies[0];
+  const shop = shops.find((s) => s.id === user?.shopId) ?? shops[0];
+  const companyBranding = useQuery({
+    queryKey: ['branding', 'company', company?.id],
+    queryFn: async () => {
+      if (!company?.id) return null;
+      const res = await api.get(`/companies/${company.id}/branding`);
+      return res.data.data ?? res.data;
+    },
+    enabled: !!company?.id,
+  });
+  const shopBranding = useQuery({
+    queryKey: ['branding', 'shop', shop?.id],
+    queryFn: async () => {
+      if (!shop?.id) return null;
+      const res = await api.get(`/shops/${shop.id}/branding`);
+      return res.data.data ?? res.data;
+    },
+    enabled: !!shop?.id,
+  });
+
+  const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+  const [shopLogoFile, setShopLogoFile] = useState<File | null>(null);
+  const [companyPreview, setCompanyPreview] = useState<string | null>(null);
+  const [shopPreview, setShopPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!companyLogoFile) {
+      setCompanyPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(companyLogoFile);
+    setCompanyPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [companyLogoFile]);
+
+  useEffect(() => {
+    if (!shopLogoFile) {
+      setShopPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(shopLogoFile);
+    setShopPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [shopLogoFile]);
+
+  const updateCompanyBranding = useMutation({
+    mutationFn: async (removeLogo = false) => {
+      if (!company) throw new Error('Company not found');
+      const form = new FormData();
+      if (companyLogoFile) form.append('logo', companyLogoFile);
+      if (removeLogo) form.append('removeLogo', 'true');
+      await api.patch(`/companies/${company.id}/branding`, form);
+    },
+    onSuccess: () => {
+      toast.success('Company branding updated.');
+      setCompanyLogoFile(null);
+      companyBranding.refetch();
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err, 'Failed to update company branding.'));
+    },
+  });
+
+  const updateShopBranding = useMutation({
+    mutationFn: async (removeLogo = false) => {
+      if (!shop) throw new Error('Shop not found');
+      const form = new FormData();
+      if (shopLogoFile) form.append('logo', shopLogoFile);
+      if (removeLogo) form.append('removeLogo', 'true');
+      await api.patch(`/shops/${shop.id}/branding`, form);
+    },
+    onSuccess: () => {
+      toast.success('Shop branding updated.');
+      setShopLogoFile(null);
+      shopBranding.refetch();
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err, 'Failed to update shop branding.'));
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Company Branding</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+              {companyPreview || companyBranding.data?.profile?.logoUrl ? (
+                <img
+                  src={companyPreview ?? companyBranding.data?.profile?.logoUrl}
+                  alt="Company logo preview"
+                  className="h-14 w-14 rounded-lg object-contain"
+                />
+              ) : (
+                <span className="text-xs text-slate-400">Logo</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Upload company logo</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => setCompanyLogoFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => updateCompanyBranding.mutate(false)}
+              disabled={!companyLogoFile || updateCompanyBranding.isPending}
+            >
+              {updateCompanyBranding.isPending ? 'Uploading…' : 'Save Company Logo'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => updateCompanyBranding.mutate(true)}
+              disabled={updateCompanyBranding.isPending}
+            >
+              Remove Logo
+            </Button>
+          </div>
+          {companyBranding.data?.health && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-700">Branding Health</span>
+                <span className="font-semibold text-slate-900">{companyBranding.data.health.score}%</span>
+              </div>
+              {companyBranding.data.health.missing?.length > 0 ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Missing: {companyBranding.data.health.missing.join(', ')}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">All critical branding fields are complete.</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Shop Branding</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+              {shopPreview || shopBranding.data?.profile?.logoUrl ? (
+                <img
+                  src={shopPreview ?? shopBranding.data?.profile?.logoUrl}
+                  alt="Shop logo preview"
+                  className="h-14 w-14 rounded-lg object-contain"
+                />
+              ) : (
+                <span className="text-xs text-slate-400">Logo</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Upload shop logo</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => setShopLogoFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => updateShopBranding.mutate(false)}
+              disabled={!shopLogoFile || updateShopBranding.isPending}
+            >
+              {updateShopBranding.isPending ? 'Uploading…' : 'Save Shop Logo'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => updateShopBranding.mutate(true)}
+              disabled={updateShopBranding.isPending}
+            >
+              Remove Logo
+            </Button>
+          </div>
+          {shopBranding.data?.health && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-700">Branding Health</span>
+                <span className="font-semibold text-slate-900">{shopBranding.data.health.score}%</span>
+              </div>
+              {shopBranding.data.health.missing?.length > 0 ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Missing: {shopBranding.data.health.missing.join(', ')}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">All critical branding fields are complete.</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-3">
@@ -1193,6 +1433,7 @@ export function SettingsPage() {
     if (isAdmin) {
       allowed.add('users');
       allowed.add('categories');
+      allowed.add('branding');
       allowed.add('roles');
       allowed.add('customization');
     }
@@ -1256,6 +1497,12 @@ export function SettingsPage() {
               </TabsTrigger>
             )}
             {isAdmin && (
+              <TabsTrigger value="branding" className="gap-1.5">
+                <Paintbrush className="h-3.5 w-3.5" />
+                Branding
+              </TabsTrigger>
+            )}
+            {isAdmin && (
               <TabsTrigger value="roles" className="gap-1.5">
                 <Shield className="h-3.5 w-3.5" />
                 Roles & Permissions
@@ -1300,6 +1547,12 @@ export function SettingsPage() {
           {isAdmin && (
             <TabsContent value="categories">
               <CategoriesTab />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="branding">
+              <BrandingTab />
             </TabsContent>
           )}
 

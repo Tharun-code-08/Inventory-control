@@ -1,12 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 
-import { RoleName } from '@prisma/client';
+import { BrandingMode, RoleName } from '@prisma/client';
 
 import type { RequestUser } from '../types/request-user';
 
 import { assertShopScope } from '../utils/shop-scope';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { BrandingResolverService } from '../branding/branding-resolver.service';
+import type { BrandingSnapshot } from '../branding/branding.types';
 
 import { renderHtmlToPdfBuffer } from './html-to-pdf.service';
 
@@ -151,7 +153,100 @@ const READ_PERMISSION_BY_KIND: Partial<Record<DocumentPdfKind, string>> = {
 
 export class DocumentPdfService {
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly branding: BrandingResolverService,
+  ) {}
+
+  private async shopNameForId(shopId: string): Promise<string> {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { shopName: true } });
+    return shop?.shopName ?? 'Shop';
+  }
+
+  private buildSnapshot(
+    branding: Awaited<ReturnType<BrandingResolverService['resolveForShop']>>,
+    shopName: string,
+    templateVersion?: number | null,
+  ): BrandingSnapshot {
+    return {
+      companyName: branding.companyName,
+      shopName,
+      logoVersion: branding.logoVersion ?? null,
+      brandingVersion: branding.brandingVersion ?? null,
+      templateVersion: templateVersion ?? null,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private async persistSnapshot(kind: DocumentPdfKind, id: string, snapshot: BrandingSnapshot, brandingVersion?: number | null) {
+    const data = {
+      brandingSnapshot: snapshot,
+      brandingVersion: brandingVersion ?? undefined,
+    };
+    switch (kind) {
+      case 'purchase-order':
+        await this.prisma.purchaseOrderHeader.update({ where: { id }, data });
+        return;
+      case 'invoice':
+        await this.prisma.invoiceHeader.update({ where: { id }, data });
+        return;
+      case 'sales-order':
+        await this.prisma.salesOrderHeader.update({ where: { id }, data });
+        return;
+      case 'supplier-bill':
+        await this.prisma.supplierBillHeader.update({ where: { id }, data });
+        return;
+      case 'supplier-payment':
+        await this.prisma.supplierPayment.update({ where: { id }, data });
+        return;
+      case 'payment':
+        await this.prisma.paymentReceipt.update({ where: { id }, data });
+        return;
+      case 'goods-receipt':
+        await this.prisma.goodsReceiptHeader.update({ where: { id }, data });
+        return;
+      case 'goods-issue':
+        await this.prisma.goodsIssueHeader.update({ where: { id }, data });
+        return;
+      case 'goods-return':
+        await this.prisma.supplierReturn.update({ where: { id }, data });
+        return;
+      case 'sales-quotation':
+        await this.prisma.salesQuotationHeader.update({ where: { id }, data });
+        return;
+      default:
+        return;
+    }
+  }
+
+  private async applyBranding<T extends { companyName?: string }>(args: {
+    kind: DocumentPdfKind;
+    id: string;
+    shopId: string;
+    brandingMode?: BrandingMode | null;
+    brandingSnapshot?: BrandingSnapshot | null;
+    templateVersion?: number | null;
+    viewModel: T & { brandingLogoUrl?: string | null; brandingInitials?: string | null };
+  }) {
+    const snapshot = args.brandingMode === BrandingMode.SNAPSHOT ? args.brandingSnapshot ?? null : null;
+    const branding = await this.branding.resolveForShop(args.shopId, { snapshot });
+    args.viewModel.brandingLogoUrl = branding.logoUrl ?? null;
+    args.viewModel.brandingInitials = branding.initials;
+    if (snapshot?.companyName) {
+      args.viewModel.companyName = snapshot.companyName;
+      const buyer = args.viewModel as { buyerName?: string };
+      if (buyer.buyerName) {
+        buyer.buyerName = snapshot.companyName;
+      }
+    }
+    if (args.brandingMode === BrandingMode.SNAPSHOT) {
+      const shopName = snapshot?.shopName ?? (await this.shopNameForId(args.shopId));
+      const nextSnapshot = snapshot ?? this.buildSnapshot(branding, shopName, args.templateVersion);
+      if (!args.brandingSnapshot) {
+        await this.persistSnapshot(args.kind, args.id, nextSnapshot, branding.brandingVersion ?? null);
+      }
+    }
+  }
 
 
 
@@ -382,6 +477,15 @@ export class DocumentPdfService {
     const companyId = await resolvePurchaseOrderCompanyId(this.prisma, po.shopId);
 
     const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, companyId);
+    await this.applyBranding({
+      kind: 'purchase-order',
+      id: po.id,
+      shopId: po.shopId,
+      brandingMode: po.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: po.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: po.templateVersion,
+      viewModel,
+    });
 
     const html = renderPurchaseOrderHtml(viewModel);
 
@@ -410,6 +514,15 @@ export class DocumentPdfService {
     assertShopScope(user, invoice.shopId);
 
     const viewModel = await buildInvoicePdfViewModel(this.prisma, invoice);
+    await this.applyBranding({
+      kind: 'invoice',
+      id: invoice.id,
+      shopId: invoice.shopId,
+      brandingMode: invoice.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: invoice.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: invoice.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderInvoiceHtml(viewModel));
 
@@ -434,6 +547,15 @@ export class DocumentPdfService {
     assertShopScope(user, order.shopId);
 
     const viewModel = await buildSalesOrderPdfViewModel(this.prisma, order);
+    await this.applyBranding({
+      kind: 'sales-order',
+      id: order.id,
+      shopId: order.shopId,
+      brandingMode: order.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: order.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: order.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSalesOrderHtml(viewModel));
 
@@ -458,6 +580,15 @@ export class DocumentPdfService {
     assertShopScope(user, bill.shopId);
 
     const viewModel = await buildSupplierBillPdfViewModel(this.prisma, bill);
+    await this.applyBranding({
+      kind: 'supplier-bill',
+      id: bill.id,
+      shopId: bill.shopId,
+      brandingMode: bill.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: bill.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: bill.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSupplierBillHtml(viewModel));
 
@@ -482,6 +613,15 @@ export class DocumentPdfService {
     assertShopScope(user, payment.shopId);
 
     const viewModel = await buildSupplierPaymentPdfViewModel(this.prisma, payment);
+    await this.applyBranding({
+      kind: 'supplier-payment',
+      id: payment.id,
+      shopId: payment.shopId,
+      brandingMode: payment.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: payment.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: payment.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSupplierPaymentHtml(viewModel));
 
@@ -506,6 +646,15 @@ export class DocumentPdfService {
     assertShopScope(user, payment.shopId);
 
     const viewModel = await buildPaymentReceiptPdfViewModel(this.prisma, payment);
+    await this.applyBranding({
+      kind: 'payment',
+      id: payment.id,
+      shopId: payment.shopId,
+      brandingMode: payment.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: payment.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: payment.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderPaymentReceiptHtml(viewModel));
 
@@ -530,6 +679,15 @@ export class DocumentPdfService {
     const companyId = await resolvePurchaseOrderCompanyId(this.prisma, po.shopId);
 
     const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, companyId);
+    await this.applyBranding({
+      kind: 'purchase-order',
+      id: po.id,
+      shopId: po.shopId,
+      brandingMode: po.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: po.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: po.templateVersion,
+      viewModel,
+    });
 
     const html = renderPurchaseOrderHtml(viewModel);
 
@@ -556,6 +714,15 @@ export class DocumentPdfService {
     const invoice = await loadInvoiceForPdf(this.prisma, id);
 
     const viewModel = await buildInvoicePdfViewModel(this.prisma, invoice);
+    await this.applyBranding({
+      kind: 'invoice',
+      id: invoice.id,
+      shopId: invoice.shopId,
+      brandingMode: invoice.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: invoice.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: invoice.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderInvoiceHtml(viewModel));
 
@@ -578,6 +745,15 @@ export class DocumentPdfService {
     const order = await loadSalesOrderForPdf(this.prisma, id);
 
     const viewModel = await buildSalesOrderPdfViewModel(this.prisma, order);
+    await this.applyBranding({
+      kind: 'sales-order',
+      id: order.id,
+      shopId: order.shopId,
+      brandingMode: order.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: order.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: order.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSalesOrderHtml(viewModel));
 
@@ -600,6 +776,15 @@ export class DocumentPdfService {
     const bill = await loadSupplierBillForPdf(this.prisma, id);
 
     const viewModel = await buildSupplierBillPdfViewModel(this.prisma, bill);
+    await this.applyBranding({
+      kind: 'supplier-bill',
+      id: bill.id,
+      shopId: bill.shopId,
+      brandingMode: bill.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: bill.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: bill.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSupplierBillHtml(viewModel));
 
@@ -622,6 +807,15 @@ export class DocumentPdfService {
     const payment = await loadSupplierPaymentForPdf(this.prisma, id);
 
     const viewModel = await buildSupplierPaymentPdfViewModel(this.prisma, payment);
+    await this.applyBranding({
+      kind: 'supplier-payment',
+      id: payment.id,
+      shopId: payment.shopId,
+      brandingMode: payment.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: payment.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: payment.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderSupplierPaymentHtml(viewModel));
 
@@ -644,6 +838,15 @@ export class DocumentPdfService {
     const payment = await loadPaymentReceiptForPdf(this.prisma, id);
 
     const viewModel = await buildPaymentReceiptPdfViewModel(this.prisma, payment);
+    await this.applyBranding({
+      kind: 'payment',
+      id: payment.id,
+      shopId: payment.shopId,
+      brandingMode: payment.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: payment.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: payment.templateVersion,
+      viewModel,
+    });
 
     const buffer = await renderHtmlToPdfBuffer(renderPaymentReceiptHtml(viewModel));
 
@@ -666,6 +869,15 @@ export class DocumentPdfService {
     const gr = await loadGoodsReceiptForPdf(this.prisma, id);
     assertShopScope(user, gr.shopId);
     const viewModel = await buildGoodsReceiptPdfViewModel(this.prisma, gr);
+    await this.applyBranding({
+      kind: 'goods-receipt',
+      id: gr.id,
+      shopId: gr.shopId,
+      brandingMode: gr.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: gr.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: gr.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsReceiptHtml(viewModel));
     return { buffer, filename: goodsReceiptPdfFilename(gr.grNumber), contentType: 'application/pdf' };
   }
@@ -674,6 +886,15 @@ export class DocumentPdfService {
     const gi = await loadGoodsIssueForPdf(this.prisma, id);
     assertShopScope(user, gi.shopId);
     const viewModel = await buildGoodsIssuePdfViewModel(this.prisma, gi);
+    await this.applyBranding({
+      kind: 'goods-issue',
+      id: gi.id,
+      shopId: gi.shopId,
+      brandingMode: gi.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: gi.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: gi.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsIssueHtml(viewModel));
     return { buffer, filename: goodsIssuePdfFilename(gi.giNumber), contentType: 'application/pdf' };
   }
@@ -682,6 +903,15 @@ export class DocumentPdfService {
     const ret = await loadGoodsReturnForPdf(this.prisma, id);
     assertShopScope(user, ret.shopId);
     const viewModel = await buildGoodsReturnPdfViewModel(this.prisma, ret);
+    await this.applyBranding({
+      kind: 'goods-return',
+      id: ret.id,
+      shopId: ret.shopId,
+      brandingMode: ret.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: ret.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: ret.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsReturnHtml(viewModel));
     return { buffer, filename: goodsReturnPdfFilename(ret.returnNumber), contentType: 'application/pdf' };
   }
@@ -690,6 +920,15 @@ export class DocumentPdfService {
     const quote = await loadSalesQuotationForPdf(this.prisma, id);
     assertShopScope(user, quote.shopId);
     const viewModel = await buildSalesQuotationPdfViewModel(this.prisma, quote);
+    await this.applyBranding({
+      kind: 'sales-quotation',
+      id: quote.id,
+      shopId: quote.shopId,
+      brandingMode: quote.brandingMode ?? BrandingMode.LIVE,
+      brandingSnapshot: quote.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: quote.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderSalesQuotationHtml(viewModel));
     return { buffer, filename: salesQuotationPdfFilename(quote.quoteNumber), contentType: 'application/pdf' };
   }
@@ -697,6 +936,15 @@ export class DocumentPdfService {
   async renderGoodsReceiptPdfById(id: string): Promise<DocumentPdfRenderResult> {
     const gr = await loadGoodsReceiptForPdf(this.prisma, id);
     const viewModel = await buildGoodsReceiptPdfViewModel(this.prisma, gr);
+    await this.applyBranding({
+      kind: 'goods-receipt',
+      id: gr.id,
+      shopId: gr.shopId,
+      brandingMode: gr.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: gr.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: gr.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsReceiptHtml(viewModel));
     return { buffer, filename: goodsReceiptPdfFilename(gr.grNumber), contentType: 'application/pdf' };
   }
@@ -704,6 +952,15 @@ export class DocumentPdfService {
   async renderGoodsIssuePdfById(id: string): Promise<DocumentPdfRenderResult> {
     const gi = await loadGoodsIssueForPdf(this.prisma, id);
     const viewModel = await buildGoodsIssuePdfViewModel(this.prisma, gi);
+    await this.applyBranding({
+      kind: 'goods-issue',
+      id: gi.id,
+      shopId: gi.shopId,
+      brandingMode: gi.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: gi.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: gi.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsIssueHtml(viewModel));
     return { buffer, filename: goodsIssuePdfFilename(gi.giNumber), contentType: 'application/pdf' };
   }
@@ -711,6 +968,15 @@ export class DocumentPdfService {
   async renderGoodsReturnPdfById(id: string): Promise<DocumentPdfRenderResult> {
     const ret = await loadGoodsReturnForPdf(this.prisma, id);
     const viewModel = await buildGoodsReturnPdfViewModel(this.prisma, ret);
+    await this.applyBranding({
+      kind: 'goods-return',
+      id: ret.id,
+      shopId: ret.shopId,
+      brandingMode: ret.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: ret.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: ret.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderGoodsReturnHtml(viewModel));
     return { buffer, filename: goodsReturnPdfFilename(ret.returnNumber), contentType: 'application/pdf' };
   }
@@ -718,6 +984,15 @@ export class DocumentPdfService {
   async renderSalesQuotationPdfById(id: string): Promise<DocumentPdfRenderResult> {
     const quote = await loadSalesQuotationForPdf(this.prisma, id);
     const viewModel = await buildSalesQuotationPdfViewModel(this.prisma, quote);
+    await this.applyBranding({
+      kind: 'sales-quotation',
+      id: quote.id,
+      shopId: quote.shopId,
+      brandingMode: quote.brandingMode ?? BrandingMode.LIVE,
+      brandingSnapshot: quote.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: quote.templateVersion,
+      viewModel,
+    });
     const buffer = await renderHtmlToPdfBuffer(renderSalesQuotationHtml(viewModel));
     return { buffer, filename: salesQuotationPdfFilename(quote.quoteNumber), contentType: 'application/pdf' };
   }
@@ -731,6 +1006,15 @@ export class DocumentPdfService {
     const companyId = await resolvePurchaseOrderCompanyId(this.prisma, po.shopId);
 
     const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, companyId);
+    await this.applyBranding({
+      kind: 'purchase-order',
+      id: po.id,
+      shopId: po.shopId,
+      brandingMode: po.brandingMode ?? BrandingMode.SNAPSHOT,
+      brandingSnapshot: po.brandingSnapshot as BrandingSnapshot | null,
+      templateVersion: po.templateVersion,
+      viewModel,
+    });
 
     return renderPurchaseOrderHtml(viewModel);
 

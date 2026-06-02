@@ -163,11 +163,25 @@ enum EmailSenderStatus {
   FAILED
 }
 
+enum BrandingMode {
+  LIVE
+  SNAPSHOT
+}
+
+enum MediaAssetType {
+  LOGO
+  STAMP
+  SIGNATURE
+  LETTERHEAD
+  WATERMARK
+}
+
 model Company {
   id                 String             @id @default(uuid()) @db.Uuid
   companyCode        String             @unique @map("company_code")
   companyName        String             @map("company_name")
   address            String?
+  brandingProfileId  String?            @map("branding_profile_id") @db.Uuid
   isActive           Boolean            @default(true) @map("is_active")
   subscriptionPlan   SubscriptionPlan   @default(TRIAL) @map("subscription_plan")
   billingCycle       BillingCycle?      @map("billing_cycle")
@@ -183,6 +197,7 @@ model Company {
   createdById        String?            @map("created_by") @db.Uuid
   updatedById        String?            @map("updated_by") @db.Uuid
 
+  brandingProfile     BrandingProfile?       @relation("CompanyBrandingProfile", fields: [brandingProfileId], references: [id])
   shops                Shop[]
   suppliers            Supplier[]
   subscriptionPayments SubscriptionPayment[]
@@ -196,8 +211,67 @@ model Company {
   documentSeriesConfigs DocumentSeriesConfig[]
   emailSenderDomains    EmailSenderDomain[]
   emailSenderIdentities EmailSenderIdentity[]
+  mediaAssets           MediaAsset[]
 
   @@map("companies")
+}
+
+model BrandingProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  brandingVersion Int      @default(1) @map("branding_version")
+  logoAssetId     String?  @map("logo_asset_id") @db.Uuid
+  watermarkAssetId String? @map("watermark_asset_id") @db.Uuid
+  sealAssetId     String?  @map("seal_asset_id") @db.Uuid
+  signatureAssetId String? @map("signature_asset_id") @db.Uuid
+  letterheadAssetId String? @map("letterhead_asset_id") @db.Uuid
+  footerText      String?  @map("footer_text")
+  email           String?  @map("email")
+  phone           String?  @map("phone")
+  website         String?  @map("website")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?  @map("created_by") @db.Uuid
+  updatedById     String?  @map("updated_by") @db.Uuid
+
+  companyOwners Company[] @relation("CompanyBrandingProfile")
+  shopOwners    Shop[]    @relation("ShopBrandingProfile")
+  logoAsset     MediaAsset? @relation("LogoAsset", fields: [logoAssetId], references: [id])
+  watermarkAsset MediaAsset? @relation("WatermarkAsset", fields: [watermarkAssetId], references: [id])
+  sealAsset      MediaAsset? @relation("SealAsset", fields: [sealAssetId], references: [id])
+  signatureAsset MediaAsset? @relation("SignatureAsset", fields: [signatureAssetId], references: [id])
+  letterheadAsset MediaAsset? @relation("LetterheadAsset", fields: [letterheadAssetId], references: [id])
+
+  @@map("branding_profiles")
+}
+
+model MediaAsset {
+  id                String         @id @default(uuid()) @db.Uuid
+  companyId         String?        @map("company_id") @db.Uuid
+  shopId            String?        @map("shop_id") @db.Uuid
+  brandingProfileId String?        @map("branding_profile_id") @db.Uuid
+  type              MediaAssetType @map("type")
+  assetKey          String         @map("asset_key")
+  fileName          String         @map("file_name")
+  version           Int            @default(1)
+  metadata          Json?          @map("metadata")
+  uploadedById      String?        @map("uploaded_by") @db.Uuid
+  uploadedAt        DateTime       @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  active            Boolean        @default(true)
+
+  company          Company?         @relation(fields: [companyId], references: [id])
+  shop             Shop?            @relation(fields: [shopId], references: [id])
+  brandingProfile  BrandingProfile? @relation(fields: [brandingProfileId], references: [id])
+  logoProfiles      BrandingProfile[] @relation("LogoAsset")
+  watermarkProfiles BrandingProfile[] @relation("WatermarkAsset")
+  sealProfiles      BrandingProfile[] @relation("SealAsset")
+  signatureProfiles BrandingProfile[] @relation("SignatureAsset")
+  letterheadProfiles BrandingProfile[] @relation("LetterheadAsset")
+
+  @@index([companyId])
+  @@index([shopId])
+  @@index([brandingProfileId])
+  @@index([type, active])
+  @@map("media_assets")
 }
 
 model Role {
@@ -224,6 +298,7 @@ model Shop {
   mobile             String
   email              String
   companyId          String?       @map("company_id") @db.Uuid
+  brandingProfileId  String?       @map("branding_profile_id") @db.Uuid
   isActive           Boolean       @default(true) @map("is_active")
   costingMethod      CostingMethod @default(AVERAGE) @map("costing_method")
   functionalCurrency String        @default("USD") @map("functional_currency")
@@ -233,6 +308,7 @@ model Shop {
   updatedById        String?       @map("updated_by") @db.Uuid
 
   company            Company?                  @relation(fields: [companyId], references: [id])
+  brandingProfile    BrandingProfile?          @relation("ShopBrandingProfile", fields: [brandingProfileId], references: [id])
   users              User[]
   invitations        UserInvitation[]
   productPlants      ProductPlant[]
@@ -262,6 +338,7 @@ model Shop {
   stockTransfersFrom StockTransferHeader[] @relation("StockTransferFromShop")
   stockTransfersTo   StockTransferHeader[] @relation("StockTransferToShop")
   documentSeriesConfigs DocumentSeriesConfig[]
+  mediaAssets         MediaAsset[]
 
   @@map("shops")
 }
@@ -703,6 +780,10 @@ model RfqHeader {
   title       String
   notes       String?
   shopId      String         @map("shop_id") @db.Uuid
+  brandingMode BrandingMode  @default(LIVE) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   status      DocumentStatus @default(DRAFT)
   postedAt    DateTime?      @map("posted_at") @db.Timestamptz(6)
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -870,6 +951,10 @@ model GoodsReceiptHeader {
   purchaseOrderId String?        @map("purchase_order_id") @db.Uuid
   supplierRef     String?        @map("supplier_ref")
   remarks         String?
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   status          DocumentStatus @default(DRAFT)
   postedAt        DateTime?      @map("posted_at") @db.Timestamptz(6)
   totalValue      Decimal?       @map("total_value") @db.Decimal(14, 2)
@@ -925,6 +1010,10 @@ model GoodsIssueHeader {
   shopId      String         @map("shop_id") @db.Uuid
   issueReason String         @map("issue_reason")
   remarks     String?
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   status      DocumentStatus @default(DRAFT)
   postedAt    DateTime?      @map("posted_at") @db.Timestamptz(6)
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -995,6 +1084,10 @@ model PurchaseOrderHeader {
   supplier       String
   status         PurchaseOrderStatus @default(DRAFT)
   remarks        String?
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   currency       String              @default("USD")
   fxRateUsed     Decimal?            @map("fx_rate_used") @db.Decimal(18, 8)
   discountAmount Decimal             @default(0) @map("discount_amount") @db.Decimal(14, 2)
@@ -1426,6 +1519,10 @@ model SalesQuotationHeader {
   customerId             String               @map("customer_id") @db.Uuid
   shopId                 String               @map("shop_id") @db.Uuid
   status                 SalesQuotationStatus @default(DRAFT)
+  brandingMode           BrandingMode         @default(LIVE) @map("branding_mode")
+  brandingSnapshot       Json?                @map("branding_snapshot")
+  brandingVersion        Int?                 @map("branding_version")
+  templateVersion        Int                  @default(1) @map("template_version")
   salesOrderId           String?              @unique @map("sales_order_id") @db.Uuid
   portalToken            String?              @unique @map("portal_token")
   remarks                String?
@@ -1477,6 +1574,10 @@ model SalesOrderHeader {
   customerId        String            @map("customer_id") @db.Uuid
   shopId            String            @map("shop_id") @db.Uuid
   status            SalesOrderStatus  @default(DRAFT)
+  brandingMode      BrandingMode      @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot  Json?             @map("branding_snapshot")
+  brandingVersion   Int?              @map("branding_version")
+  templateVersion   Int               @default(1) @map("template_version")
   fulfillmentStatus FulfillmentStatus @default(NONE) @map("fulfillment_status")
   remarks           String?
   currency          String            @default("USD")
@@ -1534,6 +1635,10 @@ model InvoiceHeader {
   customerId     String        @map("customer_id") @db.Uuid
   shopId         String        @map("shop_id") @db.Uuid
   status         InvoiceStatus @default(DRAFT)
+  brandingMode   BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?       @map("branding_snapshot")
+  brandingVersion Int?         @map("branding_version")
+  templateVersion Int          @default(1) @map("template_version")
   currency       String        @default("USD")
   fxRateUsed     Decimal?      @map("fx_rate_used") @db.Decimal(18, 8)
   discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(14, 2)
@@ -1573,6 +1678,10 @@ model PaymentReceipt {
   method        String?
   reference     String?
   remarks       String?
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById   String?  @map("created_by") @db.Uuid
@@ -1721,6 +1830,10 @@ model SupplierReturn {
   reason          String?
   remarks         String?
   internalCcEmail String?      @map("internal_cc_email")
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   status          ReturnStatus @default(DRAFT)
   totalValue      Decimal      @default(0) @map("total_value") @db.Decimal(14, 2)
   postedAt        DateTime?    @map("posted_at") @db.Timestamptz(6)
@@ -1845,6 +1958,10 @@ model SupplierBillHeader {
   purchaseOrderId String?            @map("purchase_order_id") @db.Uuid
   goodsReceiptId  String?            @map("goods_receipt_id") @db.Uuid
   status          SupplierBillStatus @default(DRAFT)
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   totalValue      Decimal            @map("total_value") @db.Decimal(14, 2)
   paidValue       Decimal            @default(0) @map("paid_value") @db.Decimal(14, 2)
   remarks         String?
@@ -1894,6 +2011,10 @@ model SupplierPayment {
   method        String?
   reference     String?
   remarks       String?
+  brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
+  brandingSnapshot Json?     @map("branding_snapshot")
+  brandingVersion Int?       @map("branding_version")
+  templateVersion Int        @default(1) @map("template_version")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById   String?  @map("created_by") @db.Uuid
