@@ -59,11 +59,12 @@ ALTER TABLE "purchase_order_header"
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM   pg_constraint
-    WHERE  conname = 'purchase_order_header_contract_id_fkey'
-  ) THEN
+  IF to_regclass('public.contract_header') IS NOT NULL
+     AND NOT EXISTS (
+      SELECT 1
+      FROM   pg_constraint
+      WHERE  conname = 'purchase_order_header_contract_id_fkey'
+    ) THEN
     ALTER TABLE "purchase_order_header"
       ADD CONSTRAINT "purchase_order_header_contract_id_fkey"
       FOREIGN KEY ("contract_id") REFERENCES "contract_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
