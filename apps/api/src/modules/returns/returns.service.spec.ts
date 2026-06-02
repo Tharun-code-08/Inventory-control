@@ -34,6 +34,7 @@ function makeBaseReturn(status: ReturnStatus = ReturnStatus.DRAFT) {
       shopName: 'Main Plant',
       shopNumber: 'P-01',
       email: 'plant@example.com',
+      companyId: 'company-1',
       company: { companyName: 'Softdigit Consulting' },
     },
     supplier: {
