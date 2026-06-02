@@ -1,6 +1,32 @@
 -- Procurement master tables were never created in init/stub migrations.
 -- Idempotent so deploy succeeds on DBs that already have these tables.
 
+DO $$ BEGIN
+  CREATE TYPE "GstTreatment" AS ENUM (
+    'REGISTERED_BUSINESS',
+    'UNREGISTERED_BUSINESS',
+    'COMPOSITION',
+    'CONSUMER',
+    'OVERSEAS',
+    'SEZ',
+    'DEEMED_EXPORT'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "SupplierAddressType" AS ENUM ('BILLING', 'SHIPPING');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "BrandingMode" AS ENUM ('LIVE', 'SNAPSHOT');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS "suppliers" (
   "id" UUID NOT NULL,
   "supplier_code" TEXT NOT NULL,
