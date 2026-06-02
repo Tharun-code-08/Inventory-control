@@ -10,49 +10,89 @@ CREATE TYPE "FulfillmentStatus" AS ENUM ('NONE', 'PARTIAL', 'FULL');
 CREATE TYPE "ReturnStatus" AS ENUM ('DRAFT', 'POSTED', 'CANCELLED');
 CREATE TYPE "CreditNoteStatus" AS ENUM ('DRAFT', 'ISSUED', 'APPLIED', 'VOID');
 
-ALTER TABLE "shops"
-  ADD COLUMN "costing_method" "CostingMethod" NOT NULL DEFAULT 'AVERAGE',
-  ADD COLUMN "functional_currency" TEXT NOT NULL DEFAULT 'USD';
+DO $$
+BEGIN
+  IF to_regclass('public.shops') IS NOT NULL THEN
+    ALTER TABLE "shops"
+      ADD COLUMN "costing_method" "CostingMethod" NOT NULL DEFAULT 'AVERAGE',
+      ADD COLUMN "functional_currency" TEXT NOT NULL DEFAULT 'USD';
+  END IF;
+END $$;
 
-ALTER TABLE "stock_summary"
-  ADD COLUMN "avg_cost" DECIMAL(14, 4) NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF to_regclass('public.stock_summary') IS NOT NULL THEN
+    ALTER TABLE "stock_summary"
+      ADD COLUMN "avg_cost" DECIMAL(14, 4) NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
 -- Tax + discount + currency on the order/invoice graphs.
-ALTER TABLE "sales_order_header"
-  ADD COLUMN "fulfillment_status" "FulfillmentStatus" NOT NULL DEFAULT 'NONE',
-  ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
-  ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
-  ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
-CREATE INDEX "sales_order_header_shop_id_fulfillment_status_idx"
-  ON "sales_order_header" ("shop_id", "fulfillment_status");
+DO $$
+BEGIN
+  IF to_regclass('public.sales_order_header') IS NOT NULL THEN
+    ALTER TABLE "sales_order_header"
+      ADD COLUMN "fulfillment_status" "FulfillmentStatus" NOT NULL DEFAULT 'NONE',
+      ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
+      ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
+      ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+    CREATE INDEX "sales_order_header_shop_id_fulfillment_status_idx"
+      ON "sales_order_header" ("shop_id", "fulfillment_status");
+  END IF;
+END $$;
 
-ALTER TABLE "sales_order_items"
-  ADD COLUMN "shipped_qty" DECIMAL(12, 3) NOT NULL DEFAULT 0,
-  ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_rate" DECIMAL(7, 4) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF to_regclass('public.sales_order_items') IS NOT NULL THEN
+    ALTER TABLE "sales_order_items"
+      ADD COLUMN "shipped_qty" DECIMAL(12, 3) NOT NULL DEFAULT 0,
+      ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_rate" DECIMAL(7, 4) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
-ALTER TABLE "purchase_order_header"
-  ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
-  ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
-  ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF to_regclass('public.purchase_order_header') IS NOT NULL THEN
+    ALTER TABLE "purchase_order_header"
+      ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
+      ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
+      ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
-ALTER TABLE "purchase_order_items"
-  ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_rate" DECIMAL(7, 4) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF to_regclass('public.purchase_order_items') IS NOT NULL THEN
+    ALTER TABLE "purchase_order_items"
+      ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_rate" DECIMAL(7, 4) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
-ALTER TABLE "invoice_header"
-  ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
-  ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
-  ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
-  ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+  IF to_regclass('public.invoice_header') IS NOT NULL THEN
+    ALTER TABLE "invoice_header"
+      ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
+      ADD COLUMN "fx_rate_used" DECIMAL(18, 8),
+      ADD COLUMN "discount_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN "tax_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+  END IF;
+END $$;
 
-ALTER TABLE "payment_receipts"
-  ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
-  ADD COLUMN "fx_rate_used" DECIMAL(18, 8);
+DO $$
+BEGIN
+  IF to_regclass('public.payment_receipts') IS NOT NULL THEN
+    ALTER TABLE "payment_receipts"
+      ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD',
+      ADD COLUMN "fx_rate_used" DECIMAL(18, 8);
+  END IF;
+END $$;
 
 CREATE TABLE "cost_layers" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
