@@ -23,14 +23,22 @@ FROM roles r
 WHERE u.role_id = r.id AND r.name = 'SHOP_USER';
 
 -- Promote earliest ADMIN per company to OWNER (org creator).
-WITH first_admin AS (
-  SELECT DISTINCT ON (s.company_id) u.id AS user_id
-  FROM users u
-  JOIN shops s ON s.id = u.shop_id
-  JOIN roles r ON r.id = u.role_id
-  WHERE r.name = 'ADMIN' AND s.company_id IS NOT NULL
-  ORDER BY s.company_id, u.created_at ASC
-)
-UPDATE users
-SET role_id = (SELECT id FROM roles WHERE name = 'OWNER' LIMIT 1)
-WHERE id IN (SELECT user_id FROM first_admin);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'shops' AND column_name = 'company_id'
+  ) THEN
+    WITH first_admin AS (
+      SELECT DISTINCT ON (s.company_id) u.id AS user_id
+      FROM users u
+      JOIN shops s ON s.id = u.shop_id
+      JOIN roles r ON r.id = u.role_id
+      WHERE r.name = 'ADMIN' AND s.company_id IS NOT NULL
+      ORDER BY s.company_id, u.created_at ASC
+    )
+    UPDATE users
+    SET role_id = (SELECT id FROM roles WHERE name = 'OWNER' LIMIT 1)
+    WHERE id IN (SELECT user_id FROM first_admin);
+  END IF;
+END $$;
