@@ -42,13 +42,21 @@ export function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Goods receipt line — storageLocationId is required by the API. */
+/** Future expiry date (GR post requires expiry on every line). */
+export function futureExpiryDateString(yearsAhead = 1) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + yearsAhead);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Goods receipt line — storageLocationId and expiryDate are required before post. */
 export function grLineItem(args: {
   productId: string;
   storageLocationId: string;
   quantity: number;
   purchaseRate: number;
   uom?: string;
+  expiryDate?: string;
 }) {
   return {
     productId: args.productId,
@@ -56,5 +64,6 @@ export function grLineItem(args: {
     quantity: args.quantity,
     purchaseRate: args.purchaseRate,
     uom: args.uom ?? 'PCS',
+    expiryDate: args.expiryDate ?? futureExpiryDateString(),
   };
 }
