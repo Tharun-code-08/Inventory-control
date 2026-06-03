@@ -38,13 +38,6 @@ export function uniqueCode(prefix: string) {
   return `${prefix}-${stamp}`.replace(/[^A-Z0-9_-]/g, '').slice(0, 40);
 }
 
-/** Purchase orders require poDate strictly in the future (see assertFuture). */
-export function tomorrowDateString() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 export function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }

@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, tomorrowDateString, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -68,14 +68,14 @@ describe('Phase 3 — Sales & Finance workflows (e2e)', () => {
     const ctx = await seedWorkflowMasterData(app);
     const api = authed(app, ctx.token);
     const today = todayDateString();
-    const poDate = tomorrowDateString();
 
     const poRes = await api.post('/api/v1/purchase-orders').send({
-      poDate,
+      poDate: today,
       shopId: ctx.shopId,
       supplier: 'E2E Supplier',
       items: [{ productId: ctx.productId, orderQty: 5, rate: 4 }],
     });
+    expect(poRes.status).toBe(201);
     const po = unwrap<{ id: string }>(poRes.body);
     await api.post(`/api/v1/purchase-orders/${po.id}/confirm`);
 

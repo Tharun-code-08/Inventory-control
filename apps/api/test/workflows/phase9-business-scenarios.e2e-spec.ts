@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, tomorrowDateString, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -24,19 +24,16 @@ describe('Phase 9 — Business scenario simulations (e2e)', () => {
     const ctx = await seedWorkflowMasterData(app);
     const api = authed(app, ctx.token);
     const today = todayDateString();
-    const poDate = tomorrowDateString();
 
-    const po = unwrap<{ id: string }>(
-      (
-        await api.post('/api/v1/purchase-orders').send({
-          poDate,
-          shopId: ctx.shopId,
-          supplier: 'Partial Delivery Inc',
-          items: [{ productId: ctx.productId, orderQty: 100, rate: 2 }],
-        })
-      ).body,
-    );
-    await api.post(`/api/v1/purchase-orders/${po.id}/confirm`);
+    const poRes = await api.post('/api/v1/purchase-orders').send({
+      poDate: today,
+      shopId: ctx.shopId,
+      supplier: 'Partial Delivery Inc',
+      items: [{ productId: ctx.productId, orderQty: 100, rate: 2 }],
+    });
+    expect(poRes.status).toBe(201);
+    const po = unwrap<{ id: string }>(poRes.body);
+    await api.post(`/api/v1/purchase-orders/${po.id}/confirm`).expect(201);
 
     for (const qty of [40, 60]) {
       const gr = unwrap<{ id: string }>(

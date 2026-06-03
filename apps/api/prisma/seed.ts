@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { PrismaClient, RoleName } from '@prisma/client';
+import { PrismaClient, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -151,14 +151,25 @@ async function main() {
     }
     console.log('[seed] Roles upserted');
 
+    const e2eSubscription =
+      process.env.NODE_ENV === 'test' || process.env.CI === 'true'
+        ? {
+            subscriptionPlan: SubscriptionPlan.PRO,
+            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            trialEndsAt: new Date('2099-12-31T23:59:59.999Z'),
+            subscriptionEndsAt: new Date('2099-12-31T23:59:59.999Z'),
+          }
+        : {};
+
     const defaultCompany = await prisma.company.upsert({
       where: { companyCode: 'HQ-CO' },
-      update: { isActive: true },
+      update: { isActive: true, ...e2eSubscription },
       create: {
         companyCode: 'HQ-CO',
         companyName: 'Retail IMS HQ',
         address: '1 Main Street',
         isActive: true,
+        ...e2eSubscription,
       },
     });
     console.log(`[seed] Default company: ${defaultCompany.companyCode}`);

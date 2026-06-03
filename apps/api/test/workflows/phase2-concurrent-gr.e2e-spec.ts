@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request = require('supertest');
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, tomorrowDateString, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -26,18 +26,15 @@ describe('Phase 2 — Concurrent GR posting (e2e)', () => {
     const ctx = await seedWorkflowMasterData(app);
     const token = ctx.token;
     const today = todayDateString();
-    const poDate = tomorrowDateString();
 
-    const po = unwrap<{ id: string }>(
-      (
-        await authed(app, token).post('/api/v1/purchase-orders').send({
-          poDate,
-          shopId: ctx.shopId,
-          supplier: 'Concurrent GR Supplier',
-          items: [{ productId: ctx.productId, orderQty: 10, rate: 3 }],
-        })
-      ).body,
-    );
+    const poRes = await authed(app, token).post('/api/v1/purchase-orders').send({
+      poDate: today,
+      shopId: ctx.shopId,
+      supplier: 'Concurrent GR Supplier',
+      items: [{ productId: ctx.productId, orderQty: 10, rate: 3 }],
+    });
+    expect(poRes.status).toBe(201);
+    const po = unwrap<{ id: string }>(poRes.body);
     await authed(app, token).post(`/api/v1/purchase-orders/${po.id}/confirm`).expect(201);
 
     const createPayload = {
