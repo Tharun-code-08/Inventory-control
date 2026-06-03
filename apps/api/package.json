@@ -19,7 +19,7 @@
     "test:watch": "jest --config ./jest.config.js --watch",
     "test:cov": "jest --config ./jest.config.js --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:workflows": "jest --config ./test/jest-e2e.json --testPathPattern test/workflows --runInBand",
+    "test:e2e:workflows": "jest --config ./test/jest-e2e.json --testPathPattern test/workflows --runInBand --forceExit",
     "test:e2e:concurrent-gr": "jest --config ./test/jest-e2e.json --testPathPattern phase2-concurrent-gr --runInBand",
     "verify:smtp": "node scripts/verify-smtp.cjs",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"

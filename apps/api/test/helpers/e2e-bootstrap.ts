@@ -9,6 +9,11 @@ import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/respo
 
 export const E2E_DB_ENABLED = Boolean(process.env.DATABASE_URL);
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __E2E_SHARED_APP__: INestApplication | undefined;
+}
+
 export async function createE2eApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
@@ -25,6 +30,22 @@ export async function createE2eApp(): Promise<INestApplication> {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new ResponseEnvelopeInterceptor(app.get(Reflector)));
+  app.enableShutdownHooks();
   await app.init();
   return app;
+}
+
+/** One Nest app for all workflow suites — avoids leaking BullMQ/Redis handles per file. */
+export async function getSharedE2eApp(): Promise<INestApplication> {
+  if (!global.__E2E_SHARED_APP__) {
+    global.__E2E_SHARED_APP__ = await createE2eApp();
+  }
+  return global.__E2E_SHARED_APP__;
+}
+
+export async function destroySharedE2eApp(): Promise<void> {
+  const app = global.__E2E_SHARED_APP__;
+  if (!app) return;
+  await app.close();
+  global.__E2E_SHARED_APP__ = undefined;
 }

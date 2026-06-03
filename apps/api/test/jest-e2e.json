@@ -2,6 +2,8 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": "..",
   "globalSetup": "<rootDir>/test/global-setup-e2e.ts",
+  "globalTeardown": "<rootDir>/test/global-teardown-e2e.ts",
+  "forceExit": true,
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
   "transform": {

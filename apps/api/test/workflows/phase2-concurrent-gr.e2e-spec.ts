@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request = require('supertest');
-import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
+import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
@@ -14,11 +14,7 @@ describe('Phase 2 — Concurrent GR posting (e2e)', () => {
 
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
-    app = await createE2eApp();
-  });
-
-  afterAll(async () => {
-    if (app) await app.close();
+    app = await getSharedE2eApp();
   });
 
   it('allows only one concurrent post when combined qty would exceed the PO', async () => {

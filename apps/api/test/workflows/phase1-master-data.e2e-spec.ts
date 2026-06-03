@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
+import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, login, uniqueCode, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
@@ -13,11 +13,7 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
 
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
-    app = await createE2eApp();
-  });
-
-  afterAll(async () => {
-    if (app) await app.close();
+    app = await getSharedE2eApp();
   });
 
   it('blocks duplicate org creation and updates the tenant company profile', async () => {

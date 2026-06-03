@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
+import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
@@ -12,11 +12,7 @@ describe('Phase 9 — Business scenario simulations (e2e)', () => {
 
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
-    app = await createE2eApp();
-  });
-
-  afterAll(async () => {
-    if (app) await app.close();
+    app = await getSharedE2eApp();
   });
 
   it('Scenario 1: supplier partial delivery — two GRNs complete the PO', async () => {
