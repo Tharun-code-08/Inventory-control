@@ -70,17 +70,9 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
     expect(linked.companyId).toBe(ctx.companyId);
 
     await api
-      .post('/api/v1/shops')
-      .send({
-        shopNumber: uniqueCode('BAD').slice(0, 20),
-        shopName: 'Invalid Plant',
-        address: 'Nowhere',
-        contactPerson: 'Nobody',
-        mobile: '+94770000001',
-        email: 'bad@e2e.local',
-        companyId: '00000000-0000-4000-8000-000000000000',
-      })
-      .expect((res) => expect([400, 404, 409, 422]).toContain(res.status));
+      .patch(`/api/v1/shops/${ctx.shopId}`)
+      .send({ companyId: '00000000-0000-4000-8000-000000000000' })
+      .expect((res) => expect([400, 403, 404, 409, 422]).toContain(res.status));
   });
 
   it('enforces unique product SKU codes', async () => {
