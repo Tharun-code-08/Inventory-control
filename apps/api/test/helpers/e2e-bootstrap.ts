@@ -12,7 +12,8 @@ export const E2E_DB_ENABLED = Boolean(process.env.DATABASE_URL);
 export async function createE2eApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
-  app.use(cookieParser());
+  const cookieSecret = process.env.COOKIE_SECRET?.trim();
+  app.use(cookieParser(cookieSecret && cookieSecret.length > 0 ? cookieSecret : undefined));
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
