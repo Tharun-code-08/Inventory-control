@@ -11,22 +11,31 @@ export type WorkflowContext = {
   customerId: string;
 };
 
+/** Tenant company from seed/sign-up (POST /companies is signup-only). */
+export async function resolveWorkflowCompanyId(
+  app: INestApplication,
+  token: string,
+): Promise<string> {
+  const list = unwrap<Array<{ id: string }>>(
+    (await authed(app, token).get('/api/v1/companies')).body,
+  );
+  if (list.length === 0) {
+    throw new Error(
+      'No tenant company found. Run prisma db seed so HQ-CO and HQ-001 are linked.',
+    );
+  }
+  return list[0].id;
+}
+
 /**
  * Creates an isolated master-data slice for one workflow test run:
- * company → plant (shop) → product → supplier → customer.
+ * tenant company → plant (shop) → product → supplier → customer.
  */
 export async function seedWorkflowMasterData(app: INestApplication): Promise<WorkflowContext> {
   const { accessToken: token, user } = await login(app);
   const api = authed(app, token);
   const suffix = uniqueCode('E2E');
-
-  const companyRes = await api.post('/api/v1/companies').send({
-    companyCode: `CO-${suffix}`,
-    companyName: `E2E Company ${suffix}`,
-    address: '1 Test Lane',
-  });
-  expect(companyRes.status).toBe(201);
-  const company = unwrap<{ id: string }>(companyRes.body);
+  const companyId = await resolveWorkflowCompanyId(app, token);
 
   const shopRes = await api.post('/api/v1/shops').send({
     shopNumber: `PL-${suffix}`.slice(0, 20),
@@ -35,7 +44,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     contactPerson: 'Ops Lead',
     mobile: '+94771234567',
     email: `plant-${suffix.toLowerCase()}@e2e.local`,
-    companyId: company.id,
+    companyId,
   });
   expect(shopRes.status).toBe(201);
   const shop = unwrap<{ id: string }>(shopRes.body);
@@ -57,7 +66,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     supplierName: `E2E Supplier ${suffix}`,
     email: `supplier-${suffix.toLowerCase()}@e2e.local`,
     phone: '+94771234568',
-    companyId: company.id,
+    companyId,
   });
   expect(supplierRes.status).toBe(201);
   const supplier = unwrap<{ id: string }>(supplierRes.body);
@@ -75,7 +84,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
   return {
     token,
     user,
-    companyId: company.id,
+    companyId,
     shopId: shop.id,
     productId: product.id,
     supplierId: supplier.id,

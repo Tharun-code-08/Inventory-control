@@ -20,18 +20,23 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
     if (app) await app.close();
   });
 
-  it('creates, edits, and soft-deletes a company', async () => {
+  it('blocks duplicate org creation and updates the tenant company profile', async () => {
     if (!E2E_DB_ENABLED) return;
     const { accessToken: token } = await login(app);
     const api = authed(app, token);
-    const code = uniqueCode('COMP');
 
-    const created = await api.post('/api/v1/companies').send({
-      companyCode: code,
+    const blocked = await api.post('/api/v1/companies').send({
+      companyCode: uniqueCode('COMP'),
       companyName: 'Workflow Test Co',
     });
-    expect(created.status).toBe(201);
-    const company = unwrap<{ id: string; companyName: string }>(created.body);
+    expect(blocked.status).toBe(400);
+
+    const companies = unwrap<Array<{ id: string; companyName: string }>>(
+      (await api.get('/api/v1/companies')).body,
+    );
+    expect(companies.length).toBeGreaterThan(0);
+    const company = companies[0];
+    const originalName = company.companyName;
 
     const updated = await api.patch(`/api/v1/companies/${company.id}`).send({
       companyName: 'Workflow Test Co (Updated)',
@@ -39,10 +44,10 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
     expect(updated.status).toBe(200);
     expect(unwrap<{ companyName: string }>(updated.body).companyName).toContain('Updated');
 
+    await api.patch(`/api/v1/companies/${company.id}`).send({ companyName: originalName }).expect(200);
+
     const removed = await api.delete(`/api/v1/companies/${company.id}`);
-    expect(removed.status).toBe(200);
-    const inactive = unwrap<{ isActive: boolean }>(removed.body);
-    expect(inactive.isActive).toBe(false);
+    expect(removed.status).toBe(400);
   });
 
   it('rejects invalid company payloads', async () => {

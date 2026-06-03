@@ -151,9 +151,21 @@ async function main() {
     }
     console.log('[seed] Roles upserted');
 
+    const defaultCompany = await prisma.company.upsert({
+      where: { companyCode: 'HQ-CO' },
+      update: { isActive: true },
+      create: {
+        companyCode: 'HQ-CO',
+        companyName: 'Retail IMS HQ',
+        address: '1 Main Street',
+        isActive: true,
+      },
+    });
+    console.log(`[seed] Default company: ${defaultCompany.companyCode}`);
+
     const defaultShop = await prisma.shop.upsert({
       where: { shopNumber: 'HQ-001' },
-      update: {},
+      update: { companyId: defaultCompany.id },
       create: {
         shopNumber: 'HQ-001',
         shopName: 'Headquarters',
@@ -161,6 +173,7 @@ async function main() {
         contactPerson: 'System Admin',
         mobile: '+0000000000',
         email: 'hq@retailims.local',
+        companyId: defaultCompany.id,
       },
     });
     console.log(`[seed] Default shop: ${defaultShop.shopNumber}`);
