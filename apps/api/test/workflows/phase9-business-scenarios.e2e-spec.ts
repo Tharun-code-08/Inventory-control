@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -43,7 +43,14 @@ describe('Phase 9 — Business scenario simulations (e2e)', () => {
             shopId: ctx.shopId,
             purchaseOrderId: po.id,
             supplierName: 'Partial Delivery Inc',
-            items: [{ productId: ctx.productId, quantity: qty, uom: 'PCS', purchaseRate: 2 }],
+            items: [
+              grLineItem({
+                productId: ctx.productId,
+                storageLocationId: ctx.storageLocationId,
+                quantity: qty,
+                purchaseRate: 2,
+              }),
+            ],
           })
         ).body,
       );

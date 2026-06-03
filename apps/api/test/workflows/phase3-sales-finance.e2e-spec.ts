@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -84,7 +84,14 @@ describe('Phase 3 — Sales & Finance workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [{ productId: ctx.productId, quantity: 5, uom: 'PCS', purchaseRate: 4 }],
+      items: [
+        grLineItem({
+          productId: ctx.productId,
+          storageLocationId: ctx.storageLocationId,
+          quantity: 5,
+          purchaseRate: 4,
+        }),
+      ],
     });
     const gr = unwrap<{ id: string }>(grRes.body);
     await api.post(`/api/v1/goods-receipts/${gr.id}/post`);

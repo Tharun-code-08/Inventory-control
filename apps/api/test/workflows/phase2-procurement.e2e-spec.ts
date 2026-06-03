@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -52,6 +52,9 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     expect(quoteRes.status).toBe(201);
     const quoteId = unwrap<{ id: string }>(quoteRes.body).id;
 
+    const sent = await api.post(`/api/v1/rfqs/${rfq.id}/send`);
+    expect([200, 201]).toContain(sent.status);
+
     await api
       .post('/api/v1/quotations')
       .send({ rfqId: '00000000-0000-4000-8000-000000000000', supplierId: ctx.supplierId, items: [{ quantity: 1, unitPrice: 1 }] })
@@ -96,7 +99,14 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [{ productId: ctx.productId, quantity: 4, uom: 'PCS', purchaseRate: 5 }],
+      items: [
+        grLineItem({
+          productId: ctx.productId,
+          storageLocationId: ctx.storageLocationId,
+          quantity: 4,
+          purchaseRate: 5,
+        }),
+      ],
     });
     expect(gr1Res.status).toBe(201);
     const gr1 = unwrap<{ id: string }>(gr1Res.body);
@@ -110,7 +120,14 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [{ productId: ctx.productId, quantity: 6, uom: 'PCS', purchaseRate: 5 }],
+      items: [
+        grLineItem({
+          productId: ctx.productId,
+          storageLocationId: ctx.storageLocationId,
+          quantity: 6,
+          purchaseRate: 5,
+        }),
+      ],
     });
     expect(gr2Res.status).toBe(201);
     const gr2 = unwrap<{ id: string }>(gr2Res.body);
@@ -131,7 +148,14 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
         shopId: ctx.shopId,
         purchaseOrderId: po.id,
         supplierName: 'E2E Supplier',
-        items: [{ productId: ctx.productId, quantity: 1, uom: 'PCS', purchaseRate: 5 }],
+        items: [
+          grLineItem({
+            productId: ctx.productId,
+            storageLocationId: ctx.storageLocationId,
+            quantity: 1,
+            purchaseRate: 5,
+          }),
+        ],
       })
       .expect((res) => expect([400, 422]).toContain(res.status));
   });

@@ -41,3 +41,20 @@ export function uniqueCode(prefix: string) {
 export function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** Goods receipt line — storageLocationId is required by the API. */
+export function grLineItem(args: {
+  productId: string;
+  storageLocationId: string;
+  quantity: number;
+  purchaseRate: number;
+  uom?: string;
+}) {
+  return {
+    productId: args.productId,
+    storageLocationId: args.storageLocationId,
+    quantity: args.quantity,
+    purchaseRate: args.purchaseRate,
+    uom: args.uom ?? 'PCS',
+  };
+}

@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request = require('supertest');
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
-import { authed, todayDateString, unwrap } from '../helpers/e2e-http';
+import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -42,7 +42,14 @@ describe('Phase 2 — Concurrent GR posting (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'Concurrent GR Supplier',
-      items: [{ productId: ctx.productId, quantity: 7, uom: 'PCS', purchaseRate: 3 }],
+      items: [
+        grLineItem({
+          productId: ctx.productId,
+          storageLocationId: ctx.storageLocationId,
+          quantity: 7,
+          purchaseRate: 3,
+        }),
+      ],
     };
 
     const [grA, grB] = await Promise.all([

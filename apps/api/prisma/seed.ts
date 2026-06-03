@@ -189,6 +189,19 @@ async function main() {
     });
     console.log(`[seed] Default shop: ${defaultShop.shopNumber}`);
 
+    await prisma.storageLocation.upsert({
+      where: { shopId_code: { shopId: defaultShop.id, code: 'MAIN' } },
+      update: { isActive: true, name: 'Main storage' },
+      create: {
+        shopId: defaultShop.id,
+        code: 'MAIN',
+        name: 'Main storage',
+        description: 'Default receiving location for workflow tests',
+        isActive: true,
+      },
+    });
+    console.log('[seed] Default storage location: MAIN');
+
     const ownerRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.OWNER } });
 
     const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? 'admin@retailims.com').toLowerCase();

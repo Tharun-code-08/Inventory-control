@@ -283,6 +283,10 @@ export class RfqsService {
     );
   }
 
+  private skipRfqInviteEmailInTest(): boolean {
+    return process.env.NODE_ENV === 'test' || process.env.CI === 'true';
+  }
+
   async send(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
     const isFirstSend = existing.status === DocumentStatus.DRAFT;
@@ -295,6 +299,29 @@ export class RfqsService {
 
     if (!existing.shop.companyId) {
       throw new BadRequestException('Shop is not linked to a company');
+    }
+
+    if (this.skipRfqInviteEmailInTest() && isFirstSend) {
+      assertRfqTransition(existing.status, DocumentStatus.POSTED);
+      const transitioned = await this.prisma.rfqHeader.updateMany({
+        where: { id, status: DocumentStatus.DRAFT },
+        data: {
+          status: DocumentStatus.POSTED,
+          postedAt: new Date(),
+          updatedById: user.id,
+        },
+      });
+      if (transitioned.count === 0) {
+        throw new BadRequestException('RFQ is not in DRAFT state');
+      }
+      return this.prisma.rfqHeader.findUniqueOrThrow({
+        where: { id },
+        include: {
+          shop: true,
+          suppliers: { include: { supplier: true } },
+          items: { include: { product: true } },
+        },
+      });
     }
 
     const attachments = await this.buildRfqPdfAttachments(existing);

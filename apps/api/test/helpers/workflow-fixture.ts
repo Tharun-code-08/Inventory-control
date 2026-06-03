@@ -6,6 +6,7 @@ export type WorkflowContext = {
   user: AuthSession['user'];
   companyId: string;
   shopId: string;
+  storageLocationId: string;
   productId: string;
   supplierId: string;
   customerId: string;
@@ -42,6 +43,31 @@ export async function resolveWorkflowShopId(
   return (hq ?? shops[0]).id;
 }
 
+/** Default MAIN bin from seed, or first location for the plant. */
+export async function resolveWorkflowStorageLocationId(
+  app: INestApplication,
+  token: string,
+  shopId: string,
+): Promise<string> {
+  const locations = unwrap<Array<{ id: string; code: string }>>(
+    (await authed(app, token).get('/api/v1/storage-locations').query({ shop_id: shopId })).body,
+  );
+  const main = locations.find((row) => row.code === 'MAIN');
+  if (main) return main.id;
+  if (locations.length > 0) return locations[0].id;
+
+  const created = unwrap<{ id: string }>(
+    (
+      await authed(app, token).post('/api/v1/storage-locations').send({
+        shopId,
+        code: 'MAIN',
+        name: 'Main storage',
+      })
+    ).body,
+  );
+  return created.id;
+}
+
 /**
  * Creates an isolated master-data slice for one workflow test run:
  * tenant company → HQ plant → product → supplier → customer.
@@ -52,6 +78,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
   const suffix = uniqueCode('E2E');
   const companyId = await resolveWorkflowCompanyId(app, token);
   const shopId = await resolveWorkflowShopId(app, token);
+  const storageLocationId = await resolveWorkflowStorageLocationId(app, token, shopId);
 
   const productRes = await api.post('/api/v1/products').send({
     productCode: `SKU-${suffix}`.slice(0, 40),
@@ -90,6 +117,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     user,
     companyId,
     shopId,
+    storageLocationId,
     productId: product.id,
     supplierId: supplier.id,
     customerId: customer.id,
