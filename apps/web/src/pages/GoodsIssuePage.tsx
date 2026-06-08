@@ -192,6 +192,7 @@ export function GoodsIssuePage() {
       { header: 'GI Number', value: (gi) => gi.giNumber },
       { header: 'Date', value: (gi) => csvDate(gi.giDate) },
       { header: 'Issue Type', value: (gi) => issueTypeLabel(gi.issueReason) },
+      { header: 'Other Reason', value: (gi) => gi.otherReason ?? '' },
       { header: 'Reference', value: (gi) => parseGiReference(gi.remarks) },
       { header: 'Plant', value: (gi) => gi.shop?.shopName ?? '' },
       { header: 'Status', value: (gi) => gi.status },
@@ -211,6 +212,7 @@ export function GoodsIssuePage() {
       { header: 'GI Number', value: ({ gi: current }) => current.giNumber },
       { header: 'Date', value: ({ gi: current }) => csvDate(current.giDate) },
       { header: 'Issue Type', value: ({ gi: current }) => issueTypeLabel(current.issueReason) },
+      { header: 'Other Reason', value: ({ gi: current }) => current.otherReason ?? '' },
       { header: 'Reference', value: ({ gi: current }) => parseGiReference(current.remarks) },
       { header: 'Plant', value: ({ gi: current }) => current.shop?.shopName ?? '' },
       { header: 'Status', value: ({ gi: current }) => current.status },
@@ -447,7 +449,12 @@ export function GoodsIssuePage() {
                           {gi.giNumber}
                         </button>
                       </TableCell>
-                      <TableCell>{issueTypeLabel(gi.issueReason)}</TableCell>
+                      <TableCell>
+                        {issueTypeLabel(gi.issueReason)}
+                        {issueTypeLabel(gi.issueReason) === 'Others' && gi.otherReason ? (
+                          <span className="ml-1 text-xs text-slate-500">({gi.otherReason})</span>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="text-slate-600">
                         {parseGiReference(gi.remarks)}
                       </TableCell>
@@ -536,6 +543,12 @@ export function GoodsIssuePage() {
                   <p className="text-xs text-slate-500">Issue Type</p>
                   <p className="font-medium">{issueTypeLabel(detailGI.issueReason)}</p>
                 </div>
+                {issueTypeLabel(detailGI.issueReason) === 'Others' && detailGI.otherReason ? (
+                  <div>
+                    <p className="text-xs text-slate-500">Other Reason</p>
+                    <p className="font-medium">{detailGI.otherReason}</p>
+                  </div>
+                ) : null}
                 <div>
                   <p className="text-xs text-slate-500">Reference</p>
                   <p className="font-medium">{parseGiReference(detailGI.remarks)}</p>

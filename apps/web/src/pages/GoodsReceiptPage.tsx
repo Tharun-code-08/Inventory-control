@@ -413,12 +413,24 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       ]
     : null;
 
+  const formatReceiptTypeLabel = (value?: string | null) => {
+    if (!value) return 'Full Receipt';
+    return value === 'PARTIAL' ? 'Partial Receipt' : 'Full Receipt';
+  };
+
+  const formatInwardShiftLabel = (value?: string | null) => {
+    if (!value) return '—';
+    return value === 'NIGHT_SHIFT' ? 'Night Shift' : 'Day Shift';
+  };
+
   const handleExportReceiptList = () => {
     const ok = exportModuleCsv('goods-receipts.csv', items, [
       { header: 'GR Number', value: (row) => row.grNumber },
       { header: 'GR Date', value: (row) => csvDate(row.grDate) },
       { header: 'Supplier', value: (row) => row.supplierName },
       { header: 'PO Number', value: (row) => resolveGrPoNumber(row.purchaseOrderId, row.receiptSource) },
+      { header: 'Receipt Type', value: (row) => formatReceiptTypeLabel(row.receiptType) },
+      { header: 'Inward Shift', value: (row) => row.receiptSource === 'OUTSIDE' ? formatInwardShiftLabel(row.inwardShift) : '' },
       { header: 'Supplier Ref', value: (row) => row.supplierRef ?? '' },
       { header: 'Status', value: (row) => row.status },
       { header: 'Items', value: (row) => row.items.length },
@@ -720,6 +732,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableHead className="font-semibold">GR Number</TableHead>
+                    <TableHead className="font-semibold">PO Number</TableHead>
+                    <TableHead className="font-semibold">Receipt Type</TableHead>
+                    <TableHead className="font-semibold">Inward Shift</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Supplier</TableHead>
                     <TableHead className="font-semibold text-center">Items</TableHead>
@@ -737,6 +752,15 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                     >
                       <TableCell className="font-mono text-xs font-medium">
                         {gr.grNumber}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {resolveGrPoNumber(gr.purchaseOrderId, gr.receiptSource)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatReceiptTypeLabel(gr.receiptType)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {gr.receiptSource === 'OUTSIDE' ? formatInwardShiftLabel(gr.inwardShift) : '—'}
                       </TableCell>
                       <TableCell className="text-sm">
                         {formatDateOnly(gr.grDate)}
@@ -889,6 +913,20 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                     {formatDateOnly(viewingGR.grDate)}
                   </p>
                 </div>
+                <div>
+                  <span className="text-muted-foreground">PO Number</span>
+                  <p className="font-medium">{resolveGrPoNumber(viewingGR.purchaseOrderId, viewingGR.receiptSource)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Receipt Type</span>
+                  <p className="font-medium">{formatReceiptTypeLabel(viewingGR.receiptType)}</p>
+                </div>
+                {viewingGR.receiptSource === 'OUTSIDE' && (
+                  <div>
+                    <span className="text-muted-foreground">Inward Shift</span>
+                    <p className="font-medium">{formatInwardShiftLabel(viewingGR.inwardShift)}</p>
+                  </div>
+                )}
                 {viewingGR.supplierRef && (
                   <div>
                     <span className="text-muted-foreground">Supplier Ref</span>
