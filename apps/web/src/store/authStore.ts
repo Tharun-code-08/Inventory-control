@@ -19,6 +19,7 @@ export type AuthUser = {
   shopId: string | null;
   companyId?: string | null;
   permissions: string[];
+  isPlatformAdmin?: boolean;
   shop?: AuthShop | null;
   avatarUrl?: string | null;
 };

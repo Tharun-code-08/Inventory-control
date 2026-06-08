@@ -129,6 +129,7 @@ export class ProductsService {
       ...product,
       purchasePrice: Number(product.purchasePrice),
       sellingPrice: Number(product.sellingPrice),
+      gstRate: Number(product.gstRate ?? 0),
       plants: product.plants.map((plant) => this.decoratePlant(plant)),
     };
   }
@@ -363,6 +364,7 @@ export class ProductsService {
           drawingReference: dto.drawingReference ?? null,
           brand: dto.brand ?? null,
           taxPreference: dto.taxPreference ?? TaxPreference.TAXABLE,
+          gstRate: new Prisma.Decimal(dto.gstRate ?? 0),
           purchasePrice: new Prisma.Decimal(dto.purchasePrice),
           sellingPrice: new Prisma.Decimal(dto.sellingPrice),
           isActive: dto.isActive ?? true,
@@ -519,6 +521,7 @@ export class ProductsService {
           drawingReference: dto.drawingReference ?? undefined,
           brand: dto.brand === undefined ? undefined : dto.brand ?? null,
           taxPreference: dto.taxPreference ?? undefined,
+          gstRate: dto.gstRate !== undefined ? new Prisma.Decimal(dto.gstRate) : undefined,
           purchasePrice:
             dto.purchasePrice !== undefined ? new Prisma.Decimal(dto.purchasePrice) : undefined,
           sellingPrice:

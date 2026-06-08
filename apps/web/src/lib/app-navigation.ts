@@ -33,6 +33,7 @@ export type NavCommand = {
 type UserLike = {
   role?: string;
   permissions?: string[];
+  isPlatformAdmin?: boolean;
 };
 
 function hasPerm(user: UserLike | null | undefined, perm: string) {
@@ -142,7 +143,7 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
   }
 
   push('settings', 'Settings', 'Preferences', '/settings', 'System', Settings, ['profile']);
-  if (hasPerm(user, 'user:manage') || user?.role === 'OWNER' || user?.role === 'ADMIN') {
+  if (user?.isPlatformAdmin) {
     push(
       'platform-subscriptions',
       'Platform Admin',
@@ -152,6 +153,8 @@ export function buildNavCommands(user: UserLike | null | undefined): NavCommand[
       BarChart3,
       ['platform', 'mrr', 'admin'],
     );
+  }
+  if (hasPerm(user, 'user:manage') || user?.role === 'OWNER' || user?.role === 'ADMIN') {
     push(
       'transaction-number-series',
       'Transaction Number Series',

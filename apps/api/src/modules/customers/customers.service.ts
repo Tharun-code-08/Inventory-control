@@ -1,10 +1,10 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { throwDuplicateRecordConflict } from '../../common/errors/duplicate-conflict';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { shopListWhere } from '../../common/utils/shop-scope';
@@ -14,6 +14,13 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
+
+type CustomerDuplicateRow = {
+  id: string;
+  customerName: string;
+  customerCode: string;
+  isActive: boolean;
+};
 
 @Injectable()
 export class CustomersService {
@@ -53,7 +60,10 @@ export class CustomersService {
         phone: true,
         taxId: true,
         pan: true,
+        street: true,
         city: true,
+        state: true,
+        postalCode: true,
         country: true,
         isActive: true,
         shopId: true,
@@ -63,15 +73,34 @@ export class CustomersService {
     return { data: items, meta };
   }
 
-  private duplicateCustomerMessage(
-    existing: { customerName: string; customerCode: string },
+  private throwCustomerDuplicate(
+    user: RequestUser,
+    existing: CustomerDuplicateRow,
     context: 'name' | 'code',
-  ): string {
+  ): never {
     const label = `"${existing.customerName}" (${existing.customerCode})`;
-    if (context === 'name') {
-      return `Customer ${label} already exists for this plant. Open the Customers list to view or edit it.`;
-    }
-    return `Customer ${label} already exists for this plant. It may have been created during an earlier attempt — refresh the Customers list.`;
+    const message =
+      context === 'name'
+        ? `Customer ${label} already exists for this plant.`
+        : `Customer ${label} already exists for this plant. It may have been created during an earlier attempt.`;
+
+    throwDuplicateRecordConflict(
+      message,
+      {
+        recordId: existing.id,
+        recordCode: existing.customerCode,
+        recordName: existing.customerName,
+        entity: 'Customer',
+        listPath: '/customers',
+        isArchived: !existing.isActive,
+      },
+      {
+        userId: user.id,
+        userEmail: user.email,
+        shopId: user.shopId,
+        companyId: user.companyId,
+      },
+    );
   }
 
   async create(user: RequestUser, dto: CreateCustomerDto) {
@@ -98,19 +127,19 @@ export class CustomersService {
         shopId,
         customerName: { equals: customerName, mode: 'insensitive' },
       },
-      select: { customerName: true, customerCode: true },
+      select: { id: true, customerName: true, customerCode: true, isActive: true },
     });
     if (existingByName) {
-      throw new ConflictException(this.duplicateCustomerMessage(existingByName, 'name'));
+      this.throwCustomerDuplicate(user, existingByName, 'name');
     }
 
     if (manualCode) {
       const existingByCode = await this.prisma.customer.findFirst({
         where: { shopId, customerCode: manualCode },
-        select: { customerName: true, customerCode: true },
+        select: { id: true, customerName: true, customerCode: true, isActive: true },
       });
       if (existingByCode) {
-        throw new ConflictException(this.duplicateCustomerMessage(existingByCode, 'code'));
+        this.throwCustomerDuplicate(user, existingByCode, 'code');
       }
     }
 
@@ -155,10 +184,10 @@ export class CustomersService {
       ) {
         const existingByCode = await this.prisma.customer.findFirst({
           where: { shopId, customerCode: attemptedCode },
-          select: { customerName: true, customerCode: true },
+          select: { id: true, customerName: true, customerCode: true, isActive: true },
         });
         if (existingByCode) {
-          throw new ConflictException(this.duplicateCustomerMessage(existingByCode, 'code'));
+          this.throwCustomerDuplicate(user, existingByCode, 'code');
         }
       }
       throw error;
@@ -196,4 +225,3 @@ export class CustomersService {
     });
   }
 }
-

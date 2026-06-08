@@ -8,6 +8,12 @@ export type SalesOrderItem = {
   shippedQty?: string | number;
   uom: string;
   unitPrice: string | number;
+  discountAmount?: string | number;
+  cgstRate?: string | number;
+  sgstRate?: string | number;
+  igstRate?: string | number;
+  taxRate?: string | number;
+  taxAmount?: string | number;
   lineValue: string | number;
   product?: { id: string; productCode?: string; description?: string };
 };
@@ -22,7 +28,23 @@ export type SalesOrder = {
   status: string;
   remarks?: string | null;
   totalValue?: string | number | null;
-  customer?: { id: string; customerCode?: string; customerName: string };
+  subtotalBeforeTax?: string | number | null;
+  totalCgst?: string | number | null;
+  totalSgst?: string | number | null;
+  totalIgst?: string | number | null;
+  taxAmount?: string | number | null;
+  gstSupplyType?: 'INTRA_STATE' | 'INTER_STATE';
+  customer?: {
+    id: string;
+    customerCode?: string;
+    customerName: string;
+    taxId?: string | null;
+    street?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+  };
   shop?: { id: string; shopName: string; shopNumber: string };
   items?: SalesOrderItem[];
   salesQuotation?: { id: string; quoteNumber: string } | null;
@@ -34,7 +56,18 @@ export type CreateSalesOrderPayload = {
   expectedDate?: string;
   customerId: string;
   remarks?: string;
-  items: Array<{ productId: string; quantity: number; uom?: string; unitPrice: number }>;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    uom?: string;
+    unitPrice: number;
+    cgstRate?: number;
+    sgstRate?: number;
+    igstRate?: number;
+    taxRate?: number;
+    discountAmount?: number;
+  }>;
+  gstSupplyType?: 'INTRA_STATE' | 'INTER_STATE';
 };
 
 export type UpdateSalesOrderPayload = Partial<CreateSalesOrderPayload>;

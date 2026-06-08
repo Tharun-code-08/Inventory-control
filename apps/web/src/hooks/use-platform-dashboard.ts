@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { isPlatformAdminUser } from '@/lib/roles';
+import { useAuthStore } from '@/store/authStore';
 
 export type PlatformDashboard = {
   kpis: {
@@ -55,9 +57,12 @@ async function fetchPlatformDashboard(): Promise<PlatformDashboard> {
 }
 
 export function usePlatformDashboard() {
+  const user = useAuthStore((s) => s.user);
+  const enabled = isPlatformAdminUser(user);
   return useQuery({
     queryKey: ['platform', 'subscriptions', 'dashboard'],
     queryFn: fetchPlatformDashboard,
     retry: false,
+    enabled,
   });
 }

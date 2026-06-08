@@ -34,6 +34,8 @@ export const envValidationSchema = Joi.object({
   /** Optional BCC copy (e.g. office@…) for outbound quotation emails. */
   MAIL_BCC: Joi.string().email().optional(),
   ADMIN_NOTIFICATION_EMAIL: Joi.string().email().optional(),
+  /** Comma-separated emails allowed to access /platform/* APIs and UI. */
+  PLATFORM_ADMIN_EMAILS: Joi.string().trim().empty('').optional(),
 
   RATE_LIMIT_AUTH_TTL: Joi.number().integer().min(1).default(60),
   RATE_LIMIT_AUTH_LIMIT: Joi.number().integer().min(1).default(10),

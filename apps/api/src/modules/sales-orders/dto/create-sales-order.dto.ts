@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { GstSupplyType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class CreateSalesOrderItemDto {
   @ApiProperty()
@@ -33,6 +44,24 @@ export class CreateSalesOrderItemDto {
   @Type(() => Number)
   @Min(0)
   taxRate?: number;
+
+  @ApiPropertyOptional({ description: 'CGST rate as percent (e.g. 9 for 9%)' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  cgstRate?: number;
+
+  @ApiPropertyOptional({ description: 'SGST rate as percent (e.g. 9 for 9%)' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  sgstRate?: number;
+
+  @ApiPropertyOptional({ description: 'IGST rate as percent (e.g. 18 for 18%)' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  igstRate?: number;
 }
 
 export class CreateSalesOrderDto {
@@ -71,6 +100,11 @@ export class CreateSalesOrderDto {
   @IsOptional()
   @Type(() => Number)
   fxRateUsed?: number;
+
+  @ApiPropertyOptional({ enum: GstSupplyType, description: 'Auto-derived from GSTIN when omitted' })
+  @IsOptional()
+  @IsEnum(GstSupplyType)
+  gstSupplyType?: GstSupplyType;
 
   @ApiProperty({ type: [CreateSalesOrderItemDto] })
   @IsArray()

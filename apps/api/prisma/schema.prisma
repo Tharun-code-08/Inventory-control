@@ -66,6 +66,11 @@ enum FulfillmentStatus {
   FULL
 }
 
+enum GstSupplyType {
+  INTRA_STATE
+  INTER_STATE
+}
+
 enum ReturnStatus {
   DRAFT
   POSTED
@@ -658,6 +663,7 @@ model Product {
   drawingReference String?       @map("drawing_reference")
   brand            String?
   taxPreference    TaxPreference @default(TAXABLE) @map("tax_preference")
+  gstRate          Decimal       @default(0) @map("gst_rate") @db.Decimal(7, 4)
   purchasePrice    Decimal       @map("purchase_price") @db.Decimal(12, 2)
   sellingPrice     Decimal       @map("selling_price") @db.Decimal(12, 2)
   isActive         Boolean       @default(true) @map("is_active")
@@ -1586,6 +1592,11 @@ model SalesOrderHeader {
   discountAmount    Decimal           @default(0) @map("discount_amount") @db.Decimal(14, 2)
   taxAmount         Decimal           @default(0) @map("tax_amount") @db.Decimal(14, 2)
   totalValue        Decimal?          @map("total_value") @db.Decimal(14, 2)
+  gstSupplyType     GstSupplyType     @default(INTRA_STATE) @map("gst_supply_type")
+  subtotalBeforeTax Decimal           @default(0) @map("subtotal_before_tax") @db.Decimal(14, 2)
+  totalCgst         Decimal           @default(0) @map("total_cgst") @db.Decimal(14, 2)
+  totalSgst         Decimal           @default(0) @map("total_sgst") @db.Decimal(14, 2)
+  totalIgst         Decimal           @default(0) @map("total_igst") @db.Decimal(14, 2)
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById       String?           @map("created_by") @db.Uuid
@@ -1613,6 +1624,9 @@ model SalesOrderItem {
   uom            String
   unitPrice      Decimal  @map("unit_price") @db.Decimal(12, 2)
   discountAmount Decimal  @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  cgstRate       Decimal  @default(0) @map("cgst_rate") @db.Decimal(7, 4)
+  sgstRate       Decimal  @default(0) @map("sgst_rate") @db.Decimal(7, 4)
+  igstRate       Decimal  @default(0) @map("igst_rate") @db.Decimal(7, 4)
   taxRate        Decimal  @default(0) @map("tax_rate") @db.Decimal(7, 4)
   taxAmount      Decimal  @default(0) @map("tax_amount") @db.Decimal(14, 2)
   lineValue      Decimal  @map("line_value") @db.Decimal(14, 2)

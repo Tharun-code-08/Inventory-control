@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parsePlatformAdminEmailsFromConfig } from '../platform/platform-admin.util';
 
 export type DispatchPlatformNotificationArgs = {
   category: PlatformNotificationCategory;
@@ -37,14 +38,7 @@ export class PlatformNotificationService {
   ) {}
 
   parseAdminEmails(): string[] {
-    const raw =
-      this.config.get<string>('PLATFORM_ADMIN_EMAILS') ??
-      process.env.PLATFORM_ADMIN_EMAILS ??
-      '';
-    return raw
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
+    return [...parsePlatformAdminEmailsFromConfig(this.config)];
   }
 
   private async hasRecentDuplicate(args: {

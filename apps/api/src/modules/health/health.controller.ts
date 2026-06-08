@@ -139,7 +139,8 @@ export class HealthController {
     };
     const queue = new Queue('healthcheck', { connection });
     try {
-      await queue.client.then((client) => client.ping());
+      const client = await queue.client;
+      await (client as any).ping();
       return true;
     } finally {
       await queue.close();

@@ -53,6 +53,24 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useCustomers } from '@/hooks/use-customers';
+import { CustomerSearchSelect } from '@/components/sales/CustomerSearchSelect';
+import { SalesOrderFulfillmentSection } from '@/components/sales/SalesOrderFulfillmentSection';
+import { SalesOrderGstSummary } from '@/components/sales/SalesOrderGstSummary';
+import {
+  SalesOrderLineItemsEditor,
+  emptySalesLine,
+  type SalesLineDraft,
+} from '@/components/sales/SalesOrderLineItemsEditor';
+import type { Customer } from '@/hooks/use-customers';
+import { resolveCustomerDeliveryAddress } from '@/lib/customer-address';
+import { resolveGstSupplyType, supplyTypeLabel } from '@/lib/gst-supply-type';
+import type { GstSupplyType } from '@/lib/gst-supply-type';
+import {
+  computeSalesLineGst,
+  convertLinePercentsForSupplyType,
+  splitTaxRateToPercents,
+  validateLineGst,
+} from '@/lib/sales-order-gst';
 import { useProducts, type Product } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useSalesQuotations } from '@/hooks/use-sales-quotations';
@@ -72,13 +90,6 @@ import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 
 type SoTab = 'all' | 'draft' | 'confirmed' | 'fulfilled';
 
-type LineDraft = {
-  productId: string;
-  quantity: string;
-  unitPrice: string;
-  uom: string;
-};
-
 type OrderFormState = {
   customerId: string;
   quotationId: string;
@@ -86,15 +97,8 @@ type OrderFormState = {
   paymentTerms: string;
   deliveryAddress: string;
   notes: string;
-  items: LineDraft[];
+  items: SalesLineDraft[];
 };
-
-const emptyLine = (): LineDraft => ({
-  productId: '',
-  quantity: '1',
-  unitPrice: '0',
-  uom: 'pcs',
-});
 
 const emptyForm = (): OrderFormState => ({
   customerId: '',
@@ -103,7 +107,7 @@ const emptyForm = (): OrderFormState => ({
   paymentTerms: 'Net 30',
   deliveryAddress: '',
   notes: '',
-  items: [emptyLine()],
+  items: [emptySalesLine()],
 });
 
 function extractProductRows(raw: unknown): Product[] {
@@ -226,13 +230,29 @@ function orderToForm(order: SalesOrder): OrderFormState {
     notes,
     items:
       order.items && order.items.length > 0
-        ? order.items.map((line) => ({
-            productId: line.productId,
-            quantity: String(line.quantity),
-            unitPrice: String(line.unitPrice),
-            uom: line.uom ?? 'pcs',
-          }))
-        : [emptyLine()],
+        ? order.items.map((line) => {
+            const isInter = order.gstSupplyType === 'INTER_STATE';
+            const igstPercent = Number(line.igstRate ?? 0);
+            const hasSplit = line.cgstRate != null || line.sgstRate != null;
+            const { cgstPercent, sgstPercent } = hasSplit
+              ? {
+                  cgstPercent: Number(line.cgstRate ?? 0),
+                  sgstPercent: Number(line.sgstRate ?? 0),
+                }
+              : splitTaxRateToPercents(Number(line.taxRate ?? 0));
+            return {
+              productId: line.productId,
+              quantity: String(line.quantity),
+              unitPrice: String(line.unitPrice),
+              uom: line.uom ?? 'pcs',
+              cgstPercent: String(isInter ? 0 : cgstPercent),
+              sgstPercent: String(isInter ? 0 : sgstPercent),
+              igstPercent: String(
+                isInter ? igstPercent || cgstPercent + sgstPercent : igstPercent,
+              ),
+            };
+          })
+        : [emptySalesLine()],
   };
 }
 
@@ -241,7 +261,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const { data: shops = [] } = useShops();
-  const { data: customers = [] } = useCustomers();
+  const { data: customers = [] } = useCustomers(undefined, { fetchAll: true });
   const { data: quotations = [] } = useSalesQuotations();
   const { data: salesOrders = [], isLoading } = useSalesOrders();
   const createOrder = useCreateSalesOrder();
@@ -255,6 +275,8 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [useMasterAddress, setUseMasterAddress] = useState(true);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const resolvedShopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
@@ -313,7 +335,48 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
 
   const isSearchPending = search !== debouncedSearch || (isLoading && search.trim().length > 0);
 
-  const resetForm = () => setForm(emptyForm());
+  const resetForm = () => {
+    setForm(emptyForm());
+    setUseMasterAddress(true);
+    setSelectedCustomer(null);
+  };
+
+  const activeShop = shops.find((s) => s.id === resolvedShopId);
+
+  const gstSupplyType: GstSupplyType = useMemo(() => {
+    const customer = selectedCustomer ?? customers.find((c) => c.id === form.customerId);
+    return resolveGstSupplyType({
+      shopTaxId: activeShop?.taxId,
+      customerTaxId: customer?.taxId,
+    });
+  }, [activeShop?.taxId, selectedCustomer, customers, form.customerId]);
+
+  const handleCustomerChange = (customerId: string, customer?: Customer) => {
+    const resolved = customer ?? customers.find((c) => c.id === customerId) ?? null;
+    setSelectedCustomer(resolved);
+    const nextSupplyType = resolveGstSupplyType({
+      shopTaxId: activeShop?.taxId,
+      customerTaxId: resolved?.taxId,
+    });
+    setForm((prev) => ({
+      ...prev,
+      customerId,
+      quotationId: '',
+      deliveryAddress:
+        useMasterAddress && customerId
+          ? resolveCustomerDeliveryAddress(resolved)
+          : prev.deliveryAddress,
+      items: prev.items.map((line) => ({
+        ...line,
+        ...convertLinePercentsForSupplyType(line, nextSupplyType),
+      })),
+    }));
+  };
+
+  const handleDeliveryAddressChange = (value: string) => {
+    setUseMasterAddress(false);
+    setForm((prev) => ({ ...prev, deliveryAddress: value }));
+  };
 
   const openCreate = () => {
     resetForm();
@@ -333,6 +396,10 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   useEffect(() => {
     if (editingOrder && editingId) {
       setForm(orderToForm(editingOrder));
+      if (editingOrder.customer) {
+        setSelectedCustomer(editingOrder.customer as Customer);
+      }
+      setUseMasterAddress(false);
     }
   }, [editingOrder, editingId]);
 
@@ -360,16 +427,24 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const applyQuotation = (quoteId: string) => {
     const quote = quotations.find((q) => q.id === quoteId);
     if (!quote?.items?.length) return;
+    const customer = customers.find((c) => c.id === quote.customerId);
+    setSelectedCustomer(customer ?? null);
     setForm((prev) => ({
       ...prev,
       quotationId: quoteId,
       customerId: quote.customerId,
       expectedDate: quote.validUntil ? quote.validUntil.slice(0, 10) : prev.expectedDate,
+      deliveryAddress: useMasterAddress
+        ? resolveCustomerDeliveryAddress(customer)
+        : prev.deliveryAddress,
       items: quote.items!.map((line) => ({
         productId: line.productId,
         quantity: String(line.quantity),
         unitPrice: String(line.unitPrice),
         uom: line.uom ?? 'pcs',
+        cgstPercent: '9',
+        sgstPercent: '9',
+        igstPercent: '18',
       })),
     }));
   };
@@ -383,14 +458,39 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
       toast.error('No plant available for this order');
       return null;
     }
-    const items = form.items
-      .filter((line) => line.productId)
-      .map((line) => ({
+    const activeLines = form.items.filter((line) => line.productId);
+    for (const line of activeLines) {
+      const gstError = validateLineGst(
+        gstSupplyType,
+        Number(line.cgstPercent),
+        Number(line.sgstPercent),
+        Number(line.igstPercent),
+      );
+      if (gstError) {
+        toast.error(gstError);
+        return null;
+      }
+    }
+    const items = activeLines.map((line) => {
+      const computed = computeSalesLineGst({
+        quantity: Number(line.quantity),
+        unitPrice: Number(line.unitPrice),
+        cgstPercent: Number(line.cgstPercent),
+        sgstPercent: Number(line.sgstPercent),
+        igstPercent: Number(line.igstPercent),
+        supplyType: gstSupplyType,
+      });
+      return {
         productId: line.productId,
         quantity: Number(line.quantity),
         unitPrice: Number(line.unitPrice),
         uom: line.uom || 'pcs',
-      }));
+        cgstRate: Number(line.cgstPercent),
+        sgstRate: Number(line.sgstPercent),
+        igstRate: Number(line.igstPercent),
+        taxRate: computed.taxRate,
+      };
+    });
     if (items.length === 0) {
       toast.error('Add at least one line item');
       return null;
@@ -399,6 +499,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
       customerId: form.customerId,
       expectedDate: form.expectedDate || undefined,
       remarks: buildRemarks(form),
+      gstSupplyType,
       items,
     };
     if (mode === 'create') {
@@ -453,13 +554,24 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
     resetForm();
   };
 
-  const orderGrandTotal = useMemo(
+  const activeCustomer =
+    selectedCustomer ?? customers.find((c) => c.id === form.customerId) ?? null;
+
+  const lineGstComputed = useMemo(
     () =>
-      form.items.reduce(
-        (sum, line) => sum + Number(line.quantity || 0) * Number(line.unitPrice || 0),
-        0,
-      ),
-    [form.items],
+      form.items
+        .filter((line) => line.productId)
+        .map((line) =>
+          computeSalesLineGst({
+            quantity: Number(line.quantity),
+            unitPrice: Number(line.unitPrice),
+            cgstPercent: Number(line.cgstPercent),
+            sgstPercent: Number(line.sgstPercent),
+            igstPercent: Number(line.igstPercent),
+            supplyType: gstSupplyType,
+          }),
+        ),
+    [form.items, gstSupplyType],
   );
 
   const salesOrderForm = (
@@ -469,21 +581,10 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Customer *</Label>
-            <Select
+            <CustomerSearchSelect
               value={form.customerId}
-              onValueChange={(v) => setForm((p) => ({ ...p, customerId: v, quotationId: '' }))}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Select customer" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.customerName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={handleCustomerChange}
+            />
           </div>
           <div className="space-y-2">
             <Label>Sales Quotation Ref</Label>
@@ -539,146 +640,33 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Fulfillment Location</h3>
-        <div className="space-y-2">
-          <Label>Customer Delivery Address</Label>
-          <Input
-            className="h-9"
-            value={form.deliveryAddress}
-            onChange={(e) => setForm((p) => ({ ...p, deliveryAddress: e.target.value }))}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Notes</Label>
-          <Input
-            className="h-9"
-            value={form.notes}
-            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-          />
-        </div>
-      </section>
+      <SalesOrderFulfillmentSection
+        deliveryAddress={form.deliveryAddress}
+        notes={form.notes}
+        useMasterAddress={useMasterAddress}
+        customer={activeCustomer}
+        inputClassName="h-9"
+        onDeliveryAddressChange={handleDeliveryAddressChange}
+        onNotesChange={(notes) => setForm((p) => ({ ...p, notes }))}
+        onUseMasterAddressChange={setUseMasterAddress}
+      />
 
-      <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold">Line items</Label>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setForm((p) => ({ ...p, items: [...p.items, emptyLine()] }))}
-          >
-            + Add item
-          </Button>
-        </div>
-        {form.items.map((line, index) => {
-          const lineTotal = Number(line.quantity || 0) * Number(line.unitPrice || 0);
-          return (
-            <div key={index} className="grid grid-cols-12 gap-2 rounded-lg border p-2">
-              <div className="col-span-5">
-                <Select
-                  value={line.productId || 'none'}
-                  onValueChange={(v) => {
-                    if (v === 'none') return;
-                    const p = products.find((x) => x.id === v);
-                    setForm((prev) => ({
-                      ...prev,
-                      items: prev.items.map((row, i) =>
-                        i === index
-                          ? {
-                              ...row,
-                              productId: v,
-                              unitPrice: String(p?.sellingPrice ?? row.unitPrice),
-                              uom: p?.uom ?? row.uom,
-                            }
-                          : row,
-                      ),
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Product" />
-                  </SelectTrigger>
-                  <SelectContent className="max-w-[min(24rem,90vw)]">
-                    <SelectItem value="none" disabled>
-                      Select product
-                    </SelectItem>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">
-                        {p.productCode} — {p.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2">
-                <Input
-                  type="number"
-                  min="0.0001"
-                  className="h-8 text-xs"
-                  value={line.quantity}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      items: prev.items.map((row, i) =>
-                        i === index ? { ...row, quantity: e.target.value } : row,
-                      ),
-                    }))
-                  }
-                />
-              </div>
-              <div className="col-span-2">
-                <Input className="h-8 text-xs" value={line.uom} readOnly />
-              </div>
-              <div className="col-span-2">
-                <Input
-                  type="number"
-                  min="0"
-                  className="h-8 text-xs"
-                  value={line.unitPrice}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      items: prev.items.map((row, i) =>
-                        i === index ? { ...row, unitPrice: e.target.value } : row,
-                      ),
-                    }))
-                  }
-                />
-              </div>
-              <div className="col-span-1 flex items-center justify-end">
-                {form.items.length > 1 ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-red-600"
-                    onClick={() =>
-                      setForm((prev) => ({
-                        ...prev,
-                        items: prev.items.filter((_, i) => i !== index),
-                      }))
-                    }
-                  >
-                    ×
-                  </Button>
-                ) : (
-                  <span className="text-right text-xs tabular-nums text-slate-600">
-                    {formatAmount(lineTotal)}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </section>
+      <p className="text-xs font-medium text-slate-600">{supplyTypeLabel(gstSupplyType)}</p>
 
-      <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-        <span className="font-medium text-slate-700">Estimated total</span>
-        <span className="font-semibold tabular-nums text-indigo-800">
-          {formatAmount(orderGrandTotal)}
-        </span>
-      </div>
+      <SalesOrderLineItemsEditor
+        items={form.items}
+        products={products}
+        supplyType={gstSupplyType}
+        formatAmount={formatAmount}
+        compact
+        onChange={(items) => setForm((p) => ({ ...p, items }))}
+      />
+
+      <SalesOrderGstSummary
+        lines={lineGstComputed}
+        supplyType={gstSupplyType}
+        formatAmount={formatAmount}
+      />
 
       <div className="flex flex-col gap-2 pt-1">
         <Button
@@ -949,21 +937,10 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Customer *</Label>
-                  <Select
+                  <CustomerSearchSelect
                     value={form.customerId}
-                    onValueChange={(v) => setForm((p) => ({ ...p, customerId: v, quotationId: '' }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.customerName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={handleCustomerChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Sales Quotation Ref</Label>
@@ -1018,152 +995,31 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
               </div>
             </section>
 
-            <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Fulfillment Location</h3>
-              <div className="space-y-2">
-                <Label>Customer Delivery Address</Label>
-                <Input
-                  value={form.deliveryAddress}
-                  onChange={(e) => setForm((p) => ({ ...p, deliveryAddress: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Input
-                  value={form.notes}
-                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                />
-              </div>
-            </section>
+            <SalesOrderFulfillmentSection
+              deliveryAddress={form.deliveryAddress}
+              notes={form.notes}
+              useMasterAddress={useMasterAddress}
+              customer={activeCustomer}
+              onDeliveryAddressChange={handleDeliveryAddressChange}
+              onNotesChange={(notes) => setForm((p) => ({ ...p, notes }))}
+              onUseMasterAddressChange={setUseMasterAddress}
+            />
 
-            <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">Line Items</h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setForm((p) => ({ ...p, items: [...p.items, emptyLine()] }))}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add Item
-                </Button>
-              </div>
-              <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50/80">
-                      <TableHead className="text-xs">Product</TableHead>
-                      <TableHead className="text-xs">Qty</TableHead>
-                      <TableHead className="text-xs">Unit Price</TableHead>
-                      <TableHead className="text-xs text-right">Total</TableHead>
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {form.items.map((line, index) => {
-                      const product = products.find((p) => p.id === line.productId);
-                      const lineTotal =
-                        Number(line.quantity || 0) * Number(line.unitPrice || 0);
-                      return (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Select
-                              value={line.productId || 'none'}
-                              onValueChange={(v) => {
-                                if (v === 'none') return;
-                                const p = products.find((x) => x.id === v);
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((row, i) =>
-                                    i === index
-                                      ? {
-                                          ...row,
-                                          productId: v,
-                                          unitPrice: String(p?.sellingPrice ?? row.unitPrice),
-                                          uom: p?.uom ?? row.uom,
-                                        }
-                                      : row,
-                                  ),
-                                }));
-                              }}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="Product" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Select…</SelectItem>
-                                {products.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.productCode} — {p.description}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {product && (
-                              <p className="mt-1 text-xs text-slate-500">{product.description}</p>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0.0001"
-                              className="h-8 w-20"
-                              value={line.quantity}
-                              onChange={(e) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((row, i) =>
-                                    i === index ? { ...row, quantity: e.target.value } : row,
-                                  ),
-                                }))
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              className="h-8 w-24"
-                              value={line.unitPrice}
-                              onChange={(e) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  items: prev.items.map((row, i) =>
-                                    i === index ? { ...row, unitPrice: e.target.value } : row,
-                                  ),
-                                }))
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">
-                            {formatAmount(lineTotal)}
-                          </TableCell>
-                          <TableCell>
-                            {form.items.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-600"
-                                onClick={() =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    items: prev.items.filter((_, i) => i !== index),
-                                  }))
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </section>
+            <p className="text-xs font-medium text-slate-600">{supplyTypeLabel(gstSupplyType)}</p>
+
+            <SalesOrderLineItemsEditor
+              items={form.items}
+              products={products}
+              supplyType={gstSupplyType}
+              formatAmount={formatAmount}
+              onChange={(items) => setForm((p) => ({ ...p, items }))}
+            />
+
+            <SalesOrderGstSummary
+              lines={lineGstComputed}
+              supplyType={gstSupplyType}
+              formatAmount={formatAmount}
+            />
 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={closeCreateSheet}>

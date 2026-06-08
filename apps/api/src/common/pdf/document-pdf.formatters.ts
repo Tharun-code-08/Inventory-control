@@ -14,6 +14,18 @@ export function formatDocumentDate(iso: string | Date): string {
   return `${day}/${month}/${d.getFullYear()}`;
 }
 
+export function formatDocumentDateTime(iso: string | Date): string {
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function formatDocumentMoney(value: number): string {
   return new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 2,

@@ -4,6 +4,7 @@ import {
   CostingMethod,
   DocumentEmailTrigger,
   FulfillmentStatus,
+  GstSupplyType,
   Prisma,
   SalesOrderStatus,
   TransactionType,
@@ -12,6 +13,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, roundMoney } from '../../common/utils/money';
+import { resolveGstSupplyType } from '../../common/utils/gst-supply-type';
+import { computeSalesOrderLineTotals } from '../../common/utils/sales-order-gst';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -99,38 +102,68 @@ export class SalesOrdersService {
    * which the caller can stamp separately. We round each money sub-result so
    * the persisted decimals match what was displayed to the user.
    */
-  private computeLineTotals(items: CreateSalesOrderItemDto[] | undefined) {
+  private async resolveSupplyType(
+    shopId: string,
+    customerId: string,
+    override?: GstSupplyType,
+  ): Promise<GstSupplyType> {
+    if (override) return override;
+    const [shop, customer] = await Promise.all([
+      this.prisma.shop.findUnique({ where: { id: shopId }, select: { taxId: true } }),
+      this.prisma.customer.findUnique({ where: { id: customerId }, select: { taxId: true } }),
+    ]);
+    return resolveGstSupplyType({
+      shopTaxId: shop?.taxId,
+      customerTaxId: customer?.taxId,
+    });
+  }
+
+  private computeLineTotals(
+    items: CreateSalesOrderItemDto[] | undefined,
+    supplyType: GstSupplyType,
+  ) {
     let total = new Prisma.Decimal(0);
     let totalDiscount = new Prisma.Decimal(0);
     let totalTax = new Prisma.Decimal(0);
+    let subtotalBeforeTax = new Prisma.Decimal(0);
+    let totalCgst = new Prisma.Decimal(0);
+    let totalSgst = new Prisma.Decimal(0);
+    let totalIgst = new Prisma.Decimal(0);
+
     const lines = (items ?? []).map((item) => {
-      const quantity = asMoney(item.quantity ?? 0);
-      const unitPrice = asMoney(item.unitPrice ?? 0);
-      const discount = asMoney(item.discountAmount ?? 0);
-      const taxRate = asMoney(item.taxRate ?? 0);
-      const subTotal = quantity.mul(unitPrice);
-      const taxable = Prisma.Decimal.max(subTotal.sub(discount), new Prisma.Decimal(0));
-      const taxAmount = roundMoney(taxable.mul(taxRate));
-      const lineValue = roundMoney(subTotal.sub(discount).add(taxAmount));
-      total = total.add(lineValue);
-      totalDiscount = totalDiscount.add(discount);
-      totalTax = totalTax.add(taxAmount);
+      const computed = computeSalesOrderLineTotals({ ...item, supplyType }, supplyType);
+      total = total.add(computed.lineValue);
+      totalDiscount = totalDiscount.add(computed.discountAmount);
+      totalTax = totalTax.add(computed.taxAmount);
+      subtotalBeforeTax = subtotalBeforeTax.add(computed.taxable);
+      totalCgst = totalCgst.add(computed.cgstAmount);
+      totalSgst = totalSgst.add(computed.sgstAmount);
+      totalIgst = totalIgst.add(computed.igstAmount);
       return {
         productId: item.productId,
-        quantity,
+        quantity: computed.quantity,
         uom: item.uom ?? 'UNIT',
-        unitPrice: roundMoney(unitPrice),
-        discountAmount: roundMoney(discount),
-        taxRate,
-        taxAmount,
-        lineValue,
+        unitPrice: computed.unitPrice,
+        discountAmount: computed.discountAmount,
+        cgstRate: computed.cgstRate,
+        sgstRate: computed.sgstRate,
+        igstRate: computed.igstRate,
+        taxRate: computed.taxRate,
+        taxAmount: computed.taxAmount,
+        lineValue: computed.lineValue,
       };
     });
+
     return {
       lines,
       total: roundMoney(total),
       totalDiscount: roundMoney(totalDiscount),
       totalTax: roundMoney(totalTax),
+      subtotalBeforeTax: roundMoney(subtotalBeforeTax),
+      totalCgst: roundMoney(totalCgst),
+      totalSgst: roundMoney(totalSgst),
+      totalIgst: roundMoney(totalIgst),
+      supplyType,
     };
   }
 
@@ -148,7 +181,17 @@ export class SalesOrdersService {
     }
 
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
-    const { lines, total, totalDiscount, totalTax } = this.computeLineTotals(dto.items);
+    const supplyType = await this.resolveSupplyType(shopId, dto.customerId, dto.gstSupplyType);
+    const {
+      lines,
+      total,
+      totalDiscount,
+      totalTax,
+      subtotalBeforeTax,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+    } = this.computeLineTotals(dto.items, supplyType);
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const soNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
@@ -172,6 +215,11 @@ export class SalesOrdersService {
           discountAmount: totalDiscount,
           taxAmount: totalTax,
           totalValue: total,
+          gstSupplyType: supplyType,
+          subtotalBeforeTax,
+          totalCgst,
+          totalSgst,
+          totalIgst,
           createdById: user.id,
           items: {
             create: lines.map((line) => ({
@@ -180,6 +228,9 @@ export class SalesOrdersService {
               uom: line.uom,
               unitPrice: line.unitPrice,
               discountAmount: line.discountAmount,
+              cgstRate: line.cgstRate,
+              sgstRate: line.sgstRate,
+              igstRate: line.igstRate,
               taxRate: line.taxRate,
               taxAmount: line.taxAmount,
               lineValue: line.lineValue,
@@ -233,6 +284,12 @@ export class SalesOrdersService {
     }
 
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : so.orderDate;
+    const customerId = dto.customerId ?? so.customerId;
+    const supplyType = await this.resolveSupplyType(
+      so.shopId,
+      customerId,
+      dto.gstSupplyType ?? so.gstSupplyType,
+    );
     const items = dto.items ?? so.items.map((line) => ({
       productId: line.productId,
       quantity: Number(line.quantity),
@@ -240,8 +297,20 @@ export class SalesOrdersService {
       unitPrice: Number(line.unitPrice),
       discountAmount: Number(line.discountAmount),
       taxRate: Number(line.taxRate),
+      cgstRate: Number(line.cgstRate ?? 0),
+      sgstRate: Number(line.sgstRate ?? 0),
+      igstRate: Number(line.igstRate ?? 0),
     }));
-    const { lines, total, totalDiscount, totalTax } = this.computeLineTotals(items);
+    const {
+      lines,
+      total,
+      totalDiscount,
+      totalTax,
+      subtotalBeforeTax,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+    } = this.computeLineTotals(items, supplyType);
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       await tx.salesOrderItem.deleteMany({ where: { soHeaderId: id } });
@@ -255,6 +324,11 @@ export class SalesOrdersService {
           discountAmount: totalDiscount,
           taxAmount: totalTax,
           totalValue: total,
+          gstSupplyType: supplyType,
+          subtotalBeforeTax,
+          totalCgst,
+          totalSgst,
+          totalIgst,
           updatedById: user.id,
           items: {
             create: lines.map((line) => ({
@@ -263,6 +337,9 @@ export class SalesOrdersService {
               uom: line.uom,
               unitPrice: line.unitPrice,
               discountAmount: line.discountAmount,
+              cgstRate: line.cgstRate,
+              sgstRate: line.sgstRate,
+              igstRate: line.igstRate,
               taxRate: line.taxRate,
               taxAmount: line.taxAmount,
               lineValue: line.lineValue,

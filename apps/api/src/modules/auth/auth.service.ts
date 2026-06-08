@@ -14,6 +14,10 @@ import { AvatarStorageService } from '../../common/upload/avatar-storage.service
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import {
+  isPlatformAdminEmail,
+  parsePlatformAdminEmailsFromConfig,
+} from '../platform/platform-admin.util';
 
 type RefreshPayload = { sub: string; sid: string; refreshId: string };
 type AccessPayload = { sub: string; email: string; role: string; pwd?: string };
@@ -92,6 +96,7 @@ export class AuthService {
 
   private toSessionUser(user: SessionUserRecord) {
     const permissions = user.role.permissions as unknown as string[];
+    const allowlist = parsePlatformAdminEmailsFromConfig(this.config);
     return {
       id: user.id,
       name: user.name,
@@ -100,6 +105,7 @@ export class AuthService {
       shopId: user.shopId,
       companyId: user.shop?.companyId ?? null,
       permissions,
+      isPlatformAdmin: isPlatformAdminEmail(user.email, allowlist),
       avatarUrl: user.avatarUrl,
       shop: user.shop
         ? {

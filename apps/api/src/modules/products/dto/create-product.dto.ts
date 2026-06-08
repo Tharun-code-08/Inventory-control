@@ -88,6 +88,15 @@ export class CreateProductDto {
   @IsEnum(TaxPreference)
   taxPreference?: TaxPreference;
 
+  @ApiPropertyOptional({
+    description: 'Default combined GST rate as percent (e.g. 18 for 18%)',
+    example: 18,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  gstRate?: number;
+
   @ApiProperty()
   @Type(() => Number)
   @Min(0)

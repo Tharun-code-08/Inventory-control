@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { isOrgAdminUser } from '@/lib/roles';
+import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 import { PageFallback } from '@/components/shared/page-fallback';
 import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
@@ -100,6 +100,14 @@ function Protected({ children }: { children: React.ReactNode }) {
 function AdminOnly({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   if (!isOrgAdminUser(user)) {
+    return <Navigate to="/products" replace />;
+  }
+  return <>{children}</>;
+}
+
+function PlatformAdminOnly({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  if (!isPlatformAdminUser(user)) {
     return <Navigate to="/products" replace />;
   }
   return <>{children}</>;
@@ -374,7 +382,9 @@ export function AppRoutes() {
             path="/platform/subscriptions"
             element={
               <Protected>
-                <PlatformSubscriptionsPage />
+                <PlatformAdminOnly>
+                  <PlatformSubscriptionsPage />
+                </PlatformAdminOnly>
               </Protected>
             }
           />

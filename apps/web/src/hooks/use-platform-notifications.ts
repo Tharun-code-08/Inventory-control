@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { isPlatformAdminUser } from '@/lib/roles';
+import { useAuthStore } from '@/store/authStore';
 
 export type PlatformNotification = {
   id: string;
@@ -34,7 +36,13 @@ const keys = {
   health: () => ['platform', 'health'] as const,
 };
 
+function usePlatformQueriesEnabled() {
+  const user = useAuthStore((s) => s.user);
+  return isPlatformAdminUser(user);
+}
+
 export function usePlatformNotifications(opts?: { unreadOnly?: boolean }) {
+  const enabled = usePlatformQueriesEnabled();
   return useQuery({
     queryKey: keys.list(opts),
     queryFn: async () => {
@@ -43,11 +51,13 @@ export function usePlatformNotifications(opts?: { unreadOnly?: boolean }) {
       return (res.data?.data ?? res.data ?? []) as PlatformNotification[];
     },
     retry: false,
-    refetchInterval: 30_000,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
   });
 }
 
 export function usePlatformUnreadCount() {
+  const enabled = usePlatformQueriesEnabled();
   return useQuery({
     queryKey: keys.unread(),
     queryFn: async () => {
@@ -56,11 +66,13 @@ export function usePlatformUnreadCount() {
       return Number(payload?.count ?? 0);
     },
     retry: false,
-    refetchInterval: 30_000,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
   });
 }
 
 export function usePlatformHealth() {
+  const enabled = usePlatformQueriesEnabled();
   return useQuery({
     queryKey: keys.health(),
     queryFn: async () => {
@@ -68,7 +80,8 @@ export function usePlatformHealth() {
       return (res.data?.data ?? res.data) as PlatformHealthSnapshot;
     },
     retry: false,
-    refetchInterval: 60_000,
+    enabled,
+    refetchInterval: enabled ? 60_000 : false,
   });
 }
 

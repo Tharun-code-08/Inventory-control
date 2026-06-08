@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
+import { throwDuplicateRecordConflict } from '../../common/errors/duplicate-conflict';
 import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -87,7 +88,39 @@ export class SuppliersService {
     }
     const count = await this.prisma.supplier.count({ where: { companyId } });
     const code = dto.supplierCode?.trim() || `SUP-${String(count + 1).padStart(4, '0')}`;
-    return this.prisma.supplier.create({
+
+    const existingByCode = await this.prisma.supplier.findFirst({
+      where: { supplierCode: code },
+      select: {
+        id: true,
+        supplierCode: true,
+        supplierName: true,
+        deletedAt: true,
+        isActive: true,
+      },
+    });
+    if (existingByCode) {
+      throwDuplicateRecordConflict(
+        `Supplier "${existingByCode.supplierName}" (${existingByCode.supplierCode}) already exists.`,
+        {
+          recordId: existingByCode.id,
+          recordCode: existingByCode.supplierCode,
+          recordName: existingByCode.supplierName,
+          entity: 'Supplier',
+          listPath: '/suppliers',
+          isArchived: existingByCode.deletedAt != null || !existingByCode.isActive,
+        },
+        {
+          userId: user.id,
+          userEmail: user.email,
+          shopId: user.shopId,
+          companyId: user.companyId,
+        },
+      );
+    }
+
+    try {
+      return await this.prisma.supplier.create({
       data: {
         supplierCode: code,
         supplierName: dto.supplierName,
@@ -114,6 +147,40 @@ export class SuppliersService {
       },
       include: { company: true },
     });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const retry = await this.prisma.supplier.findFirst({
+          where: { supplierCode: code },
+          select: {
+            id: true,
+            supplierCode: true,
+            supplierName: true,
+            deletedAt: true,
+            isActive: true,
+          },
+        });
+        if (retry) {
+          throwDuplicateRecordConflict(
+            `Supplier "${retry.supplierName}" (${retry.supplierCode}) already exists.`,
+            {
+              recordId: retry.id,
+              recordCode: retry.supplierCode,
+              recordName: retry.supplierName,
+              entity: 'Supplier',
+              listPath: '/suppliers',
+              isArchived: retry.deletedAt != null || !retry.isActive,
+            },
+            {
+              userId: user.id,
+              userEmail: user.email,
+              shopId: user.shopId,
+              companyId: user.companyId,
+            },
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   async get(user: RequestUser, id: string) {

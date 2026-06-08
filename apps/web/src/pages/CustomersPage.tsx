@@ -54,6 +54,7 @@ import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { isShopOnlyUser } from '@/lib/shop-scope';
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { getDuplicateRecordDetails, toastDuplicateRecordError } from '@/lib/duplicate-error';
 import { showActionError, showActionSuccess } from '@/lib/action-feedback';
 import { formErrorMessage, parseApiFieldErrors } from '@/lib/field-errors';
 import { resolvePreferredOrgId, syncPreferredOrgId } from '@/lib/cookie-consent';
@@ -67,6 +68,7 @@ type CustomerForm = {
   phone: string;
   taxId: string;
   pan: string;
+  street: string;
   city: string;
   state: string;
   postalCode: string;
@@ -79,6 +81,7 @@ const emptyForm = (): CustomerForm => ({
   phone: '',
   taxId: '',
   pan: '',
+  street: '',
   city: '',
   state: '',
   postalCode: '',
@@ -247,6 +250,14 @@ function CustomerFormFields({
           />
         </div>
       </div>
+      <div className="space-y-2">
+        <Label>Street / address line</Label>
+        <Input
+          value={form.street}
+          onChange={(e) => setForm((p) => ({ ...p, street: e.target.value }))}
+          placeholder="Building, street, locality"
+        />
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="space-y-2">
           <Label>ZIP / postal code</Label>
@@ -295,6 +306,7 @@ function buildCustomerPayload(form: CustomerForm, resolvedShopId: string) {
     phone: stripOptional(form.phone),
     taxId: stripOptional(form.taxId)?.toUpperCase?.(),
     pan: stripOptional(form.pan)?.toUpperCase?.(),
+    street: stripOptional(form.street),
     city: stripOptional(form.city),
     state: stripOptional(form.state),
     postalCode: stripOptional(form.postalCode),
@@ -314,6 +326,7 @@ function CustomersCreateView() {
 
   const { data: shops = [] } = useShops();
   const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
   const { pulseClass, triggerPulse } = useSuccessPulse();
 
   const resolvedShopId = resolvePreferredOrgId(
@@ -345,6 +358,23 @@ function CustomersCreateView() {
       showActionSuccess({ message: 'Customer created' });
       navigate('/customers');
     } catch (err: unknown) {
+      const duplicate = getDuplicateRecordDetails(err);
+      if (duplicate) {
+        toastDuplicateRecordError(err, {
+          navigate: (path, state) => navigate(path, { state }),
+          onRestore: async (details) => {
+            await updateCustomer.mutateAsync({
+              id: details.recordId,
+              payload: { isActive: true },
+            });
+            toast.success('Customer restored');
+            navigate('/customers', { state: { duplicateRecordId: details.recordId } });
+          },
+          fallback: 'Failed to create customer',
+        });
+        setFormError(getApiErrorMessage(err, 'Customer already exists'));
+        return;
+      }
       const errors = parseApiFieldErrors(err);
       setFieldErrors(errors);
       const message = formErrorMessage(errors) || getApiErrorMessage(err, 'Failed to create customer');
@@ -407,7 +437,9 @@ function CustomersListView() {
   const [deactivateTarget, setDeactivateTarget] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm());
 
-  const { data: customers = [], isLoading } = useCustomers(debouncedSearch);
+  const { data: customers = [], isLoading } = useCustomers(debouncedSearch, {
+    fetchAll: !debouncedSearch.trim(),
+  });
   const isSearchPending = search !== debouncedSearch || (isLoading && search.trim().length > 0);
   const { data: shops = [] } = useShops();
   const updateCustomer = useUpdateCustomer();
@@ -444,6 +476,7 @@ function CustomersListView() {
       phone: c.phone ?? '',
       taxId: c.taxId ?? '',
       pan: c.pan ?? '',
+      street: c.street ?? '',
       city: c.city ?? '',
       state: c.state ?? '',
       postalCode: c.postalCode ?? '',
@@ -464,6 +497,7 @@ function CustomersListView() {
       phone: stripOptional(form.phone),
       taxId: stripOptional(form.taxId)?.toUpperCase?.(),
       pan: stripOptional(form.pan)?.toUpperCase?.(),
+      street: stripOptional(form.street),
       city: stripOptional(form.city),
       state: stripOptional(form.state),
       postalCode: stripOptional(form.postalCode),

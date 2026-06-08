@@ -390,6 +390,7 @@ const productSchema = z.object({
   drawingReference: z.string().optional(),
   brand: z.string().optional(),
   taxPreference: z.enum(['TAXABLE', 'NON_TAXABLE']),
+  gstRate: z.coerce.number().min(0, 'Must be 0 or more').max(28, 'Max 28%'),
   purchasePrice: z.coerce.number().min(0, 'Must be 0 or more'),
   sellingPrice: z.coerce.number().min(0, 'Must be 0 or more'),
   uom: z.string().min(1, 'Unit of measure is required'),
@@ -421,6 +422,7 @@ const defaultValues: FormShape = {
   drawingReference: '',
   brand: '',
   taxPreference: 'TAXABLE',
+  gstRate: 18,
   purchasePrice: 0,
   sellingPrice: 0,
   uom: 'pcs',
@@ -1039,6 +1041,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
       drawingReference: product.drawingReference ?? '',
       brand: product.brand ?? '',
       taxPreference: product.taxPreference ?? 'TAXABLE',
+      gstRate: product.gstRate ?? 0,
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
       uom: product.uom,
@@ -1089,6 +1092,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         drawingReference: rawValues.drawingReference,
         brand: rawValues.brand,
         taxPreference: rawValues.taxPreference,
+        gstRate: rawValues.gstRate,
         purchasePrice: rawValues.purchasePrice,
         sellingPrice: rawValues.sellingPrice,
         uom: rawValues.uom,
@@ -1763,6 +1767,20 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             {form.formState.errors.taxPreference.message}
           </p>
         )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="gstRate">Default GST %</Label>
+        <Input
+          id="gstRate"
+          type="number"
+          min={0}
+          max={28}
+          step={0.5}
+          {...form.register('gstRate')}
+        />
+        <p className="text-xs text-slate-500">
+          Combined rate (e.g. 18 for 18%). Auto-fills sales order line tax when this product is selected.
+        </p>
       </div>
     </div>
   </section>

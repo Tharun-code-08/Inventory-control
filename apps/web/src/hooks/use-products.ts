@@ -49,6 +49,7 @@ export type Product = {
   drawingReference?: string | null;
   brand?: string | null;
   taxPreference?: TaxPreference;
+  gstRate?: number;
   purchasePrice: number;
   sellingPrice: number;
   isActive: boolean;
@@ -83,6 +84,7 @@ export type CreateProductPayload = {
   drawingReference?: string;
   brand?: string;
   taxPreference?: TaxPreference;
+  gstRate?: number;
   purchasePrice: number;
   sellingPrice: number;
   isActive?: boolean;
@@ -188,6 +190,7 @@ export function normalizeProduct(payload: unknown): Product {
     brand: (product.brand as string | null | undefined) ?? null,
     taxPreference:
       product.taxPreference === 'NON_TAXABLE' ? 'NON_TAXABLE' : 'TAXABLE',
+    gstRate: normalizeNumber(product.gstRate ?? 0),
     purchasePrice: normalizeNumber(product.purchasePrice),
     sellingPrice: normalizeNumber(product.sellingPrice),
     isActive: product.isActive !== false,
@@ -308,6 +311,7 @@ export function useCreateProduct() {
         drawingReference: payload.drawingReference ?? null,
         brand: payload.brand ?? null,
         taxPreference: payload.taxPreference ?? 'TAXABLE',
+        gstRate: payload.gstRate ?? 0,
         purchasePrice: payload.purchasePrice,
         sellingPrice: payload.sellingPrice,
         isActive: payload.isActive !== false,
@@ -477,6 +481,7 @@ export type BulkProductImportRow = {
   drawingReference?: string;
   brand?: string;
   taxPreference?: TaxPreference;
+  gstRate?: number;
   purchasePrice: number;
   sellingPrice: number;
   openingStock: number;

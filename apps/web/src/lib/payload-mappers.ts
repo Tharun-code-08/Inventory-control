@@ -92,6 +92,7 @@ export type ProductFormValues = {
   drawingReference?: string;
   brand?: string;
   taxPreference?: TaxPreference;
+  gstRate?: number;
   purchasePrice: number;
   sellingPrice: number;
   uom: string;
@@ -129,6 +130,7 @@ export function mapProductFormToPayload(args: {
     drawingReference: values.drawingReference?.trim() ? values.drawingReference.trim() : undefined,
     brand: values.brand?.trim() ? values.brand.trim() : undefined,
     taxPreference: values.taxPreference ?? 'TAXABLE',
+    gstRate: values.gstRate ?? 0,
     purchasePrice: values.purchasePrice,
     sellingPrice: values.sellingPrice,
     isActive: values.isActive,

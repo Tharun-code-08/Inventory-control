@@ -3,6 +3,7 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { MailModule } from '../../common/mail/mail.module';
 import { ObservabilityModule } from '../../common/observability/observability.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { PlatformModule } from '../platform/platform.module';
 import { PLATFORM_CHECKS_QUEUE } from './platform-notification.constants';
 import { PlatformCheckProcessor } from './platform-check.processor';
 import { PlatformCheckScheduler } from './platform-check.scheduler';
@@ -16,6 +17,7 @@ import { PlatformRevenueService } from './platform-revenue.service';
     PrismaModule,
     MailModule,
     ObservabilityModule,
+    PlatformModule,
     BullModule.registerQueue({ name: PLATFORM_CHECKS_QUEUE }),
   ],
   controllers: [PlatformNotificationController],

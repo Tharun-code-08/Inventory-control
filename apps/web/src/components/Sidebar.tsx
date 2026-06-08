@@ -32,7 +32,7 @@ import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
-import { isOrgAdminUser } from '@/lib/roles';
+import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 
 type SidebarProps = {
   collapsed: boolean;
@@ -91,6 +91,7 @@ export function Sidebar({
   const navScrollRef = useRef<HTMLElement>(null);
   const [navIndicator, setNavIndicator] = useState<{ top: number; height: number } | null>(null);
   const isOrgAdmin = isOrgAdminUser(user);
+  const isPlatformAdmin = isPlatformAdminUser(user);
   const perms = user?.permissions ?? EMPTY_PERMISSIONS;
   const navItems = useMemo(() => {
     const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
@@ -131,10 +132,12 @@ export function Sidebar({
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
       ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
-      ...(isOrgAdmin ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }] : []),
+      ...(isPlatformAdmin
+        ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }]
+        : []),
       { label: 'Settings', icon: Settings, path: '/settings' },
     ];
-  }, [perms, isOrgAdmin]);
+  }, [perms, isOrgAdmin, isPlatformAdmin]);
 
   useEffect(() => {
     function close(e: MouseEvent) {

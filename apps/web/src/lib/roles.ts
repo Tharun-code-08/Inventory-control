@@ -25,6 +25,11 @@ export function isOrgAdminUser(user: AuthUser | null | undefined): boolean {
   return role === 'OWNER' || role === 'ADMIN';
 }
 
+/** SaaS platform super-admin (email allowlist), not tenant org admin. */
+export function isPlatformAdminUser(user: AuthUser | null | undefined): boolean {
+  return user?.isPlatformAdmin === true;
+}
+
 /** @deprecated Use isOrgAdminUser */
 export function isAdminUser(user: AuthUser | null | undefined): boolean {
   return isOrgAdminUser(user);

@@ -1,8 +1,10 @@
 import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { AuditAction } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { PlatformAdminGuard } from '../platform/platform-admin.guard';
+import { PlatformAuditService } from '../platform/platform-audit.service';
 import { PlatformHealthService } from './platform-health.service';
 import { PlatformNotificationService } from './platform-notification.service';
 
@@ -13,6 +15,7 @@ export class PlatformNotificationController {
   constructor(
     private readonly notifications: PlatformNotificationService,
     private readonly health: PlatformHealthService,
+    private readonly platformAudit: PlatformAuditService,
   ) {}
 
   @Get('notifications')
@@ -34,18 +37,41 @@ export class PlatformNotificationController {
   }
 
   @Post('notifications/:id/read')
-  markRead(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.notifications.markRead(user.email, id);
+  async markRead(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    const result = await this.notifications.markRead(user.email, id);
+    await this.platformAudit.logPlatformAction({
+      userId: user.id,
+      adminEmail: user.email,
+      action: 'platform_notification_read',
+      entityType: 'PlatformNotification',
+      entityId: id,
+      auditAction: AuditAction.UPDATE,
+    });
+    return result;
   }
 
   @Post('notifications/read-all')
-  markAllRead(@CurrentUser() user: RequestUser) {
-    return this.notifications.markAllRead(user.email);
+  async markAllRead(@CurrentUser() user: RequestUser) {
+    const result = await this.notifications.markAllRead(user.email);
+    await this.platformAudit.logPlatformAction({
+      userId: user.id,
+      adminEmail: user.email,
+      action: 'platform_notification_read_all',
+      entityType: 'PlatformNotification',
+      entityId: user.id,
+      auditAction: AuditAction.UPDATE,
+    });
+    return result;
   }
 
   @Get('health')
   @ApiOperation({ summary: 'Platform infrastructure health snapshot' })
-  healthSnapshot() {
+  async healthSnapshot(@CurrentUser() user: RequestUser) {
+    await this.platformAudit.logPlatformAction({
+      userId: user.id,
+      adminEmail: user.email,
+      action: 'platform_health_view',
+    });
     return this.health.collectSnapshot();
   }
 }

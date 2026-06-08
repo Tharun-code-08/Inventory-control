@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { RequestUser } from '../../common/types/request-user';
+import {
+  isPlatformAdminEmail,
+  parsePlatformAdminEmailsFromConfig,
+} from './platform-admin.util';
 
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
@@ -15,31 +19,24 @@ export class PlatformAdminGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<{ user?: RequestUser }>();
     const user = req.user;
     if (!user?.email) {
-      throw new ForbiddenException('Platform admin access required');
+      throw new ForbiddenException(
+        'Platform admin access required. Set PLATFORM_ADMIN_EMAILS on the server and sign in with an allowlisted account.',
+      );
     }
 
-    const allowlist = this.parseAllowlist();
+    const allowlist = parsePlatformAdminEmailsFromConfig(this.config);
     if (allowlist.size === 0) {
-      throw new ForbiddenException('Platform admin allowlist is not configured (PLATFORM_ADMIN_EMAILS)');
+      throw new ForbiddenException(
+        'Platform admin allowlist is not configured (PLATFORM_ADMIN_EMAILS)',
+      );
     }
 
-    if (!allowlist.has(user.email.toLowerCase())) {
-      throw new ForbiddenException('Platform admin access required');
+    if (!isPlatformAdminEmail(user.email, allowlist)) {
+      throw new ForbiddenException(
+        'Platform admin access required. Set PLATFORM_ADMIN_EMAILS on the server and sign in with an allowlisted account.',
+      );
     }
 
     return true;
-  }
-
-  private parseAllowlist(): Set<string> {
-    const raw =
-      this.config.get<string>('PLATFORM_ADMIN_EMAILS') ??
-      process.env.PLATFORM_ADMIN_EMAILS ??
-      '';
-    return new Set(
-      raw
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean),
-    );
   }
 }

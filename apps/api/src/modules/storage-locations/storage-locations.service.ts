@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { throwDuplicateRecordConflict } from '../../common/errors/duplicate-conflict';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, storageLocationListWhere } from '../../common/utils/shop-scope';
@@ -13,15 +14,36 @@ export class StorageLocationsService {
     return code.trim().toUpperCase();
   }
 
-  private async assertUniqueCode(shopId: string, code: string, excludeId?: string) {
+  private async assertUniqueCode(
+    shopId: string,
+    code: string,
+    excludeId?: string,
+    user?: RequestUser,
+  ) {
     const normalized = this.normalizeCode(code);
     const existing = await this.prisma.storageLocation.findUnique({
       where: { shopId_code: { shopId, code: normalized } },
-      select: { id: true },
+      select: { id: true, code: true, name: true, isActive: true },
     });
     if (existing && existing.id !== excludeId) {
-      throw new ConflictException(
+      throwDuplicateRecordConflict(
         `Storage location code "${normalized}" already exists for this plant`,
+        {
+          recordId: existing.id,
+          recordCode: existing.code,
+          recordName: existing.name,
+          entity: 'StorageLocation',
+          listPath: '/storage-locations',
+          isArchived: !existing.isActive,
+        },
+        user
+          ? {
+              userId: user.id,
+              userEmail: user.email,
+              shopId: user.shopId,
+              companyId: user.companyId,
+            }
+          : undefined,
       );
     }
     return normalized;
@@ -37,7 +59,7 @@ export class StorageLocationsService {
 
   async create(user: RequestUser, dto: CreateStorageLocationDto) {
     assertShopScope(user, dto.shopId);
-    const code = await this.assertUniqueCode(dto.shopId, dto.code);
+    const code = await this.assertUniqueCode(dto.shopId, dto.code, undefined, user);
     return this.prisma.storageLocation.create({
       data: {
         shopId: dto.shopId,
@@ -64,7 +86,7 @@ export class StorageLocationsService {
     if (dto.shopId) assertShopScope(user, dto.shopId);
     const code =
       dto.code !== undefined
-        ? await this.assertUniqueCode(shopId, dto.code, id)
+        ? await this.assertUniqueCode(shopId, dto.code, id, user)
         : existing.code;
     return this.prisma.storageLocation.update({
       where: { id },
