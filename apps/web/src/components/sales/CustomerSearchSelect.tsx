@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useCustomer, useCustomerSearch, type Customer } from '@/hooks/use-customers';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/cn';
 
 type Props = {
   value: string;
