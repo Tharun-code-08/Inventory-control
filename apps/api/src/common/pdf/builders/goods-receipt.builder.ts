@@ -27,6 +27,16 @@ export async function loadGoodsReceiptForPdf(prisma: PrismaService, id: string) 
   return gr;
 }
 
+function formatReceiptType(value?: string | null): string {
+  if (!value) return 'Full Receipt';
+  return value === 'PARTIAL' ? 'Partial Receipt' : 'Full Receipt';
+}
+
+function formatInwardShift(value?: string | null): string {
+  if (!value) return '—';
+  return value === 'NIGHT_SHIFT' ? 'Night Shift' : 'Day Shift';
+}
+
 export async function buildGoodsReceiptPdfViewModel(
   prisma: PrismaService,
   gr: Awaited<ReturnType<typeof loadGoodsReceiptForPdf>>,
@@ -61,7 +71,15 @@ export async function buildGoodsReceiptPdfViewModel(
   const metaRows = [
     { label: 'Status', value: gr.status },
     { label: 'Plant', value: gr.shop?.shopName ?? ctx.shopName },
-    ...(gr.purchaseOrder ? [{ label: 'Purchase Order', value: gr.purchaseOrder.poNumber }] : []),
+    { label: 'Receipt Type', value: formatReceiptType(gr.receiptType) },
+    ...(gr.receiptSource === 'OUTSIDE'
+      ? [
+          { label: 'Purchase Order', value: 'Others' },
+          ...(gr.inwardShift ? [{ label: 'Inward Shift', value: formatInwardShift(gr.inwardShift) }] : []),
+        ]
+      : gr.purchaseOrder
+      ? [{ label: 'Purchase Order', value: gr.purchaseOrder.poNumber }]
+      : []),
     ...(gr.supplierRef ? [{ label: 'Supplier Ref', value: gr.supplierRef }] : []),
   ];
 

@@ -75,6 +75,7 @@ export function GoodsIssueCreatePage() {
   const [shopId, setShopId] = useState(lockedShopId);
   const [storageLocationId, setStorageLocationId] = useState('');
   const [notes, setNotes] = useState('');
+  const [otherReason, setOtherReason] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [manualProductId, setManualProductId] = useState('');
 
@@ -119,6 +120,7 @@ export function GoodsIssueCreatePage() {
   useEffect(() => {
     if (issueType !== 'Sales Order') {
       setSalesOrderId('');
+      if (issueType !== 'Others') setOtherReason('');
     }
   }, [issueType]);
 
@@ -145,25 +147,39 @@ export function GoodsIssueCreatePage() {
   }, [salesOrderQuery.data, issueType, shopId]);
 
   function addManualLine() {
-    if (!manualProductId) return;
-    const product = products.find((p) => p.id === manualProductId);
-    if (!product) return;
-    if (lines.some((l) => l.productId === product.id)) {
-      toast.error('Product already added');
+    if (manualProductId) {
+      const product = products.find((p) => p.id === manualProductId);
+      if (!product) return;
+      if (lines.some((l) => l.productId === product.id)) {
+        toast.error('Product already added');
+        return;
+      }
+      setLines((prev) => [
+        ...prev,
+        {
+          productId: product.id,
+          productLabel: `${product.productCode} — ${product.description}`,
+          soQty: 0,
+          batch: '',
+          issueQty: '1',
+          uom: product.uom,
+        },
+      ]);
+      setManualProductId('');
       return;
     }
+
     setLines((prev) => [
       ...prev,
       {
-        productId: product.id,
-        productLabel: `${product.productCode} — ${product.description}`,
+        productId: '',
+        productLabel: '',
         soQty: 0,
         batch: '',
         issueQty: '1',
-        uom: product.uom,
+        uom: '',
       },
     ]);
-    setManualProductId('');
   }
 
   function updateLine(index: number, patch: Partial<LineDraft>) {
@@ -177,6 +193,10 @@ export function GoodsIssueCreatePage() {
   async function submitGoodsIssue(mode: 'draft' | 'post') {
     if (!shopId) {
       toast.error('Select a plant before saving');
+      return;
+    }
+    if (issueType === 'Others' && !otherReason.trim()) {
+      toast.error('Enter the other reason for this issue');
       return;
     }
     const payloadItems = lines
@@ -216,7 +236,8 @@ export function GoodsIssueCreatePage() {
       const created = await createGi.mutateAsync({
         giDate: todayISO(),
         shopId,
-        issueReason: issueType,
+        issueType,
+        otherReason: issueType === 'Others' ? otherReason.trim() : undefined,
         remarks: remarks || undefined,
         items: payloadItems,
       });
@@ -290,6 +311,17 @@ export function GoodsIssueCreatePage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {issueType === 'Others' ? (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Other Reason *</Label>
+                <Input
+                  value={otherReason}
+                  onChange={(e) => setOtherReason(e.target.value)}
+                  placeholder="Describe why this issue is being raised"
+                />
+              </div>
+            ) : null}
 
             {showSoTable ? (
               <div className="space-y-2">
@@ -424,7 +456,34 @@ export function GoodsIssueCreatePage() {
                   lines.map((line, index) => (
                     <TableRow key={`${line.productId}-${index}`}>
                       <TableCell className="font-medium text-slate-800">
-                        {line.productLabel}
+                          {!showSoTable ? (
+                            <Select
+                              value={line.productId}
+                              onValueChange={(productId) => {
+                                const product = products.find((p) => p.id === productId);
+                                updateLine(index, {
+                                  productId,
+                                  productLabel: product
+                                    ? `${product.productCode} — ${product.description}`
+                                    : '',
+                                  uom: product?.uom ?? line.uom,
+                                });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select product" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {products.map((product) => (
+                                  <SelectItem key={product.id} value={product.id}>
+                                    {product.productCode} — {product.description}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            line.productLabel
+                          )}
                       </TableCell>
                       {showSoTable && (
                         <TableCell className="tabular-nums text-slate-600">{line.soQty}</TableCell>

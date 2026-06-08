@@ -21,7 +21,9 @@ export type GoodsIssue = {
   giNumber: string;
   giDate: string;
   shopId: string;
+  issueType?: string;
   issueReason: string;
+  otherReason?: string | null;
   remarks: string | null;
   status: GoodsIssueStatus;
   itemCount?: number;
@@ -43,7 +45,8 @@ export type GoodsIssueFilters = {
 export type CreateGoodsIssuePayload = {
   giDate: string;
   shopId: string;
-  issueReason: string;
+  issueType: string;
+  otherReason?: string;
   remarks?: string;
   items: Array<{ productId: string; quantity: number; uom: string }>;
 };

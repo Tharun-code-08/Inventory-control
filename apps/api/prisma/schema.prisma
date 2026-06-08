@@ -41,6 +41,21 @@ enum TransactionType {
   STOCK_TRANSFER_IN
 }
 
+enum ReceiptType {
+  FULL
+  PARTIAL
+}
+
+enum ReceiptSource {
+  PURCHASE_ORDER
+  OUTSIDE
+}
+
+enum InwardShift {
+  DAY_SHIFT
+  NIGHT_SHIFT
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -956,6 +971,9 @@ model GoodsReceiptHeader {
   shopId          String         @map("shop_id") @db.Uuid
   supplierName    String         @map("supplier_name")
   purchaseOrderId String?        @map("purchase_order_id") @db.Uuid
+  receiptType     ReceiptType    @default(FULL) @map("receipt_type")
+  receiptSource   ReceiptSource  @default(PURCHASE_ORDER) @map("receipt_source")
+  inwardShift     InwardShift?   @map("inward_shift")
   supplierRef     String?        @map("supplier_ref")
   remarks         String?
   brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
@@ -1016,6 +1034,8 @@ model GoodsIssueHeader {
   giDate      DateTime       @map("gi_date") @db.Date
   shopId      String         @map("shop_id") @db.Uuid
   issueReason String         @map("issue_reason")
+  issueType   String         @map("issue_type")
+  otherReason String?        @map("other_reason")
   remarks     String?
   brandingMode BrandingMode  @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?     @map("branding_snapshot")

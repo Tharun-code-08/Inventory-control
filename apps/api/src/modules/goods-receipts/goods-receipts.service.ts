@@ -225,12 +225,20 @@ export class GoodsReceiptsService {
     await this.assertStorageLocationsForShop(dto.shopId, dto.items);
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      const normalizedItems = dto.items.map((i) => ({
+        const normalizedItems = dto.items.map((i) => ({
         productId: i.productId,
         quantity: new Prisma.Decimal(i.quantity),
       }));
-      if (dto.purchaseOrderId) {
-        await this.validateAgainstPurchaseOrder(tx, null, dto.purchaseOrderId, normalizedItems);
+      const resolvedReceiptSource =
+        dto.receiptSource ?? (dto.purchaseOrderId ? 'PURCHASE_ORDER' : 'OUTSIDE');
+      const resolvedPurchaseOrderId =
+        resolvedReceiptSource === 'OUTSIDE' ? null : dto.purchaseOrderId ?? null;
+
+      if (resolvedReceiptSource === 'PURCHASE_ORDER') {
+        if (!resolvedPurchaseOrderId) {
+          throw new BadRequestException('Purchase order is required for PO-linked receipts');
+        }
+        await this.validateAgainstPurchaseOrder(tx, null, resolvedPurchaseOrderId, normalizedItems);
       }
 
       const grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
@@ -244,7 +252,10 @@ export class GoodsReceiptsService {
           grNumber,
           grDate,
           shopId: dto.shopId,
-          purchaseOrderId: dto.purchaseOrderId ?? null,
+          purchaseOrderId: resolvedPurchaseOrderId,
+          receiptType: dto.receiptType,
+          receiptSource: resolvedReceiptSource,
+          inwardShift: dto.inwardShift ?? null,
           supplierName: dto.supplierName.trim(),
           supplierRef: dto.supplierRef?.trim(),
           remarks: dto.remarks?.trim(),
@@ -301,7 +312,14 @@ export class GoodsReceiptsService {
     }
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
-      const nextPoId = dto.purchaseOrderId ?? existing.purchaseOrderId;
+      const resolvedReceiptSource =
+        dto.receiptSource ??
+        existing.receiptSource ??
+        (dto.purchaseOrderId ?? existing.purchaseOrderId ? 'PURCHASE_ORDER' : 'OUTSIDE');
+      const nextPoId =
+        resolvedReceiptSource === 'OUTSIDE'
+          ? null
+          : dto.purchaseOrderId ?? existing.purchaseOrderId;
       const nextItems =
         dto.items ??
         existing.items.map((line) => ({
@@ -309,16 +327,21 @@ export class GoodsReceiptsService {
           quantity: Number(line.quantity),
         }));
 
-      if (nextPoId && (dto.purchaseOrderId !== undefined || dto.items)) {
-        await this.validateAgainstPurchaseOrder(
-          tx,
-          id,
-          nextPoId,
-          nextItems.map((line) => ({
-            productId: line.productId,
-            quantity: new Prisma.Decimal(line.quantity),
-          })),
-        );
+      if (resolvedReceiptSource === 'PURCHASE_ORDER') {
+        if (!nextPoId) {
+          throw new BadRequestException('Purchase order is required for PO-linked receipts');
+        }
+        if (dto.purchaseOrderId !== undefined || dto.items) {
+          await this.validateAgainstPurchaseOrder(
+            tx,
+            id,
+            nextPoId,
+            nextItems.map((line) => ({
+              productId: line.productId,
+              quantity: new Prisma.Decimal(line.quantity),
+            })),
+          );
+        }
       }
 
       if (dto.items) {
@@ -330,7 +353,10 @@ export class GoodsReceiptsService {
         data: {
           grDate,
           shopId: dto.shopId ?? undefined,
-          purchaseOrderId: dto.purchaseOrderId ?? undefined,
+          purchaseOrderId: nextPoId ?? undefined,
+          receiptType: dto.receiptType ?? undefined,
+          receiptSource: resolvedReceiptSource,
+          inwardShift: dto.inwardShift ?? undefined,
           supplierName: dto.supplierName?.trim(),
           supplierRef: dto.supplierRef?.trim(),
           remarks: dto.remarks?.trim(),

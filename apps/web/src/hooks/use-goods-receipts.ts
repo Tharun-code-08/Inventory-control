@@ -28,6 +28,9 @@ export type GoodsReceipt = {
   shopId: string;
   supplierName: string;
   purchaseOrderId?: string;
+  receiptType?: 'FULL' | 'PARTIAL';
+  receiptSource?: 'PURCHASE_ORDER' | 'OUTSIDE';
+  inwardShift?: 'DAY_SHIFT' | 'NIGHT_SHIFT' | null;
   supplierRef: string;
   remarks: string;
   status: GoodsReceiptStatus;

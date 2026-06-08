@@ -107,6 +107,9 @@ const grFormSchema = z.object({
   supplierName: z.string().min(1, 'Supplier name is required'),
   grDate: z.string().min(1, 'Date is required'),
   purchaseOrderId: z.string().optional(),
+  receiptType: z.enum(['FULL', 'PARTIAL']).default('FULL'),
+  receiptSource: z.enum(['PURCHASE_ORDER', 'OUTSIDE']).default('PURCHASE_ORDER'),
+  inwardShift: z.enum(['DAY_SHIFT', 'NIGHT_SHIFT']).optional(),
   supplierRef: z.string().optional(),
   remarks: z.string().optional(),
   items: z.array(grItemSchema).min(1, 'At least one item is required'),
@@ -261,6 +264,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       supplierName: '',
       grDate: todayISO(),
       purchaseOrderId: '',
+      receiptType: 'FULL',
+      receiptSource: 'PURCHASE_ORDER',
+      inwardShift: '',
       supplierRef: '',
       remarks: '',
       items: [{ ...emptyItem }],
@@ -294,13 +300,16 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     [availablePoList],
   );
   const resolveGrPoNumber = useCallback(
-    (purchaseOrderId?: string | null) =>
-      displayDocumentNumber(
+    (purchaseOrderId?: string | null, receiptSource?: 'PURCHASE_ORDER' | 'OUTSIDE' | null) => {
+      if (receiptSource === 'OUTSIDE') return 'Others';
+      return displayDocumentNumber(
         purchaseOrderId ? poNumberById.get(purchaseOrderId) : undefined,
-      ),
+      );
+    },
     [poNumberById],
   );
   const watchedPurchaseOrderId = form.watch('purchaseOrderId');
+  const watchedReceiptSource = form.watch('receiptSource');
   const selectedPo = useMemo(
     () => eligiblePoList.find((po) => po.id === (watchedPurchaseOrderId || '')),
     [eligiblePoList, watchedPurchaseOrderId],
@@ -328,6 +337,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     form.reset({
       supplierName: po?.supplier ?? '',
       grDate: todayISO(),
+      receiptType: 'FULL',
+      receiptSource: 'PURCHASE_ORDER',
+      inwardShift: '',
       supplierRef: '',
       remarks: po ? `Auto-created from PO ${po.poNumber}` : '',
       purchaseOrderId: po?.id,
@@ -406,7 +418,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       { header: 'GR Number', value: (row) => row.grNumber },
       { header: 'GR Date', value: (row) => csvDate(row.grDate) },
       { header: 'Supplier', value: (row) => row.supplierName },
-      { header: 'PO Number', value: (row) => resolveGrPoNumber(row.purchaseOrderId) },
+      { header: 'PO Number', value: (row) => resolveGrPoNumber(row.purchaseOrderId, row.receiptSource) },
       { header: 'Supplier Ref', value: (row) => row.supplierRef ?? '' },
       { header: 'Status', value: (row) => row.status },
       { header: 'Items', value: (row) => row.items.length },
@@ -426,7 +438,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       { header: 'GR Number', value: ({ gr: current }) => current.grNumber },
       { header: 'GR Date', value: ({ gr: current }) => csvDate(current.grDate) },
       { header: 'Supplier', value: ({ gr: current }) => current.supplierName },
-      { header: 'PO Number', value: ({ gr: current }) => resolveGrPoNumber(current.purchaseOrderId) },
+      { header: 'PO Number', value: ({ gr: current }) => resolveGrPoNumber(current.purchaseOrderId, current.receiptSource) },
       { header: 'Supplier Ref', value: ({ gr: current }) => current.supplierRef ?? '' },
       { header: 'Status', value: ({ gr: current }) => current.status },
       { header: 'Product Code', value: ({ item }) => item.product?.productCode ?? '' },
@@ -462,6 +474,9 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       supplierName: gr.supplierName,
       grDate: gr.grDate.split('T')[0],
       purchaseOrderId: gr.purchaseOrderId ?? '',
+      receiptType: gr.receiptType ?? 'FULL',
+      receiptSource: gr.receiptSource ?? 'PURCHASE_ORDER',
+      inwardShift: gr.inwardShift ?? '',
       supplierRef: gr.supplierRef || '',
       remarks: gr.remarks || '',
       items: existingItems.length > 0 ? existingItems : fallbackItems,
@@ -506,7 +521,13 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           id: editingGR.id,
           shopId: resolvedShopId,
           grDate: values.grDate,
-          purchaseOrderId: values.purchaseOrderId || undefined,
+          purchaseOrderId:
+            values.receiptSource === 'OUTSIDE' || values.purchaseOrderId === 'OUTSIDE'
+              ? undefined
+              : values.purchaseOrderId || undefined,
+          receiptType: values.receiptType,
+          receiptSource: values.receiptSource,
+          inwardShift: values.receiptSource === 'OUTSIDE' ? values.inwardShift || undefined : undefined,
           supplierName: values.supplierName,
           supplierRef: values.supplierRef,
           remarks: values.remarks,
@@ -516,7 +537,13 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
         const created = await createGR.mutateAsync({
           shopId: resolvedShopId,
           grDate: values.grDate,
-          purchaseOrderId: values.purchaseOrderId || undefined,
+          purchaseOrderId:
+            values.receiptSource === 'OUTSIDE' || values.purchaseOrderId === 'OUTSIDE'
+              ? undefined
+              : values.purchaseOrderId || undefined,
+          receiptType: values.receiptType,
+          receiptSource: values.receiptSource,
+          inwardShift: values.receiptSource === 'OUTSIDE' ? values.inwardShift || undefined : undefined,
           supplierName: values.supplierName,
           supplierRef: values.supplierRef,
           remarks: values.remarks,
@@ -1035,11 +1062,22 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                   control={form.control}
                   name="purchaseOrderId"
                   render={({ field }) => (
-                    <Select value={field.value || ''} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value || ''}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        if (value === 'OUTSIDE') {
+                          form.setValue('receiptSource', 'OUTSIDE');
+                        } else {
+                          form.setValue('receiptSource', 'PURCHASE_ORDER');
+                        }
+                      }}
+                    >
                       <SelectTrigger id="purchaseOrderId">
                         <SelectValue placeholder="Select PO (Confirmed / Partially Received)" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="OUTSIDE">Others</SelectItem>
                         {eligiblePoList.map((po) => (
                           <SelectItem key={po.id} value={po.id}>
                             {po.poNumber} - {po.supplier}
@@ -1076,6 +1114,44 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                   </p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="receiptType">Receipt Type *</Label>
+                <Controller
+                  control={form.control}
+                  name="receiptType"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="receiptType">
+                        <SelectValue placeholder="Select receipt type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FULL">Full Receipt</SelectItem>
+                        <SelectItem value="PARTIAL">Partial Receipt</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              {watchedReceiptSource === 'OUTSIDE' ? (
+                <div className="space-y-2 sm:col-span-1">
+                  <Label htmlFor="inwardShift">Inward Shift</Label>
+                  <Controller
+                    control={form.control}
+                    name="inwardShift"
+                    render={({ field }) => (
+                      <Select value={field.value || ''} onValueChange={field.onChange}>
+                        <SelectTrigger id="inwardShift">
+                          <SelectValue placeholder="Select inward shift" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DAY_SHIFT">Day Shift</SelectItem>
+                          <SelectItem value="NIGHT_SHIFT">Night Shift</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

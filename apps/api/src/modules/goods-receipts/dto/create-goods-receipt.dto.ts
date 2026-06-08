@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -63,6 +64,19 @@ export class CreateGoodsReceiptDto {
   @IsOptional()
   @IsUUID()
   purchaseOrderId?: string;
+
+  @ApiProperty({ enum: ['FULL', 'PARTIAL'], default: 'FULL' })
+  @IsIn(['FULL', 'PARTIAL'])
+  receiptType!: 'FULL' | 'PARTIAL';
+
+  @ApiProperty({ enum: ['PURCHASE_ORDER', 'OUTSIDE'], default: 'PURCHASE_ORDER' })
+  @IsIn(['PURCHASE_ORDER', 'OUTSIDE'])
+  receiptSource!: 'PURCHASE_ORDER' | 'OUTSIDE';
+
+  @ApiPropertyOptional({ enum: ['DAY_SHIFT', 'NIGHT_SHIFT'] })
+  @IsOptional()
+  @IsIn(['DAY_SHIFT', 'NIGHT_SHIFT'])
+  inwardShift?: 'DAY_SHIFT' | 'NIGHT_SHIFT';
 
   @ApiProperty()
   @IsString()

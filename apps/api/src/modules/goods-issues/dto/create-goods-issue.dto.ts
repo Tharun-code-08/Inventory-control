@@ -26,9 +26,19 @@ export class CreateGoodsIssueDto {
   @IsUUID()
   shopId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: ['Sales Order', 'Production', 'Maintenance', 'Transfer', 'Damage', 'Others'] })
   @IsString()
-  issueReason!: string;
+  issueType!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  otherReason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  issueReason?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

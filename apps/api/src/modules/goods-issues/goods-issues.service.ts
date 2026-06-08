@@ -38,6 +38,8 @@ export class GoodsIssuesService {
       giDate: row.giDate.toISOString().slice(0, 10),
       shopId: row.shopId,
       issueReason: row.issueReason,
+      issueType: row.issueType ?? row.issueReason,
+      otherReason: row.otherReason ?? null,
       remarks: row.remarks,
       status: row.status,
       postedAt: row.postedAt?.toISOString() ?? null,
@@ -90,12 +92,20 @@ export class GoodsIssuesService {
     return { data: items.map((row) => this.serializeListRow(row)), meta };
   }
 
-  async create(user: RequestUser, params: { giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }) {
+  async create(user: RequestUser, params: { giDate: string; shopId: string; issueType?: string; issueReason?: string; otherReason?: string; remarks?: string; items: Line[] }) {
     assertShopScope(user, params.shopId);
     const giDate = new Date(params.giDate);
     assertNotFuture(giDate);
     for (const line of params.items) {
       if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
+    }
+
+    const issueType = params.issueType?.trim() || params.issueReason?.trim();
+    if (!issueType) {
+      throw new BadRequestException('Issue type is required');
+    }
+    if (issueType === 'Others' && !params.otherReason?.trim()) {
+      throw new BadRequestException('Please provide a reason for Others');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -133,7 +143,9 @@ export class GoodsIssuesService {
           giNumber,
           giDate,
           shopId: params.shopId,
-          issueReason: params.issueReason.trim(),
+          issueType,
+          issueReason: issueType,
+          otherReason: params.otherReason?.trim() || null,
           remarks: params.remarks?.trim(),
           status: DocumentStatus.DRAFT,
           createdById: user.id,
@@ -154,13 +166,22 @@ export class GoodsIssuesService {
     return gi;
   }
 
-  async update(user: RequestUser, id: string, dto: Partial<{ giDate: string; shopId: string; issueReason: string; remarks?: string; items: Line[] }>) {
+  async update(user: RequestUser, id: string, dto: Partial<{ giDate: string; shopId: string; issueType: string; issueReason: string; otherReason?: string; remarks?: string; items: Line[] }>) {
     const existing = await this.get(user, id);
     if (existing.status !== DocumentStatus.DRAFT) throw new BadRequestException('Only DRAFT can be edited');
     if (dto.shopId) assertShopScope(user, dto.shopId);
 
     const giDate = dto.giDate ? new Date(dto.giDate) : existing.giDate;
     assertNotFuture(giDate);
+
+    const nextIssueType = dto.issueType?.trim() || dto.issueReason?.trim() || existing.issueType || existing.issueReason;
+    const nextOtherReason = dto.otherReason?.trim() ?? existing.otherReason;
+    if (!nextIssueType) {
+      throw new BadRequestException('Issue type is required');
+    }
+    if (nextIssueType === 'Others' && !nextOtherReason) {
+      throw new BadRequestException('Please provide a reason for Others');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
@@ -195,7 +216,9 @@ export class GoodsIssuesService {
         data: {
           giDate,
           shopId: dto.shopId ?? undefined,
-          issueReason: dto.issueReason?.trim(),
+          issueType: nextIssueType,
+          issueReason: nextIssueType,
+          otherReason: nextOtherReason ?? null,
           remarks: dto.remarks?.trim(),
           updatedById: user.id,
         },

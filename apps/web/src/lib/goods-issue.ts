@@ -4,6 +4,7 @@ export const ISSUE_TYPES = [
   'Maintenance',
   'Transfer',
   'Damage',
+  'Others',
 ] as const;
 
 export type IssueType = (typeof ISSUE_TYPES)[number];
@@ -22,6 +23,7 @@ export function issueTypeLabel(reason: string): string {
   const trimmed = reason?.trim() ?? '';
   if (!trimmed) return '—';
   if (trimmed === 'Retail sales') return 'Sales Order';
+  if (trimmed === 'OTHERS' || trimmed === 'Others') return 'Others';
   return trimmed;
 }
 
