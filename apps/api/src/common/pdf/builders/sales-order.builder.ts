@@ -66,7 +66,6 @@ export async function loadSalesOrderForPdf(prisma: PrismaService, id: string) {
       customer: true,
       shop: { select: { shopName: true } },
       salesQuotation: { select: { quoteNumber: true } },
-      createdBy: { select: { name: true } },
       items: {
         include: {
           product: { select: { productCode: true, description: true, hsnCode: true } },
@@ -134,7 +133,14 @@ export async function buildSalesOrderPdfViewModel(
   const igstRateDominant = dominantInter ? Number(dominantInter.igstRate) : 0;
 
   const generatedAt = formatDocumentDateTime(new Date());
-  const generatedBy = order.createdBy?.name ?? 'Retail IMS';
+  let generatedBy = 'Retail IMS';
+  if (order.createdById) {
+    const creator = await prisma.user.findUnique({
+      where: { id: order.createdById },
+      select: { name: true },
+    });
+    if (creator?.name) generatedBy = creator.name;
+  }
 
   return {
     documentTitle: 'SALES ORDER',

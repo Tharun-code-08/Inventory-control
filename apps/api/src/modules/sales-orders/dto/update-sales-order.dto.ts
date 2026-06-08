@@ -1,9 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { GstSupplyType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
@@ -31,6 +33,11 @@ export class UpdateSalesOrderDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @ApiPropertyOptional({ enum: GstSupplyType, description: 'Auto-derived from GSTIN when omitted' })
+  @IsOptional()
+  @IsEnum(GstSupplyType)
+  gstSupplyType?: GstSupplyType;
 
   @ApiPropertyOptional({ type: [CreateSalesOrderItemDto] })
   @IsOptional()
