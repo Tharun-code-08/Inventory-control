@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "devDependencies": {
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.3",
     "openapi-typescript": "^7.13.0"
   },
   "scripts": {
