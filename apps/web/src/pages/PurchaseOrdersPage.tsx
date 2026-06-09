@@ -380,10 +380,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   // When navigating back from the create form, force a refetch to show the new PO
   // immediately rather than relying solely on query invalidation timing.
   useEffect(() => {
-    if (!createOnly && (location.state as { fromCreate?: boolean } | null)?.fromCreate) {
+    if (createOnly) return;
+    const navState = location.state as { fromCreate?: boolean; shopId?: string } | null;
+    if (!navState?.fromCreate) return;
+    // If the PO was created under a specific plant, switch the list filter to it so the
+    // new PO is visible (multi-plant owners only; shop-scoped users can't mismatch).
+    if (navState.shopId && !user?.shopId) {
+      setSelectedShopId(navState.shopId);
+    } else {
       poQuery.refetch();
-      navigate(location.pathname, { replace: true, state: {} });
     }
+    navigate(location.pathname, { replace: true, state: {} });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1093,15 +1100,12 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.success(`Purchase order ${result.poNumber} saved as draft`);
       }
       if (createOnly) {
-        // Refetch and WAIT so fresh data is in the cache before the list page mounts.
-        // This avoids the race where invalidateQueries triggers a background refetch that
-        // completes before navigation, making the data look fresh and skipping refetchOnMount.
-        try {
-          await queryClient.refetchQueries({ queryKey: poKeys.lists() });
-        } catch {
-          // If refetch fails, navigate anyway; the useEffect fallback will retry.
-        }
-        navigate('/purchase-orders', { state: { fromCreate: true } });
+        // The PO may have been saved under a delivery plant other than the list's
+        // default filter (resolvePreferredOrgId falls back to the cookie/first shop on
+        // a fresh mount). Pass the created PO's shopId so the list switches its plant
+        // filter to where the PO actually lives — otherwise it stays hidden.
+        queryClient.invalidateQueries({ queryKey: poKeys.lists() });
+        navigate('/purchase-orders', { state: { fromCreate: true, shopId: result.shopId } });
         return;
       }
       setSheetOpen(false);
