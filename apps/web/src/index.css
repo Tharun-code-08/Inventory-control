@@ -4,35 +4,39 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 30% 14%;
+    --background: 220 25% 98%;
+    --foreground: 222 25% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 14%;
+    --card-foreground: 222 25% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 14%;
-    --primary: 223 74% 56%;
+    --popover-foreground: 222 25% 18%;
+    /* Primary = slate-500 (#64748B). Hover = slate-600 (#475569). Ring = slate-400 (#94A3B8). */
+    --primary: 215 19% 47%;
+    --primary-hover: 215 25% 32%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 96%;
+    --secondary: 220 18% 96%;
     --secondary-foreground: 220 22% 24%;
-    --muted: 220 20% 96%;
-    --muted-foreground: 220 12% 44%;
-    --accent: 220 20% 95%;
-    --accent-foreground: 220 22% 24%;
+    --muted: 220 18% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 215 25% 95%;
+    --accent-foreground: 215 25% 28%;
     --destructive: 0 78% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 18% 90%;
-    --input: 220 18% 90%;
-    --ring: 223 74% 56%;
-    --radius: 0.75rem;
+    --border: 215 16% 92%;
+    --input: 215 16% 90%;
+    --ring: 215 20% 65%;
+    --radius: 0.625rem;
 
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 220 18% 26%;
-    --sidebar-accent: 220 20% 96%;
+    --sidebar-foreground: 220 16% 28%;
+    --sidebar-accent: 215 25% 95%;
 
-    --status-success: 151 63% 43%;
+    /* Status tokens stay distinct from the slate-blue brand to preserve hierarchy
+       in PO -> GR -> Invoice -> Payment workflows. */
+    --status-success: 151 55% 40%;
     --status-warning: 38 92% 50%;
     --status-danger: 0 84% 60%;
-    --status-info: 213 93% 60%;
+    --status-info: 215 20% 55%;
 
     /* Motion tokens */
     --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -51,22 +55,23 @@
     --card-foreground: 210 22% 96%;
     --popover: 222 22% 11%;
     --popover-foreground: 210 22% 96%;
-    --primary: 223 78% 65%;
+    --primary: 215 22% 62%;
+    --primary-hover: 215 22% 72%;
     --primary-foreground: 222 30% 10%;
     --secondary: 222 18% 17%;
     --secondary-foreground: 210 20% 92%;
     --muted: 222 16% 16%;
     --muted-foreground: 215 14% 72%;
-    --accent: 223 22% 20%;
+    --accent: 215 22% 22%;
     --accent-foreground: 210 22% 96%;
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 100%;
     --border: 222 14% 22%;
     --input: 222 14% 20%;
-    --ring: 223 78% 65%;
+    --ring: 215 22% 62%;
     --sidebar: 222 24% 10%;
     --sidebar-foreground: 210 20% 92%;
-    --sidebar-accent: 223 20% 18%;
+    --sidebar-accent: 215 20% 20%;
   }
 }
 
@@ -81,14 +86,12 @@
     min-height: 100vh;
     transition: background-color 0.2s ease, color 0.15s ease;
     background:
-      radial-gradient(circle at 12% -8%, rgb(99 102 241 / 0.08), transparent 35%),
-      radial-gradient(circle at 90% -2%, rgb(56 189 248 / 0.06), transparent 32%),
-      #f5f7fb;
+      radial-gradient(circle at 18% -10%, rgb(148 163 184 / 0.06), transparent 40%),
+      #f7f9fc;
   }
   .dark body {
     background:
-      radial-gradient(circle at 8% -10%, rgb(99 102 241 / 0.12), transparent 42%),
-      radial-gradient(circle at 92% 0%, rgb(14 165 233 / 0.06), transparent 38%),
+      radial-gradient(circle at 8% -10%, rgb(148 163 184 / 0.08), transparent 42%),
       hsl(var(--background));
   }
   html.dark {
@@ -101,19 +104,19 @@
 
 @layer components {
   .glass-panel {
-    background: rgb(255 255 255 / 0.95);
-    border: 1px solid rgb(226 232 240 / 0.95);
-    box-shadow: 0 10px 30px rgb(15 23 42 / 0.08);
+    background: #ffffff;
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.04);
   }
   .dark .glass-panel {
     background: hsl(var(--card) / 0.96);
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 16px rgb(0 0 0 / 0.25);
   }
   .sidebar {
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-right: 1px solid rgb(226 232 240 / 0.95);
-    box-shadow: 12px 0 28px rgb(15 23 42 / 0.05);
+    background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+    border-right: 1px solid hsl(var(--border));
+    box-shadow: 1px 0 0 rgb(15 23 42 / 0.02);
   }
   .dark .sidebar {
     background: linear-gradient(180deg, hsl(224 22% 13%) 0%, hsl(222 24% 10%) 100%);
@@ -125,92 +128,91 @@
     transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
   }
   .sidebar-item:hover {
-    background: #eef2ff;
-    border-color: #e0e7ff;
+    background: #f1f5f9;
+    border-color: #e2e8f0;
     box-shadow: none;
   }
   .dark .sidebar-item:hover {
-    background: rgb(49 46 129 / 0.25);
-    border-color: rgb(79 70 229 / 0.35);
+    background: rgb(51 65 85 / 0.35);
+    border-color: rgb(100 116 139 / 0.35);
   }
 
-  /* Selected nav / filter / tab — lavender fill + bold indigo left rail */
+  /* Selected nav / filter / tab — soft slate fill + bold slate-500 left rail */
   .selection-active,
   .sidebar-item.active {
-    background: #e8ecfd;
-    border: 1px solid #c7d2fe;
+    background: #eef2f7;
+    border: 1px solid #cbd5e1;
     border-left-width: 4px;
-    border-left-color: #4f46e5;
+    border-left-color: #64748b;
     color: #0f172a;
     box-shadow: none;
   }
   .dark .selection-active,
   .dark .sidebar-item.active {
-    background: rgb(49 46 129 / 0.38);
-    border-color: rgb(99 102 241 / 0.45);
-    border-left-color: #818cf8;
+    background: rgb(51 65 85 / 0.5);
+    border-color: rgb(100 116 139 / 0.5);
+    border-left-color: #94a3b8;
     color: #f1f5f9;
   }
   .selection-active-icon {
-    color: #4338ca;
+    color: #475569;
   }
   .dark .selection-active-icon {
-    color: #a5b4fc;
+    color: #cbd5e1;
   }
   .surface-1 {
     background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 8px 20px rgb(15 23 42 / 0.06);
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
   }
   .dark .surface-1 {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 8px 20px rgb(0 0 0 / 0.25);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
   }
   .surface-2 {
     background: #ffffff;
-    border: 1px solid #dbe3ef;
-    box-shadow: 0 10px 24px rgb(15 23 42 / 0.08);
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.04);
   }
   .dark .surface-2 {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 10px 24px rgb(0 0 0 / 0.3);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 12px rgb(0 0 0 / 0.25);
   }
   .surface-elevated {
     background: #ffffff;
-    border: 1px solid #dbe3ef;
-    box-shadow: 0 14px 30px rgb(15 23 42 / 0.1);
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 2px 4px rgb(15 23 42 / 0.05), 0 8px 20px rgb(15 23 42 / 0.06);
   }
   .dark .surface-elevated {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.3), 0 8px 20px rgb(0 0 0 / 0.3);
   }
   .premium-title {
-    color: #0f172a;
-  }
-  .dark .premium-title {
-    color: #f1f5f9;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
   }
   .premium-button {
-    background: #111827;
-    box-shadow: 0 10px 18px rgb(15 23 42 / 0.14);
+    background: #475569;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
   }
   .premium-button:hover {
-    filter: brightness(1.05);
+    background: #334155;
     transform: translateY(-1px);
   }
+  /* ERP form container: subtle paper feel, no forced viewport height. */
   .create-page-shell {
-    min-height: calc(100vh - 7rem);
     background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 1rem;
-    box-shadow: 0 16px 36px rgb(15 23 42 / 0.08);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
   }
   .dark .create-page-shell {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 16px 36px rgb(0 0 0 / 0.35);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
   }
   .dark .avatar-ring {
     box-shadow: 0 0 0 3px hsl(var(--card)), 0 0 0 5px rgb(99 102 241 / 0.35);

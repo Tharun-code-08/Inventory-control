@@ -24,14 +24,14 @@ export function PageHeader({
   const resolvedDescription = description ?? subtitle;
 
   return (
-    <div className={cn('mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', className)}>
+    <div className={cn('mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between', className)}>
       <div className="min-w-0">
         {showBreadcrumbs && resolvedItems.length > 0 && (
-          <Breadcrumbs items={resolvedItems} className="mb-2" />
+          <Breadcrumbs items={resolvedItems} className="mb-1.5" />
         )}
-        <h1 className="premium-title text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+        <h1 className="premium-title text-lg font-semibold sm:text-xl">{title}</h1>
         {resolvedDescription && (
-          <p className="mt-1 text-sm text-muted-foreground">{resolvedDescription}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{resolvedDescription}</p>
         )}
       </div>
       {children && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{children}</div>}
