@@ -24,7 +24,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, AnimatedTableBody, P2PFlowTimeline, CreatePageLayout, type P2PStep } from '@/components/shared';
+import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, AnimatedTableBody, P2PFlowTimeline, CreatePageLayout, FormSection, FormGrid, type P2PStep } from '@/components/shared';
 import { DocumentEmailHistoryPanel } from '@/components/shared/DocumentEmailHistoryPanel';
 import { useDocumentEmailHistory } from '@/hooks/use-document-email-history';
 
@@ -1265,131 +1265,171 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   }
 
 
+  const poActionButtons = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        {...(createOnly ? { form: 'po-form' } : {})}
+        onClick={() => {
+          if (form.formState.isDirty) {
+            setFormCancelConfirmOpen(true);
+          } else {
+            form.reset();
+            setSheetOpen(false);
+            if (location.pathname === '/purchase-orders/new') {
+              navigate('/purchase-orders');
+            }
+          }
+        }}
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        {...(createOnly ? { form: 'po-form' } : {})}
+        disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
+      >
+        <ShoppingCart className="h-4 w-4" />
+        {createMut.isPending ? 'Saving...' : 'Save as Draft'}
+      </Button>
+      <Button
+        type="button"
+        onClick={submitSend}
+        disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
+      >
+        <Send className="mr-2 h-4 w-4" />
+        {sendMut.isPending ? 'Sending...' : 'Save & Send'}
+      </Button>
+    </>
+  );
+
   const purchaseOrderForm = (
 <form
+      id="po-form"
       onSubmit={submitDraft}
-      className={cn(createOnly ? 'space-y-6' : 'mt-6 space-y-6')}
+      className={cn(createOnly ? 'space-y-5' : 'mt-6 space-y-5')}
     >
       {!editingPO && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label className="text-xs">PO Type</Label>
-            <Select value={sourceType} onValueChange={(v: 'DIRECT' | 'RFQ' | 'CONTRACT') => setSourceType(v)}>
-              <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue /></SelectTrigger>
-              <SelectContent className={PO_SELECT_CONTENT}>
-                <SelectItem value="DIRECT">Direct PO</SelectItem>
-                <SelectItem value="RFQ">From RFQ</SelectItem>
-                <SelectItem value="CONTRACT">From Contract</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {sourceType === 'RFQ' && (
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-xs">RFQ</Label>
-              <Select
-                value={sourceRfqId || undefined}
-                onValueChange={(id) => {
-                  setSourceRfqId(id);
-                  const rfq = rfqMap.get(id);
-                  if (!rfq) return;
-                  const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
-                  if (plantId) {
-                    form.setValue('deliveryPlantId', plantId);
-                    if (!user?.shopId) setSelectedShopId(plantId);
-                    const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
-                    form.setValue('storageLocationId', '');
-                    applyDeliveryAddressFromPlant(plantId);
-                  }
-                  form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
-                  const remainingLines =
-                    rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
-                  if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
-                    replace([defaultPoLineItem()]);
-                    toast.error('All RFQ lines are already allocated to purchase orders');
-                    return;
-                  }
-                  const itemMap = new Map((rfq.items ?? []).map((it) => [it.id, it]));
-                  const nextItems: POFormValues['items'] = remainingLines.flatMap((line) => {
-                    const rfqItem = itemMap.get(line.rfqItemId);
-                    const productId = rfqItem?.productId ?? rfqItem?.product?.id ?? '';
-                    if (!productId) return [];
-                    return [
-                      {
-                        productId,
-                        rfqItemId: line.rfqItemId,
-                        lineDescription: rfqItem?.product?.description ?? rfqItem?.description ?? '',
-                        lineCategory: rfqItem?.product?.category ?? '',
-                        currentStock: 0,
-                        minStock: 0,
-                        suggestedQty: Number(line.remainingQty ?? 0),
-                        orderQty: Number(line.remainingQty ?? 0),
-                        rate: Number(rfqItem?.product?.purchasePrice ?? 0),
-                        taxPercent: '',
-                      },
-                    ];
-                  });
-                  replace(nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
-                }}
-              >
-                <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
+        <FormSection title="Order Source" hint="Choose how this PO is created">
+          <FormGrid cols={3}>
+            <div className="space-y-1">
+              <Label className="text-xs">PO Type</Label>
+              <Select value={sourceType} onValueChange={(v: 'DIRECT' | 'RFQ' | 'CONTRACT') => setSourceType(v)}>
+                <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue /></SelectTrigger>
                 <SelectContent className={PO_SELECT_CONTENT}>
-                  {rfqs.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.rfqNumber} - {r.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {sourceRfqId && selectedRfq?.fulfillment && (
-                <p className="text-[11px] text-muted-foreground">
-                  RFQ progress: {selectedRfq.fulfillment.linesFullyOrdered}/{selectedRfq.fulfillment.totalLines} lines ordered ·
-                  POs {selectedRfq.fulfillment.posCreated}/{selectedRfq.fulfillment.maxPos} (remaining {selectedRfq.fulfillment.posRemaining})
-                </p>
-              )}
-            </div>
-          )}
-          {sourceType === 'CONTRACT' && (
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-xs">Contract</Label>
-              <Select
-                value={sourceContractId}
-                onValueChange={(id) => {
-                  setSourceContractId(id);
-                  const contract = contracts.find((c) => c.id === id);
-                  if (!contract) return;
-                  form.setValue('supplier', contract.supplier?.supplierName ?? '');
-                  replace(
-                    ((contract as { items?: Array<{ productId?: string; quantity?: number; unitPrice?: number }> }).items ?? []).map(
-                      (it) => ({
-                        productId: it.productId ?? '',
-                        rfqItemId: undefined,
-                        lineDescription: '',
-                        lineCategory: '',
-                        currentStock: 0,
-                        minStock: 0,
-                        suggestedQty: Number(it.quantity ?? 0),
-                        orderQty: Number(it.quantity ?? 0),
-                        rate: Number(it.unitPrice ?? 0),
-                        taxPercent: '' as string | number,
-                      }),
-                    ),
-                  );
-                }}
-              >
-                <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select Contract" /></SelectTrigger>
-                <SelectContent className={PO_SELECT_CONTENT}>
-                  {contracts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.contractNumber} - {c.title}</SelectItem>
-                  ))}
+                  <SelectItem value="DIRECT">Direct PO</SelectItem>
+                  <SelectItem value="RFQ">From RFQ</SelectItem>
+                  <SelectItem value="CONTRACT">From Contract</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          )}
-        </div>
+            {sourceType === 'RFQ' && (
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-xs">RFQ</Label>
+                <Select
+                  value={sourceRfqId || undefined}
+                  onValueChange={(id) => {
+                    setSourceRfqId(id);
+                    const rfq = rfqMap.get(id);
+                    if (!rfq) return;
+                    const plantId = rfq.shopId ?? rfq.shop?.id ?? '';
+                    if (plantId) {
+                      form.setValue('deliveryPlantId', plantId);
+                      if (!user?.shopId) setSelectedShopId(plantId);
+                      const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
+                      form.setValue('storageLocationId', '');
+                      applyDeliveryAddressFromPlant(plantId);
+                    }
+                    form.setValue('supplier', rfq.suppliers?.[0]?.supplier?.supplierName ?? '');
+                    const remainingLines =
+                      rfq.fulfillment?.lines?.filter((l) => l.remainingQty > 0) ?? rfq.fulfillment?.lines ?? [];
+                    if ((rfq.fulfillment?.posRemaining ?? 1) <= 0 || remainingLines.length === 0) {
+                      replace([defaultPoLineItem()]);
+                      toast.error('All RFQ lines are already allocated to purchase orders');
+                      return;
+                    }
+                    const itemMap = new Map((rfq.items ?? []).map((it) => [it.id, it]));
+                    const nextItems: POFormValues['items'] = remainingLines.flatMap((line) => {
+                      const rfqItem = itemMap.get(line.rfqItemId);
+                      const productId = rfqItem?.productId ?? rfqItem?.product?.id ?? '';
+                      if (!productId) return [];
+                      return [
+                        {
+                          productId,
+                          rfqItemId: line.rfqItemId,
+                          lineDescription: rfqItem?.product?.description ?? rfqItem?.description ?? '',
+                          lineCategory: rfqItem?.product?.category ?? '',
+                          currentStock: 0,
+                          minStock: 0,
+                          suggestedQty: Number(line.remainingQty ?? 0),
+                          orderQty: Number(line.remainingQty ?? 0),
+                          rate: Number(rfqItem?.product?.purchasePrice ?? 0),
+                          taxPercent: '',
+                        },
+                      ];
+                    });
+                    replace(nextItems.length > 0 ? nextItems : [defaultPoLineItem()]);
+                  }}
+                >
+                  <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select RFQ" /></SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    {rfqs.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.rfqNumber} - {r.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {sourceRfqId && selectedRfq?.fulfillment && (
+                  <p className="text-[11px] text-muted-foreground">
+                    RFQ progress: {selectedRfq.fulfillment.linesFullyOrdered}/{selectedRfq.fulfillment.totalLines} lines ordered ·
+                    POs {selectedRfq.fulfillment.posCreated}/{selectedRfq.fulfillment.maxPos} (remaining {selectedRfq.fulfillment.posRemaining})
+                  </p>
+                )}
+              </div>
+            )}
+            {sourceType === 'CONTRACT' && (
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-xs">Contract</Label>
+                <Select
+                  value={sourceContractId}
+                  onValueChange={(id) => {
+                    setSourceContractId(id);
+                    const contract = contracts.find((c) => c.id === id);
+                    if (!contract) return;
+                    form.setValue('supplier', contract.supplier?.supplierName ?? '');
+                    replace(
+                      ((contract as { items?: Array<{ productId?: string; quantity?: number; unitPrice?: number }> }).items ?? []).map(
+                        (it) => ({
+                          productId: it.productId ?? '',
+                          rfqItemId: undefined,
+                          lineDescription: '',
+                          lineCategory: '',
+                          currentStock: 0,
+                          minStock: 0,
+                          suggestedQty: Number(it.quantity ?? 0),
+                          orderQty: Number(it.quantity ?? 0),
+                          rate: Number(it.unitPrice ?? 0),
+                          taxPercent: '' as string | number,
+                        }),
+                      ),
+                    );
+                  }}
+                >
+                  <SelectTrigger className={PO_SELECT_TRIGGER}><SelectValue placeholder="Select Contract" /></SelectTrigger>
+                  <SelectContent className={PO_SELECT_CONTENT}>
+                    {contracts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.contractNumber} - {c.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </FormGrid>
+        </FormSection>
       )}
 
-      {/* Order details + delivery */}
-      <div className="space-y-2 rounded-lg border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
-        <Label className="text-sm font-semibold">Order Details & Delivery</Label>
-        <div className="grid gap-2 sm:grid-cols-3">
+      <FormSection title="Order Details & Delivery">
+        <FormGrid cols={3}>
           <div className="space-y-1">
             <Label className="text-xs">Delivery Plant *</Label>
             <Controller
@@ -1500,7 +1540,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     <SelectValue placeholder="Select supplier" />
                   </SelectTrigger>
                   <SelectContent className={PO_SELECT_CONTENT}>
-                    <SelectItem value={CREATE_SUPPLIER_OPTION} className="font-medium text-indigo-700">
+                    <SelectItem value={CREATE_SUPPLIER_OPTION} className="font-medium text-primary">
                       + Create new supplier
                     </SelectItem>
                     {suppliers.map((s) => (
@@ -1516,8 +1556,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               <p className="text-[10px] text-destructive">{form.formState.errors.supplier.message}</p>
             )}
           </div>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        </FormGrid>
+        <FormGrid cols={4}>
           <div className="space-y-1">
             <Label htmlFor="poDate" className="text-xs">PO Date</Label>
             <Input
@@ -1636,8 +1676,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               {...form.register('deliveryAddress')}
             />
           </div>
-        </div>
-      </div>
+        </FormGrid>
+      </FormSection>
 
       <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1704,22 +1744,18 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
       <PoLogisticsTaxFields form={form} />
 
-      <div className="space-y-2">
-        <Label htmlFor="remarks">Remarks</Label>
+      <FormSection title="Remarks">
         <Textarea
           id="remarks"
           rows={2}
           placeholder="Optional notes…"
           {...form.register('remarks')}
         />
-      </div>
+      </FormSection>
 
-      <Separator />
-
-      {/* Items */}
-      <div>
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Label className="text-base">Line Items</Label>
+      <FormSection
+        title="Line Items"
+        actions={
           <Button
             type="button"
             variant="outline"
@@ -1730,7 +1766,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           >
             <Plus className="h-3 w-3" /> Add Item
           </Button>
-        </div>
+        }
+      >
         {!canAddLineItems && lineItemsHint && (
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             {lineItemsHint}
@@ -2002,42 +2039,13 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             </TableFooter>
           </Table>
         </div>
-      </div>
+      </FormSection>
 
-      <Separator />
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            if (form.formState.isDirty) {
-              setFormCancelConfirmOpen(true);
-            } else {
-              form.reset();
-              setSheetOpen(false);
-              if (location.pathname === '/purchase-orders/new') {
-                navigate('/purchase-orders');
-              }
-            }
-          }}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={createMut.isPending || sendMut.isPending || !canMutatePo}>
-          <ShoppingCart className="h-4 w-4" />
-          {createMut.isPending ? 'Saving...' : 'Save as Draft'}
-        </Button>
-        <Button
-          type="button"
-          onClick={submitSend}
-          disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
-        >
-          <Send className="mr-2 h-4 w-4" />
-          {sendMut.isPending ? 'Sending...' : 'Save & Send'}
-        </Button>
-      </div>
+      {!createOnly && (
+        <div className="flex items-center gap-3 border-t border-border pt-4">
+          {poActionButtons}
+        </div>
+      )}
     </form>
   );
 
@@ -2048,6 +2056,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           title="Create Purchase Order"
           description="Fill in details to create a new purchase order"
           backTo="/purchase-orders"
+          actionBar={poActionButtons}
         >
           {purchaseOrderForm}
         </CreatePageLayout>
@@ -2229,7 +2238,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                       <button
                         type="button"
                         onClick={() => setDetailId(po.id)}
-                        className="truncate text-left text-indigo-600 hover:underline"
+                        className="truncate text-left text-primary hover:underline"
                       >
                         {po.poNumber}
                       </button>
