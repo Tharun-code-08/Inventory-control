@@ -333,22 +333,24 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
   const canSendPoEmail = hasAnyPermission(user, 'purchase_order:create', 'purchase_order:approve');
-  // Initialize the active-plant filter from sessionStorage so that, after creating a
-  // PO under a non-default plant and navigating back to the list (which remounts and
-  // resets local state), the very first render already filters by that plant and shows
-  // the new PO. This is independent of navigation-effect timing.
-  const [selectedShopId, setSelectedShopId] = useState(() => {
-    try {
-      return sessionStorage.getItem('po:activeShopId') ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
+  // Read the persisted active plant on EVERY render (not just at init). React Router
+  // reuses this component instance across /purchase-orders/new <-> /purchase-orders, so a
+  // useState initializer would only run once and miss the value written during create.
+  // Reading sessionStorage each render guarantees the list filters by the plant the PO
+  // was created under, regardless of remount/effect timing.
+  let storedActiveShopId = '';
+  try {
+    storedActiveShopId = sessionStorage.getItem('po:activeShopId') ?? '';
+  } catch {
+    storedActiveShopId = '';
+  }
+  const effectiveSelectedShopId = selectedShopId || storedActiveShopId;
   const shopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
     user?.shopId,
-    selectedShopId,
+    effectiveSelectedShopId,
   );
   const deliveryPlantLocked = isShopScopedRole(user?.role) || shops.length <= 1;
   const [sourceType, setSourceType] = useState<'DIRECT' | 'RFQ' | 'CONTRACT'>('DIRECT');
@@ -2159,7 +2161,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           </Select>
           {!user?.shopId && (
             <Select
-              value={selectedShopId}
+              value={effectiveSelectedShopId}
               onValueChange={(v) => {
                 setSelectedShopId(v);
                 try {
