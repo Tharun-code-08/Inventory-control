@@ -35,19 +35,19 @@ describe('SalesOrdersService.computeLineTotals', () => {
   });
 
   it('applies discount before tax', () => {
-    // 10 * 5 = 50, discount 10, taxable 40, tax 0.10 * 40 = 4, line = 50 - 10 + 4 = 44
+    // 10 * 5 = 50, discount 10, taxable 40, tax 0.12 * 40 = 4.80, line = 50 - 10 + 4.80 = 44.80
     const r = compute([
       {
         productId: 'p',
         quantity: 10,
         unitPrice: 5,
         discountAmount: 10,
-        taxRate: 0.1,
+        taxRate: 0.12,
       },
     ]);
-    expect(r.lines[0].taxAmount.toFixed(2)).toBe('4.00');
-    expect(r.lines[0].lineValue.toFixed(2)).toBe('44.00');
-    expect(r.totalTax.toFixed(2)).toBe('4.00');
+    expect(r.lines[0].taxAmount.toFixed(2)).toBe('4.80');
+    expect(r.lines[0].lineValue.toFixed(2)).toBe('44.80');
+    expect(r.totalTax.toFixed(2)).toBe('4.80');
     expect(r.totalDiscount.toFixed(2)).toBe('10.00');
   });
 
@@ -60,7 +60,7 @@ describe('SalesOrdersService.computeLineTotals', () => {
         quantity: 1,
         unitPrice: 10,
         discountAmount: 25,
-        taxRate: 0.2,
+        taxRate: 0.18,
       },
     ]);
     expect(r.lines[0].taxAmount.toFixed(2)).toBe('0.00');
@@ -68,23 +68,23 @@ describe('SalesOrdersService.computeLineTotals', () => {
   });
 
   it('rounds half-up to two decimals on tax', () => {
-    // 1 * 1.255 = 1.255, tax 0.20 * 1.255 = 0.251 -> 0.25 (HALF-UP)
+    // 1 * 1.25 = 1.25, tax 0.18 * 1.25 = 0.225 -> 0.23 (HALF-UP)
     const r = compute([
-      { productId: 'p', quantity: 1, unitPrice: 1.255, taxRate: 0.2 },
+      { productId: 'p', quantity: 1, unitPrice: 1.25, taxRate: 0.18 },
     ]);
-    expect(r.lines[0].taxAmount.toFixed(2)).toBe('0.25');
+    expect(r.lines[0].taxAmount.toFixed(2)).toBe('0.23');
   });
 
   it('aggregates totals across multiple lines', () => {
     const r = compute([
       { productId: 'a', quantity: 2, unitPrice: 5 },
-      { productId: 'b', quantity: 1, unitPrice: 10, discountAmount: 2, taxRate: 0.1 },
+      { productId: 'b', quantity: 1, unitPrice: 10, discountAmount: 2, taxRate: 0.12 },
     ]);
     // line 1: 10
-    // line 2: 10 - 2 + 0.10*8 = 8 + 0.80 = 8.80
-    expect(r.total.toFixed(2)).toBe('18.80');
+    // line 2: 10 - 2 + 0.12*8 = 8 + 0.96 = 8.96
+    expect(r.total.toFixed(2)).toBe('18.96');
     expect(r.totalDiscount.toFixed(2)).toBe('2.00');
-    expect(r.totalTax.toFixed(2)).toBe('0.80');
+    expect(r.totalTax.toFixed(2)).toBe('0.96');
   });
 
   it('treats missing items as empty', () => {

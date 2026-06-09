@@ -28,6 +28,25 @@ export function useSendDocumentEmail(kind: DocumentPdfKind) {
     },
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ['document-email-history', kind, id] });
+      if (kind === 'purchase-order') {
+        qc.invalidateQueries({ queryKey: ['purchase-orders'] });
+      } else if (kind === 'sales-order') {
+        qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      } else if (kind === 'invoice') {
+        qc.invalidateQueries({ queryKey: ['invoices'] });
+      } else if (kind === 'payment') {
+        qc.invalidateQueries({ queryKey: ['payments'] });
+      } else if (kind === 'supplier-bill') {
+        qc.invalidateQueries({ queryKey: ['supplier-bills'] });
+      } else if (kind === 'supplier-payment') {
+        qc.invalidateQueries({ queryKey: ['supplier-payments'] });
+      } else if (kind === 'goods-receipt') {
+        qc.invalidateQueries({ queryKey: ['goods-receipts'] });
+      } else if (kind === 'sales-quotation') {
+        qc.invalidateQueries({ queryKey: ['sales-quotations'] });
+      } else if (kind === 'goods-return') {
+        qc.invalidateQueries({ queryKey: ['returns'] });
+      }
     },
   });
 }

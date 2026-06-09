@@ -240,6 +240,7 @@ export function useSendPurchaseOrder() {
       return res.data.data ?? res.data;
     },
     onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: poKeys.lists() });
       qc.invalidateQueries({ queryKey: poKeys.detail(id) });
       qc.invalidateQueries({ queryKey: ['document-email-history', 'purchase-order', id] });
     },
