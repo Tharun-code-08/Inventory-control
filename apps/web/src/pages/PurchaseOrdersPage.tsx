@@ -1093,8 +1093,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.success(`Purchase order ${result.poNumber} saved as draft`);
       }
       if (createOnly) {
-        // Invalidate list queries so the list page always shows fresh data on mount.
-        queryClient.invalidateQueries({ queryKey: poKeys.lists() });
+        // Refetch and WAIT so fresh data is in the cache before the list page mounts.
+        // This avoids the race where invalidateQueries triggers a background refetch that
+        // completes before navigation, making the data look fresh and skipping refetchOnMount.
+        try {
+          await queryClient.refetchQueries({ queryKey: poKeys.lists() });
+        } catch {
+          // If refetch fails, navigate anyway; the useEffect fallback will retry.
+        }
         navigate('/purchase-orders', { state: { fromCreate: true } });
         return;
       }
