@@ -213,6 +213,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
   const [postTarget, setPostTarget] = useState<GoodsReceipt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceipt | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const filters: GoodsReceiptFilters = {
     page,
@@ -1396,7 +1397,19 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 type="button"
                 variant="outline"
                 className="flex-1"
-                onClick={() => setSheetOpen(false)}
+                onClick={() => {
+                  if (form.formState.isDirty) {
+                    setCancelConfirmOpen(true);
+                  } else {
+                    form.reset();
+                    if (createOnly) {
+                      navigate('/goods-receipts');
+                    } else {
+                      setSheetOpen(false);
+                      setEditingGR(null);
+                    }
+                  }
+                }}
                 disabled={isMutating}
               >
                 Cancel
@@ -1472,6 +1485,39 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               )}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog
+        open={cancelConfirmOpen}
+        onOpenChange={(open) => !open && setCancelConfirmOpen(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All the data you have entered will be lost. Are you sure you want to cancel?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                form.reset();
+                setCancelConfirmOpen(false);
+                if (createOnly) {
+                  navigate('/goods-receipts');
+                } else {
+                  setSheetOpen(false);
+                  setEditingGR(null);
+                }
+              }}
+            >
+              Yes, discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -75,6 +75,7 @@ import {
   usePurchaseOrders,
   usePurchaseOrder,
   useCreatePurchaseOrder,
+  useUpdatePurchaseOrder,
   useConfirmPurchaseOrder,
   useCancelPurchaseOrder,
   useSendPurchaseOrder,
@@ -359,6 +360,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     id: string;
     poNumber: string;
   } | null>(null);
+  const [formCancelConfirmOpen, setFormCancelConfirmOpen] = useState(false);
 
   // ---- queries ----
   const poQuery = usePurchaseOrders({
@@ -444,6 +446,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   });
   // ---- mutations ----
   const createMut = useCreatePurchaseOrder();
+  const updateMut = useUpdatePurchaseOrder();
   const confirmMut = useConfirmPurchaseOrder();
   const cancelMut = useCancelPurchaseOrder();
   const sendMut = useSendPurchaseOrder();
@@ -1021,22 +1024,39 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         }
       }
 
-      if (!submitIdempotencyKeyRef.current) {
-        submitIdempotencyKeyRef.current =
-          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `po-${Date.now()}`;
-      }
-      const idempotencyKey = submitIdempotencyKeyRef.current;
-      const createPayload = {
-        ...payload,
-        idempotencyKey,
-        confirmOnSend: sendNow,
-        ...(sendNow ? { sendToSupplier: true } : {}),
-      };
+      let result;
+      if (editingPO) {
+        const updatePayload = {
+          id: editingPO.id,
+          ...payload,
+        };
+        result = await updateMut.mutateAsync(updatePayload);
 
-      const result = await createMut.mutateAsync(createPayload);
-      submitIdempotencyKeyRef.current = null;
+        if (sendNow) {
+          // Confirm the draft PO first
+          await confirmMut.mutateAsync(editingPO.id);
+          // Then send to supplier (which queues the email with PDF)
+          const emailDelivery = await sendMut.mutateAsync({ id: editingPO.id });
+          result = { ...result, emailDelivery };
+        }
+      } else {
+        if (!submitIdempotencyKeyRef.current) {
+          submitIdempotencyKeyRef.current =
+            typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : `po-${Date.now()}`;
+        }
+        const idempotencyKey = submitIdempotencyKeyRef.current;
+        const createPayload = {
+          ...payload,
+          idempotencyKey,
+          confirmOnSend: sendNow,
+          ...(sendNow ? { sendToSupplier: true } : {}),
+        };
+
+        result = await createMut.mutateAsync(createPayload);
+        submitIdempotencyKeyRef.current = null;
+      }
 
       if (sendNow) {
         const emailDelivery = result.emailDelivery;
@@ -1064,7 +1084,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       form.reset();
       setDetailId(result.id);
     } catch (e: unknown) {
-      toast.error(apiErrorMessage(e) ?? 'Failed to create purchase order');
+      toast.error(apiErrorMessage(e) ?? (editingPO ? 'Failed to update purchase order' : 'Failed to create purchase order'));
     }
   }
 
@@ -1942,9 +1962,14 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           type="button"
           variant="outline"
           onClick={() => {
-            setSheetOpen(false);
-            if (location.pathname === '/purchase-orders/new') {
-              navigate('/purchase-orders');
+            if (form.formState.isDirty) {
+              setFormCancelConfirmOpen(true);
+            } else {
+              form.reset();
+              setSheetOpen(false);
+              if (location.pathname === '/purchase-orders/new') {
+                navigate('/purchase-orders');
+              }
             }
           }}
         >
@@ -1994,6 +2019,22 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
           variant="destructive"
           onConfirm={handleCancelPo}
           loading={cancelMut.isPending}
+        />
+        <ConfirmDialog
+          open={formCancelConfirmOpen}
+          onOpenChange={(open) => !open && setFormCancelConfirmOpen(false)}
+          title="Discard changes?"
+          description="All the data you have entered will be lost. Are you sure you want to cancel?"
+          confirmLabel="Yes, discard"
+          variant="destructive"
+          onConfirm={() => {
+            form.reset();
+            setFormCancelConfirmOpen(false);
+            setSheetOpen(false);
+            if (location.pathname === '/purchase-orders/new') {
+              navigate('/purchase-orders');
+            }
+          }}
         />
       </AppLayout>
     );
@@ -2535,6 +2576,22 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         variant="destructive"
         onConfirm={handleCancelPo}
         loading={cancelMut.isPending}
+      />
+      <ConfirmDialog
+        open={formCancelConfirmOpen}
+        onOpenChange={(open) => !open && setFormCancelConfirmOpen(false)}
+        title="Discard changes?"
+        description="All the data you have entered will be lost. Are you sure you want to cancel?"
+        confirmLabel="Yes, discard"
+        variant="destructive"
+        onConfirm={() => {
+          form.reset();
+          setFormCancelConfirmOpen(false);
+          setSheetOpen(false);
+          if (location.pathname === '/purchase-orders/new') {
+            navigate('/purchase-orders');
+          }
+        }}
       />
     </AppLayout>
   );

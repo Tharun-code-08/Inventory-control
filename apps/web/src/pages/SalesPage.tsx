@@ -277,6 +277,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const [form, setForm] = useState(emptyForm());
   const [useMasterAddress, setUseMasterAddress] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const resolvedShopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
@@ -549,9 +550,20 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   };
 
   const closeCreateSheet = () => {
-    setCreateOpen(false);
-    setEditingId(null);
-    resetForm();
+    const isFormDirty =
+      form.customerId !== '' ||
+      form.quotationId !== '' ||
+      form.deliveryAddress !== '' ||
+      form.notes !== '' ||
+      form.items.some((it) => it.productId !== '' || Number(it.quantity) > 0);
+
+    if (isFormDirty) {
+      setCancelConfirmOpen(true);
+    } else {
+      setCreateOpen(false);
+      setEditingId(null);
+      resetForm();
+    }
   };
 
   const activeCustomer =
@@ -1055,6 +1067,35 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
               onClick={onDelete}
             >
               {deleteOrder.isPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog
+        open={cancelConfirmOpen}
+        onOpenChange={(open) => !open && setCancelConfirmOpen(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All the data you have entered will be lost. Are you sure you want to cancel?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setCancelConfirmOpen(false);
+                setCreateOpen(false);
+                setEditingId(null);
+                resetForm();
+              }}
+            >
+              Yes, discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -23,6 +23,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateGoodsIssue, usePostGoodsIssue } from '@/hooks/use-goods-issues';
 import { useSalesOrder, useSalesOrders } from '@/hooks/use-sales-orders';
@@ -78,6 +88,7 @@ export function GoodsIssueCreatePage() {
   const [otherReason, setOtherReason] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [manualProductId, setManualProductId] = useState('');
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const shopsQuery = useShops();
   const shops = shopsQuery.data ?? [];
@@ -556,8 +567,19 @@ export function GoodsIssueCreatePage() {
             Save as draft to review later, or create and post to issue stock immediately.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" asChild>
-              <Link to="/goods-issues">Cancel</Link>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                const hasData = lines.some((l) => l.productId || Number(l.issueQty) > 0) || notes.trim() || otherReason.trim();
+                if (hasData) {
+                  setCancelConfirmOpen(true);
+                } else {
+                  navigate('/goods-issues');
+                }
+              }}
+            >
+              Cancel
             </Button>
             <Button
               variant="outline"
@@ -583,6 +605,33 @@ export function GoodsIssueCreatePage() {
           </div>
         </div>
       </div>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog
+        open={cancelConfirmOpen}
+        onOpenChange={(open) => !open && setCancelConfirmOpen(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All the data you have entered will be lost. Are you sure you want to cancel?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setCancelConfirmOpen(false);
+                navigate('/goods-issues');
+              }}
+            >
+              Yes, discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
