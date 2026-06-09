@@ -91,15 +91,15 @@ export function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="bg-indigo-950 px-4 py-4 text-white">
+      <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <BrandLogo
             size={36}
             subtitle="Magic link reset"
             titleClassName="text-white"
-            subtitleClassName="text-indigo-200"
+            subtitleClassName="text-slate-300"
           />
-          <Link to="/login" className="inline-flex items-center gap-2 text-sm text-indigo-100 hover:text-white">
+          <Link to="/login" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
             Back to login
           </Link>
@@ -107,8 +107,8 @@ export function ResetPasswordPage() {
       </header>
 
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-12 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-900 p-8 text-white shadow-xl lg:block">
-          <p className="text-sm uppercase tracking-[0.22em] text-indigo-200">Retail IMS</p>
+        <section className="hidden rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-8 text-white shadow-xl lg:block">
+          <p className="text-sm uppercase tracking-[0.22em] text-slate-300">Retail IMS</p>
           <h1 className="mt-4 text-4xl font-semibold leading-tight">Set a new password with your secure link.</h1>
           <p className="mt-4 max-w-md text-sm text-white/80">
             This link works once, expires in 10 minutes, and revokes all existing sessions after
@@ -134,7 +134,7 @@ export function ResetPasswordPage() {
                   {error}
                 </div>
                 <p className="text-xs text-slate-500">
-                  Need another email? <Link to="/forgot-password" className="text-indigo-600 hover:underline">Request a new reset link</Link>.
+                  Need another email? <Link to="/forgot-password" className="text-primary hover:underline">Request a new reset link</Link>.
                 </p>
               </>
             ) : null}

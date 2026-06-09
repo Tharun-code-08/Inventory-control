@@ -149,11 +149,11 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                     'mb-1 flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-xs font-medium transition',
                     active
                       ? 'selection-active'
-                      : 'text-slate-600 hover:bg-[#eef2ff] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-indigo-950/30 dark:hover:text-slate-100',
+                      : 'text-slate-600 hover:bg-accent hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
                   )}
                 >
                   <span className="truncate">{section}</span>
-                  <span className={cn('tabular-nums opacity-70', active && 'text-indigo-700 dark:text-indigo-300')}>
+                  <span className={cn('tabular-nums opacity-70', active && 'text-primary dark:text-slate-300')}>
                     {count}
                   </span>
                 </button>
@@ -197,14 +197,14 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                         'flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition duration-200',
                         selected
                           ? 'selection-active'
-                          : 'hover:bg-[#eef2ff] dark:hover:bg-indigo-950/25',
+                          : 'hover:bg-accent dark:hover:bg-slate-800/40',
                       )}
                     >
                       <span
                         className={cn(
                           'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
                           selected
-                            ? 'border-indigo-300 bg-white selection-active-icon dark:border-indigo-500/50 dark:bg-slate-900'
+                            ? 'border-slate-300 bg-white selection-active-icon dark:border-slate-500/50 dark:bg-slate-900'
                             : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
                         )}
                       >
@@ -219,7 +219,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                         </span>
                       </span>
                       {selected ? (
-                        <span className="hidden items-center gap-1 text-[10px] text-indigo-600 sm:flex dark:text-indigo-300">
+                        <span className="hidden items-center gap-1 text-[10px] text-primary sm:flex dark:text-slate-300">
                           open <CornerDownLeft className="h-3 w-3" />
                         </span>
                       ) : null}

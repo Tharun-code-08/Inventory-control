@@ -828,7 +828,7 @@ function StockTableSection({
                   : undefined;
                 return (
                   <TableRow key={row.key}>
-                    <TableCell className="font-medium text-indigo-600">{row.sku}</TableCell>
+                    <TableCell className="font-medium text-primary">{row.sku}</TableCell>
                     <TableCell>{row.productName}</TableCell>
                     <TableCell>{row.plant}</TableCell>
                     <TableCell>{row.location}</TableCell>
@@ -992,7 +992,7 @@ function UploadInventoryDialog({
 
           <label
             htmlFor="inventory-csv-file"
-            className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-500 transition hover:border-indigo-400 hover:text-indigo-600"
+            className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-500 transition hover:border-primary hover:text-primary"
           >
             <Upload className="h-6 w-6" />
             <span>

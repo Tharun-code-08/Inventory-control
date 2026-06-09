@@ -72,7 +72,7 @@ export function OtpCodeInput({
               ? 'border-red-500'
               : digit
                 ? 'border-slate-800 bg-slate-50'
-                : 'border-slate-300 focus:border-indigo-500'
+                : 'border-slate-300 focus:border-primary'
           }`}
         />
       ))}

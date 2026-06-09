@@ -24,7 +24,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
     >
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-14">
         <Reveal className={cn(reversed && 'lg:order-2')}>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{block.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{block.eyebrow}</p>
           <h2 id={`feature-${block.id}-heading`} className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             {block.title}
           </h2>
@@ -42,7 +42,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
                 className={cn(
                   'rounded-full border px-4 py-1.5 text-sm font-medium transition',
                   activeId === tab.id
-                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                    ? 'border-border bg-muted text-primary'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900',
                 )}
                 onClick={() => setActiveId(tab.id)}

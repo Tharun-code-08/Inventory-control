@@ -17,13 +17,13 @@ export function MarketingContactSection() {
             <p className="text-sm font-semibold text-slate-900">{MARKETING_CONTACT.companyName}</p>
             <p className="mt-2 text-sm text-slate-600">
               Web:{' '}
-              <a className="font-medium text-indigo-600 hover:underline" href={MARKETING_CONTACT.siteUrl}>
+              <a className="font-medium text-primary hover:underline" href={MARKETING_CONTACT.siteUrl}>
                 {MARKETING_CONTACT.siteLabel}
               </a>
             </p>
             <p className="mt-4 text-sm text-slate-600">
               For existing users, use{' '}
-              <Link className="font-medium text-indigo-600 hover:underline" to="/login">
+              <Link className="font-medium text-primary hover:underline" to="/login">
                 the sign-in page
               </Link>
               .

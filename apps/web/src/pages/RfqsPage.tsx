@@ -634,7 +634,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
 
       <div className="flex flex-col gap-2 pt-1">
         <Button
-          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          className="w-full"
           disabled={isSubmitting}
           onClick={onCreateDraft}
         >
@@ -678,7 +678,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             Export CSV
           </Button>
           <Button
-            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+            className="shadow-md"
             onClick={() => navigate('/rfqs/new')}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -690,8 +690,8 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
           <KpiCard
             label="Total RFQs"
             value={stats.total}
-            accent="bg-indigo-500"
-            icon={<FileText className="h-5 w-5 text-indigo-600" />}
+            accent="bg-primary"
+            icon={<FileText className="h-5 w-5 text-primary" />}
           />
           <KpiCard
             label="Draft"
@@ -726,25 +726,25 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                 <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                   <TabsTrigger
                     value="all"
-                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-border data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     All ({stats.total})
                   </TabsTrigger>
                   <TabsTrigger
                     value="draft"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Draft ({stats.draft})
                   </TabsTrigger>
                   <TabsTrigger
                     value="sent"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Sent ({stats.sent})
                   </TabsTrigger>
                   <TabsTrigger
                     value="responses"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Responses ({stats.responses})
                   </TabsTrigger>
@@ -782,7 +782,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                       }
                       action={
                         !search.trim() && tab === 'all' ? (
-                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/rfqs/new')}>
+                          <Button onClick={() => navigate('/rfqs/new')}>
                             <Plus className="mr-2 h-4 w-4" />
                             New RFQ
                           </Button>
@@ -833,7 +833,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                               <TableCell>
                                 <button
                                   type="button"
-                                  className="font-semibold text-indigo-700 hover:underline"
+                                  className="font-semibold text-primary hover:underline"
                                   onClick={() => navigate(`/rfqs/${r.id}`)}
                                 >
                                   {r.rfqNumber}
@@ -850,7 +850,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                                   className={cn(
                                     'inline-flex min-w-[2rem] justify-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums',
                                     responseCount > 0
-                                      ? 'bg-indigo-100 text-indigo-800'
+                                      ? 'bg-muted text-primary'
                                       : 'bg-slate-100 text-slate-500',
                                   )}
                                 >

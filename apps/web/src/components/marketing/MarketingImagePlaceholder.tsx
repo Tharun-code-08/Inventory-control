@@ -34,7 +34,7 @@ export function MarketingImagePlaceholder({
         />
       ) : (
         <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
             <ImageIcon className="h-6 w-6" aria-hidden />
           </div>
           <div>

@@ -136,7 +136,7 @@ export function LoginPage() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <Link
         to="/"
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
         <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
@@ -146,7 +146,7 @@ export function LoginPage() {
       {showAvatarSplash ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)]">
           <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-white/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
-            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-indigo-300/40 blur-2xl" />
+            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-slate-300/40 blur-2xl" />
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
             <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${splashAvatar.bgClass}`}>
               <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
@@ -166,13 +166,13 @@ export function LoginPage() {
         </div>
       ) : null}
 
-      <div aria-hidden className="pointer-events-none absolute -left-24 top-12 h-64 w-64 rounded-full bg-indigo-400/20 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -left-24 top-12 h-64 w-64 rounded-full bg-slate-400/20 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -right-20 bottom-8 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-indigo-200/70 bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-900 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
-            <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-indigo-400/30 blur-2xl" />
+          <section className="relative hidden overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
+            <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
               <Sparkles className="h-3.5 w-3.5" />
@@ -199,13 +199,13 @@ export function LoginPage() {
           </section>
 
           <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
-            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-indigo-100 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
             <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
 
             <div className="mb-8">
-              <p className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-indigo-700">
+              <p className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
                 {step === 'credentials' ? <Zap className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {step === 'credentials' ? 'Welcome back' : 'MFA verification'}
               </p>
@@ -261,7 +261,7 @@ export function LoginPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:underline">
+                  <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
                     Forgot password?
                   </Link>
                 </div>
@@ -278,7 +278,7 @@ export function LoginPage() {
 
                 <p className="text-center text-sm text-slate-500">
                   New organisation?{' '}
-                  <Link to="/signup" className="font-medium text-indigo-600 hover:underline">
+                  <Link to="/signup" className="font-medium text-primary hover:underline">
                     Create account with email verification
                   </Link>
                 </p>
@@ -325,7 +325,7 @@ export function LoginPage() {
                       checked={rememberDevice}
                       disabled={!functionalCookiesEnabled}
                       onChange={(event) => setRememberDevice(event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
                     />
                     <span>
                       <span className="block font-medium text-slate-900">Remember this device for 7 days</span>
@@ -341,7 +341,7 @@ export function LoginPage() {
                 <div className="flex items-center justify-between text-sm">
                   <button
                     type="button"
-                    className="font-medium text-indigo-600 hover:underline"
+                    className="font-medium text-primary hover:underline"
                     onClick={() => {
                       setUseBackupCode((current) => !current);
                       setErr('');
@@ -373,7 +373,7 @@ export function LoginPage() {
                   </div>
                 ) : null}
 
-                <Button className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700" type="submit" disabled={isSubmitting || showAvatarSplash}>
+                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting || showAvatarSplash}>
                   {isSubmitting ? 'Verifying...' : 'Verify and sign in'}
                 </Button>
               </form>

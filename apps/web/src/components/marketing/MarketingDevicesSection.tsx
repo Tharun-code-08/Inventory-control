@@ -12,7 +12,7 @@ export function MarketingDevicesSection() {
     <section className="bg-white py-16 sm:py-20" aria-labelledby="devices-heading">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{MARKETING_DEVICES.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{MARKETING_DEVICES.eyebrow}</p>
           <h2 id="devices-heading" className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             {MARKETING_DEVICES.title}
           </h2>

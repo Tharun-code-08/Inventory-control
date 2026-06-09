@@ -602,7 +602,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Create Return
           </Button>

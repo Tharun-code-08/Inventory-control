@@ -58,7 +58,7 @@ export function HelpSupportPage() {
 
         <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-950 dark:text-slate-300">
               <Mail className="h-4 w-4" />
             </span>
             <div>
@@ -69,7 +69,7 @@ export function HelpSupportPage() {
                 <span className="font-medium text-slate-700 dark:text-slate-200">Email: </span>
                 <a
                   href={`mailto:${SUPPORT_CONTACT.email}`}
-                  className="text-indigo-600 hover:underline dark:text-indigo-400"
+                  className="text-primary hover:underline dark:text-slate-400"
                 >
                   {SUPPORT_CONTACT.email}
                 </a>

@@ -116,7 +116,7 @@ function FilterTriggerButton({
       ref={buttonRef}
       type="button"
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 transition hover:bg-[#eef2ff] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-indigo-950/30 dark:hover:text-slate-200',
+        'inline-flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 transition hover:bg-accent hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
         (open || isActive) && 'selection-active',
       )}
       aria-expanded={open}
@@ -189,7 +189,7 @@ export function ColumnFilter({
             type="button"
             className={cn(
               'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800',
-              value === allValue && 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+              value === allValue && 'bg-accent font-medium text-foreground dark:bg-accent dark:text-accent-foreground',
             )}
             onClick={() => pick(allValue)}
           >
@@ -202,7 +202,7 @@ export function ColumnFilter({
               className={cn(
                 'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800',
                 value === opt.value &&
-                  'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+                  'bg-accent font-medium text-foreground dark:bg-accent dark:text-accent-foreground',
               )}
               onClick={() => pick(opt.value)}
             >
@@ -274,7 +274,7 @@ export function DateRangeColumnFilter({
           {(dateFrom || dateTo) && (
             <button
               type="button"
-              className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+              className="text-xs font-medium text-primary hover:underline dark:text-primary"
               onClick={() => {
                 onChange(undefined, undefined);
                 setOpen(false);

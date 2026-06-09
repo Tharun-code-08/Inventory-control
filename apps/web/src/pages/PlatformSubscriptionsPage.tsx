@@ -70,7 +70,7 @@ export function PlatformSubscriptionsPage() {
             Trial conversion, paid subscribers, renewals, revenue alerts, and infrastructure health.
           </p>
           {(unreadQuery.data ?? 0) > 0 ? (
-            <p className="mt-2 text-sm font-medium text-indigo-700">
+            <p className="mt-2 text-sm font-medium text-primary">
               {unreadQuery.data} unread platform notification{(unreadQuery.data ?? 0) === 1 ? '' : 's'}
             </p>
           ) : null}
@@ -139,7 +139,7 @@ export function PlatformSubscriptionsPage() {
                   }}
                   className={cn(
                     'w-full rounded-lg border px-3 py-2 text-left',
-                    !item.isRead ? 'border-indigo-200 bg-indigo-50' : 'border-slate-100',
+                    !item.isRead ? 'border-border bg-muted' : 'border-slate-100',
                   )}
                 >
                   <div className="mb-1 flex flex-wrap items-center gap-2">

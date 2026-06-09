@@ -166,7 +166,7 @@ function StatusPill({ status }: { status: string }) {
         : status === 'ACCEPTED'
           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200'
           : status === 'CONVERTED'
-            ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200'
+            ? 'bg-muted text-primary'
             : status === 'CANCELLED'
               ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
               : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200';
@@ -717,14 +717,14 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
 
       <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
         <span className="font-medium text-slate-700">Estimated total</span>
-        <span className="font-semibold tabular-nums text-indigo-800">
+        <span className="font-semibold tabular-nums text-primary">
           {formatAmount(createGrandTotal)}
         </span>
       </div>
 
       <div className="flex flex-col gap-2 pt-1">
         <Button
-          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          className="w-full"
           disabled={isSubmitting}
           onClick={onCreateDraft}
         >
@@ -775,7 +775,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
             Export CSV
           </Button>
           <Button
-            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+            className="shadow-md"
             onClick={() => navigate('/quotations/new')}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -787,8 +787,8 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
           <KpiCard
             label="Total Quotes"
             value={stats.total}
-            accent="bg-indigo-500"
-            icon={<FileText className="h-5 w-5 text-indigo-600" />}
+            accent="bg-primary"
+            icon={<FileText className="h-5 w-5 text-primary" />}
           />
           <KpiCard
             label="Sent"
@@ -817,19 +817,19 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                 <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                   <TabsTrigger
                     value="all"
-                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-border data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     All ({stats.total})
                   </TabsTrigger>
                   <TabsTrigger
                     value="draft"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Draft ({stats.draft})
                   </TabsTrigger>
                   <TabsTrigger
                     value="sent"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Sent ({stats.sent})
                   </TabsTrigger>
@@ -841,13 +841,13 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </TabsTrigger>
                   <TabsTrigger
                     value="accepted"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Accepted ({stats.accepted})
                   </TabsTrigger>
                   <TabsTrigger
                     value="converted"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Converted ({stats.converted})
                   </TabsTrigger>
@@ -922,7 +922,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                               <TableCell>
                                 <button
                                   type="button"
-                                  className="font-semibold text-indigo-700 hover:underline"
+                                  className="font-semibold text-primary hover:underline"
                                   onClick={() => openView(q)}
                                 >
                                   {q.quoteNumber}
@@ -992,7 +992,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="text-indigo-700 hover:bg-indigo-50"
+                                        className="text-primary hover:bg-accent"
                                         title="Revise pricing and resend"
                                         onClick={() => openRevise(q)}
                                       >
@@ -1094,7 +1094,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Grand total</p>
-                    <p className="text-lg font-semibold tabular-nums text-indigo-800">
+                    <p className="text-lg font-semibold tabular-nums text-primary">
                       {formatAmount(viewQuote.totalValue)}
                     </p>
                   </div>
@@ -1114,11 +1114,11 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                 )}
 
                 {viewQuote.salesOrder && (
-                  <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
-                    <p className="text-xs text-indigo-600">Linked sales order</p>
+                  <div className="rounded-lg border border-border bg-muted px-3 py-2 text-sm">
+                    <p className="text-xs text-primary">Linked sales order</p>
                     <button
                       type="button"
-                      className="font-semibold text-indigo-800 hover:underline"
+                      className="font-semibold text-primary hover:underline"
                       onClick={() => {
                         setViewQuote(null);
                         navigate('/sales');
@@ -1238,7 +1238,6 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   {viewQuote.status === 'USER_REQUESTED' && (
                     <>
                       <Button
-                        className="bg-indigo-600 hover:bg-indigo-700"
                         onClick={() => openRevise(viewQuote)}
                       >
                         <Pencil className="mr-2 h-4 w-4" />
@@ -1314,12 +1313,12 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
               </div>
               <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="font-medium text-slate-700">Revised total</span>
-                <span className="font-semibold tabular-nums text-indigo-800">
+                <span className="font-semibold tabular-nums text-primary">
                   {formatAmount(reviseGrandTotal)}
                 </span>
               </div>
               <Button
-                className="w-full bg-indigo-600 hover:bg-indigo-700"
+                className="w-full"
                 disabled={updateQuote.isPending || resendQuote.isPending}
                 onClick={onSaveAndResend}
               >

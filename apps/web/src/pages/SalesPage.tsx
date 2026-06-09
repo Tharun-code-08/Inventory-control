@@ -682,7 +682,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
 
       <div className="flex flex-col gap-2 pt-1">
         <Button
-          className="w-full bg-indigo-600 hover:bg-indigo-700"
+          className="w-full"
           disabled={createOrder.isPending || updateOrder.isPending}
           onClick={onSave}
         >
@@ -717,7 +717,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Create SO
           </Button>
@@ -727,8 +727,8 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
           <KpiCard
             label="Total Orders"
             value={stats.total}
-            accent="bg-indigo-500"
-            icon={<Truck className="h-5 w-5 text-indigo-600" />}
+            accent="bg-primary"
+            icon={<Truck className="h-5 w-5 text-primary" />}
           />
           <KpiCard
             label="Confirmed"
@@ -751,25 +751,25 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                 <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                   <TabsTrigger
                     value="all"
-                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg border border-transparent px-3 py-1.5 data-[state=active]:border-border data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     All ({stats.total})
                   </TabsTrigger>
                   <TabsTrigger
                     value="draft"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Draft ({stats.draft})
                   </TabsTrigger>
                   <TabsTrigger
                     value="confirmed"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Confirmed ({stats.confirmed})
                   </TabsTrigger>
                   <TabsTrigger
                     value="fulfilled"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-800"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-accent data-[state=active]:text-foreground"
                   >
                     Fulfilled ({stats.fulfilled})
                   </TabsTrigger>
@@ -822,7 +822,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                       }
                       action={
                         !search.trim() && tab === 'all' && customerFilter === 'all' ? (
-                          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                          <Button onClick={openCreate}>
                             <Plus className="mr-2 h-4 w-4" />
                             New Sales Order
                           </Button>
@@ -863,7 +863,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                               <button
                                 type="button"
                                 onClick={() => openView(so)}
-                                className="font-semibold text-indigo-700 hover:underline"
+                                className="font-semibold text-primary hover:underline"
                               >
                                 {so.soNumber}
                               </button>
@@ -1038,7 +1038,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                className="flex-1"
                 disabled={createOrder.isPending || updateOrder.isPending}
                 onClick={onSave}
               >

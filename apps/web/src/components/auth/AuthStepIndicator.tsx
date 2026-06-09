@@ -21,7 +21,7 @@ export function AuthStepIndicator({ steps, current }: AuthStepIndicatorProps) {
                 completed
                   ? 'bg-slate-900 text-white'
                   : active
-                    ? 'bg-indigo-500 text-white'
+                    ? 'bg-primary text-white'
                     : 'bg-slate-200 text-slate-500'
               }`}
             >

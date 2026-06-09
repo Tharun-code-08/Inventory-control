@@ -169,13 +169,13 @@ export function QuotationPortalPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="bg-gradient-to-r from-slate-800 to-indigo-950 px-4 py-4 text-white shadow-md">
+      <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <BrandLogo
             size={40}
             subtitle="Quotation Review"
             titleClassName="text-white"
-            subtitleClassName="text-indigo-200"
+            subtitleClassName="text-slate-300"
           />
         </div>
       </header>
@@ -203,7 +203,7 @@ export function QuotationPortalPage() {
           <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
@@ -277,7 +277,7 @@ export function QuotationPortalPage() {
                   <IndianRupee className="h-4 w-4" />
                   Grand total
                 </span>
-                <span className="text-lg font-bold text-indigo-800 tabular-nums">
+                <span className="text-lg font-bold text-foreground tabular-nums">
                   {formatAmount(quote.totalValue)}
                 </span>
               </div>
@@ -358,7 +358,7 @@ export function QuotationPortalPage() {
               Cancel
             </Button>
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className=""
               disabled={acting}
               onClick={handleRequestRevision}
             >

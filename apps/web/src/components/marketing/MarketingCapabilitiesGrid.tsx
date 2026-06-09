@@ -9,7 +9,7 @@ export function MarketingCapabilitiesGrid() {
     <section id="ims" className="bg-slate-50 py-16 sm:py-20" aria-labelledby="capabilities-heading">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{eyebrow}</p>
           <h2 id="capabilities-heading" className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             {title}
           </h2>

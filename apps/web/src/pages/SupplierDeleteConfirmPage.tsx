@@ -47,12 +47,12 @@ export function SupplierDeleteConfirmPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="bg-indigo-950 px-4 py-4 text-white">
+      <header className="bg-slate-900 px-4 py-4 text-white">
         <BrandLogo
           size={36}
           subtitle="Supplier deletion confirmation"
           titleClassName="text-white"
-          subtitleClassName="text-indigo-200"
+          subtitleClassName="text-slate-300"
         />
       </header>
 
@@ -96,7 +96,7 @@ export function SupplierDeleteConfirmPage() {
 
           <Link
             to="/login"
-            className="mt-8 inline-block text-sm font-medium text-indigo-600 hover:underline"
+            className="mt-8 inline-block text-sm font-medium text-primary hover:underline"
           >
             Go to Retail IMS
           </Link>

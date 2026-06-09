@@ -9,7 +9,7 @@ export function MarketingHero() {
       <div className="motion-marketing-hero-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgb(99_102_241/0.08),transparent_45%),radial-gradient(circle_at_80%_10%,rgb(56_189_248/0.06),transparent_40%)]" />
       <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:items-center lg:py-24">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{MARKETING_HERO.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{MARKETING_HERO.eyebrow}</p>
           <h1 id="hero-heading" className="mt-4 text-4xl font-semibold leading-[1.12] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.25rem]">
             {MARKETING_HERO.title}
           </h1>

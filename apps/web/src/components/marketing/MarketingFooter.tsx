@@ -98,7 +98,7 @@ export function MarketingFooter() {
           <p>{BRAND.copyright(new Date().getFullYear())}</p>
           <button
             type="button"
-            className="text-left font-medium text-indigo-600 hover:underline sm:text-right"
+            className="text-left font-medium text-primary hover:underline sm:text-right"
             onClick={() => openPreferences(true)}
           >
             Cookie Preferences

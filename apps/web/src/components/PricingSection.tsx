@@ -169,7 +169,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                 className={cn(
                   cardBase,
                   borderClass,
-                  isCurrent && 'ring-2 ring-indigo-200',
+                  isCurrent && 'ring-2 ring-ring/30',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -281,7 +281,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
         {variant === 'landing' ? (
           <p className="mt-10 text-center text-sm text-slate-500">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-indigo-600 hover:underline">
+            <Link to="/login" className="font-medium text-primary hover:underline">
               Sign in
             </Link>
           </p>

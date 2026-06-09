@@ -512,7 +512,6 @@ function SuppliersCreateView() {
             codeHint="Leave blank to auto-generate (e.g. SUP-0001)"
           />
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
             onClick={onCreate}
             loading={createSupplier.isPending}
             loadingLabel="Creating…"
@@ -649,7 +648,7 @@ function SuppliersListView() {
           </Button>
           <Button
             size="sm"
-            className="bg-indigo-600 shadow-md hover:bg-indigo-700"
+            className="shadow-md"
             onClick={() => navigate('/suppliers/new')}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -661,8 +660,8 @@ function SuppliersListView() {
           <KpiCard
             label="Total suppliers"
             value={stats.total}
-            accent="bg-indigo-500"
-            icon={<Building2 className="h-5 w-5 text-indigo-600" />}
+            accent="bg-primary"
+            icon={<Building2 className="h-5 w-5 text-primary" />}
           />
           <KpiCard
             label="Active"
@@ -729,7 +728,7 @@ function SuppliersListView() {
                   }
                   action={
                     !search.trim() && statusFilter === 'all' ? (
-                      <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/suppliers/new')}>
+                      <Button onClick={() => navigate('/suppliers/new')}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Supplier
                       </Button>
@@ -778,7 +777,7 @@ function SuppliersListView() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-800"
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-primary"
                               aria-hidden
                             >
                               {supplierInitials(s.supplierName)}
@@ -889,7 +888,7 @@ function SuppliersListView() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                className="flex-1"
                 onClick={onUpdate}
                 disabled={updateSupplier.isPending}
               >
@@ -909,7 +908,7 @@ function SuppliersListView() {
           {viewSupplier && (
             <div className="mt-6 space-y-4 text-sm">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-800">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-sm font-bold text-primary">
                   {supplierInitials(viewSupplier.supplierName)}
                 </div>
                 <div>

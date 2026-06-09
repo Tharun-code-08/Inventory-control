@@ -124,9 +124,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Sales',
     description: 'Quotations and order fulfillment',
     accessTier: 'Sales ops',
-    accessBadgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    accessBadgeClass: 'bg-muted text-primary border-border',
     icon: ShoppingCart,
-    iconClass: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+    iconClass: 'text-primary bg-muted border-border',
     capabilities: [
       { label: 'Quotations', level: 'full' },
       { label: 'Dispatch orders', level: 'full' },

@@ -177,12 +177,12 @@ export function InviteAcceptPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="bg-indigo-950 px-4 py-4 text-white">
+      <header className="bg-slate-900 px-4 py-4 text-white">
         <BrandLogo
           size={36}
           subtitle="User invitation"
           titleClassName="text-white"
-          subtitleClassName="text-indigo-200"
+          subtitleClassName="text-slate-300"
         />
       </header>
 
@@ -239,7 +239,7 @@ export function InviteAcceptPage() {
                   {isSubmitting ? 'Creating account…' : 'Accept and continue'}
                 </Button>
                 <p className="text-xs text-slate-500 text-center">
-                  Already have an account? <Link to="/login" className="text-indigo-600">Sign in</Link>
+                  Already have an account? <Link to="/login" className="text-primary">Sign in</Link>
                 </p>
               </form>
             )}

@@ -254,8 +254,8 @@ export function RfqComparePage() {
                       : '—'
                   }
                   sub={summary.fastest?.supplierName ?? 'No lead time data'}
-                  accent="bg-indigo-500"
-                  icon={<CheckCircle2 className="h-5 w-5 text-indigo-600" />}
+                  accent="bg-primary"
+                  icon={<CheckCircle2 className="h-5 w-5 text-primary" />}
                 />
                 <SummaryCard
                   title="Total bids"
@@ -279,11 +279,11 @@ export function RfqComparePage() {
                   step={5}
                   value={priceWeight}
                   onChange={(e) => setPriceWeight(Number(e.target.value))}
-                  className="h-2 w-full cursor-pointer accent-indigo-600"
+                  className="h-2 w-full cursor-pointer accent-primary"
                   aria-label="Price weight"
                 />
                 <div className="flex flex-wrap gap-3">
-                  <span className="rounded-lg border-2 border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800">
+                  <span className="rounded-lg border-2 border-border bg-muted px-4 py-2 text-sm font-semibold text-primary">
                     Price: {priceWeight}%
                   </span>
                   <span className="rounded-lg border-2 border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
@@ -357,7 +357,7 @@ export function RfqComparePage() {
                           >
                             {formatInr(row.totalPrice)}
                           </TableCell>
-                          <TableCell className="text-indigo-700">{leadDisplay}</TableCell>
+                          <TableCell className="text-primary">{leadDisplay}</TableCell>
                           <TableCell className="text-center">
                             <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-white px-2 py-0.5 text-xs font-medium tabular-nums">
                               {row.priceScore}
@@ -385,7 +385,7 @@ export function RfqComparePage() {
                                 Selected
                               </span>
                             ) : isPicked ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-medium text-white">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-white">
                                 Focused
                               </span>
                             ) : (
@@ -397,7 +397,7 @@ export function RfqComparePage() {
                               <Button
                                 size="sm"
                                 variant={isPicked ? 'default' : 'outline'}
-                                className={isPicked ? 'bg-indigo-600' : ''}
+                                className={isPicked ? 'bg-primary' : ''}
                                 onClick={() => handleSelectQuote(row.quoteId)}
                               >
                                 Select
@@ -434,7 +434,6 @@ export function RfqComparePage() {
                   ) : null}
                 </div>
                 <Button
-                  className="bg-indigo-600 hover:bg-indigo-700"
                   onClick={handleSaveAllocations}
                 >
                   <Save className="mr-1.5 h-4 w-4" />

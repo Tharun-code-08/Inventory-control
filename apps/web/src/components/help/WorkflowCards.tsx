@@ -57,7 +57,7 @@ export function WorkflowCards() {
       <section className="rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-800/50 dark:text-slate-300">
               <GitBranch className="h-4 w-4" />
             </span>
             <div>
@@ -95,7 +95,7 @@ export function WorkflowCards() {
                 <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {workflow.title}
                 </span>
-                <span className="mt-1 text-xs text-slate-500 group-hover:text-indigo-600 dark:text-slate-400 dark:group-hover:text-indigo-300">
+                <span className="mt-1 text-xs text-slate-500 group-hover:text-primary dark:text-slate-400 dark:group-hover:text-slate-300">
                   Click to view
                 </span>
               </button>

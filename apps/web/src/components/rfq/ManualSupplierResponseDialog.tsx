@@ -197,7 +197,7 @@ export function ManualSupplierResponseDialog({
         </div>
 
         <div className="flex justify-end text-sm font-semibold text-slate-900">
-          Grand total: <span className="ml-2 text-indigo-700">{formatInr(grandTotal)}</span>
+          Grand total: <span className="ml-2 text-primary">{formatInr(grandTotal)}</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

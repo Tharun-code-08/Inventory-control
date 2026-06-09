@@ -48,10 +48,10 @@ export function SupplierPortalManagePage() {
         />
 
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-          <Card className="border-indigo-100/80 shadow-sm">
+          <Card className="border-border shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Link2 className="h-5 w-5 text-indigo-600" />
+                <Link2 className="h-5 w-5 text-primary" />
                 Portal access link
               </CardTitle>
             </CardHeader>

@@ -100,7 +100,7 @@ function customerInitials(name: string): string {
 
 function avatarColor(name: string): string {
   const hues = [
-    'bg-indigo-100 text-indigo-800',
+    'bg-muted text-primary',
     'bg-sky-100 text-sky-800',
     'bg-violet-100 text-violet-800',
     'bg-emerald-100 text-emerald-800',
@@ -410,7 +410,6 @@ function CustomersCreateView() {
             fieldErrors={fieldErrors}
           />
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
             onClick={onCreate}
             loading={isSubmitting}
             loadingLabel="Creating…"
@@ -553,7 +552,7 @@ function CustomersListView() {
           <Download className="mr-2 h-4 w-4" />
           Export CSV
         </Button>
-        <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/customers/new')}>
+        <Button onClick={() => navigate('/customers/new')}>
           <Plus className="mr-2 h-4 w-4" />
           Add Customer
         </Button>
@@ -563,8 +562,8 @@ function CustomersListView() {
         <KpiCard
           label="Total Customers"
           value={stats.total}
-          accent="bg-indigo-500"
-          icon={<Users className="h-5 w-5 text-indigo-600" />}
+          accent="bg-primary"
+          icon={<Users className="h-5 w-5 text-primary" />}
         />
         <KpiCard
           label="Active"
@@ -617,7 +616,7 @@ function CustomersListView() {
                 }
                 action={
                   !search.trim() && statusFilter === 'all' ? (
-                    <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/customers/new')}>
+                    <Button onClick={() => navigate('/customers/new')}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add Customer
                     </Button>
@@ -761,7 +760,7 @@ function CustomersListView() {
               functionalCookiesEnabled={functionalCookiesEnabled}
             />
             <Button
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              className="w-full"
               disabled={updateCustomer.isPending}
               onClick={onSaveEdit}
             >

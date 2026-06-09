@@ -297,7 +297,7 @@ function ProfileTab() {
               </label>
                 <button
                 type="button"
-                  className="ml-3 mt-2 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-500"
+                  className="ml-3 mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary"
                 onClick={() => setShowAnimalPicker((v) => !v)}
               >
                 {showAnimalPicker ? 'Hide animals' : 'Choose animal avatar'}
@@ -319,7 +319,7 @@ function ProfileTab() {
                         onClick={() => handleAnimalSelect(kind)}
                         className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-left transition ${
                           active
-                            ? 'border-indigo-300 bg-indigo-50'
+                            ? 'border-primary bg-accent'
                             : 'border-slate-200 bg-white hover:bg-slate-50'
                         }`}
                         title={`Use ${kind} avatar`}

@@ -1542,7 +1542,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               <SelectContent>
                 <SelectItem
                   value={CREATE_CATEGORY_OPTION}
-                  className="font-medium text-indigo-700"
+                  className="font-medium text-primary"
                 >
                   + Create new category
                 </SelectItem>
@@ -1624,10 +1624,10 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               <li key={row.code} className="border-b border-slate-100 last:border-0">
                 <button
                   type="button"
-                  className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-indigo-50 sm:flex-row sm:items-center sm:gap-2"
+                  className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-accent sm:flex-row sm:items-center sm:gap-2"
                   onClick={() => applyHsnCode(row.code)}
                 >
-                  <span className="font-mono font-semibold text-indigo-900">{row.code}</span>
+                  <span className="font-mono font-semibold text-foreground">{row.code}</span>
                   <span className="text-slate-600">{row.description}</span>
                 </button>
               </li>
@@ -1636,12 +1636,12 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           </div>
         ) : null}
         {hsnSuggestion && watchedHsnCode?.trim() !== hsnSuggestion.code ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs text-indigo-900">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-2.5 py-2 text-xs text-foreground">
             <span>
               Suggested:{' '}
               <span className="font-mono font-semibold">{hsnSuggestion.code}</span>
-              <span className="text-indigo-700"> — {hsnSuggestion.description}</span>
-              <span className="ml-1 text-indigo-600">
+              <span className="text-primary"> — {hsnSuggestion.description}</span>
+              <span className="ml-1 text-primary">
                 ({hsnSuggestionSourceLabel(hsnSuggestion.source)})
               </span>
             </span>
@@ -1656,7 +1656,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             href="https://services.gst.gov.in/services/searchhsn"
             target="_blank"
             rel="noreferrer"
-            className="text-indigo-600 underline"
+            className="text-primary underline"
           >
             GST HSN search
           </a>{' '}
@@ -2111,7 +2111,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             <Upload className="mr-2 h-4 w-4" />
             {isImporting && !importDryRun ? 'Uploading…' : 'Upload'}
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Product
           </Button>
@@ -2182,8 +2182,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           <KpiCard
             label="Total Products"
             value={stats.total}
-            accent="bg-indigo-500"
-            icon={<Shapes className="h-5 w-5 text-indigo-600" />}
+            accent="bg-primary"
+            icon={<Shapes className="h-5 w-5 text-primary" />}
           />
           <KpiCard
             label="Active"
@@ -2338,7 +2338,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                         View all products
                       </Button>
                     ) : !search && categoryFilter === 'all' && statusFilter === 'all' ? (
-                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+                      <Button size="sm" onClick={openCreate}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Product
                       </Button>
@@ -2375,7 +2375,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                             <button
                               type="button"
                               onClick={() => setViewingProduct(product)}
-                              className="font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                              className="font-mono text-sm font-medium text-primary hover:text-primary hover:underline"
                             >
                               {product.productCode}
                             </button>
@@ -2481,7 +2481,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle>{viewingProduct?.description}</SheetTitle>
-            <SheetDescription className="font-mono text-indigo-600">
+            <SheetDescription className="font-mono text-primary">
               {viewingProduct?.productCode}
             </SheetDescription>
           </SheetHeader>

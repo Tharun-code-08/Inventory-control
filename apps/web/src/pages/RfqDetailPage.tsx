@@ -481,7 +481,7 @@ export function RfqDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              className="border-indigo-200 text-indigo-700"
+              className="border-border text-primary"
               onClick={() => navigate(`/rfqs/${id}/compare`)}
             >
               <ArrowLeftRight className="mr-1.5 h-4 w-4" />
@@ -525,13 +525,13 @@ export function RfqDetailPage() {
             </Button>
           </PageHeader>
           {rfq.fulfillment && (
-            <Card className="mt-4 border-indigo-100 bg-indigo-50/60">
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-indigo-900">
+            <Card className="mt-4 border-border bg-muted">
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-foreground">
                 <div>
                   <p className="font-semibold">
                     Lines ordered: {rfq.fulfillment.linesFullyOrdered}/{rfq.fulfillment.totalLines}
                   </p>
-                  <p className="text-indigo-800">
+                  <p className="text-primary">
                     Remaining lines: {rfq.fulfillment.linesRemaining} · POs used: {rfq.fulfillment.posCreated}/{rfq.fulfillment.maxPos}
                   </p>
                 </div>
@@ -567,11 +567,11 @@ export function RfqDetailPage() {
               </div>
 
               <div className="mt-6 flex flex-1 flex-col justify-end">
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+                <div className="rounded-xl border border-border bg-muted p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     Supplier portal access code
                   </p>
-                  <p className="mt-2 font-mono text-2xl font-bold tracking-[0.2em] text-indigo-700">
+                  <p className="mt-2 font-mono text-2xl font-bold tracking-[0.2em] text-primary">
                     {accessCode}
                   </p>
                   <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -731,7 +731,7 @@ export function RfqDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Attachments</CardTitle>
-            <Button variant="ghost" size="sm" className="text-indigo-600" disabled>
+            <Button variant="ghost" size="sm" className="text-primary" disabled>
               <Paperclip className="mr-1 h-4 w-4" />
               Attach file
             </Button>
@@ -742,7 +742,7 @@ export function RfqDetailPage() {
         </Card>
 
         <p className="text-center text-xs text-slate-400">
-          <Link to="/rfqs" className="text-indigo-600 hover:underline">
+          <Link to="/rfqs" className="text-primary hover:underline">
             Back to RFQ list
           </Link>
         </p>
@@ -806,7 +806,7 @@ export function RfqDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-indigo-200 text-indigo-700"
+                  className="border-border text-primary"
                   disabled={
                     acceptQuote.isPending ||
                     isCreatingAll ||

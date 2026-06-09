@@ -86,7 +86,7 @@ export function CustomerSearchSelect({
                 type="button"
                 className={cn(
                   'flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-slate-50',
-                  c.id === value && 'bg-indigo-50',
+                  c.id === value && 'bg-muted',
                 )}
                 onClick={() => {
                   onValueChange(c.id, c);

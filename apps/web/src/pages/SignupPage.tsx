@@ -399,7 +399,7 @@ export function SignupPage() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <Link
         to="/"
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
         <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
@@ -409,7 +409,7 @@ export function SignupPage() {
       {showAvatarSplash ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90">
           <div className="flex flex-col items-center gap-4 text-center text-white">
-            <ShieldCheck className="h-10 w-10 text-indigo-300" />
+            <ShieldCheck className="h-10 w-10 text-slate-300" />
             <p className="text-lg font-semibold">Opening your secure workspace</p>
           </div>
         </div>
@@ -417,8 +417,8 @@ export function SignupPage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-indigo-200/70 bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-900 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
-            <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-indigo-400/30 blur-2xl" />
+          <section className="relative hidden overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
+            <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
               <Sparkles className="h-3.5 w-3.5" />
@@ -440,7 +440,7 @@ export function SignupPage() {
           </section>
 
           <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
-            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-indigo-100 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
             <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
@@ -457,7 +457,7 @@ export function SignupPage() {
                   You are starting a <strong>7-day free trial</strong>. MFA setup is still required.
                 </div>
               )}
-              <p className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-indigo-700">
+              <p className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
                 {step === 'details' ? <Zap className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {step === 'details'
                   ? 'Create your workspace'
@@ -500,7 +500,7 @@ export function SignupPage() {
             </div>
 
             {info ? (
-              <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+              <div className="mb-4 rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
                 {info}
               </div>
             ) : null}
@@ -549,7 +549,7 @@ export function SignupPage() {
                       id="companyAddress"
                       value={companyAddress}
                       onChange={(event) => setCompanyAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/20"
                       placeholder="12 Industrial Estate, Mumbai"
                     />
                   </div>
@@ -563,7 +563,7 @@ export function SignupPage() {
                       id="plantAddress"
                       value={plantAddress}
                       onChange={(event) => setPlantAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/20"
                       placeholder="Main warehouse or head office address"
                     />
                   </div>
@@ -673,7 +673,7 @@ export function SignupPage() {
 
                 <p className="text-center text-sm text-slate-500">
                   Already registered?{' '}
-                  <Link to="/login" className="font-medium text-indigo-600 hover:underline">
+                  <Link to="/login" className="font-medium text-primary hover:underline">
                     Sign in
                   </Link>
                 </p>
@@ -690,7 +690,7 @@ export function SignupPage() {
                   <OtpCodeInput value={otp} onChange={setOtp} autoFocus />
                 </div>
 
-                <Button className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700" type="submit" disabled={isSubmitting || paying}>
+                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting || paying}>
                   {isSubmitting ? 'Verifying email...' : 'Verify email and continue'}
                 </Button>
 
@@ -698,7 +698,7 @@ export function SignupPage() {
                   <button type="button" onClick={() => setStep('details')} className="font-medium text-slate-500 hover:text-slate-700">
                     Back
                   </button>
-                  <button type="button" onClick={resendOtp} className="font-medium text-indigo-600 hover:text-indigo-700" disabled={isSubmitting}>
+                  <button type="button" onClick={resendOtp} className="font-medium text-primary hover:text-primary" disabled={isSubmitting}>
                     Resend code
                   </button>
                 </div>
@@ -712,10 +712,10 @@ export function SignupPage() {
                     type="button"
                     onClick={() => void beginMfaSetup(signupChallengeToken)}
                     disabled={isSubmitting}
-                    className="rounded-2xl border border-indigo-300 bg-indigo-50 p-5 text-left shadow-sm transition hover:border-indigo-400 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="rounded-2xl border border-border bg-muted p-5 text-left shadow-sm transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
                         <ShieldCheck className="h-5 w-5" />
                       </div>
                       <div>
@@ -726,7 +726,7 @@ export function SignupPage() {
                     <p className="mt-4 text-sm text-slate-600">
                       Scan a QR code with Google Authenticator, Authy, 1Password, or another TOTP app.
                     </p>
-                    <p className="mt-4 text-xs font-medium text-indigo-700">
+                    <p className="mt-4 text-xs font-medium text-primary">
                       {isSubmitting ? 'Opening authenticator setup...' : 'Choose this method'}
                     </p>
                   </button>
@@ -815,7 +815,7 @@ export function SignupPage() {
                   <OtpCodeInput value={totpCode} onChange={setTotpCode} autoFocus />
                 </div>
 
-                <Button className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700" type="submit" disabled={isSubmitting}>
+                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Verifying authenticator...' : 'Verify authenticator and generate backup codes'}
                 </Button>
 
@@ -826,7 +826,7 @@ export function SignupPage() {
                       setTotpCode('');
                       setErr('');
                     }}
-                    className="font-medium text-indigo-600 hover:text-indigo-700"
+                    className="font-medium text-primary hover:text-primary"
                   >
                     Try another code
                   </button>
@@ -855,7 +855,7 @@ export function SignupPage() {
               <div className="space-y-5">
                 <BackupCodesCard codes={backupCodes} />
                 <Button
-                  className="h-12 w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                  className="h-12 w-full rounded-xl"
                   type="button"
                   onClick={() => void completeSignup()}
                   disabled={isSubmitting}

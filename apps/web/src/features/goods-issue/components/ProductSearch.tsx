@@ -49,7 +49,7 @@ export function ProductSearch({
   return (
     <div className="relative">
       <input
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
         placeholder="Search product code..."
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -62,7 +62,7 @@ export function ProductSearch({
             <button
               key={p.id}
               type="button"
-              className="block w-full rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+              className="block w-full rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-accent hover:text-primary"
               role="option"
               onClick={() => {
                 onSelect(p);

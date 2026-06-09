@@ -562,7 +562,7 @@ function PlantsListView() {
             <Warehouse className="mb-3 h-12 w-12 text-slate-300" />
             <p className="font-medium text-slate-700">No plants yet</p>
             <p className="mt-1 text-sm text-slate-500">Add your first plant and storage locations.</p>
-            <Button className="mt-4 bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/plants/new')}>
+            <Button className="mt-4" onClick={() => navigate('/plants/new')}>
               <Plus className="mr-2 h-4 w-4" />
               Add Plant
             </Button>
@@ -641,7 +641,7 @@ function PlantsListView() {
               >
                 Cancel
               </Button>
-              <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={onSave} disabled={isSubmitting}>
+              <Button className="flex-1" onClick={onSave} disabled={isSubmitting}>
                 {isSubmitting ? 'Saving…' : 'Update Plant'}
               </Button>
             </div>
@@ -811,7 +811,6 @@ function PlantsCreateView() {
             firstFieldRef={firstFieldRef}
           />
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
             onClick={onCreate}
             disabled={isSubmitting}
           >

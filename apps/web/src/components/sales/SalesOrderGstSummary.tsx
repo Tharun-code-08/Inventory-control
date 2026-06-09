@@ -38,7 +38,7 @@ export function SalesOrderGstSummary({ lines, supplyType, formatAmount }: Props)
       )}
       <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-slate-900">
         <span>Grand total</span>
-        <span className="tabular-nums text-indigo-800">{formatAmount(totals.grandTotal)}</span>
+        <span className="tabular-nums text-foreground">{formatAmount(totals.grandTotal)}</span>
       </div>
     </div>
   );

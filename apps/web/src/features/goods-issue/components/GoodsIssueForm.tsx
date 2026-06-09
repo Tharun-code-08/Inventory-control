@@ -73,7 +73,7 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         <label className="text-sm font-medium text-slate-700">Issue reason</label>
         <input
           type="text"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={issueReason}
           onChange={(e) => setIssueReason(e.target.value)}
           placeholder="Reason for this goods issue"
@@ -84,7 +84,7 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         <label className="text-sm font-medium text-slate-700">Quantity</label>
         <input
           type="number"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={qty || ''}
           onChange={(e) => setQty(Number(e.target.value))}
           data-testid="qty-input"
@@ -96,7 +96,7 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         </div>
       )}
       {hint && !error && (
-        <p className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-700" data-testid="submit-hint">
+        <p className="rounded-xl border border-border bg-muted px-3 py-2 text-sm text-primary" data-testid="submit-hint">
           {hint}
         </p>
       )}
