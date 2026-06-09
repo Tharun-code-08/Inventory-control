@@ -212,6 +212,20 @@ export function useSubmitSupplierReturn() {
   });
 }
 
+export function useAcknowledgeSupplierReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/returns/supplier/${id}/acknowledge`);
+      return res.data.data as SupplierReturn;
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: keys.all });
+      qc.invalidateQueries({ queryKey: keys.supplierDetail(id) });
+    },
+  });
+}
+
 export function useCancelSupplierReturn() {
   const qc = useQueryClient();
   return useMutation({

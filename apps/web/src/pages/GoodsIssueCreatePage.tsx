@@ -280,7 +280,7 @@ export function GoodsIssueCreatePage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm text-slate-500">
-              <Link to="/goods-issues" className="hover:text-indigo-600">
+              <Link to="/goods-issues" className="hover:text-primary">
                 Goods Issues
               </Link>
               <span className="mx-1.5 text-slate-300">/</span>

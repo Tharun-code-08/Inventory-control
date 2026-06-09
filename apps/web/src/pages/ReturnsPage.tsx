@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Download, Eye, ImagePlus, Pencil, Plus, Send, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Eye, ImagePlus, Pencil, Plus, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { CreatePageLayout, PageHeader } from '@/components/shared';
@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuthStore } from '@/store/authStore';
 import { useGoodsReceipt, useGoodsReceipts, type GoodsReceipt } from '@/hooks/use-goods-receipts';
 import {
+  useAcknowledgeSupplierReturn,
   useCancelSupplierReturn,
   useCreateSupplierReturn,
   useDeleteSupplierReturnImage,
@@ -102,7 +103,7 @@ function statusTone(status: SupplierReturn['status']) {
     case 'DRAFT':
       return 'bg-amber-50 text-amber-800 border-amber-200';
     default:
-      return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      return 'bg-muted text-foreground border-border';
   }
 }
 
@@ -208,6 +209,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
   const uploadImage = useUploadSupplierReturnImage();
   const deleteImage = useDeleteSupplierReturnImage();
   const submitReturn = useSubmitSupplierReturn();
+  const acknowledgeReturn = useAcknowledgeSupplierReturn();
   const cancelReturn = useCancelSupplierReturn();
 
   useEffect(() => {
@@ -368,6 +370,15 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
       toast.success('Return notice sent to supplier. Stock will reduce only after supplier acknowledgement.');
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'Failed to submit return'));
+    }
+  };
+
+  const onAcknowledgeReturn = async (returnId: string) => {
+    try {
+      await acknowledgeReturn.mutateAsync(returnId);
+      toast.success('Return accepted. Stock has been adjusted.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to accept return'));
     }
   };
 
@@ -558,7 +569,6 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
           {createOnly ? 'Cancel' : 'Close'}
         </Button>
         <Button
-          className="bg-indigo-600 hover:bg-indigo-700"
           disabled={createReturn.isPending || updateReturn.isPending}
           onClick={saveDraft}
         >
@@ -833,12 +843,30 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                         Cancel
                       </Button>
                       <Button
-                        className="bg-indigo-600 hover:bg-indigo-700"
                         disabled={submitReturn.isPending}
                         onClick={() => void onSubmitReturn(detailReturn.id)}
                       >
                         <Send className="mr-2 h-4 w-4" />
                         Submit & Send Email
+                      </Button>
+                    </>
+                  ) : null}
+                  {detailReturn.status === 'SUBMITTED' ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="border-rose-200 text-rose-700"
+                        onClick={() => void onCancelReturn(detailReturn.id)}
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Cancel
+                      </Button>
+                      <Button
+                        disabled={acknowledgeReturn.isPending}
+                        onClick={() => void onAcknowledgeReturn(detailReturn.id)}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        {acknowledgeReturn.isPending ? 'Accepting...' : 'Accept Return'}
                       </Button>
                     </>
                   ) : null}

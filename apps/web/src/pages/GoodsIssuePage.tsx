@@ -444,7 +444,7 @@ export function GoodsIssuePage() {
                         <button
                           type="button"
                           onClick={() => setDetailId(gi.id)}
-                          className="font-medium text-indigo-600 hover:underline"
+                          className="font-medium text-primary hover:underline"
                         >
                           {gi.giNumber}
                         </button>

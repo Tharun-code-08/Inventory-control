@@ -168,7 +168,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
           logoutFadeOut ? 'opacity-0' : 'opacity-100',
         )}>
           <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-white/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
-            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-indigo-300/40 blur-2xl" />
+            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/10 blur-2xl" />
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
             <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br', avatar.bgClass)}>
               <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
@@ -294,7 +294,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                             }}
                             className={cn(
                               'w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/80',
-                              !alert.isRead && 'bg-indigo-50 dark:bg-indigo-950/40',
+                              !alert.isRead && 'bg-muted dark:bg-accent',
                             )}
                           >
                             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{alert.title}</p>
@@ -337,7 +337,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                       <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{user?.name}</div>
                       <div className="text-xs text-slate-500">{user?.email}</div>
                       {user?.shop && (
-                        <div className="mt-0.5 text-xs text-indigo-600">{user.shop.shopName}</div>
+                        <div className="mt-0.5 text-xs text-primary">{user.shop.shopName}</div>
                       )}
                     </div>
                     <ProfileMenuLinks

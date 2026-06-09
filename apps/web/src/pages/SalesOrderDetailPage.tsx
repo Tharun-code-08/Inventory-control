@@ -247,7 +247,6 @@ export function SalesOrderDetailPage() {
                 Edit
               </Button>
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700"
                 disabled={confirmOrder.isPending}
                 onClick={onConfirm}
               >
@@ -258,7 +257,6 @@ export function SalesOrderDetailPage() {
           )}
           {order.status === 'CONFIRMED' && (
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
               disabled={fulfillOrder.isPending}
               onClick={onFulfill}
             >
@@ -364,7 +362,7 @@ export function SalesOrderDetailPage() {
             <div className="flex justify-end border-t border-slate-100 px-4 py-3">
               <div className="text-right">
                 <span className="mr-4 text-sm font-semibold text-slate-900">Grand Total</span>
-                <span className="text-lg font-semibold text-indigo-700">
+                <span className="text-lg font-semibold text-primary">
                   {formatOrderAmount(grandTotal)}
                 </span>
               </div>

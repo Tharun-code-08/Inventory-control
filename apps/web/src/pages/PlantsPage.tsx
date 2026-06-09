@@ -323,7 +323,7 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
       <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
               <Warehouse className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -523,7 +523,7 @@ function PlantsListView() {
         title="Plants & Warehouses"
         description="Manage storage locations and facilities"
       >
-        <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/plants/new')}>
+        <Button onClick={() => navigate('/plants/new')}>
           <Plus className="mr-2 h-4 w-4" />
           Add Plant
         </Button>
@@ -533,8 +533,8 @@ function PlantsListView() {
         <KpiCard
           label="Total Plants"
           value={stats.total}
-          accent="bg-indigo-500"
-          icon={<Factory className="h-5 w-5 text-indigo-600" />}
+          accent="bg-primary"
+          icon={<Factory className="h-5 w-5 text-primary" />}
         />
         <KpiCard
           label="Active"

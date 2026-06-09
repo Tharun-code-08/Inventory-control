@@ -155,7 +155,7 @@ export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/invoices/new')}>
+          <Button onClick={() => navigate('/invoices/new')}>
             <Plus className="mr-2 h-4 w-4" />
             Create Invoice
           </Button>

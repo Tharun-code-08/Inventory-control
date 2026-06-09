@@ -334,7 +334,7 @@ export function ContractsPage({ createOnly = false }: { createOnly?: boolean }) 
     <AppLayout active="Contracts">
       <div className="space-y-6">
         <PageHeader title="Contracts" description="Create and activate supplier contracts.">
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/contracts/new')}>
+          <Button onClick={() => navigate('/contracts/new')}>
             <Plus className="mr-2 h-4 w-4" />
             Create Contract
           </Button>

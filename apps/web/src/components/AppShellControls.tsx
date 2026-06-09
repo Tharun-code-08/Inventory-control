@@ -12,7 +12,7 @@ function DateBadge() {
       className="hidden items-center gap-2 rounded-lg border border-slate-200/90 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-sm sm:flex"
       title={now.toLocaleDateString(undefined, { dateStyle: 'full' })}
     >
-      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-indigo-600 text-white leading-none">
+      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-primary text-white leading-none">
         <span className="text-[9px] font-semibold uppercase tracking-wide opacity-90">{weekday}</span>
         <span className="text-sm font-bold tabular-nums">{day}</span>
       </div>
@@ -56,7 +56,7 @@ export function AppShellControls({ onOpenSpotlight }: AppShellControlsProps) {
       <button
         type="button"
         onClick={onOpenSpotlight}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-200/90 bg-indigo-50/80 text-indigo-700 sm:hidden"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-input bg-accent text-primary sm:hidden"
         aria-label="Open jump menu"
       >
         <Compass className="h-4 w-4" />
@@ -65,12 +65,12 @@ export function AppShellControls({ onOpenSpotlight }: AppShellControlsProps) {
       <button
         type="button"
         onClick={onOpenSpotlight}
-        className="group relative hidden h-10 min-w-0 items-center gap-2 overflow-hidden rounded-xl border border-indigo-200/90 bg-indigo-50/80 pl-3 pr-2 text-sm font-medium text-indigo-900 transition hover:border-indigo-300 hover:bg-indigo-100 sm:flex"
+        className="group relative hidden h-10 min-w-0 items-center gap-2 overflow-hidden rounded-xl border border-input bg-accent pl-3 pr-2 text-sm font-medium text-foreground transition hover:border-border hover:bg-accent sm:flex"
         aria-label="Open jump menu"
       >
-        <Compass className="h-4 w-4 shrink-0 text-indigo-600 transition group-hover:rotate-12" />
+        <Compass className="h-4 w-4 shrink-0 text-primary transition group-hover:rotate-12" />
         <span className="hidden max-w-[120px] truncate sm:inline">Jump to…</span>
-        <kbd className="ml-1 hidden rounded border border-indigo-200/80 bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 lg:inline">
+        <kbd className="ml-1 hidden rounded border border-input bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-primary lg:inline">
           {isMac ? '⌘' : 'Ctrl'}+K
         </kbd>
       </button>

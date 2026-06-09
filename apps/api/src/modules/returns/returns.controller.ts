@@ -151,6 +151,16 @@ export class ReturnsController {
     return this.service.sendSupplierReturnNotice(user, id, { resend: resend === 'true' });
   }
 
+  @Post('supplier/:id/acknowledge')
+  @RequirePermission('shop:write')
+  @ApiOperation({ summary: 'Manually accept/acknowledge a submitted supplier return and post stock' })
+  acknowledgeSupplier(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.service.manuallyAcknowledgeSupplierReturn(user, id);
+  }
+
   @Post('supplier/:id/cancel')
   @RequirePermission('shop:write')
   @ApiOperation({ summary: 'Cancel a supplier return' })

@@ -171,7 +171,7 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
       <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
               <Building2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -349,7 +349,7 @@ function CompaniesListView() {
         }
       >
         {canCreateCompany ? (
-          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate('/companies/new')}>
+          <Button onClick={() => navigate('/companies/new')}>
             <Plus className="mr-2 h-4 w-4" />
             Add Company
           </Button>
@@ -360,8 +360,8 @@ function CompaniesListView() {
         <KpiCard
           label="Total Companies"
           value={stats.total}
-          accent="bg-indigo-500"
-          icon={<Building2 className="h-5 w-5 text-indigo-600" />}
+          accent="bg-primary"
+          icon={<Building2 className="h-5 w-5 text-primary" />}
         />
         <KpiCard
           label="Active"
@@ -395,7 +395,7 @@ function CompaniesListView() {
             </p>
             {canCreateCompany ? (
               <Button
-                className="mt-4 bg-indigo-600 hover:bg-indigo-700"
+                className="mt-4"
                 onClick={() => navigate('/companies/new')}
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -465,7 +465,7 @@ function CompaniesListView() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                className="flex-1"
                 onClick={onSaveEdit}
                 disabled={isSubmitting}
               >
@@ -546,7 +546,6 @@ function CompaniesCreateView() {
         <CardContent className="space-y-5">
           <CompanyFormFields form={form} setForm={setForm} firstFieldRef={firstFieldRef} />
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700"
             onClick={onCreate}
             disabled={isSubmitting}
           >

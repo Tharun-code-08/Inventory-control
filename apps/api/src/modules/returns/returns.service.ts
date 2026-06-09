@@ -923,6 +923,60 @@ export class ReturnsService {
     });
   }
 
+  async manuallyAcknowledgeSupplierReturn(user: RequestUser, id: string) {
+    const ret = await this.getSupplierReturnRecord(user, id);
+    if (ret.status === ReturnStatus.DONE || ret.status === ReturnStatus.POSTED) {
+      return ret;
+    }
+    if (ret.status !== ReturnStatus.SUBMITTED) {
+      throw new BadRequestException(
+        `Only submitted returns can be manually accepted (current status: ${ret.status})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.supplierReturn.updateMany({
+        where: { id, status: ReturnStatus.SUBMITTED },
+        data: {
+          status: ReturnStatus.ACKNOWLEDGED,
+          acknowledgedAt: new Date(),
+        },
+      });
+      if (transitioned.count === 0) {
+        throw new ConflictException('Supplier return state changed concurrently');
+      }
+
+      await this.postSupplierReturnStock(tx, ret, user.id, 'Supplier return manually accepted');
+      const updated = await tx.supplierReturn.update({
+        where: { id },
+        data: {
+          status: ReturnStatus.DONE,
+          postedAt: new Date(),
+          updatedById: user.id,
+        },
+        include: supplierReturnInclude,
+      });
+
+      await this.audit.log(
+        {
+          userId: user.id,
+          action: AuditAction.POST,
+          entityType: 'SUPPLIER_RETURN',
+          entityId: updated.id,
+          newValues: {
+            status: updated.status,
+            acknowledgedAt: updated.acknowledgedAt?.toISOString(),
+            postedAt: updated.postedAt?.toISOString(),
+            manualAcknowledge: true,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
   private async findSupplierReturnByToken(token: string) {
     const ackTokenHash = hashToken(token);
     const ret = await this.prisma.supplierReturn.findFirst({
