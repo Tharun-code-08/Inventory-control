@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -79,6 +80,7 @@ import {
   useConfirmPurchaseOrder,
   useCancelPurchaseOrder,
   useSendPurchaseOrder,
+  poKeys,
   type PurchaseOrder,
   type PurchaseOrderStatus,
 } from '@/hooks/use-purchase-orders';
@@ -326,6 +328,7 @@ function purchaseOrderTotals(
 export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
@@ -373,6 +376,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const poData = poQuery.data?.data ?? [];
   const poMeta = poQuery.data?.meta;
+
+  // When navigating back from the create form, force a refetch to show the new PO
+  // immediately rather than relying solely on query invalidation timing.
+  useEffect(() => {
+    if (!createOnly && (location.state as { fromCreate?: boolean } | null)?.fromCreate) {
+      poQuery.refetch();
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const poList = useMemo(() => poData, [poData]);
 
@@ -1018,7 +1031,10 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
       if (sendNow) {
         const supplier = suppliers.find((s) => s.supplierName === normalizedValues.supplier);
-        if (!supplier?.email) {
+        // Only block if the supplier record is loaded AND confirmed to have no email.
+        // If suppliers haven't loaded yet (empty array), skip the check and let the
+        // backend validate — it returns a safe error via sendToSupplierSafe.
+        if (supplier !== undefined && !supplier.email) {
           toast.error('Add an email address to the supplier before sending.');
           return;
         }
@@ -1077,7 +1093,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         toast.success(`Purchase order ${result.poNumber} saved as draft`);
       }
       if (createOnly) {
-        navigate('/purchase-orders');
+        // Invalidate list queries so the list page always shows fresh data on mount.
+        queryClient.invalidateQueries({ queryKey: poKeys.lists() });
+        navigate('/purchase-orders', { state: { fromCreate: true } });
         return;
       }
       setSheetOpen(false);
@@ -1347,7 +1365,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               name="deliveryPlantId"
               render={({ field }) => (
                 <Select
-                  value={field.value || undefined}
+                  value={field.value || ''}
                   onValueChange={(value) => {
                     field.onChange(value);
                     if (!user?.shopId) setSelectedShopId(value);
@@ -1394,7 +1412,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               name="storageLocationId"
               render={({ field }) => (
                 <Select
-                  value={field.value || undefined}
+                  value={field.value || ''}
                   onValueChange={(locId) => {
                     field.onChange(locId);
                     applyDeliveryAddressFromPlant();
