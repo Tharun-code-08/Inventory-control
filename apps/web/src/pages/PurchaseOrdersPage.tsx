@@ -333,7 +333,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
   const canSendPoEmail = hasAnyPermission(user, 'purchase_order:create', 'purchase_order:approve');
-  const [selectedShopId, setSelectedShopId] = useState('');
+  // Initialize the active-plant filter from sessionStorage so that, after creating a
+  // PO under a non-default plant and navigating back to the list (which remounts and
+  // resets local state), the very first render already filters by that plant and shows
+  // the new PO. This is independent of navigation-effect timing.
+  const [selectedShopId, setSelectedShopId] = useState(() => {
+    try {
+      return sessionStorage.getItem('po:activeShopId') ?? '';
+    } catch {
+      return '';
+    }
+  });
   const { data: shops = [] } = useShops();
   const shopId = resolvePreferredOrgId(
     shops.map((shop) => shop.id),
@@ -1102,8 +1112,16 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       if (createOnly) {
         // The PO may have been saved under a delivery plant other than the list's
         // default filter (resolvePreferredOrgId falls back to the cookie/first shop on
-        // a fresh mount). Pass the created PO's shopId so the list switches its plant
-        // filter to where the PO actually lives — otherwise it stays hidden.
+        // a fresh mount). Persist the created PO's plant so the list initializes its
+        // filter to where the PO actually lives — otherwise the new PO stays hidden.
+        if (result.shopId) {
+          try {
+            sessionStorage.setItem('po:activeShopId', result.shopId);
+          } catch {
+            /* sessionStorage unavailable — fall back to nav state below */
+          }
+          setSelectedShopId(result.shopId);
+        }
         queryClient.invalidateQueries({ queryKey: poKeys.lists() });
         navigate('/purchase-orders', { state: { fromCreate: true, shopId: result.shopId } });
         return;
@@ -2140,7 +2158,17 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             </SelectContent>
           </Select>
           {!user?.shopId && (
-            <Select value={selectedShopId} onValueChange={setSelectedShopId}>
+            <Select
+              value={selectedShopId}
+              onValueChange={(v) => {
+                setSelectedShopId(v);
+                try {
+                  sessionStorage.setItem('po:activeShopId', v);
+                } catch {
+                  /* sessionStorage unavailable — ignore */
+                }
+              }}
+            >
               <SelectTrigger className="w-full sm:w-52">
                 <SelectValue placeholder="Select Plant" />
               </SelectTrigger>
