@@ -482,9 +482,9 @@ export class PurchaseOrdersService {
           }
         : {}),
     };
-    const orderBy: Prisma.PurchaseOrderHeaderOrderByWithRelationInput = useCursor
+    const orderBy: Prisma.PurchaseOrderHeaderOrderByWithRelationInput | Prisma.PurchaseOrderHeaderOrderByWithRelationInput[] = useCursor
       ? { id: 'asc' }
-      : { poDate: 'desc' };
+      : [{ poDate: 'desc' }, { createdAt: 'desc' }];
 
     const findArgs: Prisma.PurchaseOrderHeaderFindManyArgs = {
       where,

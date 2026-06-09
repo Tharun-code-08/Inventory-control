@@ -435,7 +435,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const lifecycleCounts = useMemo(() => {
     const counts = {
-      ALL: poList.length,
+      // ALL reflects the server-side total so the badge matches the paginated total
+      // shown in the footer; per-lifecycle counts are best-effort over the visible page.
+      ALL: poTotal ?? poList.length,
       DRAFT: 0,
       CONFIRMED: 0,
       PARTIALLY_RECEIVED: 0,
@@ -449,7 +451,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       }
     }
     return counts;
-  }, [poList]);
+  }, [poList, poTotal]);
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
