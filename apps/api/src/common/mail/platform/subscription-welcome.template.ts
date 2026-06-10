@@ -1,4 +1,4 @@
-import { wrapBusinessEmailHtml } from '../email-layout.template';
+﻿import { wrapBusinessEmailHtml } from '../email-layout.template';
 import {
   platformBenefitsList,
   platformCtaButton,
@@ -16,14 +16,14 @@ export type SubscriptionWelcomeContext = {
 };
 
 export function subscriptionWelcomeSubject(ctx: SubscriptionWelcomeContext): string {
-  return `Welcome to Retail IMS ${ctx.planName} — your subscription is active`;
+  return `Welcome to SoftdigitIMS ${ctx.planName} — your subscription is active`;
 }
 
 export function subscriptionWelcomeText(ctx: SubscriptionWelcomeContext): string {
   return [
     `Hi ${ctx.companyName},`,
     '',
-    `Thank you for subscribing to Retail IMS ${ctx.planName} (${ctx.billingCycle}).`,
+    `Thank you for subscribing to SoftdigitIMS ${ctx.planName} (${ctx.billingCycle}).`,
     `Amount paid: ${ctx.amountDisplay}`,
     ctx.invoiceNumber ? `Invoice: ${ctx.invoiceNumber}` : '',
     '',
@@ -40,7 +40,7 @@ export function subscriptionWelcomeHtml(ctx: SubscriptionWelcomeContext): string
   const bodyHtml = [
     platformParagraph(`Hi ${ctx.companyName},`),
     platformParagraph(
-      `Thank you for subscribing to Retail IMS ${ctx.planName} (${ctx.billingCycle}). Your payment of ${ctx.amountDisplay} was successful.`,
+      `Thank you for subscribing to SoftdigitIMS ${ctx.planName} (${ctx.billingCycle}). Your payment of ${ctx.amountDisplay} was successful.`,
     ),
     ctx.invoiceNumber
       ? platformParagraph(`Your invoice ${ctx.invoiceNumber} is attached to this email.`)
@@ -51,7 +51,7 @@ export function subscriptionWelcomeHtml(ctx: SubscriptionWelcomeContext): string
       'Sales orders, invoices, and payments',
       'Reports, backups, and team collaboration',
     ]),
-    platformCtaButton({ label: 'Go to Retail IMS', url: ctx.loginUrl }),
+    platformCtaButton({ label: 'Go to SoftdigitIMS', url: ctx.loginUrl }),
     platformSupportFooter(),
   ].join('');
 

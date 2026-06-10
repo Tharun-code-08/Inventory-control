@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LifecycleCampaignStatus } from '@prisma/client';
 import {
@@ -87,7 +87,7 @@ export class PlatformLifecycleMailService {
       ),
       bullets: campaign.bullets,
       cta: campaign.ctaPath
-        ? { label: campaign.ctaLabel ?? 'Open Retail IMS', url: upgradeUrl }
+        ? { label: campaign.ctaLabel ?? 'Open SoftdigitIMS', url: upgradeUrl }
         : undefined,
       unsubscribeUrl: campaign.transactional ? undefined : unsubscribeUrl,
       transactional: campaign.transactional,

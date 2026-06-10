@@ -1,4 +1,4 @@
-export const EMAIL_NOTIFICATIONS_CONFIG_PREFIX = 'email_notifications_config_v1';
+﻿export const EMAIL_NOTIFICATIONS_CONFIG_PREFIX = 'email_notifications_config_v1';
 
 export const EMAIL_TEMPLATE_IDS = [
   'rfq_invite',
@@ -185,11 +185,11 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
     group: 'system',
     description: 'Sent when an admin invites a user to the organization.',
     placeholders: ['invitee_name', 'invitee_email', 'inviter_name', 'role_name', 'shop_name', 'invite_url', 'company_name'],
-    defaultSubject: 'You are invited to {{company_name}} on Retail IMS',
+    defaultSubject: 'You are invited to {{company_name}} on SoftdigitIMS',
     defaultBodyText:
-      'Hello {{invitee_name}},\n\n{{inviter_name}} invited you to join {{company_name}} on Retail IMS.\nRole: {{role_name}}\nAccept: {{invite_url}}\n\nSoftdigit Consulting',
+      'Hello {{invitee_name}},\n\n{{inviter_name}} invited you to join {{company_name}} on SoftdigitIMS.\nRole: {{role_name}}\nAccept: {{invite_url}}\n\nSoftdigit Consulting',
     defaultBodyHtml:
-      '<p>Hello {{invitee_name}},</p><p>{{inviter_name}} invited you to join <strong>{{company_name}}</strong> on Retail IMS.</p><p>Role: {{role_name}}<br/><a href="{{invite_url}}">Accept invitation</a></p>',
+      '<p>Hello {{invitee_name}},</p><p>{{inviter_name}} invited you to join <strong>{{company_name}}</strong> on SoftdigitIMS.</p><p>Role: {{role_name}}<br/><a href="{{invite_url}}">Accept invitation</a></p>',
   },
   {
     id: 'goods_receipt_posted',

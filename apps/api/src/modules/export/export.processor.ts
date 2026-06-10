@@ -1,4 +1,4 @@
-import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+﻿import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
@@ -60,7 +60,7 @@ export class ExportProcessor extends WorkerHost {
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet(job.data.reportType);
       sheet.views = [{ state: 'frozen', ySplit: 2 }];
-      sheet.addRow(['Retail IMS']);
+      sheet.addRow(['SoftdigitIMS']);
       sheet.addRow([`Report: ${job.data.reportType}`]);
       sheet.addRow(['Generated', new Date().toISOString()]);
       sheet.addRow([]);

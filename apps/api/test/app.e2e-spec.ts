@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+﻿import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request = require('supertest');
 import { AppModule } from '../src/app.module';
@@ -6,7 +6,7 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response-envelope.interceptor';
 import { Reflector } from '@nestjs/core';
 
-describe('Retail IMS (e2e)', () => {
+describe('SoftdigitIMS (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {

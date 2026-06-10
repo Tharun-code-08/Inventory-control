@@ -1,4 +1,4 @@
-import { createHash, randomInt } from 'crypto';
+﻿import { createHash, randomInt } from 'crypto';
 import { promises as dns } from 'dns';
 import {
   BadRequestException,
@@ -600,7 +600,7 @@ export class EmailSenderService {
 
     await this.mail.sendViaSmtp(smtp, {
       to: sender.email,
-      subject: 'Retail IMS — sender SMTP test',
+      subject: 'SoftdigitIMS — sender SMTP test',
       text: `This confirms SMTP for ${sender.email} is working.`,
       html: `<p>This confirms SMTP for <strong>${sender.email}</strong> is working.</p>`,
       fromName: sender.displayName,

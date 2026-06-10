@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const nodemailer = require('nodemailer');
 
 async function main() {
@@ -20,9 +20,9 @@ async function main() {
   const info = await transport.sendMail({
     from,
     to,
-    subject: 'Retail IMS RFQ portal test',
-    text: 'Test email from Retail IMS RFQ invite flow.',
-    html: '<p>Test email from <strong>Retail IMS</strong> RFQ invite flow.</p>',
+    subject: 'SoftdigitIMS RFQ portal test',
+    text: 'Test email from SoftdigitIMS RFQ invite flow.',
+    html: '<p>Test email from <strong>SoftdigitIMS</strong> RFQ invite flow.</p>',
   });
   console.log('Sent:', info.messageId, 'to', to);
 }

@@ -1,4 +1,4 @@
-export type InvoiceCreatedEmailContent = {
+﻿export type InvoiceCreatedEmailContent = {
   customerName: string;
   invoiceNumber: string;
   invoiceDate: string;
@@ -221,7 +221,7 @@ export function goodsReceiptSupplierHtml(content: GoodsReceiptSupplierEmailConte
 }
 
 export function internalAlertSubject(content: InternalAlertEmailContent): string {
-  return `[Retail IMS] ${content.title}`;
+  return `[SoftdigitIMS] ${content.title}`;
 }
 
 export function internalAlertText(content: InternalAlertEmailContent): string {

@@ -110,7 +110,7 @@ export const MARKETING_HERO = {
     'hero-dashboard',
     'hero-dashboard.png',
     'Dashboard screenshot',
-    'Retail IMS dashboard overview',
+    'SoftdigitIMS dashboard overview',
     '1400×900',
   ),
 };
@@ -118,17 +118,17 @@ export const MARKETING_HERO = {
 export const MARKETING_DEVICES = {
   eyebrow: 'Seamless across devices',
   title: 'Use on any device — browser, tablet, or mobile',
-  body: 'Retail IMS runs in the browser your team already uses. Check stock, approve POs, and review reports from the shop floor or back office.',
+  body: 'SoftdigitIMS runs in the browser your team already uses. Check stock, approve POs, and review reports from the shop floor or back office.',
   tabs: [
     {
       id: 'web',
       label: 'Web app',
-      imageSlot: slot('devices-web', 'devices-web.png', 'Web app', 'Retail IMS web application', '1200×800'),
+      imageSlot: slot('devices-web', 'devices-web.png', 'Web app', 'SoftdigitIMS web application', '1200×800'),
     },
     {
       id: 'mobile',
       label: 'Mobile web',
-      imageSlot: slot('devices-mobile', 'devices-mobile.png', 'Mobile web', 'Retail IMS on mobile browser', '390×844'),
+      imageSlot: slot('devices-mobile', 'devices-mobile.png', 'Mobile web', 'SoftdigitIMS on mobile browser', '390×844'),
     },
   ] satisfies MarketingDeviceTab[],
 };
@@ -144,7 +144,7 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
       {
         id: 'products',
         label: 'Products',
-        imageSlot: slot('warehouse-products', 'warehouse-products.png', 'Products', 'Product catalog in Retail IMS', '1200×800'),
+        imageSlot: slot('warehouse-products', 'warehouse-products.png', 'Products', 'Product catalog in SoftdigitIMS', '1200×800'),
       },
       {
         id: 'gr',
@@ -229,7 +229,7 @@ export const MARKETING_CAPABILITIES = {
   title: 'Built for retail teams, powered by simplicity',
   largeCard: {
     title: 'Personalize every plant and workflow',
-    body: 'Multi-plant assignments, storage locations, role-based permissions, and customizable document numbering — so Retail IMS fits how your business actually runs.',
+    body: 'Multi-plant assignments, storage locations, role-based permissions, and customizable document numbering — so SoftdigitIMS fits how your business actually runs.',
   } satisfies MarketingCapabilityCard,
   smallCards: [
     {
@@ -263,12 +263,12 @@ export const MARKETING_CONTACT = {
 
 export const MARKETING_FINAL_CTA = {
   title: 'Ready to get started?',
-  body: 'Start your free trial of Retail IMS. No credit card required.',
+  body: 'Start your free trial of SoftdigitIMS. No credit card required.',
   primaryCta: { label: 'Start free trial', href: '/signup?plan=trial' } satisfies MarketingCta,
   secondaryCta: { label: 'Sign in', href: '/login' } satisfies MarketingCta,
   images: [
-    slot('final-cta-dashboard', 'final-cta-dashboard.png', 'Dashboard', 'Retail IMS dashboard', '800×600'),
-    slot('final-cta-mobile', 'final-cta-mobile.png', 'Mobile', 'Retail IMS mobile view', '320×640'),
+    slot('final-cta-dashboard', 'final-cta-dashboard.png', 'Dashboard', 'SoftdigitIMS dashboard', '800×600'),
+    slot('final-cta-mobile', 'final-cta-mobile.png', 'Mobile', 'SoftdigitIMS mobile view', '320×640'),
   ],
 };
 

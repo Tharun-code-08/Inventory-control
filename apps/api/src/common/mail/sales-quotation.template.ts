@@ -1,4 +1,4 @@
-export type SalesQuotationLine = {
+﻿export type SalesQuotationLine = {
   code: string;
   description: string;
   quantity: string;
@@ -84,7 +84,7 @@ export function salesQuotationText(content: SalesQuotationEmailContent): string 
       : '',
     'Thank you for your business.',
     content.companyName,
-    'Retail IMS',
+    'SoftdigitIMS',
   ].filter(Boolean);
   return lines.join('\n');
 }
@@ -174,7 +174,7 @@ export function salesQuotationHtml(content: SalesQuotationEmailContent): string 
           </tr>
           <tr>
             <td style="padding:18px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-              <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">${escapeHtml(content.companyName)} · Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">${escapeHtml(content.companyName)} · SoftdigitIMS</p>
             </td>
           </tr>
         </table>

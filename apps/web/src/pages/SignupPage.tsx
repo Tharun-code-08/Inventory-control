@@ -378,7 +378,7 @@ export function SignupPage() {
           ? 'Save your recovery codes.'
           : step === 'complete'
             ? 'Your workspace is ready.'
-            : 'Create a secure Retail IMS workspace.';
+            : 'Create a secure SoftdigitIMS workspace.';
 
   const heroDescription =
     step === 'verify'
@@ -422,7 +422,7 @@ export function SignupPage() {
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
               <Sparkles className="h-3.5 w-3.5" />
-              Retail IMS
+              SoftdigitIMS
             </p>
             <h1 className="mt-7 text-4xl font-semibold leading-tight">{heroTitle}</h1>
             <p className="mt-4 max-w-md text-sm text-white/80">{heroDescription}</p>
@@ -495,7 +495,7 @@ export function SignupPage() {
                       ? 'Scan the QR code and enter the live 6-digit code from your authenticator app.'
                       : step === 'backup'
                         ? 'These one-time codes let you sign in if your authenticator device is unavailable.'
-                        : 'Your Retail IMS account is verified, protected, and ready to use.'}
+                        : 'Your SoftdigitIMS account is verified, protected, and ready to use.'}
               </p>
             </div>
 
@@ -893,7 +893,7 @@ export function SignupPage() {
                   </div>
                 </div>
                 <Button className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-950" type="button" onClick={() => finalizeSignIn(pendingAuthPayload)} disabled={!pendingAuthPayload}>
-                  Sign in to Retail IMS
+                  Sign in to SoftdigitIMS
                 </Button>
               </div>
             ) : null}

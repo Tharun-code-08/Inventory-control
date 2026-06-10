@@ -1,7 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 
 const config: ExpoConfig = {
-  name: 'Retail IMS',
+  name: 'SoftdigitIMS',
   slug: 'retail-ims-mobile',
   version: '0.0.1',
   orientation: 'portrait',

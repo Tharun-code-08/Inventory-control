@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -153,7 +153,7 @@ export class SubscriptionService {
     const snap = this.toSnapshot(company);
     if (snap.isTrialExpired) {
       throw new ForbiddenException(
-        `Your ${getTrialDays()}-day trial has ended. Upgrade to Pro or Plus to continue using Retail IMS.`,
+        `Your ${getTrialDays()}-day trial has ended. Upgrade to Pro or Plus to continue using SoftdigitIMS.`,
       );
     }
     if (

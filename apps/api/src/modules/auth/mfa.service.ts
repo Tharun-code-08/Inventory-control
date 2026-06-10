@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthChallengePurpose, MfaMethod } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -196,7 +196,7 @@ export class MfaService {
     logContext: string;
   }) {
     const otpAuthUrl = generateURI({
-      issuer: 'Retail IMS',
+      issuer: 'SoftdigitIMS',
       label: args.email,
       secret: args.secret,
       period: 30,

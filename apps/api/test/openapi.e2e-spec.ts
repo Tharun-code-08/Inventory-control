@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+﻿import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import SwaggerParser from '@apidevtools/swagger-parser';
@@ -30,7 +30,7 @@ describe('OpenAPI document', () => {
   it('builds a valid OpenAPI 3 document via swagger-parser', async () => {
     if (!app) return;
     const config = new DocumentBuilder()
-      .setTitle('Retail IMS API')
+      .setTitle('SoftdigitIMS API')
       .setVersion('1.0')
       .addBearerAuth()
       .addCookieAuth('refresh')

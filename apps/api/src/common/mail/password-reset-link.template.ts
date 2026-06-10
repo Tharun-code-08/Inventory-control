@@ -1,4 +1,4 @@
-export type PasswordResetLinkEmailContent = {
+﻿export type PasswordResetLinkEmailContent = {
   userName: string;
   email: string;
   resetUrl: string;
@@ -6,14 +6,14 @@ export type PasswordResetLinkEmailContent = {
 };
 
 export function passwordResetLinkSubject(): string {
-  return 'Password reset link - Retail IMS';
+  return 'Password reset link - SoftdigitIMS';
 }
 
 export function passwordResetLinkText(content: PasswordResetLinkEmailContent): string {
   return [
     `Hello ${content.userName},`,
     '',
-    'We received a request to reset your Retail IMS password.',
+    'We received a request to reset your SoftdigitIMS password.',
     '',
     'Open the secure link below to choose a new password:',
     content.resetUrl,
@@ -38,7 +38,7 @@ export function passwordResetLinkHtml(content: PasswordResetLinkEmailContent): s
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#0f172a,#312e81);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h1 style="margin:8px 0 0;font-size:22px;color:#ffffff;font-weight:700;">Reset your password</h1>
               <p style="margin:6px 0 0;font-size:14px;color:#e0e7ff;">Secure magic link for your account</p>
             </td>
@@ -47,7 +47,7 @@ export function passwordResetLinkHtml(content: PasswordResetLinkEmailContent): s
             <td style="padding:28px;">
               <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hello <strong>${escapeHtml(content.userName)}</strong>,</p>
               <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.5;">
-                Click the button below to choose a new password for your Retail IMS account.
+                Click the button below to choose a new password for your SoftdigitIMS account.
               </p>
               <div style="text-align:center;margin:24px 0;">
                 <a href="${escapeAttribute(content.resetUrl)}" style="display:inline-block;background:#312e81;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 22px;border-radius:10px;">

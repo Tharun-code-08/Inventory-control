@@ -1,6 +1,6 @@
 export const APP_BRAND = 'Softdigit Consulting';
 
-export const DEFAULT_DOCUMENT_TITLE = `${APP_BRAND} | Retail operations & Retail IMS`;
+export const DEFAULT_DOCUMENT_TITLE = `${APP_BRAND} | Retail operations & SoftdigitIMS`;
 
 type RouteTitleMeta = {
   page: string;

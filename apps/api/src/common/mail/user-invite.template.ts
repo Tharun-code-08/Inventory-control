@@ -1,4 +1,4 @@
-export type UserInviteEmailContent = {
+﻿export type UserInviteEmailContent = {
   inviteUrl: string;
   companyName: string;
   inviteeEmail: string;
@@ -10,14 +10,14 @@ export type UserInviteEmailContent = {
 };
 
 export function userInviteSubject(companyName: string): string {
-  return `You're invited to ${companyName} on Retail IMS`;
+  return `You're invited to ${companyName} on SoftdigitIMS`;
 }
 
 export function userInviteText(content: UserInviteEmailContent): string {
   return [
     `Hello${content.inviteeName ? ` ${content.inviteeName}` : ''},`,
     '',
-    `${content.inviterName} invited you to join ${content.companyName} on Retail IMS.`,
+    `${content.inviterName} invited you to join ${content.companyName} on SoftdigitIMS.`,
     `Role: ${content.roleName}${content.shopName ? ` ? ${content.shopName}` : ''}`,
     '',
     `Accept your invitation: ${content.inviteUrl}`,
@@ -41,7 +41,7 @@ export function userInviteHtml(content: UserInviteEmailContent): string {
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#312e81,#4338ca);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h2 style="margin:4px 0 0;font-size:22px;color:#eef2ff;">You're invited</h2>
               <p style="margin:6px 0 0;font-size:14px;color:#c7d2fe;">${content.companyName}</p>
             </td>
@@ -52,7 +52,7 @@ export function userInviteHtml(content: UserInviteEmailContent): string {
                 Hello${content.inviteeName ? ` ${content.inviteeName}` : ''},
               </p>
               <p style="margin:0 0 12px;font-size:14px;color:#1e293b;line-height:1.6;">
-                ${content.inviterName} invited you to join <strong>${content.companyName}</strong> on Retail IMS.
+                ${content.inviterName} invited you to join <strong>${content.companyName}</strong> on SoftdigitIMS.
               </p>
               <p style="margin:0 0 12px;font-size:14px;color:#1e293b;line-height:1.6;">
                 Role: <strong>${content.roleName}</strong>${content.shopName ? ` ? ${content.shopName}` : ''}<br/>

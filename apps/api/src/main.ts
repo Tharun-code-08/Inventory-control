@@ -1,4 +1,4 @@
-import './load-env';
+﻿import './load-env';
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -184,7 +184,7 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Retail IMS API')
+    .setTitle('SoftdigitIMS API')
     .setVersion('1.0')
     .addBearerAuth()
     .addCookieAuth('refresh')

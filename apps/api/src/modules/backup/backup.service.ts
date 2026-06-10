@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -132,7 +132,7 @@ export class BackupService {
     const profile = await this.googleDrive.getProfile(tokens.access_token);
     const folderId = await this.googleDrive.ensureFolder(
       tokens.access_token,
-      `Retail IMS Backups - ${user.shop.companyId.slice(0, 8)}`,
+      `SoftdigitIMS Backups - ${user.shop.companyId.slice(0, 8)}`,
     );
 
     await this.prisma.backupProviderCredential.upsert({

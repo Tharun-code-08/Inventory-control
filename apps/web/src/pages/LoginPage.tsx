@@ -183,7 +183,7 @@ export function LoginPage() {
             </h1>
             <p className="mt-4 max-w-md text-sm text-white/80">
               Use your password first, then confirm access with your authenticator app or a backup
-              code before Retail IMS opens your workspace.
+              code before SoftdigitIMS opens your workspace.
             </p>
             <div className="mt-10 grid max-w-md gap-3 text-sm">
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">

@@ -104,7 +104,7 @@ export function ForgotPasswordPage() {
 
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-12 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="hidden rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-8 text-white shadow-xl lg:block">
-          <p className="text-sm uppercase tracking-[0.22em] text-slate-300">Retail IMS</p>
+          <p className="text-sm uppercase tracking-[0.22em] text-slate-300">SoftdigitIMS</p>
           <h1 className="mt-4 text-4xl font-semibold leading-tight">Recover access securely.</h1>
           <p className="mt-4 max-w-md text-sm text-white/80">
             Choose a one-time code or a magic link. Every reset expires in 10 minutes, older reset

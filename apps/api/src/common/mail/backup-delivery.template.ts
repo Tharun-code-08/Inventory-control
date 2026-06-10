@@ -1,4 +1,4 @@
-type BackupEmailParams = {
+﻿type BackupEmailParams = {
   companyCode: string | null;
   fileName: string;
   approxSizeKb: number;
@@ -6,7 +6,7 @@ type BackupEmailParams = {
 
 export function backupDeliverySubject(params: BackupEmailParams) {
   const code = params.companyCode ? ` (${params.companyCode})` : '';
-  return `Retail IMS Backup${code}`;
+  return `SoftdigitIMS Backup${code}`;
 }
 
 export function backupDeliveryText(params: BackupEmailParams) {

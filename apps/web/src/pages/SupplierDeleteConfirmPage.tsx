@@ -98,7 +98,7 @@ export function SupplierDeleteConfirmPage() {
             to="/login"
             className="mt-8 inline-block text-sm font-medium text-primary hover:underline"
           >
-            Go to Retail IMS
+            Go to SoftdigitIMS
           </Link>
         </div>
       </main>

@@ -223,5 +223,5 @@ export const KEYBOARD_SHORTCUTS = [
 export const SUPPORT_CONTACT = {
   email: 'office@softdigitconsulting.com',
   company: 'Softdigit Consulting',
-  location: 'Retail IMS support',
+  location: 'SoftdigitIMS support',
 } as const;

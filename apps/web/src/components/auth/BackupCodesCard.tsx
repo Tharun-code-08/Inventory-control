@@ -21,7 +21,7 @@ export function BackupCodesCard({ codes }: { codes: string[] }) {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'retail-ims-backup-codes.txt';
+    anchor.download = 'softdigitims-backup-codes.txt';
     anchor.click();
     URL.revokeObjectURL(url);
   };

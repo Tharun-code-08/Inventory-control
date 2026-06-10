@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+﻿import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   PlatformNotificationCategory,
@@ -126,7 +126,7 @@ export class PlatformNotificationService {
         subject: args.title,
         text: args.message,
         html: `<p>${args.message}</p>`,
-        fromName: 'Retail IMS Platform',
+        fromName: 'SoftdigitIMS Platform',
       });
 
       if (args.dedupe) {

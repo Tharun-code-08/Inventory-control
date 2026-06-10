@@ -1,4 +1,4 @@
-export type PasswordResetOtpEmailContent = {
+﻿export type PasswordResetOtpEmailContent = {
   userName: string;
   email: string;
   otpCode: string;
@@ -6,14 +6,14 @@ export type PasswordResetOtpEmailContent = {
 };
 
 export function passwordResetOtpSubject(): string {
-  return 'Reset your password - Retail IMS';
+  return 'Reset your password - SoftdigitIMS';
 }
 
 export function passwordResetOtpText(content: PasswordResetOtpEmailContent): string {
   return [
     `Hello ${content.userName},`,
     '',
-    'We received a request to reset your Retail IMS password.',
+    'We received a request to reset your SoftdigitIMS password.',
     '',
     `Your reset code is: ${content.otpCode}`,
     '',
@@ -37,7 +37,7 @@ export function passwordResetOtpHtml(content: PasswordResetOtpEmailContent): str
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#0f172a,#312e81);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h1 style="margin:8px 0 0;font-size:22px;color:#ffffff;font-weight:700;">Reset your password</h1>
               <p style="margin:6px 0 0;font-size:14px;color:#e0e7ff;">Use this one-time code to continue</p>
             </td>

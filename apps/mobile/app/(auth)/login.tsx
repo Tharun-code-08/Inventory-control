@@ -42,7 +42,7 @@ export default function LoginScreen() {
     <Screen style={{ justifyContent: 'center' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView keyboardShouldPersistTaps="handled">
-          <Title>Retail IMS</Title>
+          <Title>SoftdigitIMS</Title>
           <Muted>Warehouse mobile — sign in with your account</Muted>
           <Input
             autoCapitalize="none"

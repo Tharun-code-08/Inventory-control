@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+﻿import { NotFoundException } from '@nestjs/common';
 import { GstSupplyType } from '@prisma/client';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { isInterStateSupply } from '../../utils/gst-supply-type';
@@ -133,7 +133,7 @@ export async function buildSalesOrderPdfViewModel(
   const igstRateDominant = dominantInter ? Number(dominantInter.igstRate) : 0;
 
   const generatedAt = formatDocumentDateTime(new Date());
-  let generatedBy = 'Retail IMS';
+  let generatedBy = 'SoftdigitIMS';
   if (order.createdById) {
     const creator = await prisma.user.findUnique({
       where: { id: order.createdById },

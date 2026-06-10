@@ -1,4 +1,4 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+﻿import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { BackupJobStatus, BackupProvider } from '@prisma/client';
 import { Job } from 'bullmq';
@@ -133,7 +133,7 @@ export class BackupProcessor extends WorkerHost {
             fileName,
             approxSizeKb,
           }),
-          fromName: 'Retail IMS Backups',
+          fromName: 'SoftdigitIMS Backups',
           attachments: [{ filename: fileName, content: buffer, contentType: 'application/gzip' }],
         });
       }

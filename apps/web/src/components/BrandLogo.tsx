@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import { cn } from '@/lib/cn';
 
 type BrandLogoProps = {
@@ -15,7 +14,7 @@ type BrandLogoProps = {
   subtitle?: string;
 };
 
-/** Retail IMS mark — inventory box on brand gradient. */
+/** SoftdigitIMS mark — SD logo on brand circle. */
 export function BrandLogoMark({
   size = 40,
   className,
@@ -23,30 +22,19 @@ export function BrandLogoMark({
   size?: number;
   className?: string;
 }) {
-  const gradId = useId();
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 40 40"
       role="img"
-      aria-label="Retail IMS"
+      aria-label="SoftdigitIMS"
       className={cn('shrink-0', className)}
     >
-      <defs>
-        <linearGradient id={gradId} x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#4f46e5" />
-          <stop offset="100%" stopColor="#7c3aed" />
-        </linearGradient>
-      </defs>
-      <rect width="40" height="40" rx="10" fill={`url(#${gradId})`} />
-      <path
-        fill="#fff"
-        fillOpacity="0.95"
-        d="M20 10 29 15v11L20 31 11 26V15L20 10zm0 3.2-6.5 3.2v8.6L20 28.4l6.5-3.4v-8.6L20 13.2z"
-      />
-      <path fill="#22d3ee" d="M20 13.2v15.2l6.5-3.4v-8.6L20 13.2z" />
-      <path fill="#fff" fillOpacity="0.85" d="M11 15 20 18.2 29 15 20 10 11 15z" />
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#1a1a8c" strokeWidth="3.5" />
+      <path d="M 32 6 A 17 17 0 0 1 36 15" fill="none" stroke="white" strokeWidth="4.5" />
+      <circle cx="20" cy="20" r="11" fill="white" stroke="#1a1a8c" strokeWidth="1.8" />
+      <text x="20" y="24.5" textAnchor="middle" fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif" fontSize="12" fontWeight="600" fill="#1a1a8c">SD</text>
     </svg>
   );
 }
@@ -58,7 +46,7 @@ export function BrandLogo({
   className,
   titleClassName,
   subtitleClassName,
-  title = 'Retail IMS',
+  title = 'SoftdigitIMS',
   subtitle = 'Softdigit Consulting',
 }: BrandLogoProps) {
   if (iconOnly || !showText) {

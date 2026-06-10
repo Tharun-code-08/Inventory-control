@@ -1,4 +1,4 @@
-export type SupplierDeletionEmailContent = {
+﻿export type SupplierDeletionEmailContent = {
   supplierName: string;
   supplierCode: string;
   requestedByName: string;
@@ -41,7 +41,7 @@ export function supplierDeletionHtml(content: SupplierDeletionEmailContent): str
     <tr><td align="center">
       <table style="max-width:520px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
         <tr><td style="background:#b91c1c;padding:20px 24px;">
-          <p style="margin:0;font-size:12px;color:#fecaca;text-transform:uppercase;">Retail IMS</p>
+          <p style="margin:0;font-size:12px;color:#fecaca;text-transform:uppercase;">SoftdigitIMS</p>
           <h1 style="margin:8px 0 0;font-size:20px;color:#fff;">Confirm supplier deletion</h1>
         </td></tr>
         <tr><td style="padding:24px;">

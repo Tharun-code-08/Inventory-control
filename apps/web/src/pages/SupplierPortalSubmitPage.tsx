@@ -407,7 +407,7 @@ export function SupplierPortalSubmitPage() {
       </main>
 
       <footer className="pb-8 text-center text-xs text-slate-400">
-        Powered by Retail IMS · Supplier Portal
+        Powered by SoftdigitIMS · Supplier Portal
       </footer>
     </div>
   );

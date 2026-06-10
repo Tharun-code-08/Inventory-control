@@ -205,7 +205,7 @@ export function InviteAcceptPage() {
             {state === 'ready' && preview && (
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                  <p className="font-medium">{preview.companyName ?? 'Retail IMS'}</p>
+                  <p className="font-medium">{preview.companyName ?? 'SoftdigitIMS'}</p>
                   <p className="mt-1">Role: {preview.roleName}</p>
                   {preview.shopName && <p>Shop: {preview.shopName}</p>}
                   <p>Email: {preview.email}</p>

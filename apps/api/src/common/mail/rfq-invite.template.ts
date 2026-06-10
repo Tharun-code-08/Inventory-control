@@ -1,4 +1,4 @@
-export type RfqInviteEmailContent = {
+﻿export type RfqInviteEmailContent = {
   supplierName: string;
   rfqNumber: string;
   rfqTitle: string;
@@ -29,7 +29,7 @@ export function rfqInviteText(content: RfqInviteEmailContent): string {
     `RFQ reference (optional on verify screen): ${content.accessCode}`,
     '',
     'Thank you,',
-    'Retail IMS Procurement',
+    'SoftdigitIMS Procurement',
   );
   return lines.join('\n');
 }
@@ -48,7 +48,7 @@ export function rfqInviteHtml(content: RfqInviteEmailContent): string {
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#312e81,#4338ca);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h1 style="margin:8px 0 0;font-size:22px;color:#ffffff;font-weight:700;">Supplier Portal</h1>
               <p style="margin:6px 0 0;font-size:14px;color:#e0e7ff;">Request for quotation</p>
             </td>
@@ -76,7 +76,7 @@ export function rfqInviteHtml(content: RfqInviteEmailContent): string {
           </tr>
           <tr>
             <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-              <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;">Powered by Retail IMS · Supplier Portal</p>
+              <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;">Powered by SoftdigitIMS · Supplier Portal</p>
             </td>
           </tr>
         </table>

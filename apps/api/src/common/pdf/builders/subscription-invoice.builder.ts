@@ -1,4 +1,4 @@
-import type { BillingCycle, SubscriptionInvoice, SubscriptionPlan } from '@prisma/client';
+﻿import type { BillingCycle, SubscriptionInvoice, SubscriptionPlan } from '@prisma/client';
 import {
   documentPdfFilename,
   formatDocumentCurrency,
@@ -71,7 +71,7 @@ export function buildSubscriptionInvoicePdfViewModel(
     lines: [
       {
         code: planLabel,
-        description: `Retail IMS ${planLabel} subscription (${cycleLabel})`,
+        description: `SoftdigitIMS ${planLabel} subscription (${cycleLabel})`,
         qty: '1',
         unitPrice: formatDocumentCurrency(amount, invoice.currency),
         extra: formatDocumentCurrency(tax, invoice.currency),

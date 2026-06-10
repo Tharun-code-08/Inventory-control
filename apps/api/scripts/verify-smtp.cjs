@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Verify Zoho SMTP for office@softdigitconsulting.com.
  * Usage (from apps/api): node scripts/verify-smtp.cjs [--send test@example.com]
  */
@@ -36,7 +36,7 @@ async function main() {
     const info = await transport.sendMail({
       from: `"Softdigit Consulting" <${from}>`,
       to: sendTo,
-      subject: 'Retail IMS — SMTP test',
+      subject: 'SoftdigitIMS — SMTP test',
       text: `Test email from ${from} via ${host}.`,
       html: `<p>Test email from <strong>${from}</strong> via ${host}.</p>`,
     });

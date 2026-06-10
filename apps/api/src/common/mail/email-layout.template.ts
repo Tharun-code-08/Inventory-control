@@ -1,4 +1,4 @@
-export type BusinessEmailLayoutContent = {
+﻿export type BusinessEmailLayoutContent = {
   title: string;
   subtitle?: string;
   bodyHtml: string;
@@ -7,7 +7,7 @@ export type BusinessEmailLayoutContent = {
 };
 
 export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): string {
-  const brand = escapeHtml(content.brandLabel ?? 'Retail IMS');
+  const brand = escapeHtml(content.brandLabel ?? 'SoftdigitIMS');
   const title = escapeHtml(content.title);
   const subtitle = content.subtitle ? `<p style="margin:6px 0 0;font-size:14px;color:#c7d2fe;">${escapeHtml(content.subtitle)}</p>` : '';
   const maxWidthPx = Number.isFinite(content.maxWidthPx) ? Math.max(360, Math.floor(content.maxWidthPx as number)) : 520;

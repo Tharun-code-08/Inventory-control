@@ -1,4 +1,4 @@
-export type SignupOtpEmailContent = {
+﻿export type SignupOtpEmailContent = {
   adminName: string;
   companyName: string;
   email: string;
@@ -7,14 +7,14 @@ export type SignupOtpEmailContent = {
 };
 
 export function signupOtpSubject(companyName: string): string {
-  return `Verify your email — ${companyName} on Retail IMS`;
+  return `Verify your email — ${companyName} on SoftdigitIMS`;
 }
 
 export function signupOtpText(content: SignupOtpEmailContent): string {
   return [
     `Hello ${content.adminName},`,
     '',
-    `Thank you for registering ${content.companyName} on Retail IMS.`,
+    `Thank you for registering ${content.companyName} on SoftdigitIMS.`,
     '',
     `Your verification code is: ${content.otpCode}`,
     '',
@@ -37,7 +37,7 @@ export function signupOtpHtml(content: SignupOtpEmailContent): string {
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#312e81,#4338ca);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h1 style="margin:8px 0 0;font-size:22px;color:#ffffff;font-weight:700;">Verify your organisation</h1>
               <p style="margin:6px 0 0;font-size:14px;color:#e0e7ff;">Email confirmation for ${escapeHtml(content.companyName)}</p>
             </td>
@@ -46,7 +46,7 @@ export function signupOtpHtml(content: SignupOtpEmailContent): string {
             <td style="padding:28px;">
               <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hello <strong>${escapeHtml(content.adminName)}</strong>,</p>
               <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.5;">
-                Use the verification code below to complete your organisation setup on Retail IMS.
+                Use the verification code below to complete your organisation setup on SoftdigitIMS.
               </p>
               <div style="text-align:center;margin:24px 0;">
                 <span style="display:inline-block;letter-spacing:0.35em;font-size:28px;font-weight:700;color:#312e81;background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 24px;">

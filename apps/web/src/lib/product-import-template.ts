@@ -44,7 +44,7 @@ export type ProductImportTemplateOptions = {
 
 function buildInstructionsRows(options: ProductImportTemplateOptions): string[][] {
   const rows: string[][] = [
-    ['Retail IMS — Product bulk upload template'],
+    ['SoftdigitIMS — Product bulk upload template'],
     [''],
     ['How to use'],
     ['1. Fill the "Products" sheet — one row per SKU per plant. Do not change column headers.'],

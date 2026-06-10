@@ -1,4 +1,4 @@
-import { AuditAction, RoleName } from '@prisma/client';
+﻿import { AuditAction, RoleName } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -273,7 +273,7 @@ export class UsersService {
     const companyName =
       invitation.shop?.company?.companyName ??
       inviter?.shop?.company?.companyName ??
-      'Retail IMS';
+      'SoftdigitIMS';
 
     const mailContent: UserInviteEmailContent = {
       inviteUrl,

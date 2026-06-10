@@ -1,4 +1,4 @@
-export type SenderVerificationOtpContent = {
+﻿export type SenderVerificationOtpContent = {
   displayName: string;
   email: string;
   otpCode: string;
@@ -14,7 +14,7 @@ export function senderVerificationOtpText(content: SenderVerificationOtpContent)
   return [
     `Hello${content.displayName ? ` ${content.displayName}` : ''},`,
     '',
-    `Use this verification code to confirm ${content.email} as a sender address for ${content.companyName} on Retail IMS:`,
+    `Use this verification code to confirm ${content.email} as a sender address for ${content.companyName} on SoftdigitIMS:`,
     '',
     content.otpCode,
     '',
@@ -36,7 +36,7 @@ export function senderVerificationOtpHtml(content: SenderVerificationOtpContent)
         <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,#312e81,#4338ca);padding:24px 28px;">
-              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">Retail IMS</p>
+              <p style="margin:0;font-size:12px;color:#c7d2fe;letter-spacing:0.08em;text-transform:uppercase;">SoftdigitIMS</p>
               <h2 style="margin:4px 0 0;font-size:22px;color:#eef2ff;">Verify sender email</h2>
             </td>
           </tr>

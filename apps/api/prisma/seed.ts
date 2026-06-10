@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+﻿/* eslint-disable no-console */
 import { PrismaClient, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -166,7 +166,7 @@ async function main() {
       update: { isActive: true, ...e2eSubscription },
       create: {
         companyCode: 'HQ-CO',
-        companyName: 'Retail IMS HQ',
+        companyName: 'SoftdigitIMS HQ',
         address: '1 Main Street',
         isActive: true,
         ...e2eSubscription,

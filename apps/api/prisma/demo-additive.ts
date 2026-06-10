@@ -1,4 +1,4 @@
-import {
+﻿import {
   Prisma,
   PrismaClient,
   RoleName,
@@ -551,7 +551,7 @@ async function main() {
 
   await ensureSystemSetting('reorder_formula', { formula: 'FILL_TO_2X_MIN' });
   await ensureSystemSetting('company_profile', {
-    companyName: 'Retail IMS Demo',
+    companyName: 'SoftdigitIMS Demo',
     taxNumber: 'TIN-2026-DEMO',
     currency: 'LKR',
   });
