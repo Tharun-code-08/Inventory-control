@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, ScrollView, Pressable, Text, StyleSheet } from 'react-native';
+import { Alert, ScrollView, Pressable, Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
 import { useCreateGoodsIssue } from '@/hooks/use-goods-issues';
@@ -8,6 +8,7 @@ import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId, isShopOnlyUser } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Button, Card, EmptyState, Input, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
 
 const ISSUE_REASONS = ['Sales Order', 'Production', 'Maintenance', 'Transfer', 'Damage'];
@@ -27,6 +28,7 @@ export default function NewGoodsIssueScreen() {
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
+  const debouncedProductSearch = useDebounce(productSearch, 350);
   const shopsQuery = useShops();
   const shops = useMemo(
     () => (shopsQuery.data ?? []).filter((s) => s.isActive),
@@ -35,7 +37,7 @@ export default function NewGoodsIssueScreen() {
   const productsQuery = useProducts({
     shopId: shopId || undefined,
     isActive: true,
-    search: productSearch.trim() || undefined,
+    search: debouncedProductSearch.trim() || undefined,
     limit: 30,
     page: 1,
   });
@@ -92,7 +94,7 @@ export default function NewGoodsIssueScreen() {
   return (
     <PermissionGate permission="goods_issue:create">
       <Screen>
-        <ScrollView keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Title>New goods issue</Title>
 
           {!isShopOnlyUser(user) ? (
@@ -150,19 +152,17 @@ export default function NewGoodsIssueScreen() {
           />
           {!shopId ? (
             <EmptyState message="Select a shop first." />
+          ) : (productsQuery.data?.items ?? []).length === 0 ? (
+            <EmptyState message={productsQuery.isLoading ? 'Loading…' : 'No products.'} />
           ) : (
-            <FlatList
-              scrollEnabled={false}
-              data={productsQuery.data?.items ?? []}
-              keyExtractor={(p) => p.id}
-              ListEmptyComponent={<EmptyState message="No products." />}
-              renderItem={({ item }) => (
-                <Pressable onPress={() => addLine(item)} style={styles.productPick}>
+            <View>
+              {(productsQuery.data?.items ?? []).map((item) => (
+                <Pressable key={item.id} onPress={() => addLine(item)} style={styles.productPick}>
                   <Text>{item.productCode}</Text>
                   <Muted>{item.description}</Muted>
                 </Pressable>
-              )}
-            />
+              ))}
+            </View>
           )}
 
           <Button label="Save draft" onPress={onSave} loading={createGi.isPending} />

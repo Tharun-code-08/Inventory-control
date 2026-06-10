@@ -30,5 +30,8 @@
     "check:runtime-health": "node scripts/runtime-health-check.mjs",
     "check:bundle-budget": "node scripts/check-web-bundle-budget.mjs",
     "check:api-slo": "node scripts/check-api-slo.mjs"
+  },
+  "dependencies": {
+    "metro-runtime": "^0.84.4"
   }
 }

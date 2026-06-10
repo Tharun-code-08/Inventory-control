@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { hasPermission } from '@/lib/permissions';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { Badge, Button, Card, EmptyState, Muted, Screen, Subtitle, Title } from '@/components/ui';
+import { formatDate } from '@/lib/format';
 
 export default function GoodsIssueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,19 +38,21 @@ export default function GoodsIssueDetailScreen() {
     <PermissionGate permission="goods_issue:read">
       <Screen>
         <ScrollView refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}>
-          {query.isLoading || !gi ? (
+          {query.isError ? (
+            <EmptyState message={getApiErrorMessage(query.error, 'Could not load goods issue.')} />
+          ) : query.isLoading || !gi ? (
             <EmptyState message="Loading…" />
           ) : (
             <>
               <Title>{gi.giNumber}</Title>
               <Badge label={gi.status} tone={gi.status === 'POSTED' ? 'success' : 'warning'} />
               <Card>
-                <Muted>Date: {gi.giDate}</Muted>
+                <Muted>Date: {formatDate(gi.giDate)}</Muted>
                 <Muted>Shop: {gi.shop?.shopName ?? gi.shopId}</Muted>
                 <Muted>Reason: {gi.issueReason}</Muted>
                 {gi.remarks ? <Muted>Remarks: {gi.remarks}</Muted> : null}
               </Card>
-              <Subtitle>Lines</Subtitle>
+              <Subtitle>Lines ({gi.items.length})</Subtitle>
               {gi.items.map((line) => (
                 <Card key={line.id}>
                   <Muted>{line.product.productCode}</Muted>

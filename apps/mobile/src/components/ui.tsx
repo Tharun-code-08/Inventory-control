@@ -1,12 +1,15 @@
+import * as React from 'react';
 import { forwardRef } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
   type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 
@@ -24,7 +27,11 @@ export const colors = {
 };
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.screen, style]}>{children}</View>;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <View style={[styles.screen, style]}>{children}</View>
+    </SafeAreaView>
+  );
 }
 
 export function Card({ children }: { children: React.ReactNode }) {
@@ -39,8 +46,8 @@ export function Subtitle({ children }: { children: React.ReactNode }) {
   return <Text style={styles.subtitle}>{children}</Text>;
 }
 
-export function Muted({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.muted}>{children}</Text>;
+export function Muted({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
+  return <Text style={[styles.muted, style]}>{children}</Text>;
 }
 
 export function Button({
@@ -84,9 +91,9 @@ export function Button({
   );
 }
 
-export function Input(props: TextInputProps) {
-  return <TextInput {...props} style={[styles.input, props.style]} placeholderTextColor={colors.muted} />;
-}
+export const Input = forwardRef<TextInput, TextInputProps>(function Input(props, ref) {
+  return <TextInput ref={ref} {...props} style={[styles.input, props.style]} placeholderTextColor={colors.muted} />;
+});
 
 export function Badge({ label, tone = 'default' }: { label: string; tone?: 'default' | 'success' | 'warning' }) {
   return (

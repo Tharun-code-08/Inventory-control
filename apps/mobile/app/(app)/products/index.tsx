@@ -6,21 +6,23 @@ import { useProducts } from '@/hooks/use-products';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId, isShopOnlyUser } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useDebounce } from '@/hooks/use-debounce';
 import { EmptyState, Input, ListRow, Muted, Screen, Title } from '@/components/ui';
 
 export default function ProductsScreen() {
   const user = useAuthStore((s) => s.user);
   const shopId = defaultShopId(user);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const filters = useMemo(
     () => ({
-      search: search.trim() || undefined,
+      search: debouncedSearch.trim() || undefined,
       shopId: shopId || undefined,
       isActive: true,
       limit: 50,
       page: 1,
     }),
-    [search, shopId],
+    [debouncedSearch, shopId],
   );
   const query = useProducts(filters);
   const items = query.data?.items ?? [];

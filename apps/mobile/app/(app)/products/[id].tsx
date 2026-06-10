@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { Badge, Card, EmptyState, Muted, Screen, Subtitle, Title } from '@/components/ui';
+import { formatCurrency } from '@/lib/format';
 
 export default function ProductDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
@@ -20,7 +21,10 @@ export default function ProductDetailScreen() {
   return (
     <PermissionGate permission="product:read">
       <Screen>
-        <ScrollView refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}>
+        <ScrollView
+          keyboardDismissMode="on-drag"
+          refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
+        >
           {query.isError ? (
             <EmptyState message={getApiErrorMessage(query.error, 'Could not load product.')} />
           ) : query.isLoading || !product ? (
@@ -33,7 +37,8 @@ export default function ProductDetailScreen() {
                 <Subtitle>Stock</Subtitle>
                 <Badge label={`${stock} ${product.uom}`} tone={stock < 1 ? 'warning' : 'success'} />
                 <Muted>Category: {product.category}</Muted>
-                <Muted>Selling: {product.sellingPrice}</Muted>
+                <Muted>Selling price: {formatCurrency(product.sellingPrice)}</Muted>
+                <Muted>Purchase price: {formatCurrency(product.purchasePrice)}</Muted>
               </Card>
               {product.plants && product.plants.length > 0 ? (
                 <Card>

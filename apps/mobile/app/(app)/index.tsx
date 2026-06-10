@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { PermissionGate } from '@/components/PermissionGate';
 import { Card, EmptyState, KpiTile, ListRow, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
+import { formatCurrency } from '@/lib/format';
 
 export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
@@ -17,7 +18,9 @@ export default function HomeScreen() {
         <Title>Hello, {user?.name?.split(' ')[0] ?? 'there'}</Title>
         <Muted>{user?.shop?.shopName ?? user?.role ?? 'Warehouse'}</Muted>
 
-        {query.isLoading ? (
+        {query.isError ? (
+          <EmptyState message="Could not load dashboard. Pull down to retry." />
+        ) : query.isLoading ? (
           <EmptyState message="Loading dashboard…" />
         ) : (
           <>
@@ -26,7 +29,7 @@ export default function HomeScreen() {
               <KpiTile label="Low stock" value={query.data?.lowStockCount ?? 0} />
             </View>
             <View style={styles.kpiRow}>
-              <KpiTile label="Stock value" value={`${(query.data?.totalStockValue ?? 0).toLocaleString()}`} />
+              <KpiTile label="Stock value" value={formatCurrency(query.data?.totalStockValue ?? 0)} />
               <KpiTile label="Movements" value={query.data?.recentTransactions ?? 0} />
             </View>
 
