@@ -276,12 +276,12 @@ export function Sidebar({
             : [collapsed ? 'w-[72px]' : 'w-[240px]', 'translate-x-0'],
         )}
       >
-        <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
+        <div className="flex h-20 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
           <div className="flex items-center">
             <img
               src={showLabels ? '/IMSlogo.svg' : '/favicon.svg'}
               alt="SoftdigitIMS"
-              className={cn('w-auto', showLabels ? 'h-11' : 'h-7')}
+              className={cn('w-auto', showLabels ? 'h-14' : 'h-7')}
             />
           </div>
 
