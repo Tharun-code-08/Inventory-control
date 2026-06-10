@@ -277,17 +277,12 @@ export function Sidebar({
         )}
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <img
-              src="/IMSlogo.svg"
+              src={showLabels ? '/IMSlogo.svg' : '/favicon.svg'}
               alt="SoftdigitIMS"
-              className={cn('w-auto', showLabels ? 'h-8' : 'h-6')}
+              className={cn('w-auto', showLabels ? 'h-11' : 'h-7')}
             />
-            {showLabels ? (
-              <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
-                SoftdigitIMS
-              </span>
-            ) : null}
           </div>
 
           {isMobile ? (
