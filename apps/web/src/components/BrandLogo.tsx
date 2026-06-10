@@ -31,10 +31,10 @@ export function BrandLogoMark({
       aria-label="SoftdigitIMS"
       className={cn('shrink-0', className)}
     >
-      <circle cx="20" cy="20" r="17" fill="none" stroke="#1a1a8c" strokeWidth="3.5" />
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#2D2BB8" strokeWidth="3.5" />
       <path d="M 32 6 A 17 17 0 0 1 36 15" fill="none" stroke="white" strokeWidth="4.5" />
-      <circle cx="20" cy="20" r="11" fill="white" stroke="#1a1a8c" strokeWidth="1.8" />
-      <text x="20" y="24.5" textAnchor="middle" fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif" fontSize="12" fontWeight="600" fill="#1a1a8c">SD</text>
+      <circle cx="20" cy="20" r="11" fill="white" stroke="#2D2BB8" strokeWidth="1.8" />
+      <text x="20" y="24.5" textAnchor="middle" fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif" fontSize="12" fontWeight="600" fill="#2D2BB8">SD</text>
     </svg>
   );
 }
