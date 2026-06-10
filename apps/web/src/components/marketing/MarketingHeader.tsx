@@ -17,7 +17,7 @@ export function MarketingHeader() {
           <img
             src="/LandingPageLogo.svg"
             alt={BRAND.companyName}
-            className="h-10 w-auto sm:h-12 lg:h-14"
+            className="h-12 w-auto sm:h-14 lg:h-16"
           />
         </Link>
 
