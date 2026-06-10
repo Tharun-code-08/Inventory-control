@@ -93,12 +93,10 @@ export function ResetPasswordPage() {
     <div className="min-h-screen bg-slate-100">
       <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
-          <BrandLogo
-            size={36}
-            subtitle="Magic link reset"
-            titleClassName="text-white"
-            subtitleClassName="text-slate-300"
-          />
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.svg" alt="SoftdigitIMS" className="h-9 w-auto brightness-0 invert" />
+            <span className="text-[11px] text-slate-300">Magic link reset</span>
+          </div>
           <Link to="/login" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
             Back to login

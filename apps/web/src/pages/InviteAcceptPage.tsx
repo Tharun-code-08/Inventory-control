@@ -178,12 +178,10 @@ export function InviteAcceptPage() {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="bg-slate-900 px-4 py-4 text-white">
-        <BrandLogo
-          size={36}
-          subtitle="User invitation"
-          titleClassName="text-white"
-          subtitleClassName="text-slate-300"
-        />
+        <div className="flex items-center gap-2.5">
+          <img src="/logo.svg" alt="SoftdigitIMS" className="h-9 w-auto brightness-0 invert" />
+          <span className="text-[11px] text-slate-300">User invitation</span>
+        </div>
       </header>
 
       <main className="mx-auto max-w-md px-4 py-12">

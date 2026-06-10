@@ -171,12 +171,10 @@ export function QuotationPortalPage() {
     <div className="min-h-screen bg-slate-100">
       <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
-          <BrandLogo
-            size={40}
-            subtitle="Quotation Review"
-            titleClassName="text-white"
-            subtitleClassName="text-slate-300"
-          />
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.svg" alt="SoftdigitIMS" className="h-10 w-auto brightness-0 invert" />
+            <span className="text-[11px] text-slate-300">Quotation Review</span>
+          </div>
         </div>
       </header>
 

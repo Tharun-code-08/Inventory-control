@@ -279,9 +279,9 @@ export function Sidebar({
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
           {showLabels ? (
-            <BrandLogo size={40} />
+            <img src="/logo.svg" alt="SoftdigitIMS" className="h-10 w-auto" />
           ) : (
-            <BrandLogo size={36} iconOnly className="mx-auto" />
+            <img src="/logo.svg" alt="SoftdigitIMS" className="mx-auto h-8 w-auto" />
           )}
 
           {isMobile ? (
