@@ -279,9 +279,9 @@ export function Sidebar({
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
           {showLabels ? (
-            <img src="/logo.svg" alt="SoftdigitIMS" className="h-10 w-auto" />
+            <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">SoftdigitIMS</span>
           ) : (
-            <img src="/logo.svg" alt="SoftdigitIMS" className="mx-auto h-8 w-auto" />
+            <span className="mx-auto text-xs font-bold text-slate-900 dark:text-slate-100">SD</span>
           )}
 
           {isMobile ? (

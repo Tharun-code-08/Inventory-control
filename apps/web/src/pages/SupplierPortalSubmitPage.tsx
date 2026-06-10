@@ -198,7 +198,7 @@ export function SupplierPortalSubmitPage() {
       <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="SoftdigitIMS" className="h-10 w-auto brightness-0 invert" />
+            <span className="text-sm font-bold text-white">SoftdigitIMS</span>
             <span className="text-[11px] text-slate-300">Supplier Portal</span>
           </div>
         </div>

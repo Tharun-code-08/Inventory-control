@@ -49,7 +49,7 @@ export function SupplierDeleteConfirmPage() {
     <div className="min-h-screen bg-slate-100">
       <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="SoftdigitIMS" className="h-9 w-auto brightness-0 invert" />
+          <span className="text-sm font-bold text-white">SoftdigitIMS</span>
           <span className="text-[11px] text-slate-300">Supplier deletion confirmation</span>
         </div>
       </header>

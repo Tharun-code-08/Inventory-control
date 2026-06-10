@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="SoftdigitIMS">
-  <circle cx="16" cy="16" r="14" fill="none" stroke="#2D2BB8" stroke-width="3"/>
-  <path d="M 26 5 A 14 14 0 1 0 28.5 12" fill="none" stroke="#2D2BB8" stroke-width="3" stroke-linecap="round"/>
-  <path d="M 24 4 A 14 14 0 0 1 30 13" fill="none" stroke="white" stroke-width="4"/>
-  <circle cx="16" cy="16" r="9" fill="white" stroke="#2D2BB8" stroke-width="1.5"/>
-  <text x="16" y="20" text-anchor="middle" font-family="Manrope, system-ui, sans-serif" font-size="10" font-weight="800" fill="#2D2BB8">SD</text>
-</svg>
