@@ -30,7 +30,6 @@ import { resetClientSessionState } from '@/lib/reset-session-state';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
-import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
 import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 
@@ -278,11 +277,18 @@ export function Sidebar({
         )}
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
-          {showLabels ? (
-            <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">SoftdigitIMS</span>
-          ) : (
-            <span className="mx-auto text-xs font-bold text-slate-900 dark:text-slate-100">SD</span>
-          )}
+          <div className="flex items-center gap-2">
+            <img
+              src="/IMSlogo.svg"
+              alt="SoftdigitIMS"
+              className={cn('w-auto', showLabels ? 'h-8' : 'h-6')}
+            />
+            {showLabels ? (
+              <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                SoftdigitIMS
+              </span>
+            ) : null}
+          </div>
 
           {isMobile ? (
             <button

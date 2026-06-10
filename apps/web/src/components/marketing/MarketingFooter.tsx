@@ -43,9 +43,9 @@ export function MarketingFooter() {
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:gap-8">
           <div>
             <img
-              src="/logo.svg"
+              src="/LandingPageLogo.svg"
               alt={BRAND.companyName}
-              className="h-9 w-auto sm:h-10 lg:h-12"
+              className="h-10 w-auto sm:h-12 lg:h-14"
             />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600">{tagline}</p>
           </div>

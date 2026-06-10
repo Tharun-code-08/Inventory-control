@@ -15,9 +15,9 @@ export function MarketingHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link to="/" className="shrink-0" onClick={() => setMobileOpen(false)}>
           <img
-            src="/logo.svg"
+            src="/LandingPageLogo.svg"
             alt={BRAND.companyName}
-            className="h-9 w-auto sm:h-10 lg:h-12"
+            className="h-10 w-auto sm:h-12 lg:h-14"
           />
         </Link>
 
