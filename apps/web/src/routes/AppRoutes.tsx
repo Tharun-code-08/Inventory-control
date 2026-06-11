@@ -85,6 +85,7 @@ const PlatformSubscriptionsPage = lazyPage(
   () => import('@/pages/PlatformSubscriptionsPage'),
   'PlatformSubscriptionsPage',
 );
+const SettingsPage = lazyPage(() => import('@/pages/SettingsPage'), 'SettingsPage');
 
 function Protected({ children }: { children: React.ReactNode }) {
   const initialized = useAuthStore((s) => s.initialized);

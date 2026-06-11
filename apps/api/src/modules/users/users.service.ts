@@ -1,4 +1,4 @@
-﻿import { AuditAction, RoleName } from '@prisma/client';
+import { AuditAction, RoleName } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { MailService } from '../../common/mail/mail.service';
 import { type UserInviteEmailContent } from '../../common/mail/user-invite.template';
 import { buildUserInviteAcceptUrl } from '../../common/mail/portal-url';
@@ -135,6 +136,7 @@ export class UsersService {
 
     await this.audit.log({
       userId: actor.id,
+      companyId: assertCompanyId(actor),
       action: AuditAction.UPDATE,
       entityType: 'ROLE',
       entityId: role.id,
@@ -207,6 +209,7 @@ export class UsersService {
 
     await this.audit.log({
       userId: actor.id,
+      companyId: assertCompanyId(actor),
       action: AuditAction.CREATE,
       entityType: 'USER',
       entityId: created.id,
@@ -398,6 +401,7 @@ export class UsersService {
 
     await this.audit.log({
       userId: actor.id,
+      companyId: assertCompanyId(actor),
       action: AuditAction.UPDATE,
       entityType: 'USER',
       entityId: existing.id,
@@ -437,6 +441,7 @@ export class UsersService {
 
     await this.audit.log({
       userId: actor.id,
+      companyId: assertCompanyId(actor),
       action: AuditAction.UPDATE,
       entityType: 'USER',
       entityId: existing.id,
