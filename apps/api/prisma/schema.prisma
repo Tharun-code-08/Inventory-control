@@ -708,6 +708,7 @@ model Product {
   barcodes               ProductBarcode[]
   scanLogs               ScanLog[]
 
+  stockCountItems StockCountItem[] @relation('ProductStockCountItems')
   @@map("products")
 }
 
@@ -723,11 +724,16 @@ enum BarcodeType {
 model ProductBarcode {
   id        String   @id @default(uuid()) @db.Uuid
   productId String   @map("product_id") @db.Uuid
-  barcode   String   @unique @map("barcode")
+  barcode   String   @map("barcode")
+  companyId String?  @map("company_id") @db.Uuid
+  barcodeType BarcodeType @default(INTERNAL) @map("barcode_type")
+  isPrimary Boolean @default(false) @map("is_primary")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   product Product @relation(fields: [productId], references: [id])
+  @@unique([companyId, barcode])
+  @@map("product_barcodes")
 }
 
 
@@ -743,7 +749,7 @@ model BarcodeTemplateVersion {
   templateName String   @map("template_name")
   version      Int      @default(1) @map("version")
   jsonContent  Json     @map("json_content")
-  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   createdById  String?  @map("created_by") @db.Uuid
 
   @@unique([templateName, version])
@@ -757,8 +763,8 @@ model BarcodePrintJob {
   pdfUrl       String?  @map("pdf_url")
   status       String   @default("PENDING") @map("status")
   quantities   Json?    @map("quantities") // map of barcodeId to quantity
-  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.TimestamptZ(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   labelCount   Int      @default(0) @map("label_count")
 
   // duplicate labelCount removed
@@ -769,8 +775,8 @@ model DataRetentionConfig {
   id           String   @id @default(uuid()) @db.Uuid
   entity       String   @map("entity") // e.g., "scan_log"
   retainDays   Int      @map("retain_days") // number of days to keep
-  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.TimestamptZ(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([entity])
   @@map("data_retention_config")
@@ -861,7 +867,7 @@ model StockCountItem {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   session StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  product Product           @relation(fields: [productId], references: [id])
+  product Product           @relation('ProductStockCountItems', fields: [productId], references: [id])
 
   @@unique([sessionId, productId])
   @@index([productId])

@@ -16,9 +16,9 @@ export class UniqueBarcodeValidator implements BarcodeValidator {
 
     const existing = await this.prisma.productBarcode.findUnique({
       where: {
-        companyId_barcodeValue: {
+        companyId_barcode: {
           companyId: context.companyId,
-          barcodeValue: context.barcodeValue,
+          barcode: context.barcodeValue,
         },
       },
     });
