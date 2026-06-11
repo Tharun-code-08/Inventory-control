@@ -31,6 +31,7 @@ import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
+import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 import { BrandLogo } from '@/components/BrandLogo';
 
 type SidebarProps = {
