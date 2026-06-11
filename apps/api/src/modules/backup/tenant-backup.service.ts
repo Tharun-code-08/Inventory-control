@@ -653,7 +653,7 @@ export class TenantBackupService {
       });
     }
 
-    let processed =
+    const processed =
       (payload.shops?.length ?? 0) +
       (payload.storageLocations?.length ?? 0) +
       (payload.products?.length ?? 0) +

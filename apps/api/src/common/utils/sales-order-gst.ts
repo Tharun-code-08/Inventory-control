@@ -93,20 +93,20 @@ export function computeSalesOrderLineTotals(
 
   const subTotal = quantity.mul(unitPrice);
   const taxable = Prisma.Decimal.max(subTotal.sub(discount), new Prisma.Decimal(0));
-  const taxableNum = Number(taxable);
 
   let cgstAmount = new Prisma.Decimal(0);
   let sgstAmount = new Prisma.Decimal(0);
   let igstAmount = new Prisma.Decimal(0);
+  let taxAmount = new Prisma.Decimal(0);
 
   if (isInterStateSupply(supplyType)) {
-    igstAmount = roundMoney(new Prisma.Decimal((taxableNum * igstPercent) / 100));
+    igstAmount = roundMoney(taxable.mul(new Prisma.Decimal(igstPercent)).div(100));
+    taxAmount = igstAmount;
   } else {
-    cgstAmount = roundMoney(new Prisma.Decimal((taxableNum * cgstPercent) / 100));
-    sgstAmount = roundMoney(new Prisma.Decimal((taxableNum * sgstPercent) / 100));
+    cgstAmount = roundMoney(taxable.mul(new Prisma.Decimal(cgstPercent)).div(100));
+    sgstAmount = roundMoney(taxable.mul(new Prisma.Decimal(sgstPercent)).div(100));
+    taxAmount = roundMoney(taxable.mul(new Prisma.Decimal(cgstPercent + sgstPercent)).div(100));
   }
-
-  const taxAmount = roundMoney(cgstAmount.add(sgstAmount).add(igstAmount));
   const lineValue = roundMoney(subTotal.sub(discount).add(taxAmount));
   const combinedPercent = isInterStateSupply(supplyType)
     ? igstPercent

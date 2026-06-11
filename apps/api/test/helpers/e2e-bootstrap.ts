@@ -10,7 +10,7 @@ import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/respo
 export const E2E_DB_ENABLED = Boolean(process.env.DATABASE_URL);
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __E2E_SHARED_APP__: INestApplication | undefined;
 }
 
