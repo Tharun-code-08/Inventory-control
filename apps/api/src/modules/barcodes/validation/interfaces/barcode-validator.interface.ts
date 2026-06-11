@@ -1,3 +1,5 @@
+import { BarcodeValidationContext } from '../barcode-validation-context.interface';
+
 export interface BarcodeValidator {
   /**
    * Validate a barcode operation based on the provided context.
