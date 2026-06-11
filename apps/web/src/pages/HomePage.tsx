@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { BRAND } from '@/lib/brand';
 import { BrandLogo } from '@/components/BrandLogo';
 import { PricingSection } from '@/components/PricingSection';
 import { MarketingBadgeStrip } from '@/components/marketing/MarketingBadgeStrip';
