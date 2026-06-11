@@ -33,7 +33,7 @@ export default function AppLayout() {
           <Drawer.Screen name="suppliers" options={{ drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="customers" options={{ drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="reports" options={{ drawerItemStyle: { display: 'none' } }} />
-          <Drawer.Screen name="settings" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="barcode-print" options={{ title: 'Print Labels' }} />
           <Drawer.Screen name="search" options={{ drawerItemStyle: { display: 'none' } }} />
         </Drawer>
       </ErrorBoundary>

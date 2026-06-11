@@ -720,25 +720,51 @@ enum BarcodeType {
   INTERNAL
 }
 
-model ProductBarcode {
-  id           String      @id @default(uuid()) @db.Uuid
-  productId    String      @map("product_id") @db.Uuid
-  companyId    String      @map("company_id") @db.Uuid
-  barcodeValue String      @map("barcode_value")
-  barcodeType  BarcodeType @default(CODE128) @map("barcode_type")
-  isPrimary     Boolean     @default(false) @map("is_primary")
-  scanCount     Int         @default(0) @map("scan_count")
-  lastScannedAt DateTime?   @map("last_scanned_at") @db.Timestamptz(6)
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdById   String?     @map("created_by") @db.Uuid
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, barcodeValue])
-  @@index([barcodeValue])
-  @@index([productId])
-  @@map("product_barcodes")
+enum LifecycleStatus {
+  ACTIVE
+  INACTIVE
+  OBSOLETE
+  REPLACED
 }
+
+model BarcodeTemplateVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  templateName String   @map("template_name")
+  version      Int      @default(1) @map("version")
+  jsonContent  Json     @map("json_content")
+  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  @@unique([templateName, version])
+  @@map("barcode_template_versions")
+}
+
+model BarcodePrintJob {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  templateId   String   @map("template_id") @db.Uuid
+  pdfUrl       String?  @map("pdf_url")
+  status       String   @default("PENDING") @map("status")
+  quantities   Json?    @map("quantities") // map of barcodeId to quantity
+  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.TimestamptZ(6)
+  labelCount   Int      @default(0) @map("label_count")
+
+  labelCount   Int      @default(0) @map("label_count")
+  @@map("barcode_print_jobs")
+}
+
+model DataRetentionConfig {
+  id           String   @id @default(uuid()) @db.Uuid
+  entity       String   @map("entity") // e.g., "scan_log"
+  retainDays   Int      @map("retain_days") // number of days to keep
+  createdAt    DateTime @default(now()) @map("created_at") @db.TimestamptZ(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.TimestamptZ(6)
+
+  @@unique([entity])
+  @@map("data_retention_config")
+}
+
 
 enum ScanAction {
   LOOKUP
@@ -1374,6 +1400,7 @@ model CostLayer {
 
 model AuditLog {
   id         String      @id @default(uuid()) @db.Uuid
+  companyId  String      @map("company_id") @db.Uuid
   userId     String      @map("user_id") @db.Uuid
   action     AuditAction
   entityType String      @map("entity_type")
@@ -2298,7 +2325,10 @@ model BackupJob {
   errorMessage String?         @map("error_message")
   startedAt    DateTime?       @map("started_at") @db.Timestamptz(6)
   completedAt  DateTime?       @map("completed_at") @db.Timestamptz(6)
-  createdById  String?         @map("created_by") @db.Uuid
+  createdById   String?     @map("created_by") @db.Uuid
+  lifecycleStatus LifecycleStatus @default(ACTIVE) @map("lifecycle_status")
+  deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  deletedBy   String?     @map("deleted_by") @db.Uuid
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)

@@ -25,7 +25,7 @@ const GoodsIssueCreatePage = lazyPage(
 );
 const PurchaseOrdersPage = lazyPage(() => import('@/pages/PurchaseOrdersPage'), 'PurchaseOrdersPage');
 const ReportsPage = lazyPage(() => import('@/pages/ReportsPage'), 'ReportsPage');
-const SettingsPage = lazyPage(() => import('@/pages/SettingsPage'), 'SettingsPage');
+const BarcodePrintPage = lazyPage(() => import('@/pages/BarcodePrintPage'), 'BarcodePrintPage');
 const CompaniesPage = lazyPage(() => import('@/pages/CompaniesPage'), 'CompaniesPage');
 const PlantsPage = lazyPage(() => import('@/pages/PlantsPage'), 'PlantsPage');
 const StorageLocationsPage = lazyPage(

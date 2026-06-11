@@ -19,7 +19,7 @@ import {
   Settings,
   ShoppingCart,
   Sparkles,
-  Truck,
+  Barcode,
   Undo2,
   Users,
   Warehouse,
@@ -135,6 +135,7 @@ export function Sidebar({
       ...(isPlatformAdmin
         ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }]
         : []),
+      { label: 'Print Labels', icon: Barcode, path: '/barcode-print' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ];
   }, [perms, isOrgAdmin, isPlatformAdmin]);

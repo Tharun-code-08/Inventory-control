@@ -24,6 +24,7 @@
     "@tanstack/react-query-persist-client": "^5.101.0",
     "axios": "^1.8.3",
     "babel-preset-expo": "~54.0.10",
+    "bwip-js": "^4.11.1",
     "expo": "^54.0.0",
     "expo-asset": "~12.0.13",
     "expo-constants": "~18.0.13",
