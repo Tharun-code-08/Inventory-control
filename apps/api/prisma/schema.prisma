@@ -729,13 +729,7 @@ model ProductBarcode {
 
   product Product @relation(fields: [productId], references: [id])
 }
-  EAN13
-  UPC_A
-  CODE128
-  CODE39
-  QR
-  INTERNAL
-}
+
 
 enum LifecycleStatus {
   ACTIVE
