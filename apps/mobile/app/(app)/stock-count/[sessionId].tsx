@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getSessionDetails, addScannedItem, CountLineItem } from '@/src/api/stockCount';
+import { getSessionDetails, addScannedItem, CountLineItem } from '@/api/stockCount';
 import { colors } from '@/theme';
-import { QuantityStepper } from '@/src/components/QuantityStepper';
-import { useStockCountStore } from '@/src/store/stockCountStore';
+import { QuantityStepper } from '@/components/QuantityStepper';
+import { useStockCountStore } from '@/store/stockCountStore';
 
 export default function SessionScan() {
   const router = useRouter();
@@ -67,7 +67,7 @@ export default function SessionScan() {
   );
 
   const goToReview = () => {
-    router.push({ pathname: `/stock-count/${sessionId}/review` });
+    router.push({ pathname: '/stock-count/[sessionId]/review', params: { sessionId: sessionId! } });
   };
 
   return (
@@ -114,17 +114,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
   },
   barcode: {
-    color: '#fff',
-    fontFamily: 'Inter',
+    color: colors.text,
   },
   scanBtn: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -151,7 +152,6 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     marginTop: 40,
-    color: '#aaa',
-    fontFamily: 'Inter',
+    color: colors.muted,
   },
 });

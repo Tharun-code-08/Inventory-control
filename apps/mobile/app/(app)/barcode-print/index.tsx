@@ -1,137 +1,182 @@
-// app/(app)/barcode-print/index.tsx
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { generateBarcode } from '@/src/lib/barcodeGenerator';
+import { useMemo, useState } from 'react';
+import { FlatList, Image, RefreshControl, StyleSheet, View } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { colors } from '@/theme';
+import * as FileSystem from 'expo-file-system/legacy';
+import { PermissionGate } from '@/components/PermissionGate';
+import { useProducts, type Product } from '@/hooks/use-products';
+import { useAuthStore } from '@/store/authStore';
+import { defaultShopId } from '@/lib/shop-scope';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { useDebounce } from '@/hooks/use-debounce';
+import { generateBarcode } from '@/lib/barcodeGenerator';
+import { Button, Card, EmptyState, Input, Muted, Screen, Title } from '@/components/ui';
+import { colors, spacing } from '@/theme';
 
-// Sample data – in a real app this would come from your inventory API
-const SAMPLE_ITEMS = [
-  { id: '1', name: 'Item A', sku: 'SKU001' },
-  { id: '2', name: 'Item B', sku: 'SKU002' },
-  { id: '3', name: 'Item C', sku: 'SKU003' },
-];
+type PendingAction = { productId: string; action: 'print' | 'share' } | null;
+
+function labelHtml(product: Product, dataUrl: string) {
+  return `<html><body style="margin:0;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:sans-serif;">
+    <div style="font-size:14px;margin-bottom:8px;">${product.description}</div>
+    <img src="${dataUrl}" style="width:100%;max-width:300px;"/>
+  </body></html>`;
+}
 
 export default function BarcodePrintScreen() {
-  const router = useRouter();
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const shopId = defaultShopId(user);
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
+  const [pending, setPending] = useState<PendingAction>(null);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handlePrint = async (item: typeof SAMPLE_ITEMS[0]) => {
+  const filters = useMemo(
+    () => ({
+      search: debouncedSearch.trim() || undefined,
+      shopId: shopId || undefined,
+      isActive: true,
+      limit: 50,
+      page: 1,
+    }),
+    [debouncedSearch, shopId],
+  );
+  const query = useProducts(filters);
+  const items = query.data?.items ?? [];
+
+  const getBarcode = async (product: Product) => {
+    const cached = previews[product.id];
+    if (cached) return cached;
+    const dataUrl = await generateBarcode(product.productCode, 'code128');
+    setPreviews((prev) => ({ ...prev, [product.id]: dataUrl }));
+    return dataUrl;
+  };
+
+  const handlePrint = async (product: Product) => {
+    setActionError(null);
+    setPending({ productId: product.id, action: 'print' });
     try {
-      setLoadingId(item.id);
-      const dataUrl = await generateBarcode(item.sku, 'code128');
-      // Print as HTML with the barcode image
-      await Print.printAsync({
-        html: `<html><body style="margin:0;padding:0;display:flex;align-items:center;justify-content:center;background:#fff;"><img src="${dataUrl}" style="width:100%;max-width:300px;"/></body></html>`,
-      });
+      const dataUrl = await getBarcode(product);
+      await Print.printAsync({ html: labelHtml(product, dataUrl) });
     } catch (e) {
-      console.error('Print error', e);
+      setActionError(getApiErrorMessage(e, 'Could not print the label.'));
     } finally {
-      setLoadingId(null);
+      setPending(null);
     }
   };
 
-  const handleShare = async (item: typeof SAMPLE_ITEMS[0]) => {
+  const handleShare = async (product: Product) => {
+    setActionError(null);
+    setPending({ productId: product.id, action: 'share' });
     try {
-      setLoadingId(item.id);
-      const dataUrl = await generateBarcode(item.sku, 'code128');
-      // Convert base64 URI to a temporary file for sharing
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device');
+      }
+      const dataUrl = await getBarcode(product);
       const base64 = dataUrl.split('base64,')[1];
-      const filename = `${item.sku}.png`;
-      const uri = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-      await Sharing.shareAsync(uri);
+      const uri = `${FileSystem.cacheDirectory}barcode-${product.productCode}.png`;
+      await FileSystem.writeAsStringAsync(uri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png' });
     } catch (e) {
-      console.error('Share error', e);
+      setActionError(getApiErrorMessage(e, 'Could not share the label.'));
     } finally {
-      setLoadingId(null);
+      setPending(null);
     }
   };
 
-  const renderItem = ({ item }: { item: typeof SAMPLE_ITEMS[0] }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemText}>{item.name} ({item.sku})</Text>
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.button} onPress={() => handlePrint(item)} disabled={!!loadingId}>
-          {loadingId === item.id ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Print</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, styles.shareButton]} onPress={() => handleShare(item)} disabled={!!loadingId}>
-          {loadingId === item.id ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Share</Text>}
-        </TouchableOpacity>
-      </View>
-    </View>
+  const listHeader = (
+    <>
+      <Title>Print Labels</Title>
+      <Muted style={styles.hint}>Generate Code 128 labels from product codes.</Muted>
+      <Input
+        placeholder="Search code or description"
+        value={search}
+        onChangeText={setSearch}
+      />
+      {query.isError ? (
+        <Muted style={styles.error}>{getApiErrorMessage(query.error, 'Could not load products.')}</Muted>
+      ) : null}
+      {actionError ? <Muted style={styles.error}>{actionError}</Muted> : null}
+    </>
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Barcode Label Printing</Text>
-      <FlatList data={SAMPLE_ITEMS} renderItem={renderItem} keyExtractor={item => item.id} contentContainerStyle={styles.list} />
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-    </View>
+    <PermissionGate permission="product:read">
+      <Screen style={styles.screen}>
+        <FlatList
+          style={styles.list}
+          data={items}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />
+          }
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            <EmptyState
+              icon="barcode-outline"
+              message={
+                query.isLoading
+                  ? 'Loading…'
+                  : query.isError
+                    ? 'Products could not be loaded.'
+                    : 'No products found.'
+              }
+            />
+          }
+          renderItem={({ item }) => (
+            <Card>
+              <Title>{item.productCode}</Title>
+              <Muted>{item.description}</Muted>
+              {previews[item.id] ? (
+                <Image
+                  source={{ uri: previews[item.id] }}
+                  style={styles.preview}
+                  resizeMode="contain"
+                />
+              ) : null}
+              <View style={styles.actions}>
+                <View style={styles.actionButton}>
+                  <Button
+                    label="Print"
+                    onPress={() => handlePrint(item)}
+                    disabled={!!pending}
+                    loading={pending?.productId === item.id && pending.action === 'print'}
+                  />
+                </View>
+                <View style={styles.actionButton}>
+                  <Button
+                    label="Share"
+                    variant="secondary"
+                    onPress={() => handleShare(item)}
+                    disabled={!!pending}
+                    loading={pending?.productId === item.id && pending.action === 'share'}
+                  />
+                </View>
+              </View>
+            </Card>
+          )}
+        />
+      </Screen>
+    </PermissionGate>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 12,
-    fontFamily: 'Inter',
-  },
-  list: {
-    paddingBottom: 80,
-  },
-  itemContainer: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-    flexDirection: 'column',
-  },
-  itemText: {
-    color: '#fff',
-    fontSize: 16,
-    marginBottom: 8,
-    fontFamily: 'Inter',
+  screen: { paddingBottom: 0 },
+  list: { flex: 1 },
+  hint: { marginBottom: spacing.md },
+  error: { color: colors.danger, marginBottom: spacing.md },
+  preview: {
+    width: '100%',
+    height: 96,
+    marginTop: spacing.sm,
+    backgroundColor: '#fff',
   },
   actions: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 8,
+    gap: spacing.md,
   },
-  button: {
-    backgroundColor: colors.accent,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  shareButton: {
-    backgroundColor: colors.success,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: 'Inter',
-  },
-  backButton: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-  },
-  backText: {
-    color: colors.accent,
-    fontSize: 16,
-    fontFamily: 'Inter',
-  },
+  actionButton: { flex: 1 },
 });

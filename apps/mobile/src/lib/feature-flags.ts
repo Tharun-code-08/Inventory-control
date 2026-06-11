@@ -6,6 +6,7 @@ export const features = {
   mobileSuppliers: true,
   mobileCustomers: true,
   mobileReports: true,
+  mobileBarcodePrint: true,
   mobilePdfExport: true,
   mobileGlobalSearch: true,
   mobileOfflineCache: true,

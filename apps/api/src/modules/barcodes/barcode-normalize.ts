@@ -1,6 +1,8 @@
 const MAX_BARCODE_LENGTH = 255;
 
+// Control characters are matched intentionally: scanners emit them as framing.
 const CONTROL_AND_ZERO_WIDTH = new RegExp(
+  // eslint-disable-next-line no-control-regex
   '[\\u0000-\\u001f\\u007f\\u200b-\\u200d\\ufeff]',
   'g',
 );

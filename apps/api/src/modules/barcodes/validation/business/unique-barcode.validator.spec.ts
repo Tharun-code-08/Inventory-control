@@ -6,7 +6,6 @@ import { BarcodeValidationContext, BarcodeOperation } from '../barcode-validatio
 
 describe('UniqueBarcodeValidator', () => {
   let validator: UniqueBarcodeValidator;
-  let prisma: PrismaService;
 
   const mockPrisma = {
     productBarcode: {
@@ -23,7 +22,6 @@ describe('UniqueBarcodeValidator', () => {
     mockPrisma.productBarcode.findUnique.mockReset();
     // Retrieve the validator instance from the testing module
     validator = module.get<UniqueBarcodeValidator>(UniqueBarcodeValidator);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   it('passes when no existing barcode on CREATE', async () => {

@@ -1,29 +1,9 @@
 // app/(app)/stock-count/index.tsx
-import { FloatingActionButton } from '@/src/components/FloatingActionButton';
-import { createSession } from '@/src/api/stockCount';
-
-  const handleNewSession = async () => {
-    try {
-      const newSession = await createSession();
-      router.push({ pathname: `/stock-count/${newSession.id}` });
-    } catch (e) {
-      console.error('Failed to create session', e);
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Stock Count</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} />
-      ) : (
-        <FlatList
-          data={sessions}
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { FloatingActionButton } from '@/src/components/FloatingActionButton';
-import { createSession, fetchSessions, CountSession } from '@/src/api/stockCount';
+import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { createSession, fetchSessions, CountSession } from '@/api/stockCount';
 import { colors } from '@/theme';
 
 export default function StockCountHome() {
@@ -48,7 +28,7 @@ export default function StockCountHome() {
   const handleNewSession = async () => {
     try {
       const newSession = await createSession();
-      router.push({ pathname: `/stock-count/${newSession.id}` });
+      router.push({ pathname: '/stock-count/[sessionId]', params: { sessionId: newSession.id } });
     } catch (e) {
       console.error('Failed to create session', e);
     }
@@ -57,7 +37,7 @@ export default function StockCountHome() {
   const renderItem = ({ item }: { item: CountSession }) => (
     <TouchableOpacity 
       style={styles.card} 
-      onPress={() => router.push({ pathname: `/stock-count/${item.id}` })}
+      onPress={() => router.push({ pathname: '/stock-count/[sessionId]', params: { sessionId: item.id } })}
     >
       <Text style={styles.title}>Session {item.id}</Text>
       <Text style={styles.subtitle}>Created: {new Date(item.createdAt).toLocaleString()}</Text>
@@ -102,39 +82,32 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    // Glass‑morphism effect
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
-    fontFamily: 'Inter',
+    color: colors.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#ddd',
+    color: colors.muted,
     marginTop: 4,
-    fontFamily: 'Inter',
   },
   status: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: '500',
-    color: '#aaffaa',
-    fontFamily: 'Inter',
+    color: colors.success,
   },
   empty: {
     textAlign: 'center',
     marginTop: 40,
-    color: '#aaa',
-    fontFamily: 'Inter',
+    color: colors.muted,
   },
 });

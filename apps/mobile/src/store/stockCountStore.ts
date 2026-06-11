@@ -1,6 +1,6 @@
 // src/store/stockCountStore.ts
-import create from 'zustand';
-import { CountLineItem } from '@/src/api/stockCount';
+import { create } from 'zustand';
+import { CountLineItem } from '@/api/stockCount';
 
 interface StockCountState {
   sessionId: string | null;

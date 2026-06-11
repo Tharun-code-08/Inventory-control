@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { calculateVariance, postAdjustment, VarianceResult } from '@/src/api/stockCount';
+import { calculateVariance, postAdjustment, VarianceResult } from '@/api/stockCount';
 import { colors } from '@/theme';
 
 export default function VarianceReview() {
@@ -36,7 +36,7 @@ export default function VarianceReview() {
       await postAdjustment(sessionId);
       Alert.alert('Success', 'Adjustment posted');
       // Navigate to the result screen for this session
-      router.replace({ pathname: `/stock-count/${sessionId}/result` });
+      router.replace({ pathname: '/stock-count/[sessionId]/result', params: { sessionId } });
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to post adjustment');
@@ -45,7 +45,7 @@ export default function VarianceReview() {
 
 
   const renderItem = ({ item }: { item: VarianceResult }) => {
-    const varianceColor = item.variance === 0 ? colors.success : item.variance < 0 ? colors.error : colors.success;
+    const varianceColor = item.variance === 0 ? colors.success : item.variance < 0 ? colors.danger : colors.warning;
     return (
       <View style={styles.row}>
         <Text style={styles.productId}>{item.productId}</Text>
@@ -108,34 +108,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.2)',
+    borderBottomColor: colors.border,
   },
   headerCell: {
     flex: 1,
     fontWeight: '600',
-    color: '#fff',
-    fontFamily: 'Inter',
+    color: colors.text,
     textAlign: 'center',
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
   },
   productId: {
     flex: 1,
-    color: '#fff',
-    fontFamily: 'Inter',
+    color: colors.text,
     textAlign: 'center',
   },
   cell: {
     flex: 1,
-    color: '#fff',
-    fontFamily: 'Inter',
+    color: colors.text,
     textAlign: 'center',
   },
   approveBtn: {
@@ -153,7 +152,6 @@ const styles = StyleSheet.create({
   empty: {
     textAlign: 'center',
     marginTop: 40,
-    color: '#aaa',
-    fontFamily: 'Inter',
+    color: colors.muted,
   },
 });

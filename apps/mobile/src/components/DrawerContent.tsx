@@ -43,6 +43,7 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
     title: 'Operations',
     items: [
       { label: 'Reports', icon: 'bar-chart-outline', route: '/reports', permission: 'report:view', feature: 'mobileReports' },
+      { label: 'Print Labels', icon: 'barcode-outline', route: '/barcode-print', permission: 'product:read', feature: 'mobileBarcodePrint' },
       { label: 'Settings', icon: 'settings-outline', route: '/settings' },
     ],
   },

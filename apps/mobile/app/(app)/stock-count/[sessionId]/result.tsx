@@ -40,13 +40,13 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     textAlign: 'center',
     marginBottom: 24,
     fontFamily: 'Inter',
   },
   button: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,

@@ -28,15 +28,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   inner: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    // Glass‑morphism effect
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    backdropFilter: 'blur(8px)', // works on web, ignored on native
   },
   label: {
     color: '#fff',

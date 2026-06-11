@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { BarcodeValidationContext, BarcodeOperation } from './barcode-validation-context.interface';
+import { BarcodeValidationContext } from './barcode-validation-context.interface';
 import { BarcodeValidator } from './interfaces/barcode-validator.interface';
 import { BarcodeType } from '@prisma/client';
 

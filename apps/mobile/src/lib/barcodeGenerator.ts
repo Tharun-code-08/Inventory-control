@@ -1,5 +1,4 @@
-// src/lib/barcodeGenerator.ts
-import bwipjs from 'bwip-js';
+import { toDataURL } from 'bwip-js/react-native';
 
 /**
  * Generate a base64 PNG image for a barcode or QR code.
@@ -9,25 +8,15 @@ import bwipjs from 'bwip-js';
  */
 export const generateBarcode = async (
   text: string,
-  format: 'code128' | 'qrcode'
+  format: 'code128' | 'qrcode' = 'code128'
 ): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    bwipjs.toBuffer(
-      {
-        bcid: format, // Barcode identifier
-        text,
-        scale: 3,
-        height: format === 'code128' ? 10 : undefined,
-        includetext: true,
-        textxalign: 'center',
-      },
-      (err, png) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(`data:image/png;base64,${png.toString('base64')}`);
-        }
-      }
-    );
+  const result = await toDataURL({
+    bcid: format,
+    text,
+    scale: 3,
+    height: format === 'code128' ? 10 : undefined,
+    includetext: true,
+    textxalign: 'center',
   });
+  return result.uri;
 };
