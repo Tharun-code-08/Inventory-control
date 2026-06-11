@@ -33,6 +33,7 @@ export type GoodsIssueFilters = {
 export type CreateGoodsIssuePayload = {
   giDate: string;
   shopId: string;
+  issueType: string;
   issueReason: string;
   remarks?: string;
   items: Array<{ productId: string; quantity: number; uom: string }>;

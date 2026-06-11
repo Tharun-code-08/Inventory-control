@@ -1,85 +1,42 @@
-import { Redirect, Tabs, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Alert } from 'react-native';
+import { Redirect } from 'expo-router';
+import { Drawer } from 'expo-router/drawer';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '@/store/authStore';
-import { hasPermission } from '@/lib/permissions';
-import { logoutSession } from '@/lib/session';
-import { colors } from '@/components/ui';
+import { DrawerContent } from '@/components/DrawerContent';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { colors } from '@/theme';
 
 export default function AppLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
 
   if (!accessToken) {
     return <Redirect href="/(auth)/login" />;
   }
 
-  const showProducts = hasPermission(user, 'product:read');
-  const showGi = hasPermission(user, 'goods_issue:read');
-  const showAlerts = hasPermission(user, 'report:view');
-
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.card },
-        headerTintColor: colors.text,
-        tabBarActiveTintColor: colors.primary,
-        headerRight: () => (
-          <Pressable
-            onPress={() => {
-              Alert.alert('Sign out', 'Leave this session?', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Sign out',
-                  style: 'destructive',
-                  onPress: async () => {
-                    await logoutSession();
-                    router.replace('/(auth)/login');
-                  },
-                },
-              ]);
-            }}
-            style={{ marginRight: 12 }}
-          >
-            <Ionicons name="log-out-outline" size={22} color={colors.muted} />
-          </Pressable>
-        ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="products"
-        options={{
-          title: 'Products',
-          href: showProducts ? '/products' : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="goods-issues"
-        options={{
-          title: 'Issues',
-          href: showGi ? '/goods-issues' : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="exit-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="alerts"
-        options={{
-          title: 'Alerts',
-          href: showAlerts ? '/alerts' : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen name="products/[id]" options={{ href: null, title: 'Product' }} />
-      <Tabs.Screen name="goods-issues/new" options={{ href: null, title: 'New issue' }} />
-      <Tabs.Screen name="goods-issues/[id]" options={{ href: null, title: 'Goods issue' }} />
-    </Tabs>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <Drawer
+          drawerContent={(props) => (
+            <DrawerContent onClose={() => props.navigation.closeDrawer()} />
+          )}
+          screenOptions={{
+            headerShown: false,
+            drawerStyle: { width: 280, backgroundColor: colors.bg },
+          }}
+        >
+          <Drawer.Screen name="(tabs)" options={{ title: 'Home' }} />
+          <Drawer.Screen name="purchase-orders" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="goods-receipts" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="sales-orders" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="invoices" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="suppliers" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="customers" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="reports" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="settings" options={{ drawerItemStyle: { display: 'none' } }} />
+          <Drawer.Screen name="search" options={{ drawerItemStyle: { display: 'none' } }} />
+        </Drawer>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

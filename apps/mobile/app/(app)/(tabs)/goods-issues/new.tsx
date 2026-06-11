@@ -81,6 +81,7 @@ export default function NewGoodsIssueScreen() {
       const gi = await createGi.mutateAsync({
         giDate: todayISO(),
         shopId,
+        issueType: issueReason,
         issueReason,
         remarks: remarks.trim() || undefined,
         items,

@@ -12,19 +12,10 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors as themeColors } from '@/theme';
 
-export const colors = {
-  primary: '#4f46e5',
-  primaryDark: '#4338ca',
-  bg: '#f8fafc',
-  card: '#ffffff',
-  text: '#0f172a',
-  muted: '#64748b',
-  border: '#e2e8f0',
-  danger: '#dc2626',
-  success: '#16a34a',
-  warning: '#d97706',
-};
+export const colors = themeColors;
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   return (
@@ -95,13 +86,16 @@ export const Input = forwardRef<TextInput, TextInputProps>(function Input(props,
   return <TextInput ref={ref} {...props} style={[styles.input, props.style]} placeholderTextColor={colors.muted} />;
 });
 
-export function Badge({ label, tone = 'default' }: { label: string; tone?: 'default' | 'success' | 'warning' }) {
+export function Badge({ label, tone = 'default' }: { label: string; tone?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'primary' }) {
   return (
     <View
       style={[
         styles.badge,
         tone === 'success' && styles.badgeSuccess,
         tone === 'warning' && styles.badgeWarning,
+        tone === 'danger' && styles.badgeDanger,
+        tone === 'info' && styles.badgeInfo,
+        tone === 'primary' && styles.badgePrimary,
       ]}
     >
       <Text style={styles.badgeText}>{label}</Text>
@@ -109,9 +103,10 @@ export function Badge({ label, tone = 'default' }: { label: string; tone?: 'defa
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({ message, icon }: { message: string; icon?: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.empty}>
+      {icon ? <Ionicons name={icon} size={40} color={colors.muted} style={{ marginBottom: 8 }} /> : null}
       <Muted>{message}</Muted>
     </View>
   );
@@ -207,8 +202,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  badgeSuccess: { backgroundColor: '#dcfce7' },
-  badgeWarning: { backgroundColor: '#fef3c7' },
+  badgeSuccess: { backgroundColor: colors.successLight },
+  badgeWarning: { backgroundColor: colors.warningLight },
+  badgeDanger: { backgroundColor: colors.dangerLight },
+  badgeInfo: { backgroundColor: colors.infoLight },
+  badgePrimary: { backgroundColor: colors.primaryLight },
   badgeText: { fontSize: 12, fontWeight: '600', color: colors.text },
   empty: { padding: 24, alignItems: 'center' },
   kpi: {

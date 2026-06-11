@@ -1,6 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 
-const config: ExpoConfig = {
+// usesCleartextTraffic isn't in the ExpoConfig type but is supported at runtime
+const config = {
   name: 'SoftdigitIMS',
   slug: 'retail-ims-mobile',
   version: '0.0.1',
@@ -20,7 +21,13 @@ const config: ExpoConfig = {
       backgroundColor: '#4f46e5',
     },
   },
-  plugins: ['expo-router', 'expo-secure-store', 'expo-asset', 'expo-font'],
+  plugins: [
+    'expo-router',
+    'expo-secure-store',
+    'expo-asset',
+    'expo-font',
+    'expo-file-system',
+  ],
   experiments: {
     typedRoutes: true,
   },
@@ -29,4 +36,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default config as ExpoConfig;
