@@ -720,6 +720,23 @@ enum BarcodeType {
   INTERNAL
 }
 
+model ProductBarcode {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  barcode   String   @unique @map("barcode")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id])
+}
+  EAN13
+  UPC_A
+  CODE128
+  CODE39
+  QR
+  INTERNAL
+}
+
 enum LifecycleStatus {
   ACTIVE
   INACTIVE
@@ -750,7 +767,7 @@ model BarcodePrintJob {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.TimestamptZ(6)
   labelCount   Int      @default(0) @map("label_count")
 
-  labelCount   Int      @default(0) @map("label_count")
+  // duplicate labelCount removed
   @@map("barcode_print_jobs")
 }
 
