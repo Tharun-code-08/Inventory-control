@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Alert } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { Button, Input, Screen, Title, Muted, colors } from '@/components/ui';
+import { Button, Input, Screen, Muted, colors } from '@/components/ui';
+import { AppLogo } from '@/components/AppLogo';
 import { getApiOrigin, testApiConnection } from '@/api/client';
 import { loginWithCredentials } from '@/lib/session';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { spacing } from '@/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -43,8 +45,10 @@ export default function LoginScreen() {
     <Screen style={{ justifyContent: 'center' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Title>SoftdigitIMS</Title>
-          <Muted>Warehouse mobile — sign in with your account</Muted>
+          <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
+            <AppLogo height={56} />
+          </View>
+          <Muted style={{ textAlign: 'center', marginBottom: spacing.lg }}>Sign in with your account</Muted>
           <Input
             autoCapitalize="none"
             autoComplete="email"

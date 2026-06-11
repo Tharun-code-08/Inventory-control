@@ -1,25 +1,65 @@
-import { RefreshControl, ScrollView, View, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+import { RefreshControl, ScrollView, View, Pressable, Text, StyleSheet } from 'react-native';
+import { Link, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useDashboard } from '@/hooks/use-dashboard';
+import { hasPermission } from '@/lib/permissions';
 import { PermissionGate } from '@/components/PermissionGate';
-import { Card, EmptyState, KpiTile, ListRow, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
+import { AppIcon } from '@/components/AppIcon';
+import { Card, EmptyState, KpiTile, ListRow, Muted, Screen, Subtitle, Title } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
+import { colors, spacing, typography } from '@/theme';
+import { shadows } from '@/theme/shadows';
+
+type QuickAction = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route: string;
+  permission: string;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { label: 'New GI', icon: 'add-circle-outline', route: '/(app)/(tabs)/goods-issues/new', permission: 'goods_issue:create' },
+  { label: 'View POs', icon: 'document-text-outline', route: '/(app)/purchase-orders', permission: 'purchase_order:read' },
+  { label: 'View GRs', icon: 'enter-outline', route: '/(app)/goods-receipts', permission: 'goods_receipt:read' },
+];
 
 export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const query = useDashboard();
+
+  const visibleActions = QUICK_ACTIONS.filter((a) => hasPermission(user, a.permission));
 
   return (
     <Screen>
       <ScrollView
         refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
       >
-        <Title>Hello, {user?.name?.split(' ')[0] ?? 'there'}</Title>
-        <Muted>{user?.shop?.shopName ?? user?.role ?? 'Warehouse'}</Muted>
+        <View style={styles.header}>
+          <AppIcon size={36} />
+          <View style={styles.headerText}>
+            <Title>Hello, {user?.name?.split(' ')[0] ?? 'there'}</Title>
+            <Muted>{user?.shop?.shopName ?? user?.role ?? 'Warehouse'}</Muted>
+          </View>
+        </View>
+
+        {visibleActions.length > 0 ? (
+          <View style={styles.quickActions}>
+            {visibleActions.map((action) => (
+              <Pressable
+                key={action.route}
+                style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+                onPress={() => router.push(action.route as any)}
+              >
+                <Ionicons name={action.icon} size={22} color={colors.primary} />
+                <Text style={styles.quickActionLabel}>{action.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {query.isError ? (
-          <EmptyState message="Could not load dashboard. Pull down to retry." />
+          <EmptyState message="Could not load dashboard. Pull down to retry." icon="cloud-offline-outline" />
         ) : query.isLoading ? (
           <EmptyState message="Loading dashboard…" />
         ) : (
@@ -74,5 +114,38 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  kpiRow: { flexDirection: 'row', gap: 12, marginVertical: 12 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.base,
+  },
+  headerText: { flex: 1 },
+  quickActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+    ...shadows.sm,
+  },
+  quickActionPressed: {
+    backgroundColor: colors.borderLight,
+  },
+  quickActionLabel: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.medium as '500',
+    color: colors.text,
+  },
+  kpiRow: { flexDirection: 'row', gap: spacing.md, marginVertical: spacing.md },
 });
