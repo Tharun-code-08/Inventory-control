@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
+import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { PrismaService } from '../../prisma/prisma.service';
 import { redactSensitive } from '../../common/utils/redact';
 
@@ -13,11 +15,20 @@ export type AuditLogParams = {
   newValues?: Prisma.InputJsonValue;
   ipAddress?: string | null;
   userAgent?: string | null;
-};
+};;
 
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Convenience method for tenant‑scoped audit logs. It extracts `companyId`
+   * from the provided `actor` and forwards to `log`. Throws if missing.
+   */
+  async logTenant(actor: RequestUser, params: Omit<AuditLogParams, 'companyId'>, tx?: Prisma.TransactionClient) {
+    const companyId = assertCompanyId(actor);
+    return this.log({ ...params, companyId, userId: actor.id }, tx);
+  }
 
   /**
    * Write an audit row for tenant‑scoped events (requires companyId).
@@ -32,7 +43,7 @@ export class AuditService {
     // here would defeat the purpose of bcrypt + cookie hardening.
     await client.auditLog.create({
       data: {
-        companyId: params.companyId,
+        ...(params.companyId ? { companyId: params.companyId } : {}),
         userId: params.userId,
         action: params.action,
         entityType: params.entityType,

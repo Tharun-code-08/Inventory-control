@@ -10,6 +10,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Truck,
   Star,
   Trash2,
 } from 'lucide-react';
