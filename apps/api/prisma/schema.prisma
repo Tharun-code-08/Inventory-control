@@ -708,7 +708,7 @@ model Product {
   barcodes               ProductBarcode[]
   scanLogs               ScanLog[]
 
-  stockCountItems StockCountItem[] @relation('ProductStockCountItems')
+  stockCountItems StockCountItem[] @relation("ProductStockCountItems")
   @@map("products")
 }
 
@@ -867,7 +867,7 @@ model StockCountItem {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   session StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  product Product           @relation('ProductStockCountItems', fields: [productId], references: [id])
+  product Product           @relation("ProductStockCountItems", fields: [productId], references: [id])
 
   @@unique([sessionId, productId])
   @@index([productId])
