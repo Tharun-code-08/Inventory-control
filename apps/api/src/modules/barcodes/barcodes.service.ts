@@ -84,7 +84,7 @@ export class BarcodesService {
     const duplicate = this.isDuplicateFire(user.id, code);
 
     const barcode = await this.prisma.productBarcode.findUnique({
-      where: { companyId_barcodeValue: { companyId, barcodeValue: code } },
+      where: { companyId_barcode: { companyId, barcode: code } },
       include: { product: { select: LOOKUP_PRODUCT_SELECT } },
     });
 
@@ -163,7 +163,7 @@ export class BarcodesService {
           data: {
             productId,
             companyId,
-            barcodeValue: value,
+            barcode: value,
             barcodeType: dto.barcodeType ?? BarcodeType.CODE128,
             isPrimary: dto.isPrimary ?? false,
             createdById: user.id,
