@@ -20,7 +20,8 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Write an audit row. Pass an active `tx` (Prisma transaction client) when called
+   * Write an audit row for tenant‑scoped events (requires companyId).
+   * Pass an active `tx` (Prisma transaction client) when called
    * inside a `prisma.$transaction` so the audit row commits and rolls back together
    * with the business write. When `tx` is omitted the root client is used.
    */
@@ -32,6 +33,26 @@ export class AuditService {
     await client.auditLog.create({
       data: {
         companyId: params.companyId,
+        userId: params.userId,
+        action: params.action,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        oldValues: redactSensitive(params.oldValues),
+        newValues: redactSensitive(params.newValues),
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+      },
+    });
+  }
+
+  /**
+   * Write an audit row for platform‑scoped events (no companyId).
+   * Accepts all standard fields except `companyId`.
+   */
+  async logPlatform(params: Omit<AuditLogParams, 'companyId'>, tx?: Prisma.TransactionClient) {
+    const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
+    await client.auditLog.create({
+      data: {
         userId: params.userId,
         action: params.action,
         entityType: params.entityType,
