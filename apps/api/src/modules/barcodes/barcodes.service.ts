@@ -202,7 +202,7 @@ export class BarcodesService {
             barcode: product.productCode,
         barcodeType: BarcodeType.INTERNAL,
         isPrimary: hasPrimary === 0,
-        createdById: user.id,
+
       },
     });
   }
