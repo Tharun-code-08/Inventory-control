@@ -7,6 +7,8 @@ export const features = {
   mobileCustomers: true,
   mobileReports: true,
   mobileBarcodePrint: true,
+  // Disabled until the stock-count API module exists on the backend.
+  mobileStockCount: false,
   mobilePdfExport: true,
   mobileGlobalSearch: true,
   mobileOfflineCache: true,

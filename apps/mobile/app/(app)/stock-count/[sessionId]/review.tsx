@@ -1,157 +1,120 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { calculateVariance, postAdjustment, VarianceResult } from '@/api/stockCount';
-import { colors } from '@/theme';
+import { PermissionGate } from '@/components/PermissionGate';
+import { usePostAdjustment, useStockCountVariance } from '@/hooks/use-stock-count';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { Button, EmptyState, Muted, Screen, Title } from '@/components/ui';
+import { colors, spacing } from '@/theme';
 
-export default function VarianceReview() {
+export default function VarianceReviewScreen() {
   const router = useRouter();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const [loading, setLoading] = useState(true);
-  const [variance, setVariance] = useState<VarianceResult[]>([]);
 
-  useEffect(() => {
-    if (!sessionId) {
-      Alert.alert('Error', 'Missing session id');
-      router.replace('/stock-count');
-      return;
-    }
-    const fetch = async () => {
-      try {
-        const data = await calculateVariance(sessionId);
-        setVariance(data);
-      } catch (e) {
-        console.error(e);
-        Alert.alert('Error', 'Could not load variance');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
-  }, [sessionId]);
+  const query = useStockCountVariance(sessionId ?? '');
+  const postAdjustment = usePostAdjustment(sessionId ?? '');
+  const rows = query.data ?? [];
 
-  const handleApprove = async () => {
-    if (!sessionId) return;
-    try {
-      await postAdjustment(sessionId);
-      Alert.alert('Success', 'Adjustment posted');
-      // Navigate to the result screen for this session
-      router.replace({ pathname: '/stock-count/[sessionId]/result', params: { sessionId } });
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Error', 'Failed to post adjustment');
-    }
+  const handleApprove = () => {
+    postAdjustment.mutate(undefined, {
+      onSuccess: () => {
+        router.replace({ pathname: '/stock-count/[sessionId]/result', params: { sessionId: sessionId! } });
+      },
+    });
   };
 
+  const varianceColor = (variance: number) =>
+    variance === 0 ? colors.success : variance < 0 ? colors.danger : colors.warning;
 
-  const renderItem = ({ item }: { item: VarianceResult }) => {
-    const varianceColor = item.variance === 0 ? colors.success : item.variance < 0 ? colors.danger : colors.warning;
-    return (
-      <View style={styles.row}>
-        <Text style={styles.productId}>{item.productId}</Text>
-        <Text style={styles.cell}>{item.expectedQty}</Text>
-        <Text style={styles.cell}>{item.countedQty}</Text>
-        <Text style={[styles.cell, { color: varianceColor }]}>{item.variance}</Text>
+  const listHeader = (
+    <>
+      <Title>Variance</Title>
+      <Muted style={styles.hint}>Compare counted quantities against expected stock.</Muted>
+      {query.isError ? (
+        <Muted style={styles.error}>{getApiErrorMessage(query.error, 'Could not load variance.')}</Muted>
+      ) : null}
+      {postAdjustment.isError ? (
+        <Muted style={styles.error}>{getApiErrorMessage(postAdjustment.error, 'Could not post the adjustment.')}</Muted>
+      ) : null}
+      <View style={styles.headerRow}>
+        <Text style={[styles.headerCell, styles.productCell]}>Product</Text>
+        <Text style={styles.headerCell}>Expected</Text>
+        <Text style={styles.headerCell}>Counted</Text>
+        <Text style={styles.headerCell}>Variance</Text>
       </View>
-    );
-  };
+    </>
+  );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Variance Review – Session {sessionId}</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} />
-      ) : (
+    <PermissionGate permission="product:read">
+      <Screen>
         <FlatList
-          data={variance}
+          data={rows}
           keyExtractor={(item) => item.productId}
-          renderItem={renderItem}
-          ListHeaderComponent={() => (
-            <View style={styles.headerRow}>
-              <Text style={styles.headerCell}>Product</Text>
-              <Text style={styles.headerCell}>Expected</Text>
-              <Text style={styles.headerCell}>Counted</Text>
-              <Text style={styles.headerCell}>Variance</Text>
+          refreshControl={
+            <RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />
+          }
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            <EmptyState
+              icon="analytics-outline"
+              message={query.isLoading ? 'Loading…' : 'No variance data available.'}
+            />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.row}>
+              <Text style={[styles.cell, styles.productCell]} numberOfLines={1}>{item.productId}</Text>
+              <Text style={styles.cell}>{item.expectedQty}</Text>
+              <Text style={styles.cell}>{item.countedQty}</Text>
+              <Text style={[styles.cell, { color: varianceColor(item.variance), fontWeight: '600' }]}>
+                {item.variance > 0 ? `+${item.variance}` : item.variance}
+              </Text>
             </View>
-          )}
-          ListEmptyComponent={() => (
-            <Text style={styles.empty}>No variance data available.</Text>
           )}
           contentContainerStyle={styles.list}
         />
-      )}
-      <TouchableOpacity style={styles.approveBtn} onPress={handleApprove} disabled={loading || variance.length === 0}>
-        <Text style={styles.approveBtnText}>Approve Adjustment</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.footer}>
+          <Button
+            label="Approve adjustment"
+            onPress={handleApprove}
+            loading={postAdjustment.isPending}
+            disabled={query.isLoading || rows.length === 0}
+          />
+        </View>
+      </Screen>
+    </PermissionGate>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    padding: 16,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 12,
-    fontFamily: 'Inter',
-  },
-  list: {
-    paddingBottom: 24,
-  },
+  hint: { marginBottom: spacing.md },
+  error: { color: colors.danger, marginBottom: spacing.sm },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   headerCell: {
     flex: 1,
     fontWeight: '600',
-    color: colors.text,
-    textAlign: 'center',
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'right',
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  productId: {
-    flex: 1,
-    color: colors.text,
-    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: spacing.md,
   },
   cell: {
     flex: 1,
     color: colors.text,
-    textAlign: 'center',
+    textAlign: 'right',
   },
-  approveBtn: {
-    backgroundColor: colors.success,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  approveBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontFamily: 'Inter',
-  },
-  empty: {
-    textAlign: 'center',
-    marginTop: 40,
-    color: colors.muted,
-  },
+  productCell: { flex: 1.4, textAlign: 'left' },
+  list: { paddingBottom: 96 },
+  footer: { paddingTop: spacing.sm },
 });

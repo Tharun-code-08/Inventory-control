@@ -44,6 +44,7 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
     items: [
       { label: 'Reports', icon: 'bar-chart-outline', route: '/reports', permission: 'report:view', feature: 'mobileReports' },
       { label: 'Print Labels', icon: 'barcode-outline', route: '/barcode-print', permission: 'product:read', feature: 'mobileBarcodePrint' },
+      { label: 'Stock Count', icon: 'clipboard-outline', route: '/stock-count', permission: 'product:read', feature: 'mobileStockCount' },
       { label: 'Settings', icon: 'settings-outline', route: '/settings' },
     ],
   },

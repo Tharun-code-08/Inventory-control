@@ -12,7 +12,7 @@ export function MarketingHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link to="/" className="shrink-0" onClick={() => setMobileOpen(false)}>
           <img
             src="/LandingPageLogo.svg"

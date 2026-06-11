@@ -67,7 +67,7 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={variant === 'secondary' ? colors.text : '#fff'} />
       ) : (
         <Text
           style={[

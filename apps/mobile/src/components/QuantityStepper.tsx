@@ -39,7 +39,9 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: colors.borderLight,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -50,13 +52,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 18,
-    color: '#fff',
+    color: colors.primary,
     fontWeight: '600',
   },
   value: {
     marginHorizontal: 12,
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     minWidth: 30,
     textAlign: 'center',
   },
