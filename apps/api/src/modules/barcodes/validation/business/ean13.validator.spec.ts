@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EAN13Validator } from '../../format/ean13.validator';
-import { BarcodeValidationContext } from '../../barcode-validation-context.interface';
+import { EAN13Validator } from '../format/ean13.validator';
+import { BarcodeValidationContext } from '../barcode-validation-context.interface';
 
 describe('EAN13Validator', () => {
   let validator: EAN13Validator;
@@ -29,7 +29,7 @@ describe('EAN13Validator', () => {
       barcodeType: 'EAN13',
       operation: 'CREATE',
     } as any;
-    await expect(validator.validate(ctx)).rejects.toThrow('EAN13 must be exactly 13 digits');
+    await expect(validator.validate(ctx)).rejects.toThrow('EAN13 must be exactly 13 numeric digits');
   });
 
   it('should reject barcode with invalid checksum', async () => {

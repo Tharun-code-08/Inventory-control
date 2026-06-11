@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import { BarcodeValidator } from '../interfaces/barcode-validator.interface';
 import { BarcodeValidationContext, BarcodeOperation } from '../barcode-validation-context.interface';
 

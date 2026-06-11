@@ -10,7 +10,7 @@ import { MarketingFinalCta } from '@/components/marketing/MarketingFinalCta';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { MarketingHeader } from '@/components/marketing/MarketingHeader';
 import { MarketingHero } from '@/components/marketing/MarketingHero';
-import { BRAND } from '@/lib/brand';
+import { MARKETING_FEATURE_BLOCKS } from '@/lib/marketing-content';
 
 export function HomePage() {
   return (

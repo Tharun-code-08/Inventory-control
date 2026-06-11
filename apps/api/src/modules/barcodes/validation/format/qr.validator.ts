@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { BarcodeValidator } from '../interfaces/barcode-validator.interface';
 import { BarcodeValidationContext } from '../barcode-validation-context.interface';
 
@@ -9,7 +9,10 @@ import { BarcodeValidationContext } from '../barcode-validation-context.interfac
 @Injectable()
 export class QRValidator implements BarcodeValidator {
   async validate(context: BarcodeValidationContext): Promise<void> {
-    // No validation applied for QR codes in this iteration.
-    return;
+    const { barcodeValue } = context;
+    if (!/^[A-Za-z0-9\-._?&]+$/.test(barcodeValue)) {
+      throw new BadRequestException('QR code contains invalid characters');
+    }
+    // No further validation needed for QR in this iteration.
   }
 }
