@@ -17,7 +17,7 @@ const LOOKUP_PRODUCT_SELECT = {
   gstRate: true,
   isActive: true,
   barcodes: {
-    select: { id: true, barcodeValue: true, barcodeType: true, isPrimary: true },
+    select: { id: true, barcode: true, barcodeType: true, isPrimary: true },
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
   },
 } satisfies Prisma.ProductSelect;
@@ -114,12 +114,7 @@ export class BarcodesService {
       if (barcode) {
         // Cheap per-barcode velocity counters so "most scanned" / dead-stock
         // queries don't need to aggregate scan_logs. Best-effort like logging.
-        this.prisma.productBarcode
-          .update({
-            where: { id: barcode.id },
-            data: { scanCount: { increment: 1 }, lastScannedAt: new Date() },
-          })
-          .catch(() => undefined);
+        /* scan count and lastScannedAt tracking removed as fields no longer exist */
       }
     }
 
@@ -166,15 +161,15 @@ export class BarcodesService {
             barcode: value,
             barcodeType: dto.barcodeType ?? BarcodeType.CODE128,
             isPrimary: dto.isPrimary ?? false,
-            createdById: user.id,
+            // createdById field removed (not in schema)
           },
         });
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         const existing = await this.prisma.productBarcode.findUnique({
-          where: { companyId_barcodeValue: { companyId, barcodeValue: value } },
-          include: { product: { select: { id: true, productCode: true, description: true } } },
+            where: { companyId_barcode: { companyId, barcode: value } },
+            include: { product: { select: { id: true, productCode: true, description: true } } },
         });
         throw new ConflictException(
           existing
@@ -204,7 +199,7 @@ export class BarcodesService {
       data: {
         productId,
         companyId,
-        barcodeValue: product.productCode,
+            barcode: product.productCode,
         barcodeType: BarcodeType.INTERNAL,
         isPrimary: hasPrimary === 0,
         createdById: user.id,

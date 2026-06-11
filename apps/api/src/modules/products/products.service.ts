@@ -755,6 +755,7 @@ export class ProductsService {
       this.prisma.product.delete({ where: { id } }),
       this.prisma.auditLog.create({
         data: {
+          companyId: user.companyId,
           userId: user.id,
           action: AuditAction.DELETE,
           entityType: 'product',

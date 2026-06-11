@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { redactSensitive } from '../../common/utils/redact';
 
 export type AuditLogParams = {
+  companyId: string;
   userId: string;
   action: AuditAction;
   entityType: string;
@@ -28,18 +29,15 @@ export class AuditService {
     // Scrub keys like password*/token*/secret/csrf/apiKey before persisting:
     // audit_log has broader read access than the rows it mirrors, so a leak
     // here would defeat the purpose of bcrypt + cookie hardening.
-    const oldValues =
-      params.oldValues === undefined ? undefined : (redactSensitive(params.oldValues) as Prisma.InputJsonValue);
-    const newValues =
-      params.newValues === undefined ? undefined : (redactSensitive(params.newValues) as Prisma.InputJsonValue);
     await client.auditLog.create({
       data: {
+        companyId: params.companyId,
         userId: params.userId,
         action: params.action,
         entityType: params.entityType,
         entityId: params.entityId,
-        oldValues,
-        newValues,
+        oldValues: redactSensitive(params.oldValues),
+        newValues: redactSensitive(params.newValues),
         ipAddress: params.ipAddress ?? null,
         userAgent: params.userAgent ?? null,
       },
