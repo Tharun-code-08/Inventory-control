@@ -53,7 +53,7 @@ export default function GoodsReceiptsScreen() {
             refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
             ListEmptyComponent={<EmptyState message="No goods receipts found." icon="enter-outline" />}
             renderItem={({ item }) => (
-              <Link href={`/goods-receipts/${item.id}` as any} asChild>
+              <Link href={`/goods-receipts/${item.id}`} asChild>
                 <ListRow
                   title={`${item.grNumber} · ${item.supplierName}`}
                   subtitle={`${formatDate(item.grDate)} · ${item.receiptSource} · ${formatCurrency(item.totalValue)}`}

@@ -59,7 +59,9 @@ function normalizeProduct(raw: unknown): Product {
     sellingPrice: normalizeNumber(p.sellingPrice),
     isActive: Boolean(p.isActive ?? true),
     stockByShop: p.stockByShop as Record<string, number> | undefined,
-    totalStock: p.totalStock != null ? normalizeNumber(p.totalStock) : undefined,
+    totalStock: p.totalStock != null ? normalizeNumber(p.totalStock) :
+        p.availableQty != null ? normalizeNumber(p.availableQty) :
+        p.availableQuantity != null ? normalizeNumber(p.availableQuantity) : undefined,
     currentStock: p.currentStock != null ? normalizeNumber(p.currentStock) : undefined,
     plants: Array.isArray(p.plants) ? (p.plants as Product['plants']) : [],
   };

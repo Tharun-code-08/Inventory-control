@@ -60,7 +60,7 @@ export default function PurchaseOrdersScreen() {
             refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
             ListEmptyComponent={<EmptyState message="No purchase orders found." icon="document-text-outline" />}
             renderItem={({ item }) => (
-              <Link href={`/purchase-orders/${item.id}` as any} asChild>
+              <Link href={`/purchase-orders/${item.id}`} asChild>
                 <ListRow
                   title={`${item.poNumber} · ${item.supplier}`}
                   subtitle={`${formatDate(item.poDate)} · ${formatCurrency(item.totalValue)}`}

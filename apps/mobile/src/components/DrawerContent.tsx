@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { hasPermission } from '@/lib/permissions';
@@ -12,7 +12,7 @@ import Constants from 'expo-constants';
 type DrawerItem = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: string;
+  route: Href;
   permission?: string;
   feature?: keyof typeof features;
 };
@@ -21,29 +21,29 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
   {
     title: 'Procurement',
     items: [
-      { label: 'Purchase Orders', icon: 'document-text-outline', route: '/(app)/purchase-orders', permission: 'purchase_order:read', feature: 'mobilePurchaseOrders' },
-      { label: 'Goods Receipts', icon: 'enter-outline', route: '/(app)/goods-receipts', permission: 'goods_receipt:read', feature: 'mobileGoodsReceipts' },
+      { label: 'Purchase Orders', icon: 'document-text-outline', route: '/purchase-orders', permission: 'purchase_order:read', feature: 'mobilePurchaseOrders' },
+      { label: 'Goods Receipts', icon: 'enter-outline', route: '/goods-receipts', permission: 'goods_receipt:read', feature: 'mobileGoodsReceipts' },
     ],
   },
   {
     title: 'Sales',
     items: [
-      { label: 'Sales Orders', icon: 'cart-outline', route: '/(app)/sales-orders', permission: 'shop:read', feature: 'mobileSalesOrders' },
-      { label: 'Invoices', icon: 'receipt-outline', route: '/(app)/invoices', permission: 'shop:read', feature: 'mobileInvoices' },
+      { label: 'Sales Orders', icon: 'cart-outline', route: '/sales-orders', permission: 'shop:read', feature: 'mobileSalesOrders' },
+      { label: 'Invoices', icon: 'receipt-outline', route: '/invoices', permission: 'shop:read', feature: 'mobileInvoices' },
     ],
   },
   {
     title: 'Master Data',
     items: [
-      { label: 'Suppliers', icon: 'business-outline', route: '/(app)/suppliers', permission: 'supplier:read', feature: 'mobileSuppliers' },
-      { label: 'Customers', icon: 'people-outline', route: '/(app)/customers', permission: 'shop:read', feature: 'mobileCustomers' },
+      { label: 'Suppliers', icon: 'business-outline', route: '/suppliers', permission: 'supplier:read', feature: 'mobileSuppliers' },
+      { label: 'Customers', icon: 'people-outline', route: '/customers', permission: 'shop:read', feature: 'mobileCustomers' },
     ],
   },
   {
     title: 'Operations',
     items: [
-      { label: 'Reports', icon: 'bar-chart-outline', route: '/(app)/reports', permission: 'report:view', feature: 'mobileReports' },
-      { label: 'Settings', icon: 'settings-outline', route: '/(app)/settings' },
+      { label: 'Reports', icon: 'bar-chart-outline', route: '/reports', permission: 'report:view', feature: 'mobileReports' },
+      { label: 'Settings', icon: 'settings-outline', route: '/settings' },
     ],
   },
 ];
@@ -61,9 +61,9 @@ export function DrawerContent({ onClose }: { onClose?: () => void }) {
   const user = useAuthStore((s) => s.user);
   const insets = useSafeAreaInsets();
 
-  const navigate = (route: string) => {
+  const navigate = (route: Href) => {
     onClose?.();
-    router.push(route as any);
+    router.push(route);
   };
 
   const handleSignOut = async () => {
@@ -98,7 +98,7 @@ export function DrawerContent({ onClose }: { onClose?: () => void }) {
               <Text style={styles.sectionTitle}>{section.title}</Text>
               {visibleItems.map((item) => (
                 <Pressable
-                  key={item.route}
+                  key={item.label}
                   style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
                   onPress={() => navigate(item.route)}
                 >

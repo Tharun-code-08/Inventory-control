@@ -1,5 +1,5 @@
 import { RefreshControl, ScrollView, View, Pressable, Text, StyleSheet } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useDashboard } from '@/hooks/use-dashboard';
@@ -14,14 +14,14 @@ import { shadows } from '@/theme/shadows';
 type QuickAction = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: string;
+  route: Href;
   permission: string;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'New GI', icon: 'add-circle-outline', route: '/(app)/(tabs)/goods-issues/new', permission: 'goods_issue:create' },
-  { label: 'View POs', icon: 'document-text-outline', route: '/(app)/purchase-orders', permission: 'purchase_order:read' },
-  { label: 'View GRs', icon: 'enter-outline', route: '/(app)/goods-receipts', permission: 'goods_receipt:read' },
+  { label: 'New GI', icon: 'add-circle-outline', route: '/goods-issues/new', permission: 'goods_issue:create' },
+  { label: 'View POs', icon: 'document-text-outline', route: '/purchase-orders', permission: 'purchase_order:read' },
+  { label: 'View GRs', icon: 'enter-outline', route: '/goods-receipts', permission: 'goods_receipt:read' },
 ];
 
 export default function HomeScreen() {
@@ -47,9 +47,9 @@ export default function HomeScreen() {
           <View style={styles.quickActions}>
             {visibleActions.map((action) => (
               <Pressable
-                key={action.route}
+                key={action.label}
                 style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
-                onPress={() => router.push(action.route as any)}
+                onPress={() => router.push(action.route)}
               >
                 <Ionicons name={action.icon} size={22} color={colors.primary} />
                 <Text style={styles.quickActionLabel}>{action.label}</Text>

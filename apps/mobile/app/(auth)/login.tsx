@@ -33,7 +33,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await loginWithCredentials(email.trim(), password);
-      router.replace('/(app)');
+      router.replace('/(app)/(tabs)');
     } catch (err) {
       Alert.alert('Login failed', getApiErrorMessage(err, 'Invalid credentials'));
     } finally {

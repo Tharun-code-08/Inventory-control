@@ -24,7 +24,10 @@ export default function TabsLayout() {
         tabBarStyle: { borderTopColor: colors.border },
         headerLeft: () => (
           <Pressable
-            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            onPress={() => {
+              const parent = navigation.getParent() as any;
+              parent?.openDrawer?.();
+            }}
             style={{ marginLeft: 12 }}
             hitSlop={8}
           >

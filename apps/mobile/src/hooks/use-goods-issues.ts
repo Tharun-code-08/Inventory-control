@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
+import { productKeys, dashboardKeys } from '@/lib/query-keys';
 
 export type GoodsIssueStatus = 'DRAFT' | 'POSTED';
 
@@ -90,7 +91,10 @@ export function useCreateGoodsIssue() {
       const res = await api.post('/goods-issues', payload);
       return unwrapData<GoodsIssue>(res.data);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: giKeys.lists() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: giKeys.lists() });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
+    },
   });
 }
 
@@ -104,7 +108,8 @@ export function usePostGoodsIssue() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: giKeys.lists() });
       qc.invalidateQueries({ queryKey: giKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: productKeys.all });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }
