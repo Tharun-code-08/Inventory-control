@@ -288,9 +288,9 @@ export class GoodsIssuesService {
         where: { id },
         include: { items: { include: { product: true } }, shop: true },
       });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'GOODS_ISSUE',
           entityId: posted.id,

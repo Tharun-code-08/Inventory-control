@@ -45,7 +45,7 @@ function makeService(tx: ReturnType<typeof buildTx>) {
   const numbers = {
     nextConfiguredShopScopedNumber: jest.fn().mockResolvedValue('GI-202605-00001'),
   } as any;
-  const audit = { log: jest.fn() } as any;
+  const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
   const inventoryLots = { consumeFifo: jest.fn() } as any;
 
   const service = new GoodsIssuesService(prisma, stock, numbers, audit, inventoryLots);
@@ -201,6 +201,6 @@ describe('GoodsIssuesService', () => {
       }),
     );
     expect(inventoryLots.consumeFifo).toHaveBeenCalledTimes(1);
-    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.logTenant).toHaveBeenCalledTimes(1);
   });
 });

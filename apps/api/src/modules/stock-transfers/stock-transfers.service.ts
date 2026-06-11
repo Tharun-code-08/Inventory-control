@@ -300,9 +300,9 @@ export class StockTransfersService {
           toStorageLocation: true,
         },
       });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'STOCK_TRANSFER',
           entityId: posted.id,

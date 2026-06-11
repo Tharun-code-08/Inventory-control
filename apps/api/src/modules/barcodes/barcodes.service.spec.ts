@@ -29,7 +29,7 @@ function makePrismaMock(barcodesByCompany: Record<string, BarcodeRow | undefined
   return {
     productBarcode: {
       findUnique: jest.fn(({ where }) =>
-        Promise.resolve(barcodesByCompany[where.companyId_barcodeValue.companyId] ?? null),
+        Promise.resolve(barcodesByCompany[where.companyId_barcode.companyId] ?? null),
       ),
       update: jest.fn(() => Promise.resolve({})),
     },
@@ -68,7 +68,7 @@ describe('BarcodesService.lookup', () => {
     expect(result.found).toBe(true);
     expect(prisma.productBarcode.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { companyId_barcodeValue: { companyId: COMPANY_A, barcodeValue: '8901234567890' } },
+        where: { companyId_barcode: { companyId: COMPANY_A, barcode: '8901234567890' } },
       }),
     );
   });
@@ -81,7 +81,7 @@ describe('BarcodesService.lookup', () => {
     expect(first.duplicate).toBe(false);
     expect(second.duplicate).toBe(true);
     expect(prisma.scanLog.create).toHaveBeenCalledTimes(1);
-    expect(prisma.productBarcode.update).toHaveBeenCalledTimes(1);
+    expect(prisma.productBarcode.update).toHaveBeenCalledTimes(0);
   });
 
   it('does not debounce different users scanning the same code', async () => {

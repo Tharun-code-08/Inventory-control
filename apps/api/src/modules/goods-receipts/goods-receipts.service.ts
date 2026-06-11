@@ -6,6 +6,7 @@ import type { GoodsReceiptSupplierEmailContent } from '../../common/mail/transac
 import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
@@ -500,6 +501,7 @@ export class GoodsReceiptsService {
       });
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'GOODS_RECEIPT',
           entityId: posted.id,

@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../modules/audit/audit.service';
 import { BrandingEventsService } from './branding-events.service';
 import { MediaAssetStorageService } from './media-asset-storage.service';
+import { assertCompanyId } from '../utils/assert-company-id';
 import type { BrandingProfileFields } from './branding.types';
 
 export type BrandingUpdateInput = BrandingProfileFields & {
@@ -120,6 +121,7 @@ export class BrandingProfileService {
 
       await this.audit.log(
         {
+          companyId,
           userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'branding_profile',
@@ -196,6 +198,7 @@ export class BrandingProfileService {
 
       await this.audit.log(
         {
+          companyId: assertCompanyId(user),
           userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'branding_profile',

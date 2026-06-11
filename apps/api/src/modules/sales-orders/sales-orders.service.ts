@@ -241,9 +241,9 @@ export class SalesOrdersService {
         include: { customer: true, items: { include: { product: true } } },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'SALES_ORDER',
           entityId: created.id,
@@ -355,9 +355,9 @@ export class SalesOrdersService {
         },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'SALES_ORDER',
           entityId: id,
@@ -378,9 +378,9 @@ export class SalesOrdersService {
 
     await runSerializableTxWithRetry(this.prisma, async (tx) => {
       await tx.salesOrderHeader.delete({ where: { id } });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.DELETE,
           entityType: 'SALES_ORDER',
           entityId: id,
@@ -408,9 +408,9 @@ export class SalesOrdersService {
       if (updated.count === 0) {
         throw new ConflictException('Sales order state changed concurrently');
       }
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'SALES_ORDER',
           entityId: id,
@@ -675,9 +675,9 @@ export class SalesOrdersService {
         },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'SALES_ORDER',
           entityId: soId,

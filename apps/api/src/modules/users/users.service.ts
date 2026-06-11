@@ -319,8 +319,7 @@ export class UsersService {
       );
     }
 
-    await this.audit.log({
-      userId: actor.id,
+    await this.audit.logTenant(actor, {
       action: AuditAction.CREATE,
       entityType: 'USER_INVITATION',
       entityId: invitation.id,

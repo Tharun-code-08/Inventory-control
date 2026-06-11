@@ -11,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { MailService, type RfqInviteDeliverySummary } from '../../common/mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { shopListWhere } from '../../common/utils/shop-scope';
 import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { CreateRfqDto, CreateRfqItemDto } from './dto/create-rfq.dto';
@@ -373,6 +374,7 @@ export class RfqsService {
       });
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'RFQ',
           entityId: id,
@@ -383,6 +385,7 @@ export class RfqsService {
       );
       await this.audit.log(
         buildDocumentActionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'RFQ',
           entityId: id,
@@ -396,6 +399,7 @@ export class RfqsService {
 
     await this.audit.log(
       buildDocumentActionAudit({
+        companyId: assertCompanyId(user),
         userId: user.id,
         entityType: 'RFQ',
         entityId: id,
@@ -456,6 +460,7 @@ export class RfqsService {
 
     await this.audit.log(
       buildDocumentActionAudit({
+        companyId: assertCompanyId(user),
         userId: user.id,
         entityType: 'RFQ',
         entityId: id,

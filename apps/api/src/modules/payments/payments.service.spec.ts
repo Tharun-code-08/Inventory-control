@@ -74,8 +74,12 @@ const shopUser: RequestUser = {
   permissions: [],
 } as unknown as RequestUser;
 
-function makeAudit(): { log: Mock } {
-  return { log: jest.fn().mockResolvedValue(undefined) };
+function makeAudit(): { log: Mock; logTenant: Mock; logPlatform: Mock } {
+  return {
+    log: jest.fn().mockResolvedValue(undefined),
+    logTenant: jest.fn().mockResolvedValue(undefined),
+    logPlatform: jest.fn().mockResolvedValue(undefined),
+  };
 }
 
 function makeNumbers(receiptNumber = 'RCPT-202605-00001'): { nextNumber: Mock } {
@@ -200,7 +204,7 @@ describe('PaymentsService.create', () => {
     const updateArg = tx.invoiceHeader.updateMany.mock.calls[0][0];
     expect(updateArg.where).toEqual({ id: 'inv-1', paidValue: new Prisma.Decimal('0.00') });
     expect(updateArg.data.status).toBe(InvoiceStatus.PAID);
-    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.logTenant).toHaveBeenCalledTimes(1);
     expect(tx.idempotencyKey.upsert).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('pay-1');
   });

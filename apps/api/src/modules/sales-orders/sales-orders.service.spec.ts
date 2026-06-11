@@ -59,7 +59,11 @@ function makePrisma(tx: any) {
   } as any;
 }
 
-const audit = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
+const audit = () => ({
+  log: jest.fn().mockResolvedValue(undefined),
+  logTenant: jest.fn().mockResolvedValue(undefined),
+  logPlatform: jest.fn().mockResolvedValue(undefined),
+}) as any;
 const numbers = (n = 'SO-HQ001-202605-00001') => {
   const nextConfiguredShopScopedNumber = jest.fn().mockResolvedValue(n);
   return { nextConfiguredShopScopedNumber } as any;
@@ -114,8 +118,8 @@ describe('SalesOrdersService.create', () => {
     expect(data.status).toBe(SalesOrderStatus.DRAFT);
     expect(new Prisma.Decimal(data.totalValue).toFixed(2)).toBe('150.00');
     expect(data.items.create).toHaveLength(2);
-    expect(auditSvc.log).toHaveBeenCalledTimes(1);
-    expect(auditSvc.log.mock.calls[0][1]).toBe(tx);
+    expect(auditSvc.logTenant).toHaveBeenCalledTimes(1);
+    expect(auditSvc.logTenant.mock.calls[0][2]).toBe(tx);
     expect(created.id).toBe('so-1');
   });
 });

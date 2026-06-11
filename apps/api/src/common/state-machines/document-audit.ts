@@ -3,6 +3,7 @@ import type { AuditLogParams } from '../../modules/audit/audit.service';
 import { auditRequestMetadata } from '../utils/audit-context';
 
 export function buildStatusTransitionAudit(params: {
+  companyId: string;
   userId: string;
   entityType: string;
   entityId: string;
@@ -13,6 +14,7 @@ export function buildStatusTransitionAudit(params: {
 }): AuditLogParams {
   const meta = auditRequestMetadata();
   return {
+    companyId: params.companyId,
     userId: params.userId,
     action: params.action ?? AuditAction.UPDATE,
     entityType: params.entityType,
@@ -34,6 +36,7 @@ export function buildStatusTransitionAudit(params: {
 }
 
 export function buildDocumentActionAudit(params: {
+  companyId: string;
   userId: string;
   entityType: string;
   entityId: string;
@@ -43,6 +46,7 @@ export function buildDocumentActionAudit(params: {
 }): AuditLogParams {
   const meta = auditRequestMetadata();
   return {
+    companyId: params.companyId,
     userId: params.userId,
     action: AuditAction.UPDATE,
     entityType: params.entityType,
@@ -59,3 +63,4 @@ export function buildDocumentActionAudit(params: {
     },
   };
 }
+

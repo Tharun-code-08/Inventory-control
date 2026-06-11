@@ -3,6 +3,7 @@ import { AuditAction, DocumentEmailTrigger, Prisma, SupplierBillStatus } from '@
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { asMoney, assertNonNegativeMoney, assertPositiveMoney, roundMoney } from '../../common/utils/money';
@@ -151,9 +152,9 @@ export class SupplierPaymentsService {
         include: { supplierBill: { include: { supplier: true } }, shop: true },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'SUPPLIER_PAYMENT',
           entityId: payment.id,
@@ -170,6 +171,7 @@ export class SupplierPaymentsService {
       if (status !== bill.status) {
         await this.audit.log(
           buildStatusTransitionAudit({
+            companyId: assertCompanyId(user),
             userId: user.id,
             entityType: 'SUPPLIER_BILL',
             entityId: bill.id,
@@ -183,6 +185,7 @@ export class SupplierPaymentsService {
 
       await this.audit.log(
         buildDocumentActionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_PAYMENT',
           entityId: payment.id,
@@ -262,6 +265,7 @@ export class SupplierPaymentsService {
       if (newStatus !== bill.status) {
         await this.audit.log(
           buildStatusTransitionAudit({
+            companyId: assertCompanyId(user),
             userId: user.id,
             entityType: 'SUPPLIER_BILL',
             entityId: bill.id,
@@ -275,6 +279,7 @@ export class SupplierPaymentsService {
 
       await this.audit.log(
         buildDocumentActionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_PAYMENT',
           entityId: payment.id,

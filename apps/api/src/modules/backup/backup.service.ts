@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -309,8 +309,7 @@ export class BackupService {
           },
         },
       });
-      await this.audit.log({
-        userId: user.id,
+      await this.audit.logTenant(user, {
         action: AuditAction.UPDATE,
         entityType: 'COMPANY_BACKUP_RESTORE',
         entityId: restoreJob.id,

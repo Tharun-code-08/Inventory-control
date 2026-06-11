@@ -19,7 +19,7 @@ describe('SupplierPaymentsService.reverse', () => {
 
     const service = new SupplierPaymentsService(
       prisma,
-      { log: jest.fn() } as any,
+      { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any,
       {} as any,
       {} as any,
       {} as any,
@@ -28,7 +28,7 @@ describe('SupplierPaymentsService.reverse', () => {
     return { service, tx };
   }
 
-  const user = { id: 'user-1', shopId: 'shop-1' } as any;
+  const user = { id: 'user-1', shopId: 'shop-1', companyId: 'co-1' } as any;
 
   it('reverses a payment and restores bill to ISSUED when fully unpaid', async () => {
     const { service, tx } = setup();

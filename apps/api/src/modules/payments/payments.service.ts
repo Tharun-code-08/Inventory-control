@@ -139,9 +139,9 @@ export class PaymentsService {
         include: { invoice: { include: { customer: true } }, shop: true },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'PAYMENT_RECEIPT',
           entityId: payment.id,

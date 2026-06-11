@@ -55,7 +55,11 @@ function makeInvoicesService(prisma: any, audit = auditFactory(), numbers = numb
   );
 }
 
-const auditFactory = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
+const auditFactory = () => ({
+  log: jest.fn().mockResolvedValue(undefined),
+  logTenant: jest.fn().mockResolvedValue(undefined),
+  logPlatform: jest.fn().mockResolvedValue(undefined),
+}) as any;
 const numbersFactory = (n = 'INV-202605-00001') =>
   ({ nextNumber: jest.fn().mockResolvedValue(n) }) as any;
 
@@ -196,8 +200,8 @@ describe('InvoicesService.create', () => {
     expect(data.invoiceNumber).toBe('INV-202605-00001');
     expect(data.status).toBe(InvoiceStatus.ISSUED);
     expect(new Prisma.Decimal(data.totalValue).toFixed(2)).toBe('10.00');
-    expect(audit.log).toHaveBeenCalledTimes(1);
-    expect(audit.log.mock.calls[0][1]).toBe(tx);
+    expect(audit.logTenant).toHaveBeenCalledTimes(1);
+    expect(audit.logTenant.mock.calls[0][2]).toBe(tx);
     expect(created.id).toBe('inv-1');
   });
 

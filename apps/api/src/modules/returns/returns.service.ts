@@ -182,9 +182,9 @@ export class ReturnsService {
         },
         include: { items: true },
       });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'CUSTOMER_RETURN',
           entityId: created.id,
@@ -277,9 +277,9 @@ export class ReturnsService {
         },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'CUSTOMER_RETURN',
           entityId: ret.id,
@@ -504,9 +504,9 @@ export class ReturnsService {
         include: supplierReturnInclude,
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'SUPPLIER_RETURN',
           entityId: created.id,
@@ -593,9 +593,9 @@ export class ReturnsService {
         include: supplierReturnInclude,
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'SUPPLIER_RETURN',
           entityId: updated.id,
@@ -743,9 +743,9 @@ export class ReturnsService {
         include: supplierReturnInclude,
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'SUPPLIER_RETURN',
           entityId: updated.id,
@@ -833,9 +833,9 @@ export class ReturnsService {
         },
         include: supplierReturnInclude,
       });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.UPDATE,
           entityType: 'SUPPLIER_RETURN',
           entityId: updated.id,
@@ -906,9 +906,9 @@ export class ReturnsService {
         throw new ConflictException('Supplier return state changed concurrently');
       }
       await this.postSupplierReturnStock(tx, ret, user.id, 'Supplier return');
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'SUPPLIER_RETURN',
           entityId: ret.id,
@@ -957,9 +957,9 @@ export class ReturnsService {
         include: supplierReturnInclude,
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'SUPPLIER_RETURN',
           entityId: updated.id,
@@ -1078,6 +1078,7 @@ export class ReturnsService {
 
       await this.audit.log(
         {
+          companyId: ret.shop.companyId!,
           userId,
           action: AuditAction.POST,
           entityType: 'SUPPLIER_RETURN',

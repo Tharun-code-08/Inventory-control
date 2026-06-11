@@ -197,9 +197,9 @@ export class DamagedStockService {
         where: { id },
         include: { product: true, shop: true },
       });
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.POST,
           entityType: 'DAMAGED_STOCK',
           entityId: posted.id,

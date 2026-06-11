@@ -37,7 +37,7 @@ function makeService() {
 
   const stock = { postMovementOnce: jest.fn() } as any;
   const numbers = { nextConfiguredShopScopedNumber: jest.fn() } as any;
-  const audit = { log: jest.fn() } as any;
+  const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
   const costing = { recordInflow: jest.fn() } as any;
 
   const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing, {
@@ -95,7 +95,7 @@ describe('GoodsReceiptsService', () => {
     });
 
     await service.post(
-      { id: 'user-1', shopId: 'shop-1', role: 'ADMIN', permissions: [] } as never,
+      { id: 'user-1', shopId: 'shop-1', role: 'ADMIN', companyId: 'co-1', permissions: [] } as never,
       'gr-1',
     );
 
@@ -172,7 +172,11 @@ function makePrisma(tx: any) {
   } as any;
 }
 
-const auditFactory = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as any;
+const auditFactory = () => ({
+  log: jest.fn().mockResolvedValue(undefined),
+  logTenant: jest.fn().mockResolvedValue(undefined),
+  logPlatform: jest.fn().mockResolvedValue(undefined),
+}) as any;
 const numbersFactory = (n = 'GR-202605-00001') =>
   ({ nextConfiguredShopScopedNumber: jest.fn().mockResolvedValue(n) }) as any;
 const stockFactory = () =>

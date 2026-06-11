@@ -146,9 +146,9 @@ export class InvoicesService {
         include: { customer: true, salesOrder: true, payments: true },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'INVOICE',
           entityId: invoice.id,

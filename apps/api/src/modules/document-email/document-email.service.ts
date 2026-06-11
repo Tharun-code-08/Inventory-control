@@ -755,6 +755,7 @@ export class DocumentEmailService {
   private async writeAudit(
     userId: string,
     row: {
+      companyId: string;
       entityType: string;
       entityId: string;
       documentNumber: string;
@@ -777,6 +778,7 @@ export class DocumentEmailService {
         : `${row.documentNumber} ${verb}: ${errorMessage ?? 'unknown error'}`;
 
     await this.audit.log({
+      companyId: row.companyId,
       userId,
       action: AuditAction.EMAIL,
       entityType: auditEntity,

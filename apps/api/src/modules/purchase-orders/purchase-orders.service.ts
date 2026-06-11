@@ -5,6 +5,7 @@ import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { DocumentEmailService } from '../document-email/document-email.service';
 import { DocumentEmailTrigger } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { auditRequestMetadata } from '../../common/utils/audit-context';
@@ -613,13 +614,12 @@ export class PurchaseOrdersService {
       if (!created) {
         throw new BadRequestException('Unable to reserve a unique PO number. Please retry.');
       }
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'PURCHASE_ORDER',
           entityId: created.id,
-          ...this.auditMeta(),
           newValues: {
             poNumber: created.poNumber,
             shopId: created.shopId,
@@ -635,6 +635,7 @@ export class PurchaseOrdersService {
       if (created.status === PurchaseOrderStatus.CONFIRMED) {
         await this.audit.log(
           buildStatusTransitionAudit({
+            companyId: assertCompanyId(user),
             userId: user.id,
             entityType: 'PURCHASE_ORDER',
             entityId: created.id,
@@ -750,27 +751,28 @@ export class PurchaseOrdersService {
         },
         include: { items: ITEM_WITH_PRODUCT },
       });
-      await this.audit.log({
-        userId: user.id,
-        action: AuditAction.UPDATE,
-        entityType: 'PURCHASE_ORDER',
-        entityId: updated.id,
-        ...this.auditMeta(),
-        oldValues: {
-          poDate: existing.poDate,
-          shopId: existing.shopId,
-          rfqId: existing.rfqId ?? null,
-          supplier: existing.supplier,
-          remarks: existing.remarks ?? null,
+      await this.audit.logTenant(
+        user,
+        {
+          action: AuditAction.UPDATE,
+          entityType: 'PURCHASE_ORDER',
+          entityId: updated.id,
+          oldValues: {
+            poDate: existing.poDate,
+            shopId: existing.shopId,
+            rfqId: existing.rfqId ?? null,
+            supplier: existing.supplier,
+            remarks: existing.remarks ?? null,
+          },
+          newValues: {
+            poDate: updated.poDate.toISOString(),
+            shopId: updated.shopId,
+            rfqId: updated.rfqId ?? null,
+            supplier: updated.supplier,
+            remarks: updated.remarks ?? null,
+          },
         },
-        newValues: {
-          poDate: updated.poDate.toISOString(),
-          shopId: updated.shopId,
-          rfqId: updated.rfqId ?? null,
-          supplier: updated.supplier,
-          remarks: updated.remarks ?? null,
-        },
-      });
+      );
       return this.serialize(this.withLifecycle(updated as any));
     });
   }
@@ -807,6 +809,7 @@ export class PurchaseOrdersService {
       });
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'PURCHASE_ORDER',
           entityId: updated.id,
@@ -860,6 +863,7 @@ export class PurchaseOrdersService {
       });
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'PURCHASE_ORDER',
           entityId: updated.id,
@@ -941,6 +945,7 @@ export class PurchaseOrdersService {
       try {
         await this.audit.log(
           buildDocumentActionAudit({
+            companyId: assertCompanyId(user),
             userId: user.id,
             entityType: 'PURCHASE_ORDER',
             entityId: id,
@@ -1018,6 +1023,7 @@ export class PurchaseOrdersService {
 
     await this.audit.log(
       buildDocumentActionAudit({
+        companyId: assertCompanyId(user),
         userId: user.id,
         entityType: 'PURCHASE_ORDER',
         entityId: id,

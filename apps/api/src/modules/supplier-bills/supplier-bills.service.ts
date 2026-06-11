@@ -7,6 +7,7 @@ import {
 import { AuditAction, DocumentEmailTrigger, Prisma, SupplierBillStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import {
   assertShopScope,
   assertSupplierInTenant,
@@ -216,9 +217,9 @@ export class SupplierBillsService {
         },
       });
 
-      await this.audit.log(
+      await this.audit.logTenant(
+        user,
         {
-          userId: user.id,
           action: AuditAction.CREATE,
           entityType: 'SUPPLIER_BILL',
           entityId: bill.id,
@@ -235,6 +236,7 @@ export class SupplierBillsService {
       );
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_BILL',
           entityId: bill.id,
@@ -247,6 +249,7 @@ export class SupplierBillsService {
       );
       await this.audit.log(
         buildDocumentActionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_BILL',
           entityId: bill.id,
@@ -308,10 +311,11 @@ export class SupplierBillsService {
 
     await this.audit.log(
       buildDocumentActionAudit({
+        companyId: assertCompanyId(user),
         userId: user.id,
         entityType: 'SUPPLIER_BILL',
         entityId: id,
-        action: options?.resend ? 'RESEND_SUPPLIER_BILL' : 'SEND_SUPPLIER_BILL',
+        action: options?.resend ? 'RESEND_SUPLIER_BILL' : 'SEND_SUPPLIER_BILL',
         result: 'success',
         detail: { recipient, queued: result.queued ?? false },
       }),
@@ -361,6 +365,7 @@ export class SupplierBillsService {
 
       await this.audit.log(
         buildStatusTransitionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_BILL',
           entityId: id,
@@ -372,6 +377,7 @@ export class SupplierBillsService {
       );
       await this.audit.log(
         buildDocumentActionAudit({
+          companyId: assertCompanyId(user),
           userId: user.id,
           entityType: 'SUPPLIER_BILL',
           entityId: id,

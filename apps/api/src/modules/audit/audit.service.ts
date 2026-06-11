@@ -15,7 +15,18 @@ export type AuditLogParams = {
   newValues?: Prisma.InputJsonValue;
   ipAddress?: string | null;
   userAgent?: string | null;
-};;
+};
+
+export type PlatformAuditLogParams = {
+  userId: string;
+  action: AuditAction;
+  entityType: string;
+  entityId: string;
+  oldValues?: Prisma.InputJsonValue;
+  newValues?: Prisma.InputJsonValue;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
 
 @Injectable()
 export class AuditService {
@@ -25,7 +36,7 @@ export class AuditService {
    * Convenience method for tenant‑scoped audit logs. It extracts `companyId`
    * from the provided `actor` and forwards to `log`. Throws if missing.
    */
-  async logTenant(actor: RequestUser, params: Omit<AuditLogParams, 'companyId'>, tx?: Prisma.TransactionClient) {
+  async logTenant(actor: RequestUser, params: Omit<AuditLogParams, 'companyId' | 'userId'>, tx?: Prisma.TransactionClient) {
     const companyId = assertCompanyId(actor);
     return this.log({ ...params, companyId, userId: actor.id }, tx);
   }
@@ -43,7 +54,7 @@ export class AuditService {
     // here would defeat the purpose of bcrypt + cookie hardening.
     await client.auditLog.create({
       data: {
-        ...(params.companyId ? { companyId: params.companyId } : {}),
+        companyId: params.companyId,
         userId: params.userId,
         action: params.action,
         entityType: params.entityType,
@@ -58,11 +69,11 @@ export class AuditService {
 
   /**
    * Write an audit row for platform‑scoped events (no companyId).
-   * Accepts all standard fields except `companyId`.
+   * Accepts all standard fields except `companyId` and writes to PlatformAuditLog.
    */
-  async logPlatform(params: Omit<AuditLogParams, 'companyId'>, tx?: Prisma.TransactionClient) {
+  async logPlatform(params: PlatformAuditLogParams, tx?: Prisma.TransactionClient) {
     const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
-    await client.auditLog.create({
+    await client.platformAuditLog.create({
       data: {
         userId: params.userId,
         action: params.action,
@@ -76,3 +87,4 @@ export class AuditService {
     });
   }
 }
+

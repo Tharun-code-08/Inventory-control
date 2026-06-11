@@ -51,7 +51,7 @@ function makeService(tx: ReturnType<typeof buildTx>) {
   const numbers = {
     nextShopScopedNumber: jest.fn().mockResolvedValue('ST-202605-00001'),
   } as any;
-  const audit = { log: jest.fn() } as any;
+  const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
 
   const service = new StockTransfersService(prisma, stock, numbers, audit);
   return { service, prisma, tx, stock, audit, numbers };
@@ -184,6 +184,6 @@ describe('StockTransfersService', () => {
         inQty: new Prisma.Decimal(2),
       }),
     );
-    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.logTenant).toHaveBeenCalledTimes(1);
   });
 });
