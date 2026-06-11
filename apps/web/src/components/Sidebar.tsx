@@ -20,6 +20,7 @@ import {
   ShoppingCart,
   Sparkles,
   Barcode,
+  Truck,
   Undo2,
   Users,
   Warehouse,
