@@ -26,6 +26,7 @@ import { ExportModule } from './modules/export/export.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
+import { BarcodesModule } from './modules/barcodes/barcodes.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { RfqsModule } from './modules/rfqs/rfqs.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
@@ -154,6 +155,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     ExportModule,
     CompaniesModule,
     StorageLocationsModule,
+    BarcodesModule,
     SuppliersModule,
     RfqsModule,
     QuotationsModule,

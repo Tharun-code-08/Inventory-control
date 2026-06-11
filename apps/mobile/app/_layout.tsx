@@ -62,6 +62,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(app)" />
+        <Stack.Screen name="stock-count" />
       </Stack>
     </PersistQueryClientProvider>
   );

@@ -705,8 +705,130 @@ model Product {
   supplierReturnItems    SupplierReturnItem[]
   supplierBillItems      SupplierBillItem[]
   stockTransferItems     StockTransferItem[]
+  barcodes               ProductBarcode[]
+  scanLogs               ScanLog[]
 
   @@map("products")
+}
+
+enum BarcodeType {
+  EAN13
+  UPC_A
+  CODE128
+  CODE39
+  QR
+  INTERNAL
+}
+
+model ProductBarcode {
+  id           String      @id @default(uuid()) @db.Uuid
+  productId    String      @map("product_id") @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  barcodeValue String      @map("barcode_value")
+  barcodeType  BarcodeType @default(CODE128) @map("barcode_type")
+  isPrimary     Boolean     @default(false) @map("is_primary")
+  scanCount     Int         @default(0) @map("scan_count")
+  lastScannedAt DateTime?   @map("last_scanned_at") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById   String?     @map("created_by") @db.Uuid
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, barcodeValue])
+  @@index([barcodeValue])
+  @@index([productId])
+  @@map("product_barcodes")
+}
+
+enum ScanAction {
+  LOOKUP
+  GOODS_RECEIPT
+  GOODS_ISSUE
+  STOCK_COUNT
+  SALES_ORDER
+  PURCHASE_ORDER
+  STOCK_TRANSFER
+}
+
+enum ScanResult {
+  FOUND
+  NOT_FOUND
+  INVALID
+}
+
+enum ScanSource {
+  WEB
+  MOBILE
+  USB_SCANNER
+  CAMERA
+  API
+}
+
+model ScanLog {
+  id        String     @id @default(uuid()) @db.Uuid
+  companyId String     @map("company_id") @db.Uuid
+  shopId    String?    @map("shop_id") @db.Uuid
+  barcode   String
+  productId String?    @map("product_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  action    ScanAction @default(LOOKUP)
+  result    ScanResult @default(FOUND)
+  source    ScanSource @default(API)
+  sessionId String?    @map("session_id") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([productId])
+  @@index([barcode])
+  @@index([sessionId])
+  @@map("scan_logs")
+}
+
+enum StockCountStatus {
+  OPEN
+  REVIEW
+  APPROVED
+  CANCELLED
+}
+
+model StockCountSession {
+  id            String           @id @default(uuid()) @db.Uuid
+  sessionNumber String           @unique @map("session_number")
+  companyId     String           @map("company_id") @db.Uuid
+  shopId        String           @map("shop_id") @db.Uuid
+  status        StockCountStatus @default(OPEN)
+  remarks       String?
+  startedById   String           @map("started_by") @db.Uuid
+  approvedById  String?          @map("approved_by") @db.Uuid
+  approvedAt    DateTime?        @map("approved_at") @db.Timestamptz(6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items StockCountItem[]
+
+  @@index([companyId, status])
+  @@index([shopId])
+  @@map("stock_count_sessions")
+}
+
+model StockCountItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  countedQty  Decimal  @default(0) @map("counted_qty") @db.Decimal(12, 3)
+  /** On-hand snapshot taken when the session moves to review. */
+  expectedQty Decimal? @map("expected_qty") @db.Decimal(12, 3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  session StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  product Product           @relation(fields: [productId], references: [id])
+
+  @@unique([sessionId, productId])
+  @@index([productId])
+  @@map("stock_count_items")
 }
 
 model ProductPlant {

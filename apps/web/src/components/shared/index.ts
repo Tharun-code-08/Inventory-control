@@ -2,6 +2,8 @@ export { CreatePageLayout } from './create-page-layout';
 export { PageHeader } from './page-header';
 export { KpiCard, type KpiCardProps } from './kpi-card';
 export { SearchInput } from './search-input';
+export { BarcodeInput, normalizeBarcode } from './barcode-input';
+export { BarcodeNotFoundDialog } from './barcode-not-found-dialog';
 export { P2PFlowTimeline, type P2PStep } from './p2p-flow-timeline';
 export { ColumnFilter } from './column-filter';
 export { ConfirmDialog } from './confirm-dialog';

@@ -86,7 +86,9 @@ import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { useShops } from '@/hooks/use-shops';
 import { isShopOnlyUser } from '@/lib/shop-scope';
-import { P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { BarcodeInput, BarcodeNotFoundDialog, P2PFlowTimeline, type P2PStep } from '@/components/shared';
+import { lookupBarcode, type BarcodeProduct } from '@/hooks/use-barcodes';
+import { playScanError, playScanSuccess } from '@/lib/scan-feedback';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { displayDocumentNumber } from '@/lib/document-display';
 
@@ -214,6 +216,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const [postTarget, setPostTarget] = useState<GoodsReceipt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceipt | null>(null);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
 
   const filters: GoodsReceiptFilters = {
     page,
@@ -503,6 +506,59 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       form.setValue(`items.${index}.productId`, productId);
       form.setValue(`items.${index}.uom`, product.uom);
       form.setValue(`items.${index}.purchaseRate`, product.purchasePrice);
+    }
+  };
+
+  /**
+   * Add a scanned product to the line items: bump quantity if the product is
+   * already on a row, fill the first blank row, or append a new one. Returns
+   * focus to the scan box implicitly since the input clears itself.
+   */
+  const addScannedProduct = (scanned: { id: string; uom?: string; purchasePrice?: number | string }) => {
+    const current = form.getValues('items') ?? [];
+    const existingIndex = current.findIndex((item) => item.productId === scanned.id);
+    if (existingIndex >= 0) {
+      form.setValue(
+        `items.${existingIndex}.quantity`,
+        Number(current[existingIndex].quantity || 0) + 1,
+        { shouldDirty: true },
+      );
+      return;
+    }
+    const catalog = productMap.get(scanned.id);
+    const uom = catalog?.uom ?? scanned.uom ?? '';
+    const purchaseRate = Number(catalog?.purchasePrice ?? scanned.purchasePrice ?? 0) || 0;
+    const blankIndex = current.findIndex((item) => !item.productId);
+    if (blankIndex >= 0) {
+      form.setValue(`items.${blankIndex}.productId`, scanned.id, { shouldDirty: true });
+      form.setValue(`items.${blankIndex}.uom`, uom, { shouldDirty: true });
+      form.setValue(`items.${blankIndex}.purchaseRate`, purchaseRate, { shouldDirty: true });
+      return;
+    }
+    append({
+      ...emptyItem,
+      productId: scanned.id,
+      uom,
+      purchaseRate,
+      storageLocationId: defaultStorageLocationId,
+    });
+  };
+
+  const handleBarcodeScan = async (code: string) => {
+    try {
+      const result = await lookupBarcode(code, 'GOODS_RECEIPT', grShopId || undefined);
+      if (result.duplicate) return; // server flagged a double-fired scan
+      if (result.found) {
+        playScanSuccess();
+        addScannedProduct(result.product as BarcodeProduct);
+        toast.success(`${result.product.productCode} — ${result.product.description}`);
+      } else {
+        playScanError();
+        setUnknownBarcode(result.barcode);
+      }
+    } catch (err) {
+      playScanError();
+      toast.error(getApiErrorMessage(err, 'Scan failed'));
     }
   };
 
@@ -1217,6 +1273,13 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Label className="text-base">Line Items *</Label>
+                <BarcodeInput
+                  onScan={handleBarcodeScan}
+                  allowRepeatScans
+                  autoFocus={false}
+                  className="w-full sm:w-72"
+                  placeholder="Scan barcode to add item…"
+                />
                 <Button
                   type="button"
                   variant="outline"
@@ -1522,6 +1585,13 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BarcodeNotFoundDialog
+        barcode={unknownBarcode}
+        onClose={() => setUnknownBarcode(null)}
+        products={productList}
+        onAttached={(productId) => addScannedProduct({ id: productId })}
+      />
     </AppLayout>
   );
 }

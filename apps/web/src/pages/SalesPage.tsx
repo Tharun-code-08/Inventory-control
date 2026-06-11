@@ -671,6 +671,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
         supplyType={gstSupplyType}
         formatAmount={formatAmount}
         compact
+        scanShopId={resolvedShopId || undefined}
         onChange={(items) => setForm((p) => ({ ...p, items }))}
       />
 
@@ -1024,6 +1025,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
               products={products}
               supplyType={gstSupplyType}
               formatAmount={formatAmount}
+              scanShopId={resolvedShopId || undefined}
               onChange={(items) => setForm((p) => ({ ...p, items }))}
             />
 

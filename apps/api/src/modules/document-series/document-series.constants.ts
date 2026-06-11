@@ -121,6 +121,15 @@ export const DOCUMENT_SERIES_MODULES: DocumentSeriesModuleDef[] = [
     defaultRestartPeriod: DocumentSeriesRestart.NONE,
     shopScoped: false,
   },
+  {
+    docType: 'SC',
+    moduleLabel: 'Stock Count',
+    defaultPrefix: 'SC',
+    defaultStartingNumber: 1,
+    defaultPadWidth: 5,
+    defaultRestartPeriod: DocumentSeriesRestart.NONE,
+    shopScoped: false,
+  },
 ];
 
 export const DOCUMENT_SERIES_MODULE_BY_TYPE = new Map(

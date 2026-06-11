@@ -1,5 +1,11 @@
+import { useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { BarcodeInput, BarcodeNotFoundDialog } from '@/components/shared';
+import { lookupBarcode, type BarcodeProduct } from '@/hooks/use-barcodes';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { playScanError, playScanSuccess } from '@/lib/scan-feedback';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -55,6 +61,8 @@ type Props = {
   onChange: (items: SalesLineDraft[]) => void;
   formatAmount: (value: number) => string;
   compact?: boolean;
+  /** Shop context recorded with each scan for audit; scanning is enabled regardless. */
+  scanShopId?: string;
 };
 
 function updateLine(items: SalesLineDraft[], index: number, patch: Partial<SalesLineDraft>) {
@@ -89,7 +97,7 @@ function GstPercentSelect({
 }
 
 function applyProductGstToLine(
-  product: Product | undefined,
+  product: Pick<Product, 'gstRate'> | undefined,
   supplyType: GstSupplyType,
 ): Partial<SalesLineDraft> {
   const gstRate = Number(product?.gstRate ?? 0);
@@ -109,24 +117,98 @@ export function SalesOrderLineItemsEditor({
   onChange,
   formatAmount,
   compact,
+  scanShopId,
 }: Props) {
   const selectContentClass = compact ? 'max-w-[min(24rem,90vw)]' : undefined;
   const interState = isInterStateSupply(supplyType);
 
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  // Latest items + a promise chain so rapid scans apply sequentially instead
+  // of clobbering each other through stale prop closures.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const scanQueue = useRef<Promise<void>>(Promise.resolve());
+
+  const addScannedProduct = (productId: string, payload?: BarcodeProduct) => {
+    const current = itemsRef.current;
+    const existingIndex = current.findIndex((line) => line.productId === productId);
+    if (existingIndex >= 0) {
+      const next = updateLine(current, existingIndex, {
+        quantity: String((Number(current[existingIndex].quantity) || 0) + 1),
+      });
+      itemsRef.current = next;
+      onChange(next);
+      return;
+    }
+    const catalog = products.find((p) => p.id === productId);
+    const newLine: SalesLineDraft = {
+      ...emptySalesLine(),
+      productId,
+      unitPrice: String(catalog?.sellingPrice ?? payload?.sellingPrice ?? '0'),
+      uom: catalog?.uom ?? payload?.uom ?? 'pcs',
+      ...applyProductGstToLine(
+        catalog ?? (payload ? { gstRate: Number(payload.gstRate) } : undefined),
+        supplyType,
+      ),
+    };
+    const blankIndex = current.findIndex((line) => !line.productId);
+    const next =
+      blankIndex >= 0
+        ? current.map((line, i) => (i === blankIndex ? newLine : line))
+        : [...current, newLine];
+    itemsRef.current = next;
+    onChange(next);
+  };
+
+  const handleScan = (code: string) => {
+    scanQueue.current = scanQueue.current.then(async () => {
+      try {
+        const result = await lookupBarcode(code, 'SALES_ORDER', scanShopId);
+        if (result.duplicate) return; // server flagged a double-fired scan
+        if (result.found) {
+          playScanSuccess();
+          addScannedProduct(result.product.id, result.product);
+        } else {
+          playScanError();
+          setUnknownBarcode(result.barcode);
+        }
+      } catch (err) {
+        playScanError();
+        toast.error(getApiErrorMessage(err, 'Scan failed'));
+      }
+    });
+  };
+
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-900">Line items</h3>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => onChange([...items, emptySalesLine()])}
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Add item
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <BarcodeInput
+            onScan={handleScan}
+            allowRepeatScans
+            autoFocus={false}
+            className="w-full sm:w-64"
+            placeholder="Scan barcode to add item…"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onChange([...items, emptySalesLine()])}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Add item
+          </Button>
+        </div>
       </div>
+
+      <BarcodeNotFoundDialog
+        barcode={unknownBarcode}
+        onClose={() => setUnknownBarcode(null)}
+        products={products}
+        onAttached={(productId) => addScannedProduct(productId)}
+      />
       <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
