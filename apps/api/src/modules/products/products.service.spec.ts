@@ -163,6 +163,7 @@ describe('ProductsService bulk workflow', () => {
       subscriptions as never,
       {} as never,
       series as never,
+      {} as never,
     );
 
     const result = await service.bulkUpsert(makeUser(), {
@@ -230,6 +231,7 @@ describe('ProductsService bulk workflow', () => {
       subscriptions as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     const result = await service.bulkUpsert(makeUser(), {
@@ -279,6 +281,7 @@ describe('ProductsService bulk workflow', () => {
       prisma as never,
       stock as never,
       subscriptions as never,
+      {} as never,
       {} as never,
       {} as never,
     );

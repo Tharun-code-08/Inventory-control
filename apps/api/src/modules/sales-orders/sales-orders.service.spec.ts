@@ -25,7 +25,7 @@ function makeService(
   auditSvc = audit(),
   costingSvc = costing(),
 ) {
-  return new SalesOrdersService(prisma, stockSvc, numbersSvc, auditSvc, costingSvc, subscriptions());
+  return new SalesOrdersService(prisma, stockSvc, numbersSvc, auditSvc, costingSvc, subscriptions(), {} as any, {} as any);
 }
 
 function buildTx() {

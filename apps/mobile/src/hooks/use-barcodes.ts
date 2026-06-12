@@ -112,6 +112,27 @@ export function useBarcodeList(params: {
   });
 }
 
+export type ProductBarcodeRow = {
+  id: string;
+  barcode: string;
+  barcodeType: string;
+  isPrimary: boolean;
+  supplier?: { id: string; supplierName: string } | null;
+};
+
+/** All barcodes registered to one product (primary first). */
+export function useProductBarcodes(productId: string) {
+  return useQuery({
+    queryKey: ['barcodes', 'product', productId],
+    queryFn: async () => {
+      const res = await api.get(`/barcodes/products/${productId}`);
+      const rows = unwrapData(res.data);
+      return (Array.isArray(rows) ? rows : []) as ProductBarcodeRow[];
+    },
+    enabled: !!productId,
+  });
+}
+
 export function useDeleteBarcode() {
   const qc = useQueryClient();
   return useMutation({

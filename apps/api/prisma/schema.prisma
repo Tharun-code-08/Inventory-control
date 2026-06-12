@@ -645,6 +645,7 @@ model Session {
   refreshHash String    @map("refresh_hash")
   ip          String?
   userAgent   String?   @map("user_agent")
+  deviceName  String?   @map("device_name")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
   revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
@@ -685,6 +686,8 @@ model Product {
   gstRate          Decimal       @default(0) @map("gst_rate") @db.Decimal(7, 4)
   purchasePrice    Decimal       @map("purchase_price") @db.Decimal(12, 2)
   sellingPrice     Decimal       @map("selling_price") @db.Decimal(12, 2)
+  imageUrl         String?       @map("image_url")
+  thumbnailUrl     String?       @map("thumbnail_url")
   isActive         Boolean       @default(true) @map("is_active")
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)

@@ -12,6 +12,7 @@ import { DocumentSeriesService } from '../document-series/document-series.servic
 import { SubscriptionService } from '../billing/subscription.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
 import { BulkProductUpsertDto, BulkProductUpsertRowDto } from './dto/bulk-product-upsert.dto';
+import { ProductImageStorageService } from '../../common/upload/product-image-storage.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -46,6 +47,7 @@ export class ProductsService {
     private readonly subscriptions: SubscriptionService,
     private readonly numbers: DocumentNumberService,
     private readonly series: DocumentSeriesService,
+    private readonly images: ProductImageStorageService,
   ) {}
 
   /**
@@ -489,7 +491,50 @@ export class ProductsService {
       const accessible = product.plants.some((plant) => tenantShopIds.includes(plant.shopId));
       if (!accessible) throw new NotFoundException('Product not found');
     }
-    return this.serializeProduct(product);
+    // Same stock decoration as list() so detail screens can show the
+    // per-warehouse breakdown without a second round-trip.
+    const balances = await this.buildStockBalanceMap(
+      this.prisma,
+      [product.id],
+      tenantShopIds && tenantShopIds.length > 0 ? tenantShopIds : undefined,
+    );
+    const stockByShop: Record<string, number> = {};
+    for (const [key, balance] of balances.entries()) {
+      const [, balanceShopId] = key.split(':');
+      stockByShop[balanceShopId] = balance;
+    }
+    const totalStock = Object.values(stockByShop).reduce((acc, n) => acc + n, 0);
+    return {
+      ...this.serializeProduct(product),
+      stockByShop,
+      totalStock,
+      currentStock: user.shopId ? stockByShop[user.shopId] ?? 0 : totalStock,
+    };
+  }
+
+  async setImage(user: RequestUser, id: string, file: Express.Multer.File) {
+    // get() applies tenant/shop scoping and throws NotFound on miss.
+    const product = await this.get(user, id);
+    const stored = await this.images.store(id, file);
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { imageUrl: stored.imageUrl, thumbnailUrl: stored.thumbnailUrl },
+      include: PRODUCT_INCLUDE,
+    });
+    // Old files are orphaned once the record points elsewhere; remove them.
+    await this.images.remove([product.imageUrl, product.thumbnailUrl]);
+    return this.serializeProduct(updated);
+  }
+
+  async removeImage(user: RequestUser, id: string) {
+    const product = await this.get(user, id);
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { imageUrl: null, thumbnailUrl: null },
+      include: PRODUCT_INCLUDE,
+    });
+    await this.images.remove([product.imageUrl, product.thumbnailUrl]);
+    return this.serializeProduct(updated);
   }
 
   async update(user: RequestUser, id: string, dto: UpdateProductDto) {

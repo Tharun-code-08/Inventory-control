@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { defaultShopId, isShopOnlyUser } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useDebounce } from '@/hooks/use-debounce';
+import { ProductImage } from '@/components/ProductImage';
 import { EmptyState, Input, ListRow, Muted, Screen, Title } from '@/components/ui';
 
 export default function ProductsScreen() {
@@ -71,6 +72,7 @@ export default function ProductsScreen() {
               <ListRow
                 title={item.productCode}
                 subtitle={`${item.description} · ${item.uom} · stock ${item.currentStock ?? item.totalStock ?? 0}`}
+                left={<ProductImage uri={item.thumbnailUrl} category={item.category} />}
               />
             </Link>
           )}

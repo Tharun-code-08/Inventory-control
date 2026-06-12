@@ -1,5 +1,19 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { productImageMulterOptions } from '../../common/upload/product-image-multer.options';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
@@ -111,6 +125,25 @@ export class ProductsController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.products.update(user, id, dto);
+  }
+
+  @RequirePermission('product:write')
+  @Post(':id/image')
+  @ApiOperation({ summary: 'Upload or replace the product image (compressed + thumbnailed)' })
+  @UseInterceptors(FileInterceptor('image', productImageMulterOptions))
+  uploadImage(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() image: Express.Multer.File,
+  ) {
+    return this.products.setImage(user, id, image);
+  }
+
+  @RequirePermission('product:write')
+  @Delete(':id/image')
+  @ApiOperation({ summary: 'Remove the product image' })
+  removeImage(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.products.removeImage(user, id);
   }
 
   @RequirePermission('product:write')

@@ -71,7 +71,7 @@ function makePrisma() {
     },
     $transaction: jest.fn(async (arg: unknown) => {
       if (typeof arg === 'function') {
-        return (arg as (tx: typeof tx) => Promise<unknown>)(tx);
+        return (arg as (client: Record<string, unknown>) => Promise<unknown>)(tx as unknown as Record<string, unknown>);
       }
       return arg;
     }),

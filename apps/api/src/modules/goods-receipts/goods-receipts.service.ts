@@ -242,11 +242,29 @@ export class GoodsReceiptsService {
         await this.validateAgainstPurchaseOrder(tx, null, resolvedPurchaseOrderId, normalizedItems);
       }
 
-      const grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
-        shopId: dto.shopId,
-        docType: 'GR',
-        date: grDate,
-      });
+      // The sequence counter can fall behind existing gr_numbers (imported
+      // data, series reconfiguration). A collision would abort the tx and
+      // roll back the counter bump too, wedging every retry on the same
+      // number — so advance within the tx until a free number is found.
+      let grNumber = '';
+      for (let attempt = 0; attempt < 50; attempt++) {
+        grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
+          shopId: dto.shopId,
+          docType: 'GR',
+          date: grDate,
+        });
+        const taken = await tx.goodsReceiptHeader.findUnique({
+          where: { grNumber },
+          select: { id: true },
+        });
+        if (!taken) break;
+        grNumber = '';
+      }
+      if (!grNumber) {
+        throw new BadRequestException(
+          'Could not allocate a goods receipt number. Check the GR document series configuration.',
+        );
+      }
 
       const header = await tx.goodsReceiptHeader.create({
         data: {

@@ -126,12 +126,14 @@ export const ListRow = forwardRef<
   {
     title: string;
     subtitle?: string;
+    left?: React.ReactNode;
     right?: React.ReactNode;
     onPress?: () => void;
   }
->(function ListRow({ title, subtitle, right, onPress }, ref) {
+>(function ListRow({ title, subtitle, left, right, onPress }, ref) {
   const content = (
     <View style={styles.row}>
+      {left ? <View style={styles.rowLeft}>{left}</View> : null}
       <View style={styles.rowMain}>
         <Text style={styles.rowTitle}>{title}</Text>
         {subtitle ? <Muted>{subtitle}</Muted> : null}
@@ -228,6 +230,7 @@ const styles = StyleSheet.create({
   },
   rowPressed: { backgroundColor: '#f1f5f9' },
   row: { flexDirection: 'row', alignItems: 'center' },
+  rowLeft: { marginRight: 12 },
   rowMain: { flex: 1 },
   rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
 });

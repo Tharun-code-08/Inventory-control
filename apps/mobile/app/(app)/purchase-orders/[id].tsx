@@ -1,5 +1,5 @@
 import { Alert, ScrollView, RefreshControl, View, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DetailField } from '@/components/DetailField';
@@ -126,6 +126,13 @@ export default function PurchaseOrderDetailScreen() {
                     <Button label="Confirm" onPress={onConfirm} loading={confirmPO.isPending} />
                     <Button label="Cancel PO" variant="secondary" onPress={onCancel} loading={cancelPO.isPending} />
                   </>
+                ) : null}
+                {(po.lifecycleStatus === 'CONFIRMED' || po.lifecycleStatus === 'PARTIALLY_RECEIVED') &&
+                hasPermission(user, 'goods_receipt:create') ? (
+                  <Button
+                    label="Receive items"
+                    onPress={() => router.push(`/goods-receipts/new?poId=${po.id}`)}
+                  />
                 ) : null}
               </View>
             </>

@@ -40,9 +40,16 @@ function makeService() {
   const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
   const costing = { recordInflow: jest.fn() } as any;
 
-  const service = new GoodsReceiptsService(prisma, stock, numbers, audit, costing, {
-    sendInternalAlert: jest.fn().mockResolvedValue(undefined),
-  } as any);
+  const service = new GoodsReceiptsService(
+    prisma,
+    stock,
+    numbers,
+    audit,
+    costing,
+    { sendInternalAlert: jest.fn().mockResolvedValue(undefined) } as any,
+    { renderDocumentPdf: jest.fn() } as any,
+    { sendDocument: jest.fn() } as any,
+  );
   return { service, prisma, tx, stock, audit, costing };
 }
 
@@ -190,6 +197,8 @@ const costingFactory = () =>
   }) as any;
 const emailNotificationsFactory = () =>
   ({ sendInternalAlert: jest.fn().mockResolvedValue(undefined) }) as any;
+const documentPdfFactory = () => ({ renderDocumentPdf: jest.fn() }) as any;
+const documentEmailFactory = () => ({ sendDocument: jest.fn() }) as any;
 
 describe('GoodsReceiptsService.create', () => {
   it('rejects future grDate', async () => {
@@ -201,6 +210,8 @@ describe('GoodsReceiptsService.create', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     const future = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await expect(
@@ -222,6 +233,8 @@ describe('GoodsReceiptsService.create', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     await expect(
       service.create(adminUser, {
@@ -242,6 +255,8 @@ describe('GoodsReceiptsService.create', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     await expect(
       service.create(adminUser, {
@@ -273,6 +288,8 @@ describe('GoodsReceiptsService.post', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -318,6 +335,8 @@ describe('GoodsReceiptsService.post', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -380,6 +399,8 @@ describe('GoodsReceiptsService.post', () => {
       auditSvc,
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
 
     await service.post(adminUser, 'gr-1');
@@ -445,6 +466,8 @@ describe('GoodsReceiptsService.post', () => {
       auditFactory(),
       costingFactory(),
       emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
     );
     await service.post(adminUser, 'gr-1');
 

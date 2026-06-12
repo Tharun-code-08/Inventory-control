@@ -10,6 +10,8 @@ export type Product = {
   category: string;
   purchasePrice: number;
   sellingPrice: number;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
   isActive: boolean;
   stockByShop?: Record<string, number>;
   totalStock?: number;
@@ -57,6 +59,8 @@ function normalizeProduct(raw: unknown): Product {
     category: String(p.category ?? ''),
     purchasePrice: normalizeNumber(p.purchasePrice),
     sellingPrice: normalizeNumber(p.sellingPrice),
+    imageUrl: (p.imageUrl as string) ?? null,
+    thumbnailUrl: (p.thumbnailUrl as string) ?? null,
     isActive: Boolean(p.isActive ?? true),
     stockByShop: p.stockByShop as Record<string, number> | undefined,
     totalStock: p.totalStock != null ? normalizeNumber(p.totalStock) :

@@ -51,7 +51,7 @@ const RETURN_INCLUDE = {
 
 const ITEM_WITH_PRODUCT = {
   include: {
-    product: { select: { id: true, productCode: true, description: true } },
+    product: { select: { id: true, productCode: true, description: true, uom: true } },
   },
 } as const;
 

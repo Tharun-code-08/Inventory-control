@@ -1,5 +1,5 @@
 import { ScrollView, View, StyleSheet, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/store/authStore';
 import { logoutSession } from '@/lib/session';
@@ -55,7 +55,7 @@ export default function SettingsScreen() {
               <Button
                 label="Manage Barcode Mappings"
                 variant="secondary"
-                onPress={() => router.push('/(app)/barcode-management')}
+                onPress={() => router.push('/(app)/barcode-management' as Href)}
               />
             </Card>
           </>

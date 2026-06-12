@@ -32,6 +32,11 @@ const apiProxy: Record<string, ProxyOptions> = {
       });
     },
   },
+  // Uploaded assets (avatars, product images) are served by the API.
+  '/uploads': {
+    target: 'http://127.0.0.1:3000',
+    changeOrigin: true,
+  },
 };
 
 export default defineConfig({

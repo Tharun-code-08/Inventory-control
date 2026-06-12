@@ -19,6 +19,12 @@ type DrawerItem = {
 
 const SECTIONS: { title: string; items: DrawerItem[] }[] = [
   {
+    // Always first and unconditional: users must be able to get back to the
+    // dashboard from any module.
+    title: 'Overview',
+    items: [{ label: 'Dashboard', icon: 'home-outline', route: '/(app)/(tabs)' }],
+  },
+  {
     title: 'Procurement',
     items: [
       { label: 'Purchase Orders', icon: 'document-text-outline', route: '/purchase-orders', permission: 'purchase_order:read', feature: 'mobilePurchaseOrders' },
@@ -42,6 +48,7 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
   {
     title: 'Operations',
     items: [
+      { label: 'Warehouses', icon: 'business-outline', route: '/warehouses' as Href, permission: 'shop:read', feature: 'mobileWarehouses' },
       { label: 'Reports', icon: 'bar-chart-outline', route: '/reports', permission: 'report:view', feature: 'mobileReports' },
       { label: 'Print Labels', icon: 'barcode-outline', route: '/barcode-print', permission: 'product:read', feature: 'mobileBarcodePrint' },
       { label: 'Stock Count', icon: 'clipboard-outline', route: '/stock-count', permission: 'product:read', feature: 'mobileStockCount' },

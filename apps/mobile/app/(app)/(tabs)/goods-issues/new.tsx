@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Pressable, Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
+import { ProductImage } from '@/components/ProductImage';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
 import { lookupBarcode } from '@/hooks/use-barcodes';
@@ -198,8 +199,11 @@ export default function NewGoodsIssueScreen() {
             <View>
               {(productsQuery.data?.items ?? []).map((item) => (
                 <Pressable key={item.id} onPress={() => addLine(item)} style={styles.productPick}>
-                  <Text>{item.productCode}</Text>
-                  <Muted>{item.description}</Muted>
+                  <ProductImage uri={item.thumbnailUrl} category={item.category} size={36} />
+                  <View style={styles.productPickText}>
+                    <Text>{item.productCode}</Text>
+                    <Muted>{item.description}</Muted>
+                  </View>
                 </Pressable>
               ))}
             </View>
@@ -254,5 +258,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
+  productPickText: { flex: 1, marginLeft: 12 },
 });

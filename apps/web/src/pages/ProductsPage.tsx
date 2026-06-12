@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { ProductImageUpload } from '@/components/products/ProductImageUpload';
 import { downloadProductImportTemplate } from '@/lib/product-import-template';
 import {
   buildProductCategoryEntry,
@@ -1588,6 +1589,15 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           </p>
         )}
       </div>
+      {editingProduct ? (
+        <ProductImageUpload
+          productId={editingProduct.id}
+          imageUrl={editingProduct.imageUrl}
+          onChanged={(img) =>
+            setEditingProduct((prev) => (prev ? { ...prev, ...img } : prev))
+          }
+        />
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="hsnCode">HSN Code</Label>
         <Input

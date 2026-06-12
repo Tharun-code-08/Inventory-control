@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { PermissionGate } from '@/components/PermissionGate';
+import { ProductImage } from '@/components/ProductImage';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
 import { lookupBarcode } from '@/hooks/use-barcodes';
 import { useCreateGoodsReceipt } from '@/hooks/use-goods-receipts';
+import { usePurchaseOrder, usePurchaseOrders } from '@/hooks/use-purchase-orders';
 import { useProducts, type Product } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
@@ -24,6 +26,8 @@ type LineDraft = {
   uom: string;
   purchaseRate: string;
   storageLocationId: string;
+  /** PO mode: how much is still receivable. Receiving more is blocked. */
+  remainingQty?: number;
 };
 
 function todayISO() {
@@ -33,6 +37,9 @@ function todayISO() {
 export default function NewGoodsReceiptScreen() {
   const user = useAuthStore((s) => s.user);
   const lockedShopId = defaultShopId(user);
+  const { poId } = useLocalSearchParams<{ poId?: string }>();
+  const poQuery = usePurchaseOrder(poId ?? '');
+  const po = poId ? poQuery.data : undefined;
   const [shopId, setShopId] = useState(lockedShopId);
   const [supplierName, setSupplierName] = useState('');
   const [supplierRef, setSupplierRef] = useState('');
@@ -66,21 +73,74 @@ export default function NewGoodsReceiptScreen() {
   });
   const createGr = useCreateGoodsReceipt();
 
+  // Eligible POs for "receive against a purchase order" (blank mode only).
+  const eligiblePosQuery = usePurchaseOrders(
+    !poId && shopId ? { shopId, status: 'CONFIRMED', limit: 20 } : {},
+  );
+  const eligiblePos = useMemo(
+    () =>
+      poId || !shopId
+        ? []
+        : (eligiblePosQuery.data?.items ?? []).filter(
+            (p) => p.lifecycleStatus === 'CONFIRMED' || p.lifecycleStatus === 'PARTIALLY_RECEIVED',
+          ),
+    [poId, shopId, eligiblePosQuery.data],
+  );
+
   useEffect(() => {
     if (lockedShopId) setShopId(lockedShopId);
   }, [lockedShopId]);
 
+  // PO mode: lock shop + supplier to the PO and prefill all open lines with
+  // their pending quantities. Re-runs only when a different PO loads.
+  useEffect(() => {
+    if (!po) return;
+    setShopId(po.shopId);
+    setSupplierName(po.supplier);
+    const progressByProduct = new Map(
+      (po.receiptProgress ?? []).map((rp) => [rp.productId, rp]),
+    );
+    setLines(
+      po.items
+        .map((item): LineDraft | null => {
+          const progress = progressByProduct.get(item.productId);
+          const remaining = progress ? progress.remainingQty : item.orderQty;
+          if (remaining <= 0) return null;
+          return {
+            productId: item.productId,
+            label: `${item.product?.productCode ?? ''} — ${item.product?.description ?? item.lineDescription ?? ''}`,
+            quantity: String(remaining),
+            uom: (item.product as { uom?: string } | undefined)?.uom ?? 'UNIT',
+            purchaseRate: String(item.rate ?? 0),
+            storageLocationId: '',
+            remainingQty: remaining,
+          };
+        })
+        .filter((l): l is LineDraft => l !== null),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [po?.id]);
+
+  const poReceivable =
+    !po || po.lifecycleStatus === 'CONFIRMED' || po.lifecycleStatus === 'PARTIALLY_RECEIVED';
+
   function addLine(product: Pick<Product, 'id' | 'productCode' | 'description' | 'uom' | 'purchasePrice'>) {
+    if (po && !lines.some((l) => l.productId === product.id)) {
+      setScanError(`${product.productCode} is not on purchase order ${po.poNumber}.`);
+      return;
+    }
     setScanError(null);
     setLines((prev) => {
       const existing = prev.find((l) => l.productId === product.id);
       if (existing) {
-        // Scanning the same product again bumps the quantity.
-        return prev.map((l) =>
-          l.productId === product.id
-            ? { ...l, quantity: String((Number(l.quantity) || 0) + 1) }
-            : l,
-        );
+        // Scanning the same product again bumps the quantity (capped at the
+        // PO's pending quantity when receiving against a PO).
+        return prev.map((l) => {
+          if (l.productId !== product.id) return l;
+          const next = (Number(l.quantity) || 0) + 1;
+          const capped = l.remainingQty != null ? Math.min(next, l.remainingQty) : next;
+          return { ...l, quantity: String(capped) };
+        });
       }
       return [
         ...prev,
@@ -104,6 +164,12 @@ export default function NewGoodsReceiptScreen() {
       // the product still resolves, but we skip the quantity bump.
       if (result.duplicate) return;
       if (!result.found) {
+        if (po) {
+          // Creating/linking products mid-receipt doesn't help against a PO —
+          // the product still wouldn't be on the order.
+          setScanError(`No product matches "${result.barcode}" on this purchase order.`);
+          return;
+        }
         // Hand off to the recovery sheet: create or link, then add the line.
         setScannerOpen(false);
         setUnknownBarcode(result.barcode);
@@ -137,6 +203,18 @@ export default function NewGoodsReceiptScreen() {
       Alert.alert('No storage locations', 'This shop has no active storage locations. Create one on the web app first.');
       return;
     }
+    // Over-receive guard (PO mode). The server re-validates inside the
+    // transaction; this just fails fast with a line-level message.
+    const overLine = lines.find(
+      (l) => l.remainingQty != null && Number(l.quantity) > l.remainingQty,
+    );
+    if (overLine) {
+      Alert.alert(
+        'Over-receiving blocked',
+        `${overLine.label}: only ${overLine.remainingQty} pending on this purchase order.`,
+      );
+      return;
+    }
     const items = lines
       .map((l) => ({
         productId: l.productId,
@@ -154,12 +232,19 @@ export default function NewGoodsReceiptScreen() {
       Alert.alert('Invalid rate', 'Each line needs a purchase rate of 0 or more.');
       return;
     }
+    // FULL only when every open PO line is received in full by this receipt.
+    const receiptType: 'FULL' | 'PARTIAL' = !po
+      ? 'FULL'
+      : lines.every((l) => l.remainingQty == null || Number(l.quantity) === l.remainingQty)
+        ? 'FULL'
+        : 'PARTIAL';
     try {
       const gr = await createGr.mutateAsync({
         grDate: todayISO(),
         shopId,
-        receiptType: 'FULL',
-        receiptSource: 'OUTSIDE',
+        receiptType,
+        receiptSource: po ? 'PURCHASE_ORDER' : 'OUTSIDE',
+        purchaseOrderId: po?.id,
         supplierName: supplierName.trim(),
         supplierRef: supplierRef.trim() || undefined,
         remarks: remarks.trim() || undefined,
@@ -175,9 +260,29 @@ export default function NewGoodsReceiptScreen() {
     <PermissionGate permission="goods_receipt:create">
       <Screen>
         <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Title>New goods receipt</Title>
+          <Title>{po ? `Receive against ${po.poNumber}` : 'New goods receipt'}</Title>
 
-          {!isShopOnlyUser(user) ? (
+          {poId && poQuery.isLoading ? <Muted>Loading purchase order…</Muted> : null}
+          {poId && poQuery.isError ? (
+            <Muted style={styles.error}>
+              {getApiErrorMessage(poQuery.error, 'Could not load the purchase order.')}
+            </Muted>
+          ) : null}
+          {po && !poReceivable ? (
+            <Muted style={styles.error}>
+              This purchase order is {po.lifecycleStatus} — goods can only be received against
+              CONFIRMED or PARTIALLY_RECEIVED orders.
+            </Muted>
+          ) : null}
+          {po ? (
+            <Card>
+              <Subtitle>Purchase order</Subtitle>
+              <Muted>{`${po.poNumber} · ${po.supplier}`}</Muted>
+              <Muted>{`Shop: ${po.shop?.shopName ?? po.shopId}`}</Muted>
+            </Card>
+          ) : null}
+
+          {!po && !isShopOnlyUser(user) ? (
             <Card>
               <Subtitle>Shop</Subtitle>
               {shops.map((s) => (
@@ -192,7 +297,25 @@ export default function NewGoodsReceiptScreen() {
             </Card>
           ) : null}
 
-          <Input placeholder="Supplier name *" value={supplierName} onChangeText={setSupplierName} />
+          {!po && eligiblePos.length > 0 ? (
+            <Card>
+              <Subtitle>Receive against a purchase order</Subtitle>
+              {eligiblePos.map((p) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => router.setParams({ poId: p.id })}
+                  style={styles.productPick}
+                >
+                  <Text style={styles.productCode}>{p.poNumber}</Text>
+                  <Muted>{`${p.supplier} · ${p.lifecycleStatus}`}</Muted>
+                </Pressable>
+              ))}
+            </Card>
+          ) : null}
+
+          {!po ? (
+            <Input placeholder="Supplier name *" value={supplierName} onChangeText={setSupplierName} />
+          ) : null}
           <Input placeholder="Supplier reference (optional)" value={supplierRef} onChangeText={setSupplierRef} />
           <Input placeholder="Remarks (optional)" value={remarks} onChangeText={setRemarks} />
 
@@ -201,6 +324,9 @@ export default function NewGoodsReceiptScreen() {
           {lines.map((line) => (
             <Card key={line.productId}>
               <Muted>{line.label}</Muted>
+              {line.remainingQty != null ? (
+                <Muted>{`Pending on PO: ${line.remainingQty} ${line.uom}`}</Muted>
+              ) : null}
               <View style={styles.lineRow}>
                 <View style={styles.lineField}>
                   <Muted>Qty ({line.uom})</Muted>
@@ -254,30 +380,40 @@ export default function NewGoodsReceiptScreen() {
             />
           </View>
 
-          <Subtitle>Add product manually</Subtitle>
-          <Input
-            placeholder="Search products"
-            value={productSearch}
-            onChangeText={setProductSearch}
-          />
-          {!shopId ? (
-            <EmptyState message="Select a shop first." />
-          ) : productSearch.trim().length === 0 ? null : (productsQuery.data?.items ?? []).length === 0 ? (
-            <EmptyState message={productsQuery.isLoading ? 'Loading…' : 'No products.'} />
-          ) : (
-            <View>
-              {(productsQuery.data?.items ?? []).map((item) => (
-                <Pressable key={item.id} onPress={() => addLine(item)} style={styles.productPick}>
-                  <Text style={styles.productCode}>
-                    <Ionicons name="cube-outline" size={14} color={colors.text} /> {item.productCode}
-                  </Text>
-                  <Muted>{item.description}</Muted>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          {!po ? (
+            <>
+              <Subtitle>Add product manually</Subtitle>
+              <Input
+                placeholder="Search products"
+                value={productSearch}
+                onChangeText={setProductSearch}
+              />
+              {!shopId ? (
+                <EmptyState message="Select a shop first." />
+              ) : productSearch.trim().length === 0 ? null : (productsQuery.data?.items ?? []).length === 0 ? (
+                <EmptyState message={productsQuery.isLoading ? 'Loading…' : 'No products.'} />
+              ) : (
+                <View>
+                  {(productsQuery.data?.items ?? []).map((item) => (
+                    <Pressable key={item.id} onPress={() => addLine(item)} style={styles.productPick}>
+                      <ProductImage uri={item.thumbnailUrl} category={item.category} size={36} />
+                      <View style={styles.productPickText}>
+                        <Text style={styles.productCode}>{item.productCode}</Text>
+                        <Muted>{item.description}</Muted>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
+          ) : null}
 
-          <Button label="Save draft" onPress={onSave} loading={createGr.isPending} />
+          <Button
+            label="Save draft"
+            onPress={onSave}
+            loading={createGr.isPending}
+            disabled={!poReceivable}
+          />
         </ScrollView>
 
         <BarcodeScanner
@@ -331,6 +467,9 @@ const styles = StyleSheet.create({
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
+  productPickText: { flex: 1, marginLeft: spacing.md },
   productCode: { color: colors.text, fontWeight: '600' },
 });

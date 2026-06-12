@@ -52,6 +52,8 @@ export type Product = {
   gstRate?: number;
   purchasePrice: number;
   sellingPrice: number;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
   isActive: boolean;
   plants: ProductPlantAssignment[];
   specifications: ProductSpec[];

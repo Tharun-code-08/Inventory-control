@@ -142,6 +142,7 @@ export type CreateGRPayload = {
   purchaseOrderId?: string;
   receiptType: 'FULL' | 'PARTIAL';
   receiptSource: 'PURCHASE_ORDER' | 'OUTSIDE';
+  inwardShift?: 'DAY_SHIFT' | 'NIGHT_SHIFT' | null;
   supplierName: string;
   supplierRef?: string;
   remarks?: string;

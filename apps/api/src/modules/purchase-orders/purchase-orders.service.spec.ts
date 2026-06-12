@@ -13,6 +13,7 @@ describe('PurchaseOrdersService withLifecycle', () => {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
   );
 
   const withLifecycle = (po: {
@@ -94,6 +95,7 @@ describe('PurchaseOrdersService financial integrity', () => {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
   );
 
   const existing = {
@@ -152,6 +154,7 @@ describe('PurchaseOrdersService financial integrity', () => {
 describe('PurchaseOrdersService sendToSupplierSafe', () => {
   it('returns a failure payload instead of throwing', async () => {
     const service = new PurchaseOrdersService(
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
