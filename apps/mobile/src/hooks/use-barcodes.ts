@@ -73,7 +73,7 @@ export function useQuickCreateProduct() {
         purchasePrice: payload.purchasePrice,
         sellingPrice: payload.sellingPrice,
         isActive: true,
-        plants: [{ shopId: payload.shopId, openingStock: 0 }],
+        plants: [{ shopId: payload.shopId, openingStock: 0, minStockLevel: 0 }],
       });
       return unwrapData(res.data) as ScannedProduct;
     },

@@ -45,10 +45,11 @@ export class ProductPlantDto {
   @IsDateString()
   expiryDate?: string;
 
-  @ApiProperty({ description: 'Per-plant minimum stock level used by reorder alerts.' })
+  @ApiPropertyOptional({ description: 'Per-plant minimum stock level used by reorder alerts.', default: 0 })
+  @IsOptional()
   @Type(() => Number)
   @Min(0)
-  minStockLevel!: number;
+  minStockLevel?: number;
 
   @ApiPropertyOptional({ description: 'Optional per-plant maximum stock level.' })
   @IsOptional()
