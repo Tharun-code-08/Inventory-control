@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '@/prisma/prisma.service';
 import { CreateNotificationDto, NotificationFilterDto, UpdateNotificationStatusDto } from '../dto';
 import { Notification, NotificationStatus, User } from '@prisma/client';
-import { addDays } from 'date-fns';
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class NotificationService {
@@ -24,7 +25,7 @@ export class NotificationService {
     }
 
     // Create notification with 30-day expiry if not specified
-    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : addDays(new Date(), 30);
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + THIRTY_DAYS_MS);
 
     const notification = await this.prisma.notification.create({
       data: {
