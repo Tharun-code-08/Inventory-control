@@ -1,6 +1,7 @@
 {
   "name": "retail-ims",
   "private": true,
+  "main": "scripts/expo-root-guard.js",
   "packageManager": "pnpm@9.15.0",
   "workspaces": [
     "apps/*",
@@ -20,6 +21,7 @@
     "dev:web": "npm run dev --workspace=web",
     "dev:mobile": "npm run start --workspace=mobile",
     "dev:mobile:clear": "npm run start:clear --workspace=mobile",
+    "dev:mobile:tunnel": "npm run start:tunnel --workspace=mobile",
     "mobile:link-deps": "node apps/mobile/scripts/link-hoisted-deps.cjs",
     "build": "npm run build --workspace=@retail-ims/shared-types && npm run build --workspace=api && npm run build --workspace=web",
     "test": "npm run test --workspace=api && npm run test --workspace=web",

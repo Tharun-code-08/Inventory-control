@@ -1,3 +1,4 @@
+import './bufferPolyfill';
 import { toDataURL } from 'bwip-js/react-native';
 
 /**
