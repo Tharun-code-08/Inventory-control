@@ -123,6 +123,7 @@ export function SalesOrderLineItemsEditor({
   const interState = isInterStateSupply(supplyType);
 
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
   // Latest items + a promise chain so rapid scans apply sequentially instead
   // of clobbering each other through stale prop closures.
   const itemsRef = useRef(items);
@@ -171,6 +172,7 @@ export function SalesOrderLineItemsEditor({
         } else {
           playScanError();
           setUnknownBarcode(result.barcode);
+          setUnknownBarcodePolicy(result.policy || 'ASK');
         }
       } catch (err) {
         playScanError();
@@ -205,7 +207,12 @@ export function SalesOrderLineItemsEditor({
 
       <BarcodeNotFoundDialog
         barcode={unknownBarcode}
-        onClose={() => setUnknownBarcode(null)}
+        policy={unknownBarcodePolicy}
+        shopId={scanShopId}
+        onClose={() => {
+          setUnknownBarcode(null);
+          setUnknownBarcodePolicy(null);
+        }}
         products={products}
         onAttached={(productId) => addScannedProduct(productId)}
       />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   Search,
   Printer,
@@ -10,31 +10,40 @@ import {
   Square,
   ChevronDown,
   Package,
+  FileText,
+  Trash2,
 } from 'lucide-react';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useProducts, useProduct } from '@/hooks/use-products';
 import type { Product } from '@/hooks/use-products';
 import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 
-// ─── Label size presets ───────────────────────────────────────────────────────
-const LABEL_SIZES = [
-  { id: '50x25', label: '50 × 25 mm', w: 50, h: 25 },
-  { id: '60x30', label: '60 × 30 mm', w: 60, h: 30 },
-  { id: '80x40', label: '80 × 40 mm', w: 80, h: 40 },
-  { id: '100x50', label: '100 × 50 mm', w: 100, h: 50 },
-] as const;
+// ─── Label size presets (matching mobile/A4 specs) ───────────────────────────
+const LABEL_SIZES = {
+  small: { label: 'Small (50×25mm, 40/page)', w: 50, h: 25, cols: 4, rows: 10, font: 8 },
+  medium: { label: 'Medium (65×35mm, 24/page)', w: 65, h: 35, cols: 3, rows: 8, font: 10 },
+  large: { label: 'Large (100×60mm, 8/page)', w: 100, h: 60, cols: 2, rows: 4, font: 12 },
+} as const;
 
-type LabelSizeId = (typeof LABEL_SIZES)[number]['id'];
+type LabelSizeKey = keyof typeof LABEL_SIZES;
 
 interface QueueItem {
   product: Product;
   qty: number;
+}
+
+interface LabelOptions {
+  size: LabelSizeKey;
+  showName: boolean;
+  showBarcode: boolean;
+  showPrice: boolean;
+  showSku: boolean;
 }
 
 // ─── Barcode drawing (Code-128 subset B via canvas) ───────────────────────────
@@ -101,11 +110,15 @@ function encodeCode128(text: string): number[] {
   return codes;
 }
 
-function drawBarcode(canvas: HTMLCanvasElement, text: string, opts: { width: number; height: number; showText?: boolean }) {
+function drawBarcode(
+  canvas: HTMLCanvasElement,
+  text: string,
+  opts: { width: number; height: number; showText?: boolean }
+) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = 2; // high definition quality
   const textAreaH = opts.showText ? 14 : 0;
   const barAreaH = opts.height - textAreaH;
 
@@ -131,90 +144,101 @@ function drawBarcode(canvas: HTMLCanvasElement, text: string, opts: { width: num
   ctx.fillStyle = '#000000';
   bars.forEach((units, idx) => {
     const w = units * unitW;
-    if (idx % 2 === 0) ctx.fillRect(Math.round(x), 2, Math.max(1, Math.round(w)), barAreaH - 4);
+    if (idx % 2 === 0) {
+      ctx.fillRect(Math.round(x), 2, Math.max(1, Math.round(w)), barAreaH - 4);
+    }
     x += w;
   });
 
   if (opts.showText) {
     ctx.fillStyle = '#000000';
-    ctx.font = `${Math.min(10, textAreaH - 2)}px monospace`;
+    ctx.font = `${Math.min(10, textAreaH - 4)}px monospace`;
     ctx.textAlign = 'center';
     ctx.fillText(text, opts.width / 2, opts.height - 2);
   }
 }
 
-// ─── Single label component ───────────────────────────────────────────────────
-function BarcodeLabel({
+function generateBarcodeDataUrl(text: string): string {
+  const canvas = document.createElement('canvas');
+  drawBarcode(canvas, text, { width: 180, height: 45, showText: false });
+  return canvas.toDataURL('image/png');
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ─── Single preview label component ──────────────────────────────────────────
+function PreviewBarcodeLabel({
   product,
-  sizeId,
-  showPrice,
-  showCode,
+  options,
 }: {
   product: Product;
-  sizeId: LabelSizeId;
-  showPrice: boolean;
-  showCode: boolean;
+  options: LabelOptions;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const size = LABEL_SIZES.find((s) => s.id === sizeId) ?? LABEL_SIZES[0];
-  // Scale for screen preview: 2.8346 px per mm
-  const scale = 2.8346;
+  const size = LABEL_SIZES[options.size];
+  
+  // Scale factor to translate mm to preview pixels
+  const scale = 2.4; 
   const pw = Math.round(size.w * scale);
   const ph = Math.round(size.h * scale);
 
-  const barcodeValue = product.productCode;
-
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const textAreaH = 14;
-    const priceH = showPrice ? 12 : 0;
-    const codeH = showCode ? 10 : 0;
-    const headerH = 14;
-    const barH = ph - headerH - priceH - codeH - textAreaH - 8;
-    drawBarcode(canvasRef.current, barcodeValue, {
-      width: pw - 8,
-      height: Math.max(20, barH),
+    if (!canvasRef.current || !options.showBarcode) return;
+    const nameH = options.showName ? (size.font * 1.4) : 0;
+    const priceH = options.showPrice ? ((size.font + 1) * 1.2) : 0;
+    const skuH = (options.showSku && !options.showBarcode) ? (size.font) : 0;
+    const barH = size.h - nameH - priceH - skuH - 4; // in mm
+    
+    drawBarcode(canvasRef.current, product.productCode, {
+      width: pw - 10,
+      height: Math.max(16, Math.round(barH * scale)),
       showText: true,
     });
-  }, [barcodeValue, pw, ph, showPrice, showCode]);
+  }, [product.productCode, pw, ph, options, size]);
 
   return (
     <div
-      className="label-card flex flex-col overflow-hidden rounded border border-slate-300 bg-white shadow-sm"
-      style={{ width: pw, height: ph, padding: 4 }}
+      className="flex flex-col items-center justify-center text-center p-1 bg-white border border-dashed border-slate-300 overflow-hidden box-border select-none"
+      style={{ width: pw, height: ph }}
     >
-      {/* Product name */}
-      <p
-        className="truncate text-center font-semibold leading-tight text-slate-900"
-        style={{ fontSize: Math.max(7, size.h * 0.16) }}
-        title={product.description}
-      >
-        {product.description}
-      </p>
-      {/* Barcode */}
-      <div className="flex flex-1 items-center justify-center">
-        <canvas ref={canvasRef} />
-      </div>
-      {/* Optional details */}
-      {showPrice && (
-        <p className="text-center font-bold text-slate-800" style={{ fontSize: Math.max(7, size.h * 0.14) }}>
-          ₹{Number(product.sellingPrice).toFixed(2)}
+      {options.showName && (
+        <p
+          className="truncate font-semibold leading-none text-slate-800 w-full"
+          style={{ fontSize: size.font - 0.5 }}
+          title={product.description}
+        >
+          {product.description}
         </p>
       )}
-      {showCode && (
-        <p className="text-center text-slate-500" style={{ fontSize: Math.max(6, size.h * 0.1) }}>
+      
+      {options.showBarcode ? (
+        <div className="flex items-center justify-center overflow-hidden my-0.5">
+          <canvas ref={canvasRef} />
+        </div>
+      ) : null}
+      
+      {options.showSku && !options.showBarcode && (
+        <p className="text-slate-500 font-mono" style={{ fontSize: size.font - 1.5 }}>
           {product.productCode}
+        </p>
+      )}
+      
+      {options.showPrice && (
+        <p className="font-bold text-slate-900" style={{ fontSize: size.font }}>
+          ₹{Number(product.sellingPrice).toFixed(2)}
         </p>
       )}
     </div>
   );
 }
 
-// ─── Product search & selector ────────────────────────────────────────────────
+// ─── Product search selector dropdown ────────────────────────────────────────
 function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
-  const { data } = useProducts({ search, limit: 20, isActive: true });
+  const { data } = useProducts({ search, limit: 15, isActive: true });
   const products = data?.items ?? [];
 
   return (
@@ -239,7 +263,7 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
         <>
           <button
             type="button"
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-10 cursor-default"
             aria-label="Close dropdown"
             onClick={() => setOpen(false)}
           />
@@ -261,7 +285,7 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
                   }}
                 >
                   <Package className="h-4 w-4 shrink-0 text-primary" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{p.description}</p>
                     <p className="text-xs text-slate-500">{p.productCode} · {p.category}</p>
                   </div>
@@ -279,11 +303,13 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function BarcodePrintPage() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [sizeId, setSizeId] = useState<LabelSizeId>('60x30');
-  const [showPrice, setShowPrice] = useState(true);
-  const [showCode, setShowCode] = useState(true);
-  const [cols, setCols] = useState(4);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [options, setOptions] = useState<LabelOptions>({
+    size: 'medium',
+    showName: true,
+    showBarcode: true,
+    showPrice: true,
+    showSku: false,
+  });
 
   const [searchParams, setSearchParams] = useSearchParams();
   const searchProductId = searchParams.get('productId');
@@ -302,90 +328,137 @@ export function BarcodePrintPage() {
     }
   }, [routeProduct, searchParams, setSearchParams]);
 
-
   const addProduct = useCallback((product: Product) => {
     setQueue((prev) => {
       const existing = prev.find((q) => q.product.id === product.id);
-      if (existing) return prev.map((q) => q.product.id === product.id ? { ...q, qty: q.qty + 1 } : q);
+      if (existing) {
+        return prev.map((q) => (q.product.id === product.id ? { ...q, qty: q.qty + 1 } : q));
+      }
       return [...prev, { product, qty: 1 }];
     });
   }, []);
 
-  const removeItem = (productId: string) => setQueue((prev) => prev.filter((q) => q.product.id !== productId));
+  const removeItem = (productId: string) => {
+    setQueue((prev) => prev.filter((q) => q.product.id !== productId));
+  };
+
   const changeQty = (productId: string, delta: number) => {
     setQueue((prev) =>
-      prev
-        .map((q) => q.product.id === productId ? { ...q, qty: Math.max(1, q.qty + delta) } : q)
+      prev.map((q) => (q.product.id === productId ? { ...q, qty: Math.max(1, q.qty + delta) } : q))
     );
   };
 
+  const totalLabels = queue.reduce((s, q) => s + q.qty, 0);
+  const size = LABEL_SIZES[options.size];
+  const perPage = size.cols * size.rows;
+  const pagesCount = Math.max(1, Math.ceil(totalLabels / perPage));
+
   const handlePrint = () => {
-    if (!printRef.current) return;
-    const size = LABEL_SIZES.find((s) => s.id === sizeId) ?? LABEL_SIZES[0];
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) return;
 
-    // Gather canvas data URLs before writing to print window
-    const canvases = printRef.current.querySelectorAll<HTMLCanvasElement>('canvas');
-    const dataUrls: string[] = [];
-    canvases.forEach((c) => dataUrls.push(c.toDataURL('image/png')));
-
-    let labelIdx = 0;
-    let labelsHtml = '';
+    const cells: string[] = [];
     queue.forEach(({ product, qty }) => {
+      const barcodeDataUrl = options.showBarcode ? generateBarcodeDataUrl(product.productCode) : undefined;
+      
+      const parts: string[] = [];
+      if (options.showName) {
+        parts.push(
+          `<div style="font-size:${size.font}px;font-weight:600;line-height:1.2;overflow:hidden;max-height:${size.font * 2.4}px;margin-bottom:1mm;">${escapeHtml(product.description)}</div>`
+        );
+      }
+      if (options.showBarcode && barcodeDataUrl) {
+        parts.push(
+          `<img src="${barcodeDataUrl}" style="width:92%;max-height:${Math.round(size.h * 0.45)}mm;object-fit:contain;margin-bottom:1mm;"/>`
+        );
+      }
+      if (options.showSku && !options.showBarcode) {
+        parts.push(`<div style="font-size:${size.font - 1.5}px;margin-bottom:1mm;font-family:monospace;">${escapeHtml(product.productCode)}</div>`);
+      }
+      if (options.showPrice) {
+        parts.push(
+          `<div style="font-size:${size.font + 1}px;font-weight:700;">₹${Number(product.sellingPrice).toFixed(2)}</div>`
+        );
+      }
+      
+      const cell = `<div class="label">${parts.join('')}</div>`;
       for (let i = 0; i < qty; i++) {
-        const imgSrc = dataUrls[labelIdx++] ?? '';
-        const priceHtml = showPrice
-          ? `<p style="margin:0;text-align:center;font-weight:bold;font-size:${Math.max(7, size.h * 0.14)}px;">₹${Number(product.sellingPrice).toFixed(2)}</p>`
-          : '';
-        const codeHtml = showCode
-          ? `<p style="margin:0;text-align:center;color:#64748b;font-size:${Math.max(6, size.h * 0.1)}px;">${product.productCode}</p>`
-          : '';
-        labelsHtml += `
-          <div style="width:${size.w}mm;height:${size.h}mm;border:1px solid #ccc;display:inline-flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:1mm;box-sizing:border-box;overflow:hidden;break-inside:avoid;margin:1mm;">
-            <p style="margin:0;font-size:${Math.max(7, size.h * 0.16)}px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${product.description}</p>
-            <img src="${imgSrc}" style="flex:1;max-width:100%;object-fit:contain;" />
-            ${priceHtml}
-            ${codeHtml}
-          </div>`;
+        cells.push(cell);
       }
     });
+
+    // Page margin calculation to perfectly center on A4 (210mm x 297mm)
+    const marginTopBottom = (297 - size.h * size.rows) / 2;
+    const marginLeftRight = (210 - size.w * size.cols) / 2;
 
     printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
-  <title>Barcode Labels</title>
+  <meta charset="utf-8"/>
+  <title>Barcode Label Sheet</title>
   <style>
+    @page { 
+      size: A4; 
+      margin: ${marginTopBottom}mm ${marginLeftRight}mm; 
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: monospace; background: #fff; }
-    .grid { display: flex; flex-wrap: wrap; padding: 4mm; gap: 0; }
-    @page { margin: 4mm; }
-    @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+    body { font-family: -apple-system, Roboto, Helvetica, Arial, sans-serif; background: #fff; }
+    .sheet { 
+      display: flex; 
+      flex-wrap: wrap; 
+      width: ${size.w * size.cols}mm; 
+    }
+    .label {
+      width: ${size.w}mm;
+      height: ${size.h}mm;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.5mm;
+      border: 0.15mm dashed #bbb;
+      page-break-inside: avoid;
+    }
   </style>
 </head>
 <body>
-  <div class="grid">${labelsHtml}</div>
-  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }</script>
+  <div class="sheet">${cells.join('')}</div>
+  <script>
+    window.onload = () => { 
+      window.print(); 
+      window.onafterprint = () => window.close(); 
+    }
+  </script>
 </body>
 </html>`);
     printWindow.document.close();
   };
 
-  const totalLabels = queue.reduce((s, q) => s + q.qty, 0);
-  const selectedSize = LABEL_SIZES.find((s) => s.id === sizeId) ?? LABEL_SIZES[0];
+  // Preview only the first page cells
+  const previewCells = useMemo(() => {
+    const list: Product[] = [];
+    outer: for (const entry of queue) {
+      for (let i = 0; i < entry.qty; i++) {
+        if (list.length >= perPage) break outer;
+        list.push(entry.product);
+      }
+    }
+    return list;
+  }, [queue, perPage]);
 
-  // Expanded labels list for preview
-  const previewItems: Product[] = [];
-  queue.forEach(({ product, qty }) => {
-    for (let i = 0; i < Math.min(qty, 8); i++) previewItems.push(product);
-  });
+  // Width/Height for visual A4 frame in preview: 210mm x 297mm scaled
+  const frameScale = 1.6;
+  const a4Width = Math.round(210 * frameScale);
+  const a4Height = Math.round(297 * frameScale);
 
   return (
     <AppLayout active="Print Labels">
       <div className="space-y-6">
         <PageHeader
           title="Print Barcode Labels"
-          description="Search for products, configure label size, and print directly from your browser."
+          description="Build and layout product barcode labels onto A4 sheets with direct print layout templates."
         >
           <Button
             id="barcode-print-btn"
@@ -398,10 +471,10 @@ export function BarcodePrintPage() {
           </Button>
         </PageHeader>
 
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          {/* ── Left panel ── */}
+        <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
+          {/* ── Left Sidebar Settings & Queue ── */}
           <div className="space-y-5">
-            {/* Product search */}
+            {/* Search & Add */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
@@ -414,50 +487,55 @@ export function BarcodePrintPage() {
               </CardContent>
             </Card>
 
-            {/* Queue */}
+            {/* Queue List */}
             {queue.length > 0 && (
               <Card>
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm">
-                    Label Queue · {totalLabels} label{totalLabels !== 1 ? 's' : ''}
+                    Print Queue ({queue.length})
                   </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 p-1"
+                    onClick={() => setQueue([])}
+                  >
+                    Clear All
+                  </Button>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-2 max-h-60 overflow-y-auto">
                   {queue.map(({ product, qty }) => (
                     <div
                       key={product.id}
-                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-slate-900">{product.description}</p>
+                        <p className="truncate text-xs font-semibold text-slate-800">{product.description}</p>
                         <p className="text-[10px] text-slate-400">{product.productCode}</p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          id={`qty-dec-${product.id}`}
-                          className="rounded p-0.5 hover:bg-slate-200"
+                          className="rounded border border-slate-300 p-0.5 hover:bg-slate-200 bg-white"
                           onClick={() => changeQty(product.id, -1)}
                         >
-                          <Minus className="h-3.5 w-3.5" />
+                          <Minus className="h-3 w-3" />
                         </button>
                         <span className="w-6 text-center text-xs font-bold">{qty}</span>
                         <button
                           type="button"
-                          id={`qty-inc-${product.id}`}
-                          className="rounded p-0.5 hover:bg-slate-200"
+                          className="rounded border border-slate-300 p-0.5 hover:bg-slate-200 bg-white"
                           onClick={() => changeQty(product.id, 1)}
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-3 w-3" />
                         </button>
                       </div>
                       <button
                         type="button"
-                        id={`remove-${product.id}`}
-                        className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 shrink-0"
                         onClick={() => removeItem(product.id)}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
@@ -465,132 +543,133 @@ export function BarcodePrintPage() {
               </Card>
             )}
 
-            {/* Label options */}
+            {/* Template options */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Label Options</CardTitle>
+                <CardTitle className="text-sm">Sheet & Label Options</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Size */}
+                {/* Preset sizes */}
                 <div className="space-y-2">
-                  <Label>Label Size</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LABEL_SIZES.map((s) => (
-                      <button
-                        key={s.id}
-                        id={`size-${s.id}`}
-                        type="button"
-                        onClick={() => setSizeId(s.id)}
-                        className={cn(
-                          'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-                          sizeId === s.id
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-slate-200 hover:border-primary/50 hover:bg-slate-50',
-                        )}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
+                  <Label className="text-xs font-semibold text-slate-500 uppercase">Label Layout Size</Label>
+                  <div className="flex flex-col gap-2">
+                    {(Object.keys(LABEL_SIZES) as LabelSizeKey[]).map((key) => {
+                      const item = LABEL_SIZES[key];
+                      const active = options.size === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setOptions((o) => ({ ...o, size: key }))}
+                          className={cn(
+                            'flex flex-col items-start rounded-lg border p-3 text-left transition-colors relative overflow-hidden',
+                            active
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          )}
+                        >
+                          <span className="text-xs font-semibold text-slate-900 capitalize flex items-center justify-between w-full">
+                            {key} Template
+                            {active && <CheckSquare className="h-3.5 w-3.5 text-primary" />}
+                          </span>
+                          <span className="mt-0.5 text-[10px] text-slate-500 leading-normal">{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Toggles */}
+                {/* Display Toggles */}
                 <div className="space-y-2">
-                  <Label>Show on label</Label>
-                  <div className="space-y-2">
-                    <button
-                      id="toggle-price"
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs hover:bg-slate-50"
-                      onClick={() => setShowPrice((v) => !v)}
-                    >
-                      {showPrice
-                        ? <CheckSquare className="h-4 w-4 text-primary" />
-                        : <Square className="h-4 w-4 text-slate-400" />}
-                      <span>Selling Price</span>
-                    </button>
-                    <button
-                      id="toggle-code"
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs hover:bg-slate-50"
-                      onClick={() => setShowCode((v) => !v)}
-                    >
-                      {showCode
-                        ? <CheckSquare className="h-4 w-4 text-primary" />
-                        : <Square className="h-4 w-4 text-slate-400" />}
-                      <span>Product Code</span>
-                    </button>
+                  <Label className="text-xs font-semibold text-slate-500 uppercase">Visible Columns</Label>
+                  <div className="space-y-1.5">
+                    {(
+                      [
+                        ['showName', 'Product Description'],
+                        ['showBarcode', 'Barcode Pattern'],
+                        ['showPrice', 'Price Value'],
+                        ['showSku', 'Product Code (Alternative)'],
+                      ] as const
+                    ).map(([key, label]) => {
+                      const isChecked = options[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white hover:bg-slate-50 transition-colors"
+                          onClick={() => setOptions((o) => ({ ...o, [key]: !o[key] }))}
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="h-4 w-4 text-primary shrink-0" />
+                          ) : (
+                            <Square className="h-4 w-4 text-slate-400 shrink-0" />
+                          )}
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Columns */}
-                <div className="space-y-2">
-                  <Label>Preview Columns</Label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 p-1 hover:bg-slate-100"
-                      onClick={() => setCols((c) => Math.max(1, c - 1))}
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="w-6 text-center text-sm font-semibold">{cols}</span>
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 p-1 hover:bg-slate-100"
-                      onClick={() => setCols((c) => Math.min(8, c + 1))}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
+                {/* Info status */}
+                {queue.length > 0 && (
+                  <div className="rounded-lg bg-slate-50 border border-slate-150 p-3 text-xs space-y-1 text-slate-600 leading-relaxed">
+                    <p className="font-semibold text-slate-700">Sheet Print Summary</p>
+                    <p>Total Labels: <strong>{totalLabels}</strong></p>
+                    <p>Labels per A4 Page: <strong>{perPage}</strong></p>
+                    <p>Requires: <strong>{pagesCount} A4 Page{pagesCount !== 1 ? 's' : ''}</strong></p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* ── Right panel — preview ── */}
-          <Card className="min-h-[400px]">
-            <CardHeader className="border-b border-slate-100 pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">
-                  Preview · {selectedSize.label}
-                  {totalLabels > 8 && <span className="ml-2 text-xs font-normal text-slate-400">(showing first 8 per product)</span>}
-                </CardTitle>
-                {queue.length > 0 && (
-                  <button
-                    type="button"
-                    className="text-xs text-slate-400 hover:text-red-500"
-                    onClick={() => setQueue([])}
-                  >
-                    Clear all
-                  </button>
-                )}
+          {/* ── Right A4 Live Preview Frame ── */}
+          <Card className="min-h-[500px] flex flex-col">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Live Print Sheet Preview</CardTitle>
+                <CardDescription className="text-xs">
+                  Showing first page grid ({size.cols} × {size.rows}) scaled inside standard A4 sheet aspect ratios.
+                </CardDescription>
               </div>
+              {queue.length > 0 && (
+                <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Ready to print
+                </Badge>
+              )}
             </CardHeader>
-            <CardContent className="p-4">
-              {previewItems.length === 0 ? (
-                <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
-                  <Barcode className="h-12 w-12 opacity-30" />
+            <CardContent className="p-6 flex-1 flex items-center justify-center bg-slate-100">
+              {queue.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-4 text-slate-400 py-12">
+                  <Barcode className="h-16 w-16 opacity-25" />
                   <div className="text-center">
-                    <p className="font-medium">No labels yet</p>
-                    <p className="text-sm">Search and add products on the left</p>
+                    <p className="font-semibold text-slate-700">No print items queued</p>
+                    <p className="text-xs">Search for products on the left panel to begin layout rendering.</p>
                   </div>
                 </div>
               ) : (
-                <div
-                  ref={printRef}
-                  className="flex flex-wrap gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
-                  style={{ gap: '10px' }}
-                >
-                  {previewItems.map((product, idx) => (
-                    <BarcodeLabel
-                      key={`${product.id}-${idx}`}
-                      product={product}
-                      sizeId={sizeId}
-                      showPrice={showPrice}
-                      showCode={showCode}
-                    />
-                  ))}
+                <div className="flex flex-col items-center gap-4">
+                  {/* Page indicator */}
+                  <MutedText>Page 1 of {pagesCount}</MutedText>
+
+                  {/* Rendered A4 sheet mockup */}
+                  <div
+                    className="bg-white shadow-2xl border border-slate-300 box-border flex flex-wrap content-start overflow-hidden relative"
+                    style={{
+                      width: a4Width,
+                      height: a4Height,
+                      padding: `${(297 - size.h * size.rows) / 2 * frameScale}px ${(210 - size.w * size.cols) / 2 * frameScale}px`,
+                    }}
+                  >
+                    {previewCells.map((product, idx) => (
+                      <PreviewBarcodeLabel
+                        key={`${product.id}-${idx}`}
+                        product={product}
+                        options={options}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -599,4 +678,8 @@ export function BarcodePrintPage() {
       </div>
     </AppLayout>
   );
+}
+
+function MutedText({ children }: { children: React.ReactNode }) {
+  return <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{children}</span>;
 }

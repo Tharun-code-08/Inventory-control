@@ -150,3 +150,17 @@ export function useUpdateCompanySetting() {
     },
   });
 }
+
+export function useMarkInvalid() {
+  return useMutation({
+    mutationFn: async ({ code, shopId }: { code: string; shopId?: string }) => {
+      const { data } = await api.post('/barcodes/mark-invalid', {
+        code,
+        source: 'WEB',
+        ...(shopId ? { shopId } : {}),
+      });
+      return data;
+    },
+  });
+}
+

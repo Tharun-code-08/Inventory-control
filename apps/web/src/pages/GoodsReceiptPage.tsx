@@ -217,6 +217,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceipt | null>(null);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
 
   const filters: GoodsReceiptFilters = {
     page,
@@ -555,6 +556,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
       } else {
         playScanError();
         setUnknownBarcode(result.barcode);
+        setUnknownBarcodePolicy(result.policy || 'ASK');
       }
     } catch (err) {
       playScanError();
@@ -1588,7 +1590,12 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
 
       <BarcodeNotFoundDialog
         barcode={unknownBarcode}
-        onClose={() => setUnknownBarcode(null)}
+        policy={unknownBarcodePolicy}
+        shopId={grShopId || undefined}
+        onClose={() => {
+          setUnknownBarcode(null);
+          setUnknownBarcodePolicy(null);
+        }}
         products={productList}
         onAttached={(productId) => addScannedProduct({ id: productId })}
       />
