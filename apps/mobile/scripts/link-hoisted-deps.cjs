@@ -73,3 +73,17 @@ for (const entry of fs.readdirSync(rootNm)) {
     linkPackage(entry);
   }
 }
+
+// Patch react-zlib-js to prevent Hermes/Metro crash during function toString parsing
+const zlibPath = path.join(rootNm, 'react-zlib-js', 'index.js');
+if (fs.existsSync(zlibPath)) {
+  let content = fs.readFileSync(zlibPath, 'utf8');
+  const target = 'a.hasOwnProperty(d)&&a[d].toString().match(c).slice(1)';
+  const replacement = 'a.hasOwnProperty(d)&&(a[d].toString().match(c)||[]).slice(1)';
+  if (content.includes(target)) {
+    content = content.replace(target, replacement);
+    fs.writeFileSync(zlibPath, content, 'utf8');
+    console.log('[link-hoisted-deps] Patched react-zlib-js for Hermes compatibility');
+  }
+}
+
