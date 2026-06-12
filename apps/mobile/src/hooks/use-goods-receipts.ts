@@ -125,6 +125,43 @@ export function useGoodsReceipt(id: string) {
   });
 }
 
+export type CreateGRLine = {
+  productId: string;
+  quantity: number;
+  uom: string;
+  purchaseRate: number;
+  storageLocationId: string;
+  batchNumber?: string;
+  serialNumber?: string;
+  expiryDate?: string;
+};
+
+export type CreateGRPayload = {
+  grDate: string;
+  shopId: string;
+  purchaseOrderId?: string;
+  receiptType: 'FULL' | 'PARTIAL';
+  receiptSource: 'PURCHASE_ORDER' | 'OUTSIDE';
+  supplierName: string;
+  supplierRef?: string;
+  remarks?: string;
+  items: CreateGRLine[];
+};
+
+export function useCreateGoodsReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateGRPayload) => {
+      const res = await api.post('/goods-receipts', payload);
+      return normalizeGR(unwrapData(res.data));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: grKeys.lists() });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
+    },
+  });
+}
+
 export function usePostGoodsReceipt() {
   const qc = useQueryClient();
   return useMutation({

@@ -27,6 +27,12 @@ const config = {
     'expo-asset',
     'expo-font',
     'expo-file-system',
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Allow SoftdigitIMS to use the camera to scan product barcodes.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

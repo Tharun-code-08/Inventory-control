@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, View, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
+import { FAB } from '@/components/FAB';
+import { hasPermission } from '@/lib/permissions';
 import { ListSkeleton } from '@/components/ListSkeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -63,6 +65,9 @@ export default function GoodsReceiptsScreen() {
             )}
           />
         )}
+        {hasPermission(user, 'goods_receipt:create') ? (
+          <FAB onPress={() => router.push('/goods-receipts/new')} />
+        ) : null}
       </Screen>
     </PermissionGate>
   );

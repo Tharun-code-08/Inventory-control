@@ -10,6 +10,7 @@ export default function GoodsReceiptsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Goods Receipts' }} />
+      <Stack.Screen name="new" options={{ title: 'New Goods Receipt' }} />
       <Stack.Screen name="[id]" options={{ title: 'Goods Receipt' }} />
     </Stack>
   );

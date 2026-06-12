@@ -65,6 +65,15 @@ if (fs.existsSync(rootVirtualizedLists)) {
 
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // bwip-js default-imports react-zlib-js/buffer.js expecting the Buffer
+  // constructor, but that file exports the whole module object — see the shim.
+  if (moduleName === 'react-zlib-js/buffer.js' || moduleName === 'react-zlib-js/buffer') {
+    return {
+      type: 'sourceFile',
+      filePath: path.join(projectRoot, 'src', 'lib', 'rn-buffer-shim.js'),
+    };
+  }
+
   // The tsconfig `react` paths alias (kept for type resolution) would otherwise
   // leak into Metro and resolve `react` to the types-only @types/react folder,
   // breaking the bundle. Force react + its subpaths to the real runtime package.

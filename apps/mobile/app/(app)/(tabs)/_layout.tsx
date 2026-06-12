@@ -24,10 +24,7 @@ export default function TabsLayout() {
         tabBarStyle: { borderTopColor: colors.border },
         headerLeft: () => (
           <Pressable
-            onPress={() => {
-              const parent = navigation.getParent() as any;
-              parent?.openDrawer?.();
-            }}
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
             style={{ marginLeft: 12 }}
             hitSlop={8}
           >
@@ -62,7 +59,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="alerts"
+        name="alerts/index"
         options={{
           title: 'Alerts',
           href: showAlerts ? undefined : null,

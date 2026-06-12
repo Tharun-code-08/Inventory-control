@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Pressable, Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { api } from '@/api/client';
+import type { Product } from '@/hooks/use-products';
 import { useCreateGoodsIssue } from '@/hooks/use-goods-issues';
 import { useProducts } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
@@ -27,6 +30,8 @@ export default function NewGoodsIssueScreen() {
   const [remarks, setRemarks] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [productSearch, setProductSearch] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const debouncedProductSearch = useDebounce(productSearch, 350);
   const shopsQuery = useShops();
@@ -59,6 +64,34 @@ export default function NewGoodsIssueScreen() {
       },
     ]);
     setProductSearch('');
+  }
+
+  async function handleScanned(code: string) {
+    try {
+      const res = await api.get('/products', {
+        params: {
+          search: code,
+          shop_id: shopId || undefined,
+          is_active: true,
+          limit: 10,
+          page: 1,
+        },
+      });
+      const payload = res.data?.data ?? res.data;
+      const rows: Product[] = Array.isArray(payload)
+        ? payload
+        : (payload?.items ?? payload?.data ?? []);
+      const match =
+        rows.find((p) => p.productCode?.toLowerCase() === code.toLowerCase()) ?? rows[0];
+      if (!match) {
+        setScanError(`No product found for barcode "${code}".`);
+        return;
+      }
+      setScanError(null);
+      addLine(match);
+    } catch (e) {
+      setScanError(getApiErrorMessage(e, 'Could not look up the scanned barcode.'));
+    }
   }
 
   function removeLine(productId: string) {
@@ -145,6 +178,20 @@ export default function NewGoodsIssueScreen() {
             </Card>
           ))}
 
+          {scanError ? <Muted style={{ color: colors.danger, marginBottom: 12 }}>{scanError}</Muted> : null}
+          <Button
+            label="Scan barcode"
+            variant="secondary"
+            onPress={() => {
+              if (!shopId) {
+                Alert.alert('Shop required', 'Select a shop first.');
+                return;
+              }
+              setScanError(null);
+              setScannerOpen(true);
+            }}
+          />
+
           <Subtitle>Add product</Subtitle>
           <Input
             placeholder="Search products"
@@ -168,6 +215,17 @@ export default function NewGoodsIssueScreen() {
 
           <Button label="Save draft" onPress={onSave} loading={createGi.isPending} />
         </ScrollView>
+
+        <BarcodeScanner
+          visible={scannerOpen}
+          continuous
+          title="Scan items to issue"
+          onClose={() => setScannerOpen(false)}
+          onScanned={(code) => {
+            handleScanned(code);
+            return false;
+          }}
+        />
       </Screen>
     </PermissionGate>
   );
