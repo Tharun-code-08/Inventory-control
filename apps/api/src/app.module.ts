@@ -26,7 +26,6 @@ import { ExportModule } from './modules/export/export.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
-import { BarcodesModule } from './modules/barcodes/barcodes.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { RfqsModule } from './modules/rfqs/rfqs.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
@@ -44,23 +43,17 @@ import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.
 import { QuotationPortalModule } from './modules/quotation-portal/quotation-portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { DeviceRegistrationModule } from './modules/device-registration/device-registration.module';
+import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { QueuesModule } from './common/queues/queues.module';
 import { UploadModule } from './common/upload/upload.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { FxModule } from './modules/fx/fx.module';
 import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
-import { SubscriptionLifecycleModule } from './modules/subscription-lifecycle/subscription-lifecycle.module';
-import { PlatformModule } from './modules/platform/platform.module';
-import { PlatformNotificationsModule } from './modules/platform-notifications/platform-notifications.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
-import { DocumentSeriesModule } from './modules/document-series/document-series.module';
-import { EmailNotificationsModule } from './modules/email-notifications/email-notifications.module';
-import { EmailSendersModule } from './modules/email-senders/email-senders.module';
-import { DocumentsModule } from './modules/documents/documents.module';
-import { CompanySettingsModule } from './modules/company-settings/company-settings.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -131,9 +124,6 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     PrismaModule,
     MailModule,
     BillingModule,
-    SubscriptionLifecycleModule,
-    PlatformModule,
-    PlatformNotificationsModule,
     PostalCodesModule,
     QueuesModule,
     UploadModule,
@@ -149,15 +139,12 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     DamagedStockModule,
     StockTransfersModule,
     PurchaseOrdersModule,
-    DocumentsModule,
     ReportsModule,
     DashboardModule,
     UsersModule,
     ExportModule,
     CompaniesModule,
-    CompanySettingsModule,
     StorageLocationsModule,
-    BarcodesModule,
     SuppliersModule,
     RfqsModule,
     QuotationsModule,
@@ -174,12 +161,11 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     SupplierPortalModule,
     QuotationPortalModule,
     NotificationsModule,
+    DeviceRegistrationModule,
+    ApprovalsModule,
     HealthModule,
     BackupModule,
     WarehouseModule,
-    DocumentSeriesModule,
-    EmailNotificationsModule,
-    EmailSendersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
