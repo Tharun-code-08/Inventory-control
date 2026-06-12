@@ -16,7 +16,6 @@ import {
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader } from '@/components/shared';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -179,9 +178,9 @@ function PreviewBarcodeLabel({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const size = LABEL_SIZES[options.size];
-  
+
   // Scale factor to translate mm to preview pixels
-  const scale = 2.4; 
+  const scale = 2.4;
   const pw = Math.round(size.w * scale);
   const ph = Math.round(size.h * scale);
 
@@ -191,7 +190,7 @@ function PreviewBarcodeLabel({
     const priceH = options.showPrice ? ((size.font + 1) * 1.2) : 0;
     const skuH = (options.showSku && !options.showBarcode) ? (size.font) : 0;
     const barH = size.h - nameH - priceH - skuH - 4; // in mm
-    
+
     drawBarcode(canvasRef.current, product.productCode, {
       width: pw - 10,
       height: Math.max(16, Math.round(barH * scale)),
@@ -213,19 +212,19 @@ function PreviewBarcodeLabel({
           {product.description}
         </p>
       )}
-      
+
       {options.showBarcode ? (
         <div className="flex items-center justify-center overflow-hidden my-0.5">
           <canvas ref={canvasRef} />
         </div>
       ) : null}
-      
+
       {options.showSku && !options.showBarcode && (
         <p className="text-slate-500 font-mono" style={{ fontSize: size.font - 1.5 }}>
           {product.productCode}
         </p>
       )}
-      
+
       {options.showPrice && (
         <p className="font-bold text-slate-900" style={{ fontSize: size.font }}>
           ₹{Number(product.sellingPrice).toFixed(2)}
@@ -361,7 +360,7 @@ export function BarcodePrintPage() {
     const cells: string[] = [];
     queue.forEach(({ product, qty }) => {
       const barcodeDataUrl = options.showBarcode ? generateBarcodeDataUrl(product.productCode) : undefined;
-      
+
       const parts: string[] = [];
       if (options.showName) {
         parts.push(
@@ -381,7 +380,7 @@ export function BarcodePrintPage() {
           `<div style="font-size:${size.font + 1}px;font-weight:700;">₹${Number(product.sellingPrice).toFixed(2)}</div>`
         );
       }
-      
+
       const cell = `<div class="label">${parts.join('')}</div>`;
       for (let i = 0; i < qty; i++) {
         cells.push(cell);
