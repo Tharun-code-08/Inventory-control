@@ -74,16 +74,30 @@ for (const entry of fs.readdirSync(rootNm)) {
   }
 }
 
-// Patch react-zlib-js to prevent Hermes/Metro crash during function toString parsing
+// Patch react-zlib-js to prevent Hermes/Metro crash during function toString parsing & Browser load check
 const zlibPath = path.join(rootNm, 'react-zlib-js', 'index.js');
 if (fs.existsSync(zlibPath)) {
   let content = fs.readFileSync(zlibPath, 'utf8');
-  const target = 'a.hasOwnProperty(d)&&a[d].toString().match(c).slice(1)';
-  const replacement = 'a.hasOwnProperty(d)&&(a[d].toString().match(c)||[]).slice(1)';
-  if (content.includes(target)) {
-    content = content.replace(target, replacement);
+  let modified = false;
+
+  const target1 = 'a.hasOwnProperty(d)&&a[d].toString().match(c).slice(1)';
+  const replacement1 = 'a.hasOwnProperty(d)&&(a[d].toString().match(c)||[]).slice(1)';
+  if (content.includes(target1)) {
+    content = content.replace(target1, replacement1);
+    modified = true;
+  }
+
+  const target2 = 'b.memoryInitializerPrefixURL&&(W=b.memoryInitializerPrefixURL+W),v||x)';
+  const replacement2 = 'b.memoryInitializerPrefixURL&&(W=b.memoryInitializerPrefixURL+W),v||x||1)';
+  if (content.includes(target2)) {
+    content = content.replace(target2, replacement2);
+    modified = true;
+  }
+
+  if (modified) {
     fs.writeFileSync(zlibPath, content, 'utf8');
-    console.log('[link-hoisted-deps] Patched react-zlib-js for Hermes compatibility');
+    console.log('[link-hoisted-deps] Patched react-zlib-js for Hermes/Browser compatibility');
   }
 }
+
 
