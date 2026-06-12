@@ -18,4 +18,9 @@ export class CreateBarcodeDto {
   @IsOptional()
   @IsBoolean()
   isPrimary?: boolean;
+
+  @ApiPropertyOptional({ description: 'Optional ID of the supplier' })
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
 }

@@ -232,6 +232,9 @@ model Company {
   emailSenderDomains        EmailSenderDomain[]
   emailSenderIdentities     EmailSenderIdentity[]
   mediaAssets               MediaAsset[]
+  companySettings           CompanySetting[]
+  barcodeAuditLogs          BarcodeAuditLog[]
+  barcodeHistories          BarcodeHistory[]
 
   @@map("companies")
 }
@@ -728,14 +731,17 @@ model ProductBarcode {
   productId   String      @map("product_id") @db.Uuid
   barcode     String      @map("barcode")
   companyId   String?     @map("company_id") @db.Uuid
+  supplierId  String?     @map("supplier_id") @db.Uuid
   barcodeType BarcodeType @default(INTERNAL) @map("barcode_type")
   isPrimary   Boolean     @default(false) @map("is_primary")
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  product Product @relation(fields: [productId], references: [id])
+  product  Product   @relation(fields: [productId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
 
   @@unique([companyId, barcode])
+  @@index([supplierId])
   @@map("product_barcodes")
 }
 
@@ -953,8 +959,9 @@ model Supplier {
   rfqLinks        RfqSupplier[]
   contracts       ContractHeader[]
   quotations      SupplierQuotationHeader[]
-  supplierReturns SupplierReturn[]
-  supplierBills   SupplierBillHeader[]
+  supplierReturns  SupplierReturn[]
+  supplierBills    SupplierBillHeader[]
+  productBarcodes  ProductBarcode[]
 
   @@index([companyId])
   @@index([supplierName])
@@ -2398,3 +2405,54 @@ model RestoreJob {
   @@index([companyId, createdAt])
   @@map("restore_jobs")
 }
+
+model CompanySetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  key       String   @map("key")
+  value     String   @map("value")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@map("company_settings")
+}
+
+model BarcodeAuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  barcodeId  String?  @map("barcode_id") @db.Uuid
+  barcode    String
+  productId  String?  @map("product_id") @db.Uuid
+  action     String   @map("action")
+  detail     Json?
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([barcodeId])
+  @@index([productId])
+  @@map("barcode_audit_logs")
+}
+
+model BarcodeHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  barcode      String
+  oldProductId String?  @map("old_product_id") @db.Uuid
+  newProductId String?  @map("new_product_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([barcode])
+  @@map("barcode_history")
+}
+

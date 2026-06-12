@@ -17,8 +17,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useProducts } from '@/hooks/use-products';
+import { useProducts, useProduct } from '@/hooks/use-products';
 import type { Product } from '@/hooks/use-products';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 
 // ─── Label size presets ───────────────────────────────────────────────────────
@@ -283,6 +284,24 @@ export function BarcodePrintPage() {
   const [showCode, setShowCode] = useState(true);
   const [cols, setCols] = useState(4);
   const printRef = useRef<HTMLDivElement>(null);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchProductId = searchParams.get('productId');
+  const { data: routeProduct } = useProduct(searchProductId ?? '');
+
+  useEffect(() => {
+    if (routeProduct) {
+      setQueue((prev) => {
+        const existing = prev.find((q) => q.product.id === routeProduct.id);
+        if (existing) return prev;
+        return [...prev, { product: routeProduct, qty: 1 }];
+      });
+      const next = new URLSearchParams(searchParams);
+      next.delete('productId');
+      setSearchParams(next, { replace: true });
+    }
+  }, [routeProduct, searchParams, setSearchParams]);
+
 
   const addProduct = useCallback((product: Product) => {
     setQueue((prev) => {

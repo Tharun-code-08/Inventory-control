@@ -3,8 +3,8 @@ import { Alert, ScrollView, Pressable, Text, View, StyleSheet } from 'react-nati
 import { router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
-import { api } from '@/api/client';
-import type { Product } from '@/hooks/use-products';
+import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
+import { lookupBarcode } from '@/hooks/use-barcodes';
 import { useCreateGoodsIssue } from '@/hooks/use-goods-issues';
 import { useProducts } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
@@ -32,6 +32,8 @@ export default function NewGoodsIssueScreen() {
   const [productSearch, setProductSearch] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
 
   const debouncedProductSearch = useDebounce(productSearch, 350);
   const shopsQuery = useShops();
@@ -68,27 +70,17 @@ export default function NewGoodsIssueScreen() {
 
   async function handleScanned(code: string) {
     try {
-      const res = await api.get('/products', {
-        params: {
-          search: code,
-          shop_id: shopId || undefined,
-          is_active: true,
-          limit: 10,
-          page: 1,
-        },
-      });
-      const payload = res.data?.data ?? res.data;
-      const rows: Product[] = Array.isArray(payload)
-        ? payload
-        : (payload?.items ?? payload?.data ?? []);
-      const match =
-        rows.find((p) => p.productCode?.toLowerCase() === code.toLowerCase()) ?? rows[0];
-      if (!match) {
-        setScanError(`No product found for barcode "${code}".`);
+      const result = await lookupBarcode(code, shopId || undefined);
+      // Server flags double-fired scans; skip the second add.
+      if (result.duplicate) return;
+      if (!result.found) {
+        setScannerOpen(false);
+        setUnknownBarcode(result.barcode);
+        setUnknownBarcodePolicy(result.policy ?? 'ASK');
         return;
       }
       setScanError(null);
-      addLine(match);
+      addLine(result.product);
     } catch (e) {
       setScanError(getApiErrorMessage(e, 'Could not look up the scanned barcode.'));
     }
@@ -221,9 +213,24 @@ export default function NewGoodsIssueScreen() {
           continuous
           title="Scan items to issue"
           onClose={() => setScannerOpen(false)}
-          onScanned={(code) => {
-            handleScanned(code);
+          onScanned={async (code) => {
+            await handleScanned(code);
             return false;
+          }}
+        />
+
+        <UnknownBarcodeSheet
+          barcode={unknownBarcode}
+          policy={unknownBarcodePolicy}
+          shopId={shopId}
+          onClose={() => {
+            setUnknownBarcode(null);
+            setUnknownBarcodePolicy(null);
+          }}
+          onResolved={(product) => {
+            setUnknownBarcode(null);
+            setUnknownBarcodePolicy(null);
+            addLine(product);
           }}
         />
       </Screen>

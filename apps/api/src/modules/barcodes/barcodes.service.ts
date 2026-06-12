@@ -5,6 +5,9 @@ import type { RequestUser } from '../../common/types/request-user';
 import { requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
 import { normalizeBarcode } from './barcode-normalize';
 import { CreateBarcodeDto } from './dto/create-barcode.dto';
+import { UpdateBarcodeDto } from './dto/update-barcode.dto';
+import { ListBarcodesDto } from './dto/list-barcodes.dto';
+import { CompanySettingsService } from '../company-settings/company-settings.service';
 
 const LOOKUP_PRODUCT_SELECT = {
   id: true,
@@ -22,25 +25,22 @@ const LOOKUP_PRODUCT_SELECT = {
   },
 } satisfies Prisma.ProductSelect;
 
-/**
- * Some USB scanners double-fire the same code within a few milliseconds.
- * Repeat scans of the same user+barcode inside this window are flagged as
- * duplicates so clients can skip adding a second quantity.
- */
 const DUPLICATE_SCAN_WINDOW_MS = 400;
 
 @Injectable()
 export class BarcodesService {
   private readonly recentScans = new Map<string, number>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly companySettings: CompanySettingsService,
+  ) {}
 
   /** True when the same user scanned the same code within the debounce window. */
   private isDuplicateFire(userId: string, code: string, now = Date.now()): boolean {
     const key = `${userId}:${code}`;
     const last = this.recentScans.get(key);
     this.recentScans.set(key, now);
-    // Opportunistic cleanup so the map doesn't grow unbounded.
     if (this.recentScans.size > 10_000) {
       for (const [k, t] of this.recentScans) {
         if (now - t > DUPLICATE_SCAN_WINDOW_MS) this.recentScans.delete(k);
@@ -49,10 +49,7 @@ export class BarcodesService {
     return last !== undefined && now - last < DUPLICATE_SCAN_WINDOW_MS;
   }
 
-  /**
-   * Tenant-scoped product access guard: the product must have a plant in one
-   * of the user's shops (or any shop of the user's company).
-   */
+  /** Tenant-scoped product access guard */
   private productScope(user: RequestUser): Prisma.ProductWhereInput {
     const companyId = requireCompanyId(user);
     const tenantShopIds = shopIdsForUser(user);
@@ -88,8 +85,6 @@ export class BarcodesService {
       include: { product: { select: LOOKUP_PRODUCT_SELECT } },
     });
 
-    // Fall back to direct product-code match so freshly created products are
-    // scannable before an internal barcode has been registered.
     const product =
       barcode?.product ??
       (await this.prisma.product.findFirst({
@@ -97,8 +92,6 @@ export class BarcodesService {
         select: LOOKUP_PRODUCT_SELECT,
       }));
 
-    // A double-fired scan still resolves, but is flagged so clients skip the
-    // second quantity bump, and it doesn't pollute logs or velocity counters.
     if (!duplicate) {
       await this.log(
         companyId,
@@ -110,19 +103,13 @@ export class BarcodesService {
         shopId,
         source,
       );
-
-      if (barcode) {
-        // Cheap per-barcode velocity counters so "most scanned" / dead-stock
-        // queries don't need to aggregate scan_logs. Best-effort like logging.
-        /* scan count and lastScannedAt tracking removed as fields no longer exist */
-      }
     }
 
     if (!product) {
-      // Structured "not found" so the client can offer recovery actions
-      // (map to existing product / create product / rescan) instead of a 404.
-      return { found: false as const, barcode: code, duplicate };
+      const policy = await this.companySettings.getUnknownBarcodePolicy(companyId);
+      return { found: false as const, barcode: code, duplicate, policy };
     }
+
     return {
       found: true as const,
       barcode: code,
@@ -136,8 +123,76 @@ export class BarcodesService {
     await this.requireProduct(user, productId);
     return this.prisma.productBarcode.findMany({
       where: { productId },
+      include: {
+        supplier: {
+          select: {
+            id: true,
+            supplierName: true,
+          },
+        },
+      },
       orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
+  }
+
+  async listAll(user: RequestUser, dto: ListBarcodesDto) {
+    const companyId = requireCompanyId(user);
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductBarcodeWhereInput = {
+      companyId,
+    };
+
+    if (dto.barcodeType) {
+      where.barcodeType = dto.barcodeType;
+    }
+
+    if (dto.supplierId) {
+      where.supplierId = dto.supplierId;
+    }
+
+    if (dto.search) {
+      where.OR = [
+        { barcode: { contains: dto.search, mode: 'insensitive' } },
+        {
+          product: {
+            OR: [
+              { productCode: { contains: dto.search, mode: 'insensitive' } },
+              { description: { contains: dto.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.productBarcode.findMany({
+        where,
+        include: {
+          product: {
+            select: {
+              id: true,
+              productCode: true,
+              description: true,
+            },
+          },
+          supplier: {
+            select: {
+              id: true,
+              supplierName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.productBarcode.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
   }
 
   async create(user: RequestUser, productId: string, dto: CreateBarcodeDto) {
@@ -154,16 +209,40 @@ export class BarcodesService {
         if (dto.isPrimary) {
           await tx.productBarcode.updateMany({ where: { productId }, data: { isPrimary: false } });
         }
-        return tx.productBarcode.create({
+        const created = await tx.productBarcode.create({
           data: {
             productId,
             companyId,
             barcode: value,
             barcodeType: dto.barcodeType ?? BarcodeType.CODE128,
             isPrimary: dto.isPrimary ?? false,
-            // createdById field removed (not in schema)
+            supplierId: dto.supplierId ?? null,
           },
         });
+
+        // Audit logging
+        await tx.barcodeAuditLog.create({
+          data: {
+            companyId,
+            barcodeId: created.id,
+            barcode: value,
+            productId,
+            action: 'CREATED',
+            userId: user.id,
+          },
+        });
+
+        // History tracking
+        await tx.barcodeHistory.create({
+          data: {
+            companyId,
+            barcode: value,
+            newProductId: productId,
+            userId: user.id,
+          },
+        });
+
+        return created;
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -179,6 +258,100 @@ export class BarcodesService {
       }
       throw err;
     }
+  }
+
+  async update(user: RequestUser, id: string, dto: UpdateBarcodeDto) {
+    const companyId = requireCompanyId(user);
+    const barcode = await this.prisma.productBarcode.findFirst({
+      where: { id, companyId },
+    });
+    if (!barcode) {
+      throw new NotFoundException('Barcode not found');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const updateData: Prisma.ProductBarcodeUpdateInput = {};
+      const auditLogs: Prisma.BarcodeAuditLogCreateInput[] = [];
+
+      if (dto.barcodeType !== undefined && dto.barcodeType !== barcode.barcodeType) {
+        updateData.barcodeType = dto.barcodeType;
+      }
+
+      if (dto.supplierId !== undefined) {
+        const oldSupplierId = barcode.supplierId;
+        const newSupplierId = dto.supplierId ?? null;
+        if (oldSupplierId !== newSupplierId) {
+          updateData.supplier = newSupplierId ? { connect: { id: newSupplierId } } : { disconnect: true };
+          if (oldSupplierId) {
+            auditLogs.push({
+              company: { connect: { id: companyId } },
+              barcodeId: barcode.id,
+              barcode: barcode.barcode,
+              productId: barcode.productId,
+              action: 'UNLINKED',
+              userId: user.id,
+              detail: { type: 'supplier', supplierId: oldSupplierId },
+            });
+          }
+          if (newSupplierId) {
+            auditLogs.push({
+              company: { connect: { id: companyId } },
+              barcodeId: barcode.id,
+              barcode: barcode.barcode,
+              productId: barcode.productId,
+              action: 'LINKED',
+              userId: user.id,
+              detail: { type: 'supplier', supplierId: newSupplierId },
+            });
+          }
+        }
+      }
+
+      if (dto.isPrimary !== undefined && dto.isPrimary !== barcode.isPrimary) {
+        updateData.isPrimary = dto.isPrimary;
+        if (dto.isPrimary) {
+          await tx.productBarcode.updateMany({
+            where: { productId: barcode.productId, id: { not: id } },
+            data: { isPrimary: false },
+          });
+        }
+        auditLogs.push({
+          company: { connect: { id: companyId } },
+          barcodeId: barcode.id,
+          barcode: barcode.barcode,
+          productId: barcode.productId,
+          action: 'PRIMARY_CHANGED',
+          userId: user.id,
+          detail: { oldPrimary: barcode.isPrimary, newPrimary: dto.isPrimary },
+        });
+      }
+
+      const updated = await tx.productBarcode.update({
+        where: { id },
+        data: updateData,
+        include: {
+          product: {
+            select: {
+              id: true,
+              productCode: true,
+              description: true,
+            },
+          },
+          supplier: {
+            select: {
+              id: true,
+              supplierName: true,
+            },
+          },
+        },
+      });
+
+      for (const log of auditLogs) {
+        await tx.barcodeAuditLog.create({ data: log });
+      }
+
+      return updated;
+    });
   }
 
   /**
@@ -199,10 +372,9 @@ export class BarcodesService {
       data: {
         productId,
         companyId,
-            barcode: product.productCode,
+        barcode: product.productCode,
         barcodeType: BarcodeType.INTERNAL,
         isPrimary: hasPrimary === 0,
-
       },
     });
   }
@@ -213,8 +385,36 @@ export class BarcodesService {
     if (!barcode) {
       throw new NotFoundException('Barcode not found');
     }
-    await this.prisma.productBarcode.delete({ where: { id: barcodeId } });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productBarcode.delete({ where: { id: barcodeId } });
+
+      await tx.barcodeAuditLog.create({
+        data: {
+          companyId,
+          barcodeId: barcode.id,
+          barcode: barcode.barcode,
+          productId: barcode.productId,
+          action: 'DELETED',
+          userId: user.id,
+        },
+      });
+    });
+
     return { deleted: true };
+  }
+
+  async markInvalid(
+    user: RequestUser,
+    rawCode: string,
+    action: ScanAction = ScanAction.LOOKUP,
+    shopId?: string,
+    source: ScanSource = ScanSource.API,
+  ) {
+    const companyId = requireCompanyId(user);
+    const code = normalizeBarcode(rawCode) || rawCode.slice(0, 255);
+    await this.log(companyId, user.id, code, null, action, ScanResult.INVALID, shopId, source);
+    return { success: true };
   }
 
   async scanLogs(user: RequestUser, take = 50) {
@@ -248,7 +448,6 @@ export class BarcodesService {
     shopId?: string,
     source: ScanSource = ScanSource.API,
   ) {
-    // Audit logging must never break the scan flow.
     try {
       await this.prisma.scanLog.create({
         data: { companyId, shopId: shopId ?? null, barcode, productId, userId, action, result, source },

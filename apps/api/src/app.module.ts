@@ -60,6 +60,7 @@ import { DocumentSeriesModule } from './modules/document-series/document-series.
 import { EmailNotificationsModule } from './modules/email-notifications/email-notifications.module';
 import { EmailSendersModule } from './modules/email-senders/email-senders.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { CompanySettingsModule } from './modules/company-settings/company-settings.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -154,6 +155,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     UsersModule,
     ExportModule,
     CompaniesModule,
+    CompanySettingsModule,
     StorageLocationsModule,
     BarcodesModule,
     SuppliersModule,

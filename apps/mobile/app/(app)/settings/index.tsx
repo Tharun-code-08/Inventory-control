@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/store/authStore';
 import { logoutSession } from '@/lib/session';
+import { hasPermission } from '@/lib/permissions';
 import { Screen, Title, Subtitle, Card, Muted, Button } from '@/components/ui';
 import { DetailField } from '@/components/DetailField';
 import { colors, spacing } from '@/theme';
@@ -43,6 +44,19 @@ export default function SettingsScreen() {
               <DetailField label="Name" value={user.shop.shopName} />
               <DetailField label="Number" value={user.shop.shopNumber} />
               <DetailField label="Contact" value={user.shop.contactPerson} />
+            </Card>
+          </>
+        ) : null}
+
+        {hasPermission(user, 'product:read') ? (
+          <>
+            <Subtitle>Administration</Subtitle>
+            <Card>
+              <Button
+                label="Manage Barcode Mappings"
+                variant="secondary"
+                onPress={() => router.push('/(app)/barcode-management')}
+              />
             </Card>
           </>
         ) : null}

@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography } from '@/theme';
 
-const SCAN_COOLDOWN_MS = 1500;
+/** Same code scanned again within this window is ignored (camera re-fires + accidental re-aim). */
+const PER_CODE_COOLDOWN_MS = 2500;
+/** Minimum gap between any two accepted scans, after processing finishes. */
+const SCAN_LOCK_TAIL_MS = 600;
 
 type Props = {
   visible: boolean;
   onClose: () => void;
-  /** Called with the decoded barcode value. Return false to keep scanning (e.g. code not found). */
-  onScanned: (code: string) => void | boolean;
+  /**
+   * Called once per accepted scan. May be async — the scanner stays locked
+   * (with a "Processing…" indicator) until it settles. Return false to keep
+   * scanning (e.g. code not found), anything else closes unless `continuous`.
+   */
+  onScanned: (code: string) => void | boolean | Promise<void | boolean>;
   title?: string;
   /** Keep the scanner open after a successful scan (for scanning many items in a row). */
   continuous?: boolean;
@@ -19,8 +26,12 @@ type Props = {
 
 export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barcode', continuous = false }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [processing, setProcessing] = useState(false);
   const [lastCode, setLastCode] = useState<string | null>(null);
-  const lastScanAt = useRef(0);
+  // Refs (not state) for the lock and cooldown map: the camera callback fires
+  // on every frame and must see current values, not a stale closure.
+  const lockedRef = useRef(false);
+  const recentScans = useRef(new Map<string, number>());
 
   useEffect(() => {
     if (visible && permission && !permission.granted && permission.canAskAgain) {
@@ -29,16 +40,40 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
   }, [visible, permission, requestPermission]);
 
   useEffect(() => {
-    if (!visible) setLastCode(null);
+    if (!visible) {
+      setLastCode(null);
+      setProcessing(false);
+      lockedRef.current = false;
+      recentScans.current.clear();
+    }
   }, [visible]);
 
-  const handleScan = ({ data }: { data: string }) => {
+  const handleScan = async ({ data }: { data: string }) => {
+    if (!data || lockedRef.current) return;
+
+    // Per-code cooldown: the same barcode is ignored for a while even after
+    // the lock releases, so holding the camera on one label adds it once.
     const now = Date.now();
-    if (!data || now - lastScanAt.current < SCAN_COOLDOWN_MS) return;
-    lastScanAt.current = now;
+    const lastSeen = recentScans.current.get(data);
+    if (lastSeen !== undefined && now - lastSeen < PER_CODE_COOLDOWN_MS) return;
+    recentScans.current.set(data, now);
+
+    lockedRef.current = true;
+    setProcessing(true);
     setLastCode(data);
-    const keepOpen = onScanned(data);
-    if (!continuous && keepOpen !== false) onClose();
+    try {
+      const keepOpen = await onScanned(data);
+      if (!continuous && keepOpen !== false) {
+        onClose();
+        return;
+      }
+    } finally {
+      setProcessing(false);
+      // Short tail before accepting the next (different) code.
+      setTimeout(() => {
+        lockedRef.current = false;
+      }, SCAN_LOCK_TAIL_MS);
+    }
   };
 
   return (
@@ -61,9 +96,16 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
             onBarcodeScanned={handleScan}
           >
             <View style={styles.overlay}>
-              <View style={styles.frame} />
-              <Text style={styles.hint}>Point the camera at a barcode</Text>
-              {continuous && lastCode ? (
+              <View style={[styles.frame, processing && styles.frameBusy]} />
+              {processing ? (
+                <View style={styles.statusRow}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.hint}>Processing…</Text>
+                </View>
+              ) : (
+                <Text style={styles.hint}>Point the camera at a barcode</Text>
+              )}
+              {continuous && lastCode && !processing ? (
                 <View style={styles.lastScan}>
                   <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                   <Text style={styles.lastScanText}>{lastCode}</Text>
@@ -119,6 +161,13 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     borderRadius: 12,
     backgroundColor: 'transparent',
+  },
+  frameBusy: { borderColor: colors.success },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   hint: { color: '#fff', marginTop: spacing.md, fontSize: typography.size.md },
   lastScan: {

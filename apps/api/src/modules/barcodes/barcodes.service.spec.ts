@@ -2,6 +2,7 @@ import { ScanAction, ScanSource } from '@prisma/client';
 import { BarcodesService } from './barcodes.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { CompanySettingsService } from '../company-settings/company-settings.service';
 
 const COMPANY_A = '11111111-1111-1111-1111-111111111111';
 const COMPANY_B = '22222222-2222-2222-2222-222222222222';
@@ -51,7 +52,14 @@ describe('BarcodesService.lookup', () => {
       [COMPANY_A]: { id: 'bc-a', companyId: COMPANY_A, barcodeType: 'EAN13', product: productA },
       [COMPANY_B]: { id: 'bc-b', companyId: COMPANY_B, barcodeType: 'EAN13', product: productB },
     });
-    return { prisma, service: new BarcodesService(prisma as unknown as PrismaService) };
+    const companySettings = {
+      getUnknownBarcodePolicy: jest.fn(() => Promise.resolve('ASK')),
+    } as unknown as CompanySettingsService;
+    return {
+      prisma,
+      companySettings,
+      service: new BarcodesService(prisma as unknown as PrismaService, companySettings),
+    };
   }
 
   it('resolves the same barcode to different products per company (no tenant leakage)', async () => {
@@ -107,7 +115,10 @@ describe('BarcodesService.lookup', () => {
 
   it('logs unknown barcodes as NOT_FOUND with source and returns recovery payload', async () => {
     const prisma = makePrismaMock({});
-    const service = new BarcodesService(prisma as unknown as PrismaService);
+    const companySettings = {
+      getUnknownBarcodePolicy: jest.fn(() => Promise.resolve('ASK')),
+    } as unknown as CompanySettingsService;
+    const service = new BarcodesService(prisma as unknown as PrismaService, companySettings);
     const result = await service.lookup(
       makeUser(COMPANY_A, 'user-a'),
       'UNKNOWN-1',
@@ -128,7 +139,10 @@ describe('BarcodesService.lookup', () => {
 
   it('rejects empty scans and logs them as INVALID', async () => {
     const prisma = makePrismaMock({});
-    const service = new BarcodesService(prisma as unknown as PrismaService);
+    const companySettings = {
+      getUnknownBarcodePolicy: jest.fn(() => Promise.resolve('ASK')),
+    } as unknown as CompanySettingsService;
+    const service = new BarcodesService(prisma as unknown as PrismaService, companySettings);
     await expect(service.lookup(makeUser(COMPANY_A, 'user-a'), '   ')).rejects.toThrow(
       'Scanned barcode is empty or invalid',
     );

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ScanAction, ScanSource } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -7,6 +7,9 @@ import type { RequestUser } from '../../common/types/request-user';
 import { BarcodesService } from './barcodes.service';
 import { CreateBarcodeDto } from './dto/create-barcode.dto';
 import { LookupBarcodeDto } from './dto/lookup-barcode.dto';
+import { ListBarcodesDto } from './dto/list-barcodes.dto';
+import { UpdateBarcodeDto } from './dto/update-barcode.dto';
+import { MarkInvalidBarcodeDto } from './dto/mark-invalid-barcode.dto';
 
 @ApiTags('barcodes')
 @ApiBearerAuth()
@@ -41,6 +44,13 @@ export class BarcodesController {
     return this.barcodes.listForProduct(user, productId);
   }
 
+  @RequirePermission('product:read')
+  @Get()
+  @ApiOperation({ summary: 'Paginated list of all company barcodes' })
+  listAll(@CurrentUser() user: RequestUser, @Query() query: ListBarcodesDto) {
+    return this.barcodes.listAll(user, query);
+  }
+
   @RequirePermission('product:write')
   @Post('products/:productId')
   @ApiOperation({ summary: 'Register a barcode for a product' })
@@ -60,9 +70,33 @@ export class BarcodesController {
   }
 
   @RequirePermission('product:write')
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update barcode metadata' })
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateBarcodeDto,
+  ) {
+    return this.barcodes.update(user, id, dto);
+  }
+
+  @RequirePermission('product:write')
   @Delete(':id')
   @ApiOperation({ summary: 'Remove a barcode mapping' })
   remove(@CurrentUser() user: RequestUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.barcodes.remove(user, id);
+  }
+
+  @RequirePermission('product:read')
+  @Post('mark-invalid')
+  @ApiOperation({ summary: 'Log a scanned code as INVALID' })
+  markInvalid(@CurrentUser() user: RequestUser, @Body() dto: MarkInvalidBarcodeDto) {
+    return this.barcodes.markInvalid(
+      user,
+      dto.code,
+      dto.action ?? ScanAction.LOOKUP,
+      dto.shopId,
+      dto.source ?? ScanSource.API,
+    );
   }
 }

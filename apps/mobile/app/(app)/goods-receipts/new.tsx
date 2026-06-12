@@ -4,6 +4,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { PermissionGate } from '@/components/PermissionGate';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
+import { lookupBarcode } from '@/hooks/use-barcodes';
 import { useCreateGoodsReceipt } from '@/hooks/use-goods-receipts';
 import { useProducts, type Product } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
@@ -12,7 +14,6 @@ import { useAuthStore } from '@/store/authStore';
 import { defaultShopId, isShopOnlyUser } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useDebounce } from '@/hooks/use-debounce';
-import { api } from '@/api/client';
 import { Button, Card, EmptyState, Input, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
 import { spacing } from '@/theme';
 
@@ -40,6 +41,8 @@ export default function NewGoodsReceiptScreen() {
   const [productSearch, setProductSearch] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
 
   const debouncedProductSearch = useDebounce(productSearch, 350);
   const shopsQuery = useShops();
@@ -96,26 +99,18 @@ export default function NewGoodsReceiptScreen() {
 
   async function handleScanned(code: string) {
     try {
-      const res = await api.get('/products', {
-        params: {
-          search: code,
-          shop_id: shopId || undefined,
-          is_active: true,
-          limit: 10,
-          page: 1,
-        },
-      });
-      const payload = res.data?.data ?? res.data;
-      const rows: Product[] = Array.isArray(payload)
-        ? payload
-        : (payload?.items ?? payload?.data ?? []);
-      const match =
-        rows.find((p) => p.productCode?.toLowerCase() === code.toLowerCase()) ?? rows[0];
-      if (!match) {
-        setScanError(`No product found for barcode "${code}".`);
+      const result = await lookupBarcode(code, shopId || undefined);
+      // Server flags double-fired scans (same user + code in a short window):
+      // the product still resolves, but we skip the quantity bump.
+      if (result.duplicate) return;
+      if (!result.found) {
+        // Hand off to the recovery sheet: create or link, then add the line.
+        setScannerOpen(false);
+        setUnknownBarcode(result.barcode);
+        setUnknownBarcodePolicy(result.policy ?? 'ASK');
         return;
       }
-      addLine(match);
+      addLine(result.product);
     } catch (e) {
       setScanError(getApiErrorMessage(e, 'Could not look up the scanned barcode.'));
     }
@@ -290,9 +285,24 @@ export default function NewGoodsReceiptScreen() {
           continuous
           title="Scan items to receive"
           onClose={() => setScannerOpen(false)}
-          onScanned={(code) => {
-            handleScanned(code);
-            return false; // stay open; cooldown in the scanner prevents double-adds
+          onScanned={async (code) => {
+            await handleScanned(code);
+            return false; // stay open; scanner lock + cooldown prevent double-adds
+          }}
+        />
+
+        <UnknownBarcodeSheet
+          barcode={unknownBarcode}
+          policy={unknownBarcodePolicy}
+          shopId={shopId}
+          onClose={() => {
+            setUnknownBarcode(null);
+            setUnknownBarcodePolicy(null);
+          }}
+          onResolved={(product) => {
+            setUnknownBarcode(null);
+            setUnknownBarcodePolicy(null);
+            addLine(product);
           }}
         />
       </Screen>
