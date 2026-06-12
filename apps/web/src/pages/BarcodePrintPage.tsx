@@ -187,14 +187,15 @@ function PreviewBarcodeLabel({
 
   useEffect(() => {
     if (!canvasRef.current || !options.showBarcode) return;
-    const nameH = options.showName ? (size.font * 1.4) : 0;
-    const priceH = options.showPrice ? ((size.font + 1) * 1.2) : 0;
-    const skuH = (options.showSku && !options.showBarcode) ? (size.font) : 0;
-    const barH = size.h - nameH - priceH - skuH - 4; // in mm
+    const nameHeightPx = options.showName ? (size.font * 1.4) : 0;
+    const priceHeightPx = options.showPrice ? ((size.font + 1) * 1.2) : 0;
+    const skuHeightPx = (options.showSku && !options.showBarcode) ? (size.font) : 0;
+    const paddingPx = 4 * scale;
+    const barHeightPx = ph - nameHeightPx - priceHeightPx - skuHeightPx - paddingPx;
 
     drawBarcode(canvasRef.current, product.productCode, {
       width: pw - 10,
-      height: Math.max(16, Math.round(barH * scale)),
+      height: Math.max(32, Math.round(barHeightPx)),
       showText: true,
     });
   }, [product.productCode, pw, ph, options, size]);
