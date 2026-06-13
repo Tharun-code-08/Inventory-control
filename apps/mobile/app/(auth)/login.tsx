@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View, Alert } from 'react-native';
+import { useRef, useState, useEffect } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View, Alert, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Input, Screen, Muted, colors } from '@/components/ui';
 import { AppLogo } from '@/components/AppLogo';
@@ -7,13 +7,55 @@ import { getApiOrigin, testApiConnection } from '@/api/client';
 import { loginWithCredentials } from '@/lib/session';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { spacing } from '@/theme';
+import * as SecureStore from 'expo-secure-store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
+  const [companyCode, setCompanyCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const passwordRef = useRef<TextInput>(null);
+
+  // Load remember me data on mount
+  useEffect(() => {
+    loadRememberedCredentials();
+  }, []);
+
+  async function loadRememberedCredentials() {
+    try {
+      const saved = await SecureStore.getItemAsync('rememberMe');
+      if (saved) {
+        const { companyCode: cc, email: e } = JSON.parse(saved);
+        setCompanyCode(cc || '');
+        setEmail(e || '');
+        setRememberMe(true);
+      }
+    } catch (err) {
+      // Ignore errors loading stored data
+    }
+  }
+
+  async function saveRememberedCredentials() {
+    if (rememberMe) {
+      try {
+        await SecureStore.setItemAsync(
+          'rememberMe',
+          JSON.stringify({ companyCode, email })
+        );
+      } catch (err) {
+        // Silently fail — just don't persist
+      }
+    } else {
+      try {
+        await SecureStore.deleteItemAsync('rememberMe');
+      } catch (err) {
+        // Ignore
+      }
+    }
+  }
 
   async function onTestApi() {
     setTesting(true);
@@ -26,19 +68,33 @@ export default function LoginScreen() {
   }
 
   async function onLogin() {
+    if (!companyCode.trim()) {
+      Alert.alert('Company code required', 'Enter your company code.');
+      return;
+    }
     if (!email.trim() || !password) {
       Alert.alert('Login', 'Enter email and password.');
       return;
     }
     setLoading(true);
     try {
+      await saveRememberedCredentials();
+      // TODO: Pass company code to loginWithCredentials for multi-tenant validation
       await loginWithCredentials(email.trim(), password);
       router.replace('/(app)/(tabs)');
     } catch (err) {
-      Alert.alert('Login failed', getApiErrorMessage(err, 'Invalid credentials'));
+      Alert.alert('Login failed', getApiErrorMessage(err, 'Invalid credentials or company code'));
     } finally {
       setLoading(false);
     }
+  }
+
+  function onForgotPassword() {
+    if (!email.trim()) {
+      Alert.alert('Email required', 'Enter your email to reset password.');
+      return;
+    }
+    router.push({ pathname: '/(auth)/forgot-password', params: { email } });
   }
 
   return (
@@ -49,6 +105,17 @@ export default function LoginScreen() {
             <AppLogo height={56} />
           </View>
           <Muted style={{ textAlign: 'center', marginBottom: spacing.lg }}>Sign in with your account</Muted>
+          <Input
+            autoCapitalize="none"
+            placeholder="Company Code"
+            returnKeyType="next"
+            value={companyCode}
+            onChangeText={setCompanyCode}
+            onSubmitEditing={() => {
+              // Focus email field (we'll need a ref for it)
+            }}
+            blurOnSubmit={false}
+          />
           <Input
             autoCapitalize="none"
             autoComplete="email"
@@ -72,8 +139,26 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             onSubmitEditing={onLogin}
           />
+          <Pressable
+            style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.md, marginBottom: spacing.md }}
+            onPress={() => setRememberMe(!rememberMe)}
+          >
+            <Ionicons
+              name={rememberMe ? 'checkbox' : 'checkbox-outline'}
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={{ marginLeft: spacing.sm, color: colors.text, fontSize: 14 }}>
+              Remember me
+            </Text>
+          </Pressable>
           <Button label="Test API connection" variant="secondary" onPress={onTestApi} loading={testing} />
           <Button label="Sign in" onPress={onLogin} loading={loading} />
+          <Pressable onPress={onForgotPassword} style={{ marginTop: spacing.md }}>
+            <Text style={{ textAlign: 'center', color: colors.primary, fontSize: 14 }}>
+              Forgot password?
+            </Text>
+          </Pressable>
           <Text style={{ marginTop: 16, fontSize: 12, color: colors.muted, textAlign: 'center' }}>
             API: {getApiOrigin()}/api/v1
           </Text>

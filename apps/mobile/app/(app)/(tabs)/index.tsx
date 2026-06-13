@@ -66,11 +66,19 @@ export default function HomeScreen() {
           <>
             <View style={styles.kpiRow}>
               <KpiTile label="Products" value={query.data?.totalProducts ?? 0} />
-              <KpiTile label="Low stock" value={query.data?.lowStockCount ?? 0} />
+              <KpiTile label="Warehouses" value={query.data?.totalWarehouses ?? 0} />
             </View>
             <View style={styles.kpiRow}>
+              <KpiTile label="Low stock" value={query.data?.lowStockCount ?? 0} />
               <KpiTile label="Stock value" value={formatCurrency(query.data?.totalStockValue ?? 0)} />
-              <KpiTile label="Movements" value={query.data?.recentTransactions ?? 0} />
+            </View>
+            <View style={styles.kpiRow}>
+              <KpiTile label="Pending PO" value={query.data?.pendingPO ?? 0} />
+              <KpiTile label="Pending GR" value={query.data?.pendingGR ?? 0} />
+            </View>
+            <View style={styles.kpiRow}>
+              <KpiTile label="Pending RFQ" value={query.data?.pendingRFQ ?? 0} />
+              <KpiTile label="Pending Quotes" value={query.data?.pendingQuotations ?? 0} />
             </View>
 
             <Subtitle>Low stock</Subtitle>

@@ -7,6 +7,11 @@ export type DashboardSummary = {
   totalStockValue: number;
   lowStockCount: number;
   recentTransactions: number;
+  totalWarehouses: number;
+  pendingPO: number;
+  pendingGR: number;
+  pendingRFQ: number;
+  pendingQuotations: number;
   lowStockProducts: Array<{
     id: string;
     productCode: string;
@@ -27,6 +32,11 @@ const EMPTY: DashboardSummary = {
   totalStockValue: 0,
   lowStockCount: 0,
   recentTransactions: 0,
+  totalWarehouses: 0,
+  pendingPO: 0,
+  pendingGR: 0,
+  pendingRFQ: 0,
+  pendingQuotations: 0,
   lowStockProducts: [],
   recentGoodsIssues: [],
 };
@@ -39,11 +49,19 @@ export const dashboardKeys = {
 function normalizeSummary(raw: unknown): DashboardSummary {
   if (!raw || typeof raw !== 'object') return EMPTY;
   const o = raw as Record<string, unknown>;
+  const kpiContext = (typeof o.kpiContext === 'object' && o.kpiContext !== null)
+    ? (o.kpiContext as Record<string, unknown>)
+    : {};
   return {
     totalProducts: typeof o.totalProducts === 'number' ? o.totalProducts : 0,
     totalStockValue: typeof o.totalStockValue === 'number' ? o.totalStockValue : 0,
     lowStockCount: typeof o.lowStockCount === 'number' ? o.lowStockCount : 0,
     recentTransactions: typeof o.recentTransactions === 'number' ? o.recentTransactions : 0,
+    totalWarehouses: typeof kpiContext.totalWarehouses === 'number' ? kpiContext.totalWarehouses : 0,
+    pendingPO: typeof kpiContext.pendingPurchaseOrders === 'number' ? kpiContext.pendingPurchaseOrders : 0,
+    pendingGR: typeof kpiContext.pendingGoodsReceipts === 'number' ? kpiContext.pendingGoodsReceipts : 0,
+    pendingRFQ: typeof kpiContext.pendingRFQ === 'number' ? kpiContext.pendingRFQ : 0,
+    pendingQuotations: typeof kpiContext.pendingQuotations === 'number' ? kpiContext.pendingQuotations : 0,
     lowStockProducts: Array.isArray(o.lowStockProducts)
       ? (o.lowStockProducts as DashboardSummary['lowStockProducts'])
       : [],

@@ -53,6 +53,10 @@ export type DashboardSummaryPayload = {
     transactionsPriorPeriod: number;
     pendingPurchaseOrders: number;
     pendingSalesOrders: number;
+    totalWarehouses: number;
+    pendingGoodsReceipts: number;
+    pendingRFQ: number;
+    pendingQuotations: number;
   };
 };
 
@@ -109,6 +113,10 @@ export class DashboardService {
       productsAddedThisMonth,
       pendingPurchaseOrders,
       pendingSalesOrders,
+      totalWarehouses,
+      pendingGoodsReceipts,
+      pendingRFQ,
+      pendingQuotations,
     ] = await Promise.all([
       this.prisma.product.count({ where: productWhere }),
       this.prisma.product.groupBy({
@@ -192,6 +200,30 @@ export class DashboardService {
           shopId: shopFilter,
         },
       }),
+      this.prisma.storageLocation.count({
+        where: {
+          shopId: shopFilter,
+          isActive: true,
+        },
+      }),
+      this.prisma.goodsReceiptHeader.count({
+        where: {
+          shopId: shopFilter,
+          status: DocumentStatus.DRAFT,
+        },
+      }),
+      this.prisma.rfqHeader.count({
+        where: {
+          shopId: shopFilter,
+          status: 'DRAFT',
+        },
+      }),
+      this.prisma.supplierQuotationHeader.count({
+        where: {
+          shopId: shopFilter,
+          status: DocumentStatus.DRAFT,
+        },
+      }),
     ]);
 
     const monthlyMovement = this.formatMonthlyMovement(monthlyRows, sixMonthsAgoStart);
@@ -243,6 +275,10 @@ export class DashboardService {
         transactionsPriorPeriod: grPrior30 + giPrior30,
         pendingPurchaseOrders,
         pendingSalesOrders,
+        totalWarehouses,
+        pendingGoodsReceipts,
+        pendingRFQ,
+        pendingQuotations,
       },
     };
   }
