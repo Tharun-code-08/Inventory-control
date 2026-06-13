@@ -3,6 +3,11 @@ module.exports = {
   rootDir: '.',
   testEnvironment: 'node',
   moduleFileExtensions: ['js', 'json', 'ts'],
+  // Mirror the tsconfig "@/*" -> "src/*" path alias so specs that import
+  // modules using the alias resolve under jest (ts-jest doesn't read paths).
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
   testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/test/**/*.spec.ts'],
   // The e2e suite has its own config (test/jest-e2e.json) and runs separately.
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '\\.e2e-spec\\.ts$'],

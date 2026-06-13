@@ -11,6 +11,12 @@ import {
 import { ApprovalRequest, ApprovalStatus, ApprovalComment } from '@prisma/client';
 import { NotificationService } from '../../notifications/services';
 import { AlertType, NotificationPriority, NotificationModule } from '@prisma/client';
+import { AuditService } from '../../audit/audit.service';
+import {
+  buildApproveAudit,
+  buildRejectAudit,
+  buildEscalateAudit,
+} from '../../../common/state-machines/approval-audit';
 
 @Injectable()
 export class ApprovalService {
@@ -19,6 +25,7 @@ export class ApprovalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -173,13 +180,30 @@ export class ApprovalService {
       throw new BadRequestException(`Cannot approve: already ${approval.status}`);
     }
 
-    // Update approval status
-    const updated = await this.prisma.approvalRequest.update({
-      where: { id: approvalId },
-      data: {
-        status: ApprovalStatus.APPROVED,
-        approvedAt: new Date(),
-      },
+    // Update approval status and write the audit row in one transaction so
+    // the state change and its audit trail commit or roll back together.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.approvalRequest.update({
+        where: { id: approvalId },
+        data: {
+          status: ApprovalStatus.APPROVED,
+          approvedAt: new Date(),
+        },
+      });
+
+      await this.audit.log(
+        buildApproveAudit({
+          companyId,
+          userId: approverId,
+          approvalId,
+          approvalType: approval.approvalType,
+          documentNumber: approval.documentNumber,
+          comment: dto.comment,
+        }),
+        tx,
+      );
+
+      return result;
     });
 
     // Add comment if provided
@@ -236,14 +260,31 @@ export class ApprovalService {
       throw new BadRequestException(`Cannot reject: already ${approval.status}`);
     }
 
-    // Update approval status
-    const updated = await this.prisma.approvalRequest.update({
-      where: { id: approvalId },
-      data: {
-        status: ApprovalStatus.REJECTED,
-        rejectionReason: dto.rejectionReason,
-        rejectedAt: new Date(),
-      },
+    // Update approval status and write the audit row in one transaction.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.approvalRequest.update({
+        where: { id: approvalId },
+        data: {
+          status: ApprovalStatus.REJECTED,
+          rejectionReason: dto.rejectionReason,
+          rejectedAt: new Date(),
+        },
+      });
+
+      await this.audit.log(
+        buildRejectAudit({
+          companyId,
+          userId: approverId,
+          approvalId,
+          approvalType: approval.approvalType,
+          documentNumber: approval.documentNumber,
+          reason: dto.rejectionReason,
+          comment: dto.comment,
+        }),
+        tx,
+      );
+
+      return result;
     });
 
     // Add comment if provided
@@ -327,6 +368,7 @@ export class ApprovalService {
   async escalateApproval(
     approvalId: string,
     escalatedTo?: string,
+    actorId?: string,
   ): Promise<void> {
     const approval = await this.getApproval(approvalId);
 
@@ -338,13 +380,33 @@ export class ApprovalService {
     // Get escalation targets from configuration
     // For now, we'll just record the escalation
     if (escalatedTo) {
-      await this.prisma.approvalEscalation.create({
-        data: {
-          approvalId,
-          escalatedTo,
-          level: escalationCount + 1,
-          reason: 'Approval overdue',
-        },
+      const level = escalationCount + 1;
+      const reason = 'Approval overdue';
+
+      // Record the escalation and its audit row atomically.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.approvalEscalation.create({
+          data: {
+            approvalId,
+            escalatedTo,
+            level,
+            reason,
+          },
+        });
+
+        await this.audit.log(
+          buildEscalateAudit({
+            companyId: approval.companyId,
+            userId: actorId,
+            approvalId,
+            approvalType: approval.approvalType,
+            documentNumber: approval.documentNumber,
+            level,
+            escalatedTo,
+            reason,
+          }),
+          tx,
+        );
       });
 
       // Send notification to escalated user

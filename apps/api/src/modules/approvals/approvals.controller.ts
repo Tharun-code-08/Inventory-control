@@ -161,8 +161,9 @@ export class ApprovalController {
   async escalateApproval(
     @Param('approvalId') approvalId: string,
     @Body() body: { escalatedTo: string },
+    @CurrentUser() user: any,
   ): Promise<{ success: boolean }> {
-    await this.approvalService.escalateApproval(approvalId, body.escalatedTo);
+    await this.approvalService.escalateApproval(approvalId, body.escalatedTo, user.id);
     return { success: true };
   }
 
