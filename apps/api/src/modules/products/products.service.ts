@@ -10,12 +10,19 @@ import { StockService } from '../stock/stock.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { DocumentSeriesService } from '../document-series/document-series.service';
 import { SubscriptionService } from '../billing/subscription.service';
+import { AuditService } from '../audit/audit.service';
 import { BulkInventoryDto, BulkInventoryRowDto } from './dto/bulk-inventory.dto';
 import { BulkProductUpsertDto, BulkProductUpsertRowDto } from './dto/bulk-product-upsert.dto';
 import { ProductImageStorageService } from '../../common/upload/product-image-storage.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductPlantDto } from './dto/product-plant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import {
+  buildCreateProductAudit,
+  buildUpdateProductAudit,
+  buildDeleteProductAudit,
+  type ProductChangedFields,
+} from '../../common/state-machines/product-audit';
 
 const PRODUCT_INCLUDE = {
   plants: {
@@ -48,6 +55,7 @@ export class ProductsService {
     private readonly numbers: DocumentNumberService,
     private readonly series: DocumentSeriesService,
     private readonly images: ProductImageStorageService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -416,6 +424,17 @@ export class ProductsService {
         }
       }
 
+      await this.audit.log(
+        buildCreateProductAudit({
+          companyId: requireCompanyId(user),
+          userId: user.id,
+          productId: product.id,
+          productCode: product.productCode,
+          description: product.description,
+        }),
+        tx,
+      );
+
       return this.serializeProduct(product);
     });
   }
@@ -555,6 +574,64 @@ export class ProductsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const changedFields: ProductChangedFields = {};
+
+      // Track changes for audit
+      if (dto.productCode !== undefined && dto.productCode !== existing.productCode) {
+        changedFields.productCode = { old: existing.productCode, new: dto.productCode };
+      }
+      if (dto.description !== undefined && dto.description !== existing.description) {
+        changedFields.description = { old: existing.description, new: dto.description };
+      }
+      if (dto.uom !== undefined && dto.uom !== existing.uom) {
+        changedFields.uom = { old: existing.uom, new: dto.uom };
+      }
+      if (dto.category !== undefined && dto.category !== existing.category) {
+        changedFields.category = { old: existing.category, new: dto.category ?? null };
+      }
+      if (dto.hsnCode !== undefined && dto.hsnCode !== existing.hsnCode) {
+        changedFields.hsnCode = { old: existing.hsnCode, new: dto.hsnCode ?? null };
+      }
+      if (dto.materialGroup !== undefined && dto.materialGroup !== existing.materialGroup) {
+        changedFields.materialGroup = { old: existing.materialGroup, new: dto.materialGroup ?? null };
+      }
+      if (dto.drawingReference !== undefined && dto.drawingReference !== existing.drawingReference) {
+        changedFields.drawingReference = {
+          old: existing.drawingReference,
+          new: dto.drawingReference ?? null,
+        };
+      }
+      if (dto.brand !== undefined && dto.brand !== existing.brand) {
+        changedFields.brand = { old: existing.brand, new: dto.brand ?? null };
+      }
+      if (dto.taxPreference !== undefined && dto.taxPreference !== existing.taxPreference) {
+        changedFields.taxPreference = { old: existing.taxPreference, new: dto.taxPreference };
+      }
+      if (dto.gstRate !== undefined && Number(dto.gstRate) !== Number(existing.gstRate)) {
+        changedFields.gstRate = { old: Number(existing.gstRate), new: Number(dto.gstRate) };
+      }
+      if (
+        dto.purchasePrice !== undefined &&
+        Number(dto.purchasePrice) !== Number(existing.purchasePrice)
+      ) {
+        changedFields.purchasePrice = {
+          old: Number(existing.purchasePrice),
+          new: Number(dto.purchasePrice),
+        };
+      }
+      if (
+        dto.sellingPrice !== undefined &&
+        Number(dto.sellingPrice) !== Number(existing.sellingPrice)
+      ) {
+        changedFields.sellingPrice = {
+          old: Number(existing.sellingPrice),
+          new: Number(dto.sellingPrice),
+        };
+      }
+      if (dto.isActive !== undefined && dto.isActive !== existing.isActive) {
+        changedFields.isActive = { old: existing.isActive, new: dto.isActive };
+      }
+
       const updated = await tx.product.update({
         where: { id },
         data: {
@@ -711,6 +788,20 @@ export class ProductsService {
         }
       }
 
+      // Log audit if any fields changed
+      if (Object.keys(changedFields).length > 0) {
+        await this.audit.log(
+          buildUpdateProductAudit({
+            companyId: requireCompanyId(user),
+            userId: user.id,
+            productId: updated.id,
+            productCode: updated.productCode,
+            changedFields,
+          }),
+          tx,
+        );
+      }
+
       const refreshed = await tx.product.findUniqueOrThrow({
         where: { id },
         include: PRODUCT_INCLUDE,
@@ -797,22 +888,19 @@ export class ProductsService {
       });
     }
 
-    await this.prisma.$transaction([
-      this.prisma.product.delete({ where: { id } }),
-      this.prisma.auditLog.create({
-        data: {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.delete({ where: { id } });
+      await this.audit.log(
+        buildDeleteProductAudit({
           companyId: assertCompanyId(user),
           userId: user.id,
-          action: AuditAction.DELETE,
-          entityType: 'product',
-          entityId: existing.id,
-          oldValues: {
-            productCode: existing.productCode,
-            description: existing.description,
-          },
-        },
-      }),
-    ]);
+          productId: existing.id,
+          productCode: existing.productCode,
+          description: existing.description,
+        }),
+        tx,
+      );
+    });
 
     return { ok: true };
   }
