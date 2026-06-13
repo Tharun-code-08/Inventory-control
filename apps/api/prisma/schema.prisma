@@ -694,7 +694,6 @@ model User {
   authChallenges        AuthChallenge[]
   backupCodes           UserBackupCode[]
   trustedMfaDevices     TrustedMfaDevice[]
-  platformAuditLogs     PlatformAuditLog[]
 
   // Notifications & Approvals (Sprint 3)
   notifications            Notification[]
@@ -2784,27 +2783,6 @@ model NotificationSubscription {
   @@index([companyId, platform, isActive])
   @@index([userId])
   @@map("notification_subscriptions")
-}
-
-model Notification {
-  id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  companyId     String   @map("company_id") @db.Uuid
-  type          String   // "GR_CREATED", "LOW_STOCK", etc.
-  title         String
-  body          String   @db.Text
-  data          Json?
-  isRead        Boolean  @default(false) @map("is_read")
-  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
-  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead, createdAt])
-  @@index([companyId, type, createdAt])
-  @@map("notifications")
 }
 
 // ============================================
