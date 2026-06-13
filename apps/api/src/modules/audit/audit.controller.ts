@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { AuditExportRateLimitGuard } from '@/common/guards/audit-export-rate-limit.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RequirePermission } from '@/common/decorators/require-permission.decorator';
 import type { RequestUser } from '@/common/types/request-user';
@@ -31,7 +32,10 @@ import {
 export class AuditController {
   private readonly logger = new Logger(AuditController.name);
 
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly exportRateLimitGuard: AuditExportRateLimitGuard,
+  ) {}
 
   /**
    * GET /audit
@@ -180,15 +184,17 @@ export class AuditController {
    * GET /audit/export/csv
    * Export audit logs as CSV file
    */
+  @UseGuards(AuditExportRateLimitGuard)
   @Get('export/csv')
   @HttpCode(HttpStatus.OK)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="audit-log.csv"')
   @ApiOperation({
     summary: 'Export audit logs as CSV',
-    description: 'Download audit logs in CSV format (max 10,000 rows)',
+    description: 'Download audit logs in CSV format (max 10,000 rows). Limit: 100 exports per hour per user.',
   })
   @ApiResponse({ status: 200, description: 'CSV file exported successfully' })
+  @ApiResponse({ status: 429, description: 'Export limit exceeded (100 per hour)' })
   @ApiQuery({ name: 'action', required: false, type: String })
   @ApiQuery({ name: 'entityType', required: false, type: String })
   @ApiQuery({ name: 'entityId', required: false, type: String })
