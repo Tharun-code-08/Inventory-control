@@ -102,6 +102,11 @@ enum AuditAction {
   EXPORT_REPORT
   EXPORT_AUDIT
 
+  // Dashboard telemetry (Phase 3 Month 1 — Reality Validation)
+  VIEW_DASHBOARD
+  DASHBOARD_CARD_CLICKED
+  DASHBOARD_ACTION_TAKEN
+
   // Data
   DELETE_DATA
   BULK_UPDATE

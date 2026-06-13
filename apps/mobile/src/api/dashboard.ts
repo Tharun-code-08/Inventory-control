@@ -59,6 +59,32 @@ export async function fetchExecutiveDashboard(
   return response.data;
 }
 
+export type DashboardCard = 'financial' | 'inventory' | 'attention' | 'recommendations';
+
+export type DashboardEvent = {
+  type: 'opened' | 'card' | 'action';
+  card?: DashboardCard;
+  firstClick?: boolean;
+  action?: string;
+  loadTimeMs?: number;
+  sessionId?: string;
+};
+
+/** New session id per dashboard mount — groups opens/clicks/actions into one visit. */
+export function newDashboardSession(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Fire-and-forget telemetry. The Week 4 Reality Report reads these from the
+ * audit log. Never let a failed beacon disrupt the dashboard — swallow errors.
+ */
+export function emitDashboardEvent(event: DashboardEvent): void {
+  void api.post('/dashboard/events', event).catch(() => {
+    // telemetry is best-effort; ignore
+  });
+}
+
 /**
  * Format currency for display
  */

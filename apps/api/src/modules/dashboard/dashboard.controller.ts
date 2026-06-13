@@ -1,15 +1,36 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Ip,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { AuditAction, AuditSeverity } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
+import { AuditService } from '../audit/audit.service';
 import { DashboardService } from './dashboard.service';
+import { DashboardEventDto } from './dto/dashboard-event.dto';
+
+const EVENT_ACTION: Record<DashboardEventDto['type'], AuditAction> = {
+  opened: AuditAction.VIEW_DASHBOARD,
+  card: AuditAction.DASHBOARD_CARD_CLICKED,
+  action: AuditAction.DASHBOARD_ACTION_TAKEN,
+};
 
 @ApiTags('dashboard')
 @ApiBearerAuth()
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly audit: AuditService,
+  ) {}
 
   @RequirePermission('report:view')
   @Get('summary')
@@ -22,5 +43,36 @@ export class DashboardController {
   @Get('executive')
   async executive(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
     return this.dashboard.executive(user, shopId);
+  }
+
+  /**
+   * Month 1 telemetry sink. Persists the three behavioural events the Week 4
+   * Reality Report depends on (open / first-click / action) into the audit log.
+   * Severity LOW keeps them out of the security-audit signal. Fire-and-forget
+   * from the client; failures here must never break a dashboard open.
+   */
+  @RequirePermission('report:view')
+  @Post('events')
+  @HttpCode(204)
+  async recordEvent(
+    @CurrentUser() user: RequestUser,
+    @Body() event: DashboardEventDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent?: string,
+  ): Promise<void> {
+    await this.audit.logTenant(user, {
+      action: EVENT_ACTION[event.type],
+      entityType: 'Dashboard',
+      severity: AuditSeverity.LOW,
+      ipAddress: ip ?? null,
+      userAgent: userAgent ?? null,
+      metadata: {
+        card: event.card ?? null,
+        firstClick: event.firstClick ?? false,
+        action: event.action ?? null,
+        loadTimeMs: event.loadTimeMs ?? null,
+        sessionId: event.sessionId ?? null,
+      },
+    });
   }
 }

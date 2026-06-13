@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -7,7 +7,13 @@ import {
   Text,
   RefreshControl,
 } from 'react-native';
-import { fetchExecutiveDashboard, type ExecutiveDashboardResponse } from '@/api/dashboard';
+import {
+  fetchExecutiveDashboard,
+  emitDashboardEvent,
+  newDashboardSession,
+  type DashboardCard,
+  type ExecutiveDashboardResponse,
+} from '@/api/dashboard';
 import { FinancialCard } from './FinancialCard';
 import { InventoryCard } from './InventoryCard';
 import { AttentionCard } from './AttentionCard';
@@ -25,18 +31,39 @@ export function ExecutiveDashboard({ shopId, onLoadingChange }: ExecutiveDashboa
   const [error, setError] = useState<string | null>(null);
   const [loadTime, setLoadTime] = useState<number>(0);
 
+  // Telemetry: one session per mount; first-click captured once.
+  const sessionId = useRef(newDashboardSession());
+  const firstClickSent = useRef(false);
+
+  const handleCardClick = (card: DashboardCard) => {
+    emitDashboardEvent({
+      type: 'card',
+      card,
+      firstClick: !firstClickSent.current,
+      sessionId: sessionId.current,
+    });
+    firstClickSent.current = true;
+  };
+
+  const handleAction = (card: DashboardCard, action: string) => {
+    handleCardClick(card);
+    emitDashboardEvent({ type: 'action', card, action, sessionId: sessionId.current });
+  };
+
   const loadDashboard = async () => {
     try {
       const startTime = Date.now();
       setError(null);
       const result = await fetchExecutiveDashboard(shopId);
       const endTime = Date.now();
-      setLoadTime(endTime - startTime);
+      const elapsed = endTime - startTime;
+      setLoadTime(elapsed);
       setData(result);
+      emitDashboardEvent({ type: 'opened', loadTimeMs: elapsed, sessionId: sessionId.current });
 
       // Log load time for monitoring
-      if (endTime - startTime > 2000) {
-        console.warn(`Dashboard load time: ${endTime - startTime}ms (target: < 2000ms)`);
+      if (elapsed > 2000) {
+        console.warn(`Dashboard load time: ${elapsed}ms (target: < 2000ms)`);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard';
@@ -100,10 +127,22 @@ export function ExecutiveDashboard({ shopId, onLoadingChange }: ExecutiveDashboa
       </View>
 
       <View style={styles.content}>
-        <FinancialCard data={data.financial} />
-        <InventoryCard data={data.inventory} />
-        <AttentionCard data={data.attention} />
-        <RecommendationsCard data={data.recommendations} />
+        <FinancialCard
+          data={data.financial}
+          onPress={() => handleCardClick('financial')}
+        />
+        <InventoryCard
+          data={data.inventory}
+          onPress={() => handleCardClick('inventory')}
+        />
+        <AttentionCard
+          data={data.attention}
+          onPress={() => handleAction('attention', 'resolve')}
+        />
+        <RecommendationsCard
+          data={data.recommendations}
+          onPress={() => handleCardClick('recommendations')}
+        />
       </View>
 
       <View style={styles.footer}>
