@@ -16,4 +16,11 @@ export class DashboardController {
   summary(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
     return this.dashboard.summary(user, shopId);
   }
+
+  // Month 1: Executive Dashboard - 4 cards, 30 seconds
+  @RequirePermission('report:view')
+  @Get('executive')
+  async executive(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
+    return this.dashboard.executive(user, shopId);
+  }
 }

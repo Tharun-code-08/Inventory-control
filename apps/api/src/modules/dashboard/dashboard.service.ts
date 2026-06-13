@@ -284,6 +284,81 @@ export class DashboardService {
   }
 
   /**
+   * Month 1: Executive Dashboard
+   * 4 cards: Financial, Inventory, Attention, Recommendations
+   * Target: 30 seconds to understand and act
+   */
+  async executive(user: RequestUser, shop_id?: string) {
+    const shopIds = await this.resolveDashboardShopIds(user, shop_id);
+    const shopFilter = shopIds.length === 1 ? shopIds[0] : { in: shopIds };
+
+    // Parallel queries for the 4 cards
+    const [
+      financial,
+      inventory,
+      attention,
+    ] = await Promise.all([
+      this.fetchFinancialCard(shopIds, shopFilter),
+      this.fetchInventoryCard(shopIds, shopFilter),
+      this.fetchAttentionCard(shopIds, shopFilter),
+    ]);
+
+    return {
+      financial,
+      inventory,
+      attention,
+      recommendations: [], // Month 1: empty. Month 5+: filled with intelligence.
+    };
+  }
+
+  private async fetchFinancialCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+    // TODO: Wire up real financial data from sales orders, invoices, payments
+    // For Week 1, return hardcoded example
+    return {
+      revenueToday: 234000,
+      revenueThisMonth: 5432100,
+      grossProfit: 1856000,
+      netProfit: 1234000,
+      receivables: 890000,
+      payables: 450000,
+    };
+  }
+
+  private async fetchInventoryCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+    // TODO: Wire up real inventory data from stock summary
+    // For Week 1, return hardcoded example
+    const stockData = await this.aggregateStockValueAndLowCount(shopIds);
+    return {
+      totalValue: stockData.totalStockValue,
+      lowStockCount: stockData.lowStockCount,
+      deadStockValue: 120000,
+      stockCoverageDays: 12,
+    };
+  }
+
+  private async fetchAttentionCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+    // TODO: Wire up real attention items from approvals, GRs, payments
+    // For Week 1, return hardcoded example
+    return [
+      {
+        type: 'overdue_payments',
+        count: 2,
+        severity: 'critical',
+      },
+      {
+        type: 'low_stock_alerts',
+        count: 3,
+        severity: 'warning',
+      },
+      {
+        type: 'pending_approvals',
+        count: 5,
+        severity: 'info',
+      },
+    ];
+  }
+
+  /**
    * Resolve which plant(s) the dashboard should aggregate. Mirrors product list
    * scoping: explicit shop_id, tenant shops, or all active plants in the company.
    */
