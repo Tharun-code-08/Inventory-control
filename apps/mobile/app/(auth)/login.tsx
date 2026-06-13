@@ -3,12 +3,15 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View, Aler
 import { router } from 'expo-router';
 import { Button, Input, Screen, Muted, colors } from '@/components/ui';
 import { AppLogo } from '@/components/AppLogo';
+import { BiometricSetupSheet } from '@/components/BiometricSetupSheet';
 import { getApiOrigin, testApiConnection } from '@/api/client';
 import { loginWithCredentials } from '@/lib/session';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { spacing } from '@/theme';
 import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
+import { authenticateWithBiometric, isBiometricAvailable } from '@/lib/biometric';
+import { checkLoginLocked, recordFailedLogin, recordSuccessfulLogin } from '@/lib/login-protection';
 
 export default function LoginScreen() {
   const [companyCode, setCompanyCode] = useState('');
@@ -17,11 +20,36 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [showBiometricSetup, setShowBiometricSetup] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [attemptingBiometric, setAttemptingBiometric] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  // Load remember me data on mount
+  // Load remember me data and check for biometric on mount
   useEffect(() => {
-    loadRememberedCredentials();
+    const init = async () => {
+      await loadRememberedCredentials();
+      const available = await isBiometricAvailable();
+      setBiometricAvailable(available);
+
+      // Auto-login with biometric if available
+      if (available) {
+        setAttemptingBiometric(true);
+        const creds = await authenticateWithBiometric();
+        if (creds) {
+          try {
+            await loginWithCredentials(creds.email, creds.password);
+            router.replace('/(app)/(tabs)');
+            return;
+          } catch (err) {
+            // Biometric login failed, show regular login
+            console.error('Biometric login failed:', err);
+          }
+        }
+        setAttemptingBiometric(false);
+      }
+    };
+    init();
   }, []);
 
   async function loadRememberedCredentials() {
@@ -76,17 +104,57 @@ export default function LoginScreen() {
       Alert.alert('Login', 'Enter email and password.');
       return;
     }
+
+    // Check if account is locked
+    const { locked, minutesRemaining } = await checkLoginLocked(companyCode.trim(), email.trim());
+    if (locked) {
+      Alert.alert(
+        'Account locked',
+        `Too many failed login attempts. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}.`
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       await saveRememberedCredentials();
       // TODO: Pass company code to loginWithCredentials for multi-tenant validation
       await loginWithCredentials(email.trim(), password);
-      router.replace('/(app)/(tabs)');
+
+      // Record successful login (clears failed attempts)
+      await recordSuccessfulLogin(companyCode.trim(), email.trim());
+
+      // Show biometric setup if available and not yet enabled
+      if (biometricAvailable) {
+        setShowBiometricSetup(true);
+      } else {
+        router.replace('/(app)/(tabs)');
+      }
     } catch (err) {
-      Alert.alert('Login failed', getApiErrorMessage(err, 'Invalid credentials or company code'));
+      // Record failed login attempt
+      await recordFailedLogin(companyCode.trim(), email.trim());
+
+      // Check if now locked
+      const { locked: nowLocked, minutesRemaining: mins } = await checkLoginLocked(
+        companyCode.trim(),
+        email.trim()
+      );
+      if (nowLocked) {
+        Alert.alert(
+          'Account locked',
+          `Too many failed login attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`
+        );
+      } else {
+        Alert.alert('Login failed', getApiErrorMessage(err, 'Invalid credentials or company code'));
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  function onBiometricSetupComplete() {
+    setShowBiometricSetup(false);
+    router.replace('/(app)/(tabs)');
   }
 
   function onForgotPassword() {
@@ -97,14 +165,26 @@ export default function LoginScreen() {
     router.push({ pathname: '/(auth)/forgot-password', params: { email } });
   }
 
+  if (attemptingBiometric) {
+    return (
+      <Screen style={{ justifyContent: 'center' }}>
+        <View style={{ alignItems: 'center' }}>
+          <AppLogo height={56} />
+          <Muted style={{ marginTop: spacing.lg }}>Authenticating with biometric…</Muted>
+        </View>
+      </Screen>
+    );
+  }
+
   return (
-    <Screen style={{ justifyContent: 'center' }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
-            <AppLogo height={56} />
-          </View>
-          <Muted style={{ textAlign: 'center', marginBottom: spacing.lg }}>Sign in with your account</Muted>
+    <>
+      <Screen style={{ justifyContent: 'center' }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
+              <AppLogo height={56} />
+            </View>
+            <Muted style={{ textAlign: 'center', marginBottom: spacing.lg }}>Sign in with your account</Muted>
           <Input
             autoCapitalize="none"
             placeholder="Company Code"
@@ -162,11 +242,20 @@ export default function LoginScreen() {
           <Text style={{ marginTop: 16, fontSize: 12, color: colors.muted, textAlign: 'center' }}>
             API: {getApiOrigin()}/api/v1
           </Text>
-          <Text style={{ marginTop: 4, fontSize: 11, color: colors.muted, textAlign: 'center' }}>
-            Phone on Wi‑Fi? Use your PC IP in apps/mobile/.env — not localhost.
-          </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Screen>
+            <Text style={{ marginTop: 4, fontSize: 11, color: colors.muted, textAlign: 'center' }}>
+              Phone on Wi‑Fi? Use your PC IP in apps/mobile/.env — not localhost.
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Screen>
+
+      <BiometricSetupSheet
+        visible={showBiometricSetup}
+        companyCode={companyCode}
+        email={email}
+        password={password}
+        onComplete={onBiometricSetupComplete}
+      />
+    </>
   );
 }

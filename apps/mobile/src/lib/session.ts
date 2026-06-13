@@ -1,6 +1,7 @@
 import { applyAccessToken, extractMobileAuthPayload, api } from '@/api/client';
 import { clearSession, loadSession, saveSession } from '@/lib/secure-storage';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
+import { registerDevice } from '@/lib/device-info';
 
 export async function bootstrapSession(): Promise<void> {
   const { accessToken, refreshToken, userJson } = await loadSession();
@@ -45,6 +46,9 @@ export async function loginWithCredentials(email: string, password: string): Pro
   useAuthStore.getState().setSession(auth.accessToken, auth.refreshToken, auth.user);
   applyAccessToken(auth.accessToken);
   await saveSession(auth.accessToken, auth.refreshToken, JSON.stringify(auth.user));
+
+  // Register device (non-blocking)
+  registerDevice().catch(err => console.error('Device registration failed:', err));
 }
 
 export async function logoutSession(): Promise<void> {

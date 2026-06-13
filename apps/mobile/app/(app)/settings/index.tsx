@@ -48,6 +48,15 @@ export default function SettingsScreen() {
           </>
         ) : null}
 
+        <Subtitle>Security</Subtitle>
+        <Card>
+          <Button
+            label="Active Devices"
+            variant="secondary"
+            onPress={() => router.push('/settings/devices' as Href)}
+          />
+        </Card>
+
         {hasPermission(user, 'product:read') ? (
           <>
             <Subtitle>Administration</Subtitle>
