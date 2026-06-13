@@ -164,6 +164,7 @@ describe('ProductsService bulk workflow', () => {
       {} as never,
       series as never,
       {} as never,
+      { log: jest.fn() } as never,
     );
 
     const result = await service.bulkUpsert(makeUser(), {
@@ -232,6 +233,7 @@ describe('ProductsService bulk workflow', () => {
       {} as never,
       {} as never,
       {} as never,
+      { log: jest.fn() } as never,
     );
 
     const result = await service.bulkUpsert(makeUser(), {
@@ -284,6 +286,7 @@ describe('ProductsService bulk workflow', () => {
       {} as never,
       {} as never,
       {} as never,
+      { log: jest.fn() } as never,
     );
 
     jest.spyOn(service, 'get').mockResolvedValue(
