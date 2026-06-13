@@ -61,12 +61,23 @@ export async function fetchExecutiveDashboard(
 export type DashboardCard = 'financial' | 'inventory' | 'attention' | 'recommendations';
 
 export type DashboardEvent = {
-  type: 'opened' | 'card' | 'action';
+  type: 'opened' | 'card' | 'action' | 'exit' | 'attention_resolved';
   card?: DashboardCard;
   firstClick?: boolean;
   action?: string;
   loadTimeMs?: number;
   sessionId?: string;
+  // DASHBOARD_EXIT metadata
+  durationMs?: number;
+  cardsViewed?: number;
+  actionsTaken?: number;
+  firstCard?: DashboardCard;
+  openedAt?: string;
+  closedAt?: string;
+  // ATTENTION_ITEM_RESOLVED metadata
+  itemId?: string;
+  itemType?: string;
+  resolution?: string;
 };
 
 /** New session id per dashboard mount — groups opens/clicks/actions into one visit. */
