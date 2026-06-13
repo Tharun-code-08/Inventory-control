@@ -25,6 +25,7 @@ import { assertGrAction } from '../../common/state-machines/assert-action';
 import { assertGrTransition } from '../../common/state-machines/assert-transition';
 import { GrAction } from '../../common/state-machines/document-actions';
 import { buildStatusTransitionAudit } from '../../common/state-machines/document-audit';
+import { buildReceiveGoodsAudit } from '../../common/state-machines/inventory-audit';
 import { assertGrMutationAllowed } from '../../common/utils/procurement-downstream';
 
 @Injectable()
@@ -451,12 +452,23 @@ export class GoodsReceiptsService {
       // the avgCost on stock_summary both depend on it.
       const shop = await tx.shop.findUnique({
         where: { id: fresh.shopId },
-        select: { costingMethod: true },
+        select: { costingMethod: true, companyId: true },
       });
       const method = shop?.costingMethod ?? CostingMethod.AVERAGE;
 
+      // Capture before quantities for all products
+      const beforeQtyMap = new Map<string, number>();
+      for (const line of fresh.items) {
+        const summary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.shopId, productId: line.productId } },
+        });
+        beforeQtyMap.set(line.productId, Number(summary?.currentStock ?? 0));
+      }
+
       let total = new Prisma.Decimal(0);
       for (const line of fresh.items) {
+        const beforeQty = beforeQtyMap.get(line.productId) ?? 0;
+
         await this.stock.postMovementOnce(tx, {
           type: TransactionType.GOODS_RECEIPT,
           ref: fresh.grNumber,
@@ -478,6 +490,14 @@ export class GoodsReceiptsService {
             .filter(Boolean)
             .join(' ') || undefined,
         });
+
+        // Capture after quantity for audit
+        const afterSummary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.shopId, productId: line.productId } },
+        });
+        const afterQty = Number(afterSummary?.currentStock ?? 0);
+        const delta = Number(line.quantity);
+
         await this.ensureProductPlantForReceipt(tx, user, {
           productId: line.productId,
           shopId: fresh.shopId,
@@ -491,6 +511,25 @@ export class GoodsReceiptsService {
           grId: fresh.id,
           method,
         });
+
+        // Log inventory movement audit
+        if (shop?.companyId) {
+          await this.audit.log(
+            buildReceiveGoodsAudit({
+              companyId: shop.companyId,
+              userId: user.id,
+              productId: line.productId,
+              warehouseId: fresh.shopId,
+              batchId: line.batchNumber?.trim(),
+              referenceNo: fresh.grNumber,
+              beforeQty,
+              delta,
+              afterQty,
+            }),
+            tx,
+          );
+        }
+
         total = total.add(line.lineValue);
       }
 

@@ -75,6 +75,7 @@ enum AuditAction {
   UPDATE_GR
   RECEIVE_GOODS
   TRANSFER_STOCK
+  STOCK_ADJUSTMENT
   CREATE_ISSUE
 
   // Purchases
@@ -2830,7 +2831,7 @@ model AuditLog {
   @@index([companyId, action, createdAt])
   @@index([userId, createdAt])
   @@index([reason, createdAt])
-  @@index([entityType, entityId])
+  @@index([entityType, entityId, createdAt])
   @@index([action, createdAt])
   @@index([companyId, createdAt])
   @@index([requestId])

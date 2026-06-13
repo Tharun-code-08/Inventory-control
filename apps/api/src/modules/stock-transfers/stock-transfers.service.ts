@@ -10,6 +10,8 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
+import { buildTransferStockAudit } from '../../common/state-machines/inventory-audit';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import type { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import type { ListStockTransfersDto } from './dto/list-stock-transfers.dto';
 
@@ -251,6 +253,20 @@ export class StockTransfersService {
         throw new InsufficientStockException('Insufficient stock for posting', failures);
       }
 
+      // Capture before quantities for both shops
+      const beforeQtyMapFrom = new Map<string, number>();
+      const beforeQtyMapTo = new Map<string, number>();
+      for (const line of fresh.items) {
+        const fromSummary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.fromShopId, productId: line.productId } },
+        });
+        const toSummary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.toShopId, productId: line.productId } },
+        });
+        beforeQtyMapFrom.set(line.productId, Number(fromSummary?.currentStock ?? 0));
+        beforeQtyMapTo.set(line.productId, Number(toSummary?.currentStock ?? 0));
+      }
+
       const transitioned = await tx.stockTransferHeader.updateMany({
         where: { id, status: DocumentStatus.DRAFT },
         data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
@@ -258,6 +274,12 @@ export class StockTransfersService {
       if (transitioned.count === 0) {
         throw new DocumentAlreadyPostedException();
       }
+
+      const shops = await tx.shop.findMany({
+        where: { id: { in: [fresh.fromShopId, fresh.toShopId] } },
+        select: { id: true, companyId: true },
+      });
+      const companyId = shops[0]?.companyId;
 
       for (const line of fresh.items) {
         await this.stock.postMovementOnce(tx, {
@@ -288,6 +310,38 @@ export class StockTransfersService {
           idempotencyKey: `st:in:${fresh.id}:${line.id}`,
           userId: user.id,
         });
+
+        // Capture after quantities for audit
+        const afterFromSummary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.fromShopId, productId: line.productId } },
+        });
+        const afterToSummary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.toShopId, productId: line.productId } },
+        });
+        const beforeFromQty = beforeQtyMapFrom.get(line.productId) ?? 0;
+        const afterFromQty = Number(afterFromSummary?.currentStock ?? 0);
+        const beforeToQty = beforeQtyMapTo.get(line.productId) ?? 0;
+        const afterToQty = Number(afterToSummary?.currentStock ?? 0);
+
+        // Log transfer stock audit
+        if (companyId) {
+          await this.audit.log(
+            buildTransferStockAudit({
+              companyId,
+              userId: user.id,
+              productId: line.productId,
+              fromWarehouse: fresh.fromShopId,
+              toWarehouse: fresh.toShopId,
+              qty: Number(line.quantity),
+              beforeFromQty,
+              afterFromQty,
+              beforeToQty,
+              afterToQty,
+              referenceNo: fresh.transferNumber,
+            }),
+            tx,
+          );
+        }
       }
 
       const posted = await tx.stockTransferHeader.findUniqueOrThrow({

@@ -10,6 +10,8 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
+import { buildStockAdjustmentAudit } from '../../common/state-machines/inventory-audit';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 
 @Injectable()
 export class DamagedStockService {
@@ -171,6 +173,8 @@ export class DamagedStockService {
         ]);
       }
 
+      const beforeQty = Number(avail);
+
       const transitioned = await tx.damagedStock.updateMany({
         where: { id, status: DocumentStatus.DRAFT },
         data: { status: DocumentStatus.POSTED, postedAt: new Date(), updatedById: user.id },
@@ -193,10 +197,38 @@ export class DamagedStockService {
         userId: user.id,
       });
 
+      // Capture after quantity for audit
+      const afterSummary = await tx.stockSummary.findUnique({
+        where: { shopId_productId: { shopId: fresh.shopId, productId: fresh.productId } },
+      });
+      const afterQty = Number(afterSummary?.currentStock ?? 0);
+      const delta = -Number(fresh.damagedQuantity);
+
       const posted = await tx.damagedStock.findUniqueOrThrow({
         where: { id },
         include: { product: true, shop: true },
       });
+
+      // Log stock adjustment audit
+      const shop = await tx.shop.findUnique({ where: { id: posted.shopId }, select: { companyId: true } });
+      if (shop?.companyId) {
+        await this.audit.log(
+          buildStockAdjustmentAudit({
+            companyId: shop.companyId,
+            userId: user.id,
+            productId: fresh.productId,
+            warehouseId: fresh.shopId,
+            adjustmentType: 'LOSS',
+            reason: fresh.reason,
+            beforeQty,
+            delta,
+            afterQty,
+            referenceNo: fresh.damageNumber,
+          }),
+          tx,
+        );
+      }
+
       await this.audit.logTenant(
         user,
         {
