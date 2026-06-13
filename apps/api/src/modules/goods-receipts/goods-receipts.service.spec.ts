@@ -17,6 +17,11 @@ function makeService() {
     storageLocation: {
       findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', shopId: 'shop-1', isActive: true }),
     },
+    // RECEIVE_GOODS audit logging reads stock summaries (before/after qty)
+    // inside the transaction; default to zero stock so the posting flow runs.
+    stockSummary: {
+      findUnique: jest.fn().mockResolvedValue({ currentStock: new Prisma.Decimal(0) }),
+    },
     productPlant: {
       findUnique: jest.fn().mockResolvedValue(null),
       findFirst: jest.fn().mockResolvedValue(null),

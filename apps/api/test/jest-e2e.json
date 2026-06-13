@@ -6,6 +6,9 @@
   "forceExit": true,
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1"
+  },
   "transform": {
     "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "isolatedModules": true } }]
   },

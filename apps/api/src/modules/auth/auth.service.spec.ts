@@ -84,7 +84,7 @@ describe('AuthService.login lockout flow', () => {
   it('rejects with the generic message when the email is unknown', async () => {
     const prisma = makePrisma() as any;
     prisma.user.findUnique.mockResolvedValue(null);
-    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.login({ email: 'x@y', password: 'p' } as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -95,7 +95,7 @@ describe('AuthService.login lockout flow', () => {
     prisma.user.findUnique.mockResolvedValue(
       userRow({ lockedUntil: new Date(Date.now() + 60_000) }),
     );
-    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.login({ email: 'a@b.com', password: 'p' } as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -109,7 +109,7 @@ describe('AuthService.login lockout flow', () => {
     );
     (bcrypt.compare as Mock).mockResolvedValue(true);
     prisma.session.create.mockResolvedValue({ id: 'sess-1' });
-    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     const result = await svc.login({ email: 'a@b.com', password: 'p' } as never);
     expect(result.accessToken).toBe('signed-token');
     // Reset path: failedLoginCount → 0 + lockedUntil → null
@@ -129,7 +129,7 @@ describe('AuthService.login lockout flow', () => {
       }),
     );
     (bcrypt.compare as Mock).mockResolvedValue(false);
-    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.login({ email: 'a@b.com', password: 'wrong' } as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -157,7 +157,7 @@ describe('AuthService.login lockout flow', () => {
       }),
     );
     (bcrypt.compare as Mock).mockResolvedValue(false);
-    const svc = new AuthService(prisma, makeJwt(), makeConfig({ LOCKOUT_THRESHOLD: 3 }), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig({ LOCKOUT_THRESHOLD: 3 }), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.login({ email: 'a@b.com', password: 'wrong' } as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -186,7 +186,7 @@ describe('AuthService.login lockout flow', () => {
       }),
     );
     (bcrypt.compare as Mock).mockResolvedValue(false);
-    const svc = new AuthService(prisma, makeJwt(), makeConfig({ LOCKOUT_THRESHOLD: 3 }), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig({ LOCKOUT_THRESHOLD: 3 }), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.login({ email: 'a@b.com', password: 'wrong' } as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -205,7 +205,7 @@ describe('AuthService.login lockout flow', () => {
   it('does not leak whether the account exists vs is locked vs wrong-pw', async () => {
     const prisma = makePrisma() as any;
     prisma.user.findUnique.mockResolvedValue(null);
-    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, makeJwt(), makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     let unknownMsg = '';
     try {
       await svc.login({ email: 'x@y', password: 'p' } as never);
@@ -229,7 +229,7 @@ describe('AuthService.login lockout flow', () => {
     const prisma = makePrisma() as any;
     const jwt = makeJwt() as any;
     jwt.verifyAsync.mockResolvedValue({ sub: 'u1', sid: 'sess-123', refreshId: 'r1' });
-    const svc = new AuthService(prisma, jwt, makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, jwt, makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.getSessionIdFromRefreshToken('token')).resolves.toBe('sess-123');
   });
 
@@ -237,7 +237,7 @@ describe('AuthService.login lockout flow', () => {
     const prisma = makePrisma() as any;
     const jwt = makeJwt() as any;
     jwt.verifyAsync.mockRejectedValue(new Error('bad token'));
-    const svc = new AuthService(prisma, jwt, makeConfig(), avatarStub);
+    const svc = new AuthService(prisma, jwt, makeConfig(), avatarStub, { log: jest.fn().mockResolvedValue(undefined) } as never);
     await expect(svc.getSessionIdFromRefreshToken('bad')).resolves.toBeNull();
   });
 });

@@ -39,6 +39,15 @@ function makeService() {
     salesOrderHeader: {
       count: jest.fn().mockResolvedValue(4),
     },
+    storageLocation: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    rfqHeader: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    supplierQuotationHeader: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     $queryRaw: queryRaw,
   } as never;
 
@@ -90,6 +99,10 @@ describe('DashboardService', () => {
       transactionsPriorPeriod: 5,
       pendingPurchaseOrders: 6,
       pendingSalesOrders: 4,
+      totalWarehouses: 0,
+      pendingGoodsReceipts: 3,
+      pendingRFQ: 0,
+      pendingQuotations: 0,
     });
   });
 
