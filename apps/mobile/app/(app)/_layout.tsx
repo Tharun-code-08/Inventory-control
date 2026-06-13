@@ -4,7 +4,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '@/store/authStore';
 import { DrawerContent } from '@/components/DrawerContent';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useNotificationSetup, useNotificationListener } from '@/hooks/use-notifications';
 import { colors } from '@/theme';
+
+function NotificationInitializer() {
+  useNotificationSetup();
+  useNotificationListener();
+  return null;
+}
 
 export default function AppLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -16,6 +23,7 @@ export default function AppLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
+        <NotificationInitializer />
         <Drawer
           drawerContent={(props) => (
             <DrawerContent onClose={() => props.navigation.closeDrawer()} />
@@ -26,6 +34,7 @@ export default function AppLayout() {
           }}
         >
           <Drawer.Screen name="(tabs)" options={{ title: 'Home' }} />
+          <Drawer.Screen name="approvals" options={{ title: 'Approval Inbox' }} />
           <Drawer.Screen name="purchase-orders" options={{ drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="goods-receipts" options={{ drawerItemStyle: { display: 'none' } }} />
           <Drawer.Screen name="sales-orders" options={{ drawerItemStyle: { display: 'none' } }} />

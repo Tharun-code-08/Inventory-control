@@ -59,11 +59,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
+          tabBarBadge: 0, // Will be updated by notification store
+        }}
+      />
+      <Tabs.Screen
         name="alerts/index"
         options={{
           title: 'Alerts',
           href: showAlerts ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

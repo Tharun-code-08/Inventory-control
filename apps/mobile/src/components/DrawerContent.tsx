@@ -22,7 +22,10 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
     // Always first and unconditional: users must be able to get back to the
     // dashboard from any module.
     title: 'Overview',
-    items: [{ label: 'Dashboard', icon: 'home-outline', route: '/(app)/(tabs)' }],
+    items: [
+      { label: 'Dashboard', icon: 'home-outline', route: '/(app)/(tabs)' },
+      { label: 'Approval Inbox', icon: 'checkmark-done-outline', route: '/approvals' as any },
+    ],
   },
   {
     title: 'Procurement',
