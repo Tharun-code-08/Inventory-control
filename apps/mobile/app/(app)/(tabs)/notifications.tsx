@@ -6,6 +6,7 @@ import { Screen, Card, Muted, Subtitle, Badge, Button, EmptyState, Title } from 
 import { useNotifications } from '@/hooks/use-notifications';
 import { colors, spacing, typography } from '@/theme';
 import { formatDate } from '@/lib/format';
+import { logNotificationRead, logNotificationDeleted } from '@/lib/audit-logging';
 
 const PRIORITY_COLORS = {
   critical: '#ef4444',
@@ -48,9 +49,10 @@ export default function NotificationsScreen() {
     setTimeout(() => setRefreshing(false), 1000);
   }
 
-  function onNotificationPress(id: string, isRead: boolean) {
+  async function onNotificationPress(id: string, isRead: boolean) {
     if (!isRead) {
       markAsRead(id);
+      await logNotificationRead(id);
     }
   }
 
@@ -60,7 +62,10 @@ export default function NotificationsScreen() {
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => deleteNotification(id),
+        onPress: async () => {
+          deleteNotification(id);
+          await logNotificationDeleted(id);
+        },
       },
     ]);
   }

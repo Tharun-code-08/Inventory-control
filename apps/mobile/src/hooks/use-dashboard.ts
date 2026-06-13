@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export type DashboardSummary = {
   totalProducts: number;
@@ -71,7 +73,7 @@ function normalizeSummary(raw: unknown): DashboardSummary {
   };
 }
 
-export function useDashboard() {
+function useDashboardBase() {
   return useQuery({
     queryKey: dashboardKeys.summary(),
     queryFn: async () => {
@@ -80,4 +82,53 @@ export function useDashboard() {
     },
     staleTime: 60_000,
   });
+}
+
+/**
+ * Dashboard hook with lazy refresh based on notifications.
+ * Marks dashboard as dirty when relevant notifications arrive,
+ * then refreshes data when user opens the dashboard.
+ */
+export function useDashboard() {
+  const query = useDashboardBase();
+  const [isDirty, setIsDirty] = useState(false);
+  const notifications = useNotificationStore((s) => s.notifications);
+
+  // Listen for notifications that affect dashboard KPIs
+  useEffect(() => {
+    if (notifications.length === 0) return;
+
+    const lastNotification = notifications[0];
+    const relevantTypes = [
+      'GR_CREATED',
+      'GR_APPROVED',
+      'GR_REJECTED',
+      'PO_APPROVED',
+      'PO_REJECTED',
+      'RFQ_CREATED',
+      'RFQ_RESPONSE',
+      'QUOTATION_APPROVED',
+      'QUOTATION_REJECTED',
+      'LOW_STOCK',
+      'CRITICAL_STOCK',
+      'TRANSFER_COMPLETED',
+    ];
+
+    if (relevantTypes.includes(lastNotification.type)) {
+      setIsDirty(true);
+    }
+  }, [notifications]);
+
+  // Refresh when opening dashboard if dirty
+  const handleRefresh = () => {
+    setIsDirty(false);
+    return query.refetch();
+  };
+
+  return {
+    ...query,
+    isDirty,
+    onRefresh: handleRefresh,
+    lastUpdated: query.dataUpdatedAt,
+  };
 }

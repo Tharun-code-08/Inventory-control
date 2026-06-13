@@ -2,6 +2,7 @@ import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { v4 as uuidv4 } from 'uuid';
 import { api } from '@/api/client';
+import { logDeviceRegistered, logDeviceRevoked } from '@/lib/audit-logging';
 
 export type RegisteredDevice = {
   id: string;
@@ -63,6 +64,7 @@ export async function registerDevice(): Promise<void> {
       platform: info.platform,
       osVersion: info.osVersion,
     });
+    await logDeviceRegistered(info.deviceId, info.deviceName);
   } catch (err) {
     console.error('Failed to register device:', err);
     // Don't throw - this is non-critical
@@ -92,6 +94,7 @@ export async function getActiveDevices(): Promise<RegisteredDevice[]> {
 export async function revokeDevice(deviceId: string): Promise<void> {
   try {
     await api.post(`/auth/devices/${deviceId}/revoke`);
+    await logDeviceRevoked(deviceId);
   } catch (err) {
     console.error('Failed to revoke device:', err);
     throw err;

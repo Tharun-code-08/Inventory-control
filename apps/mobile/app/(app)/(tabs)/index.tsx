@@ -33,13 +33,19 @@ export default function HomeScreen() {
   return (
     <Screen>
       <ScrollView
-        refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
+        refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={query.onRefresh} />}
       >
         <View style={styles.header}>
           <AppIcon size={36} />
           <View style={styles.headerText}>
             <Title>Hello, {user?.name?.split(' ')[0] ?? 'there'}</Title>
             <Muted>{user?.shop?.shopName ?? user?.role ?? 'Warehouse'}</Muted>
+            {query.isDirty && <Muted style={styles.dirtyIndicator}>⚠ Updates available</Muted>}
+            {query.lastUpdated && (
+              <Muted style={styles.lastUpdated}>
+                Updated {formatTimeAgo(query.lastUpdated)}
+              </Muted>
+            )}
           </View>
         </View>
 
@@ -121,6 +127,19 @@ export default function HomeScreen() {
   );
 }
 
+function formatTimeAgo(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (seconds < 60) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -129,6 +148,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   headerText: { flex: 1 },
+  dirtyIndicator: {
+    marginTop: spacing.xs,
+    color: colors.warning,
+    fontSize: 12,
+  },
+  lastUpdated: {
+    marginTop: spacing.xs,
+    fontSize: 11,
+  },
   quickActions: {
     flexDirection: 'row',
     gap: spacing.md,

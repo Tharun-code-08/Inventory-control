@@ -48,6 +48,15 @@ export default function SettingsScreen() {
           </>
         ) : null}
 
+        <Subtitle>Notifications</Subtitle>
+        <Card>
+          <Button
+            label="Preferences"
+            variant="secondary"
+            onPress={() => router.push('/settings/notifications' as Href)}
+          />
+        </Card>
+
         <Subtitle>Security</Subtitle>
         <Card>
           <Button
