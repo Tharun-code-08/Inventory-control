@@ -2,13 +2,23 @@
 
 import React from 'react';
 import type { AttentionCardData } from '@/api/dashboard';
-import { getSeverityColor, getSeverityBgColor } from '@/api/dashboard';
+import { getSeverityColor, getSeverityBgColor, emitDashboardEvent } from '@/api/dashboard';
 
 interface AttentionCardProps {
   data: AttentionCardData;
 }
 
 export function AttentionCard({ data }: AttentionCardProps) {
+  const handleItemResolution = (item: AttentionCardData[0]) => {
+    // Emit telemetry event for attention item resolution
+    emitDashboardEvent({
+      type: 'attention_resolved',
+      itemId: item.id,
+      itemType: item.id,
+      resolution: 'user_action',
+    });
+  };
+
   if (data.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
@@ -39,6 +49,12 @@ export function AttentionCard({ data }: AttentionCardProps) {
                 <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
                 <p className="text-xs text-gray-600 mt-1">{item.action}</p>
               </div>
+              <button
+                onClick={() => handleItemResolution(item)}
+                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex-shrink-0 whitespace-nowrap"
+              >
+                Act
+              </button>
             </div>
           </div>
         ))}

@@ -26,8 +26,17 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
   // Telemetry: one session per mount; first-click captured once.
   const sessionId = useRef(newDashboardSession());
   const firstClickSent = useRef(false);
+  const openedAt = useRef<string>(new Date().toISOString());
+  const cardsViewed = useRef<Set<DashboardCard>>(new Set());
+  const actionsTaken = useRef(0);
+  const firstCard = useRef<DashboardCard | null>(null);
 
   const handleCardClick = (card: DashboardCard) => {
+    if (cardsViewed.current.size === 0) {
+      firstCard.current = card;
+    }
+    cardsViewed.current.add(card);
+
     emitDashboardEvent({
       type: 'card',
       card,
@@ -39,8 +48,27 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
 
   const handleAction = (card: DashboardCard, action: string) => {
     handleCardClick(card);
+    actionsTaken.current++;
     emitDashboardEvent({ type: 'action', card, action, sessionId: sessionId.current });
   };
+
+  // Emit DASHBOARD_EXIT when component unmounts
+  useEffect(() => {
+    return () => {
+      if (openedAt.current) {
+        emitDashboardEvent({
+          type: 'exit',
+          sessionId: sessionId.current,
+          durationMs: Date.now() - new Date(openedAt.current).getTime(),
+          cardsViewed: cardsViewed.current.size,
+          actionsTaken: actionsTaken.current,
+          firstCard: firstCard.current ?? undefined,
+          openedAt: openedAt.current,
+          closedAt: new Date().toISOString(),
+        });
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const loadDashboard = async () => {
