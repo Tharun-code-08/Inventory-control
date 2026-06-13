@@ -1,11 +1,13 @@
 import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
 import { HealthService } from './health.service';
 import { RequestContextStore } from '@/common/context/request-context';
+import { Public } from '@/common/decorators/public.decorator';
 
 @Controller('health')
 export class HealthController {
   constructor(private healthService: HealthService) {}
 
+  @Public()
   @Get()
   @HttpCode(HttpStatus.OK)
   health() {
@@ -15,6 +17,7 @@ export class HealthController {
     };
   }
 
+  @Public()
   @Get('live')
   @HttpCode(HttpStatus.OK)
   live() {
@@ -24,6 +27,7 @@ export class HealthController {
     };
   }
 
+  @Public()
   @Get('ready')
   async ready() {
     const healthStatus = await this.healthService.getReady();
