@@ -49,6 +49,15 @@ if PGPASSWORD="${DB_PASSWORD:-retail}" pg_dump \
   log "Size: $FILE_SIZE"
   log "Duration: ${DURATION}s"
 
+  # Verify archive integrity
+  log "Verifying archive integrity..."
+  if /bin/gzip -t "$BACKUP_FILE" 2>&1; then
+    log "Archive verification passed"
+  else
+    log "ERROR: Archive verification failed - backup is corrupted"
+    exit 1
+  fi
+
   # Cleanup old backups
   log "Cleaning backups older than $RETENTION_DAYS days"
   DELETED=$(find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -mtime +$RETENTION_DAYS -delete -print | wc -l)
