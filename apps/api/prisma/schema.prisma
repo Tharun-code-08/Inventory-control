@@ -236,13 +236,20 @@ model Company {
   barcodeAuditLogs          BarcodeAuditLog[]
   barcodeHistories          BarcodeHistory[]
 
-  @@map("companies")
   // Notifications & Approvals (Sprint 3)
   notifications           Notification[]
   deviceRegistrations     DeviceRegistration[]
   notificationPreferences NotificationPreference[]
   approvalRequests        ApprovalRequest[]
   notificationAuditLogs   NotificationAuditLog[]
+
+  // Device & Security (Backend)
+  devices                 UserDevice[]
+  pushSubscriptions       NotificationSubscription[]
+  auditLogs               AuditLog[]
+  lowStockAlerts          LowStockAlert[]
+
+  @@map("companies")
 }
 
 model BrandingProfile {
@@ -369,6 +376,7 @@ model Shop {
   stockTransfersTo      StockTransferHeader[]     @relation("StockTransferToShop")
   documentSeriesConfigs DocumentSeriesConfig[]
   mediaAssets           MediaAsset[]
+  lowStockAlerts        LowStockAlert[]
 
   @@map("shops")
 }
@@ -641,8 +649,6 @@ model User {
   trustedMfaDevices     TrustedMfaDevice[]
   platformAuditLogs     PlatformAuditLog[]
 
-  @@index([deletedAt])
-  @@map("users")
   // Notifications & Approvals (Sprint 3)
   notifications            Notification[]
   deviceRegistrations      DeviceRegistration[]
@@ -652,6 +658,13 @@ model User {
   approvalComments         ApprovalComment[]
   approvalEscalations      ApprovalEscalation[]
   notificationAuditLogs    NotificationAuditLog[]
+
+  // Device & Security (Backend)
+  devices                  UserDevice[]
+  pushSubscriptions        NotificationSubscription[]
+
+  @@index([deletedAt])
+  @@map("users")
 }
 
 model Session {
@@ -731,6 +744,7 @@ model Product {
   scanLogs               ScanLog[]
 
   stockCountItems StockCountItem[] @relation("ProductStockCountItems")
+  lowStockAlerts  LowStockAlert[]
 
   @@map("products")
 }
@@ -2715,5 +2729,132 @@ model NotificationAuditLog {
   @@index([companyId, action, createdAt])
   @@index([userId, action])
   @@map("notification_audit_logs")
+}
+
+// ============================================
+// DEVICE MANAGEMENT
+// ============================================
+
+model UserDevice {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  deviceId      String    @unique @map("device_id")
+  deviceName    String    @map("device_name")
+  platform      String    // "iOS", "Android", "Web"
+  osVersion     String?   @map("os_version")
+  lastLoginAt   DateTime  @default(now()) @map("last_login_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId, revokedAt])
+  @@index([companyId, createdAt])
+  @@map("user_devices")
+}
+
+// ============================================
+// PUSH NOTIFICATIONS
+// ============================================
+
+model NotificationSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  pushToken String   @map("push_token")
+  platform  String   // "ios", "android", "web"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pushToken])
+  @@index([companyId, platform, isActive])
+  @@index([userId])
+  @@map("notification_subscriptions")
+}
+
+model Notification {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  type          String   // "GR_CREATED", "LOW_STOCK", etc.
+  title         String
+  body          String   @db.Text
+  data          Json?
+  isRead        Boolean  @default(false) @map("is_read")
+  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@index([companyId, type, createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// COMPREHENSIVE AUDIT LOGGING
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  action       String   // "LOGIN", "LOGOUT", "CREATE_PRODUCT", etc.
+  entityType   String?  @map("entity_type")
+  entityId     String?  @map("entity_id")
+  oldValue     Json?    @map("old_value")
+  newValue     Json?    @map("new_value")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent") @db.Text
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, action, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// LOW STOCK ALERTS
+// ============================================
+
+model LowStockAlert {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  productId    String    @map("product_id") @db.Uuid
+  shopId       String    @map("shop_id") @db.Uuid
+  currentStock Int       @map("current_stock")
+  minStock     Int       @map("min_stock")
+  reorderPoint Int       @map("reorder_point")
+  alertLevel   String    // "WARNING", "CRITICAL", "EMERGENCY"
+  notified     Boolean   @default(false)
+  notifiedAt   DateTime? @map("notified_at") @db.Timestamptz(6)
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, alertLevel, notified])
+  @@index([shopId, resolvedAt])
+  @@index([productId, createdAt])
+  @@map("low_stock_alerts")
 }
 
