@@ -1,10 +1,11 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { envValidationSchema } from './config/env.validation';
 import { resolveEnvFilePaths } from './config/resolve-env-files';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -93,9 +94,6 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
           host: config.get<string>('REDIS_HOST', '127.0.0.1'),
           port: Number(config.get<string>('REDIS_PORT', '6379')),
         },
-        // Sensible global defaults: 5 attempts with exponential backoff, keep
-        // the last 100 successes for debugging, keep the last 500 failures so
-        // ops can inspect them via Bull Board / queue endpoints.
         defaultJobOptions: {
           attempts: 5,
           backoff: { type: 'exponential', delay: 5_000 },
@@ -173,4 +171,8 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

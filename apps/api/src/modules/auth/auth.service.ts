@@ -9,8 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { AuditAction, AuditReason } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AvatarStorageService } from '../../common/upload/avatar-storage.service';
+import { AuditService } from '../audit/audit.service';
+import { AttemptSource } from '../../common/enums/attempt-source.enum';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
@@ -56,6 +59,8 @@ type LoginUserRecord = SessionUserRecord & {
 export type LoginContext = {
   ip?: string | null;
   userAgent?: string | null;
+  deviceId?: string | null;
+  requestId?: string;
 };
 
 @Injectable()
@@ -67,6 +72,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly avatarStorage: AvatarStorageService,
+    private readonly audit: AuditService,
   ) {}
 
   private bcryptRounds() {
@@ -187,7 +193,10 @@ export class AuthService {
     return { sessionId: session.id, refreshToken };
   }
 
-  async validateCredentials(dto: LoginDto): Promise<LoginUserRecord> {
+  async validateCredentials(
+    dto: LoginDto,
+    ctx: LoginContext = {},
+  ): Promise<LoginUserRecord> {
     const email = dto.email.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -197,9 +206,54 @@ export class AuthService {
     // account is locked. Ops can still see lock state in logs/admin.
     const generic = 'Invalid credentials or account temporarily locked';
     if (!user || !user.isActive) {
+      // Log failed login with null userId/companyId (user not found)
+      await this.audit.log({
+        companyId: null,
+        userId: null,
+        action: AuditAction.LOGIN_FAILED,
+        reason: AuditReason.USER_NOT_FOUND,
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: {
+          email,
+          companyCode: dto.companyCode,
+          attemptSource: AttemptSource.MOBILE,
+        },
+        requestId: ctx.requestId,
+      });
+      this.logger.log(
+        JSON.stringify({
+          requestId: ctx.requestId,
+          event: 'LOGIN_FAILED',
+          reason: 'USER_NOT_FOUND',
+          email,
+        }),
+      );
       throw new UnauthorizedException(generic);
     }
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      // Log failed login with user identified but account locked
+      await this.audit.log({
+        companyId: user.shop?.companyId ?? null,
+        userId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        reason: AuditReason.ACCOUNT_LOCKED,
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: {
+          email,
+          attemptSource: AttemptSource.MOBILE,
+        },
+        requestId: ctx.requestId,
+      });
+      this.logger.log(
+        JSON.stringify({
+          requestId: ctx.requestId,
+          event: 'LOGIN_FAILED',
+          reason: 'ACCOUNT_LOCKED',
+          userId: user.id,
+        }),
+      );
       throw new UnauthorizedException(generic);
     }
 
@@ -231,6 +285,28 @@ export class AuthService {
           });
         }
       });
+      // Log failed login with user identified but invalid password
+      await this.audit.log({
+        companyId: user.shop?.companyId ?? null,
+        userId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        reason: AuditReason.INVALID_PASSWORD,
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: {
+          email,
+          attemptSource: AttemptSource.MOBILE,
+        },
+        requestId: ctx.requestId,
+      });
+      this.logger.log(
+        JSON.stringify({
+          requestId: ctx.requestId,
+          event: 'LOGIN_FAILED',
+          reason: 'INVALID_PASSWORD',
+          userId: user.id,
+        }),
+      );
       throw new UnauthorizedException(generic);
     }
 
@@ -266,7 +342,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ctx: LoginContext = {}) {
-    const user = await this.validateCredentials(dto);
+    const user = await this.validateCredentials(dto, ctx);
     return this.issueSessionForUser(user.id, ctx);
   }
 
@@ -537,17 +613,48 @@ export class AuthService {
       passwordChangedAt: user.passwordChangedAt,
     });
 
-    const session = await this.issueSession(user.id, ctx);
+    // Create session and log LOGIN in same transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const session = await this.issueSession(user.id, ctx);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+      await tx.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+      });
+
+      // Log successful login in same transaction
+      await this.audit.log(
+        {
+          companyId: user.shop?.companyId ?? null,
+          userId: user.id,
+          action: AuditAction.LOGIN,
+          ipAddress: ctx.ip ?? null,
+          userAgent: ctx.userAgent ?? null,
+          deviceId: ctx.deviceId ?? null,
+          metadata: {
+            attemptSource: AttemptSource.MOBILE,
+          },
+          requestId: ctx.requestId,
+        },
+        tx,
+      );
+
+      return session;
     });
+
+    this.logger.log(
+      JSON.stringify({
+        requestId: ctx.requestId,
+        event: 'LOGIN_SUCCESS',
+        userId: user.id,
+        companyId: user.shop?.companyId,
+      }),
+    );
 
     return {
       accessToken,
-      refreshCookieValue: session.refreshToken,
-      sessionId: session.sessionId,
+      refreshCookieValue: result.refreshToken,
+      sessionId: result.sessionId,
       user: this.toSessionUser(user as SessionUserRecord),
     };
   }

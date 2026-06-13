@@ -25,9 +25,10 @@ export class PlatformAuditService {
     extra?: Record<string, unknown>;
   }) {
     const meta = auditRequestMetadata();
-    await this.audit.logPlatform({
+    await this.audit.log({
       userId: args.userId,
-      action: args.auditAction ?? AuditAction.EXPORT,
+      companyId: null,
+      action: args.auditAction ?? AuditAction.EXPORT_AUDIT,
       entityType: args.entityType ?? 'PlatformAdmin',
       entityId: args.entityId ?? args.userId,
       newValues: {

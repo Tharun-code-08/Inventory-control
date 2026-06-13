@@ -184,7 +184,7 @@ export class EngagementTrackerService {
 
     const reportsGenerated = await this.prisma.auditLog.count({
       where: {
-        action: 'EXPORT',
+        action: 'EXPORT_AUDIT',
         user: { shopId: { in: shopIds } },
         createdAt: { gte: thirtyDaysAgo },
       },

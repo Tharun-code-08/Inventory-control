@@ -18,7 +18,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Response, Request } from 'express';
+import { Response } from 'express';
+import { RequestContextRequest } from '../../common/types/request-context';
 import { randomUUID } from 'crypto';
 import { RoleName } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -160,13 +161,13 @@ export class AuthController {
     });
   }
 
-  private readCookie(req: Request, name: string): string | undefined {
+  private readCookie(req: any, name: string): string | undefined {
     const signed = (req.signedCookies as Record<string, string | undefined> | undefined)?.[name];
     const plain = (req.cookies as Record<string, string | undefined> | undefined)?.[name];
     return signed ?? plain;
   }
 
-  private hasFunctionalCookieConsent(req: Request) {
+  private hasFunctionalCookieConsent(req: any) {
     const raw = this.readCookie(req, COOKIE_CONSENT_NAME);
     if (!raw) return false;
     try {
@@ -378,9 +379,13 @@ export class AuthController {
     return { accessToken: result.accessToken, user: result.user };
   }
 
-  private loginCtx(req: Request) {
+  private loginCtx(req: any) {
     const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip;
-    return { ip: ip ?? null, userAgent: (req.headers['user-agent'] as string | undefined) ?? null };
+    return {
+      ip: ip ?? null,
+      userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+      requestId: (req as RequestContextRequest)?.requestId,
+    };
   }
 
   private mobileAuthResponse(result: {
@@ -404,9 +409,9 @@ export class AuthController {
       'Returns access and refresh tokens in the JSON body (no httpOnly cookies). For native Expo clients.',
   })
   @ApiResponse({ status: 201, description: 'Login successful.' })
-  async mobileLogin(@Req() req: Request, @Body() dto: LoginDto) {
+  async mobileLogin(@Req() req: RequestContextRequest, @Body() dto: LoginDto) {
     const ctx = this.loginCtx(req);
-    const user = await this.auth.validateCredentials(dto);
+    const user = await this.auth.validateCredentials(dto, ctx);
     if (user.mfaEnabled) {
       return this.mfa.createLoginChallenge(user.id, user.email, ctx);
     }
@@ -457,9 +462,9 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Missing/invalid/replayed refresh token.' })
   @ApiResponse({ status: 403, description: 'CSRF token missing or invalid.' })
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const token = (req.cookies?.[this.cookieName()] ??
-      (req as Request & { signedCookies?: Record<string, string> }).signedCookies?.[this.cookieName()]) as
+      req.signedCookies?.[this.cookieName()]) as
       | string
       | undefined;
     const result = await this.auth.refreshFromToken(token, this.loginCtx(req));
@@ -473,7 +478,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Revoke the current refresh token and clear cookies' })
   async logout(
     @CurrentUser() user: RequestUser,
-    @Req() req: Request & { signedCookies?: Record<string, string> },
+    @Req() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies?.[this.cookieName()] as string | undefined;

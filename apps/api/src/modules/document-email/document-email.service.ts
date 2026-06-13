@@ -780,7 +780,7 @@ export class DocumentEmailService {
     await this.audit.log({
       companyId: row.companyId,
       userId,
-      action: AuditAction.EMAIL,
+      action: AuditAction.POST,
       entityType: auditEntity,
       entityId: row.entityId,
       newValues: {

@@ -1,13 +1,13 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { AuditAction, AuditLog, Prisma } from '@prisma/client';
+import { AuditAction, AuditLog, AuditReason, AuditSeverity, Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { PrismaService } from '../../prisma/prisma.service';
 import { redactSensitive } from '../../common/utils/redact';
 
 export type AuditLogParams = {
-  companyId: string;
-  userId: string;
+  companyId?: string | null;
+  userId?: string | null;
   action: AuditAction;
   entityType?: string;
   entityId?: string;
@@ -17,8 +17,8 @@ export type AuditLogParams = {
   userAgent?: string | null;
   deviceId?: string | null;
   metadata?: Prisma.InputJsonValue;
-  reason?: string;
-  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  reason?: AuditReason;
+  severity?: AuditSeverity;
   requestId?: string;
 };
 
@@ -63,24 +63,25 @@ export class AuditService {
   async log(params: AuditLogParams, tx?: Prisma.TransactionClient) {
     const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
 
-    await client.auditLog.create({
-      data: {
-        companyId: params.companyId,
-        userId: params.userId,
-        action: params.action,
-        entityType: params.entityType ?? null,
-        entityId: params.entityId ?? null,
-        oldValues: redactSensitive(params.oldValues),
-        newValues: redactSensitive(params.newValues),
-        ipAddress: params.ipAddress ?? null,
-        userAgent: params.userAgent ?? null,
-        deviceId: params.deviceId ?? null,
-        metadata: params.metadata ?? null,
-        reason: params.reason ?? null,
-        severity: params.severity ?? null,
-        requestId: params.requestId ?? null,
-      },
-    });
+    // Build data object with conditional fields for proper Prisma typing
+    const data: Prisma.AuditLogCreateInput = {
+      companyId: params.companyId || undefined,
+      userId: params.userId || undefined,
+      action: params.action,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      oldValues: redactSensitive(params.oldValues),
+      newValues: redactSensitive(params.newValues),
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+      deviceId: params.deviceId ?? null,
+      metadata: params.metadata ?? undefined,
+      reason: params.reason ?? undefined,
+      severity: params.severity ?? undefined,
+      requestId: params.requestId ?? null,
+    } as any; // Cast to any to avoid Prisma type issues with optional fields
+
+    await client.auditLog.create({ data });
   }
 
   /**
@@ -208,8 +209,8 @@ export class AuditService {
     const rows = logs.map((log) => [
       log.id,
       log.createdAt.toISOString(),
-      log.user.name || '',
-      log.user.email || '',
+      log.user?.name || '',
+      log.user?.email || '',
       log.action,
       log.entityType || '',
       log.entityId || '',

@@ -112,6 +112,23 @@ enum AuditAction {
   POST
 }
 
+enum AuditReason {
+  USER_NOT_FOUND
+  INVALID_PASSWORD
+  ACCOUNT_LOCKED
+  DEVICE_BLOCKED
+  ACCESS_DENIED
+  MFA_FAILED
+  SESSION_EXPIRED
+}
+
+enum AuditSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 enum CostingMethod {
   AVERAGE
   FIFO
@@ -2797,24 +2814,26 @@ model AuditLog {
   entityType   String?     @map("entity_type")
   entityId     String?     @map("entity_id")
   oldValues    Json?       @map("old_values")
-  newValues    Json?       @map("new_values")
-  ipAddress    String?     @map("ip_address")
-  userAgent    String?     @map("user_agent") @db.Text
-  deviceId     String?     @map("device_id")
+  newValues    Json?        @map("new_values")
+  ipAddress    String?      @map("ip_address")
+  userAgent    String?      @map("user_agent") @db.Text
+  deviceId     String?      @map("device_id")
   metadata     Json?
-  reason       String?
-  severity     String?     // "LOW", "MEDIUM", "HIGH", "CRITICAL"
-  requestId    String?     @map("request_id")
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  reason       AuditReason?
+  severity     AuditSeverity?
+  requestId    String?      @map("request_id")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id])
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id])
 
   @@index([companyId, action, createdAt])
   @@index([userId, createdAt])
+  @@index([reason, createdAt])
   @@index([entityType, entityId])
   @@index([action, createdAt])
   @@index([companyId, createdAt])
+  @@index([requestId])
   @@map("audit_logs")
 }
 

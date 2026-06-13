@@ -62,7 +62,14 @@ export class AuditController {
   ): Promise<AuditListResponseDto> {
     this.logger.debug(`Fetching audit logs for company ${user.companyId}, page ${pagination.page}`);
 
-    const { data, total } = await this.auditService.findAll(user.companyId!, filters, {
+    // Convert string dates to Date objects
+    const convertedFilters = {
+      ...filters,
+      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+    };
+
+    const { data, total } = await this.auditService.findAll(user.companyId!, convertedFilters, {
       page: pagination.page,
       limit: pagination.limit,
       sortBy: pagination.sortBy,
@@ -192,7 +199,14 @@ export class AuditController {
   ): Promise<string> {
     this.logger.debug(`Exporting audit logs for company ${user.companyId}`);
 
-    const csv = await this.auditService.exportCsv(user.companyId!, filters);
+    // Convert string dates to Date objects
+    const convertedFilters = {
+      ...filters,
+      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+    };
+
+    const csv = await this.auditService.exportCsv(user.companyId!, convertedFilters);
     return csv;
   }
 }
