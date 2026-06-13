@@ -8,23 +8,22 @@ import { api } from './client';
 export type FinancialCardData = {
   revenueToday: number;
   revenueThisMonth: number;
-  grossProfit: number;
-  netProfit: number;
-  receivables: number;
-  payables: number;
+  netProfitMonth: number;
+  cashAvailable: number;
 };
 
 export type InventoryCardData = {
-  totalValue: number;
+  inventoryValue: number;
   lowStockCount: number;
   deadStockValue: number;
-  stockCoverageDays: number;
+  coverageDays: number;
 };
 
 export type AttentionItem = {
-  type: string;
-  count: number;
-  severity: 'critical' | 'warning' | 'info';
+  id: string;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  action: string;
 };
 
 export type AttentionCardData = AttentionItem[];
@@ -109,11 +108,11 @@ export function formatNumber(value: number): string {
  */
 export function getSeverityColor(severity: string): string {
   switch (severity) {
-    case 'critical':
+    case 'high':
       return '#dc2626'; // red
-    case 'warning':
+    case 'medium':
       return '#f59e0b'; // amber
-    case 'info':
+    case 'low':
     default:
       return '#3b82f6'; // blue
   }
@@ -124,11 +123,11 @@ export function getSeverityColor(severity: string): string {
  */
 export function getSeverityBgColor(severity: string): string {
   switch (severity) {
-    case 'critical':
+    case 'high':
       return '#fee2e2'; // red
-    case 'warning':
+    case 'medium':
       return '#fef3c7'; // amber
-    case 'info':
+    case 'low':
     default:
       return '#dbeafe'; // blue
   }
