@@ -57,12 +57,59 @@ enum InwardShift {
 }
 
 enum AuditAction {
+  // Authentication
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  MFA_ENABLED
+  MFA_DISABLED
+  PASSWORD_CHANGED
+
+  // Products
+  CREATE_PRODUCT
+  UPDATE_PRODUCT
+  DELETE_PRODUCT
+
+  // Inventory
+  CREATE_GR
+  UPDATE_GR
+  RECEIVE_GOODS
+  TRANSFER_STOCK
+  CREATE_ISSUE
+
+  // Purchases
+  CREATE_PO
+  UPDATE_PO
+  CONFIRM_PO
+  CANCEL_PO
+  APPROVE_PO
+  REJECT_PO
+
+  // Approvals
+  APPROVE
+  REJECT
+  ESCALATE
+
+  // Users
+  CREATE_USER
+  UPDATE_USER
+  DELETE_USER
+  UPDATE_ROLE
+  REVOKE_SESSION
+
+  // Exports
+  EXPORT_REPORT
+  EXPORT_AUDIT
+
+  // Data
+  DELETE_DATA
+  BULK_UPDATE
+
+  // Generic
   CREATE
   UPDATE
   DELETE
   POST
-  EXPORT
-  EMAIL
 }
 
 enum CostingMethod {
@@ -1457,47 +1504,6 @@ model CostLayer {
   @@map("cost_layers")
 }
 
-model AuditLog {
-  id         String      @id @default(uuid()) @db.Uuid
-  companyId  String      @map("company_id") @db.Uuid
-  userId     String      @map("user_id") @db.Uuid
-  action     AuditAction
-  entityType String      @map("entity_type")
-  entityId   String      @map("entity_id") @db.Uuid
-  oldValues  Json?       @map("old_values")
-  newValues  Json?       @map("new_values")
-  ipAddress  String?     @map("ip_address")
-  userAgent  String?     @map("user_agent")
-  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId, createdAt])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-  @@map("audit_log")
-}
-
-model PlatformAuditLog {
-  id         String      @id @default(uuid()) @db.Uuid
-  userId     String      @map("user_id") @db.Uuid
-  action     AuditAction
-  entityType String      @map("entity_type")
-  entityId   String      @map("entity_id") @db.Uuid
-  oldValues  Json?       @map("old_values")
-  newValues  Json?       @map("new_values")
-  ipAddress  String?     @map("ip_address")
-  userAgent  String?     @map("user_agent")
-  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId, createdAt])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-  @@map("platform_audit_log")
-}
-
 model DocumentSequence {
   id        String   @id @default(uuid()) @db.Uuid
   docType   String   @map("doc_type")
@@ -2806,18 +2812,22 @@ model Notification {
 // ============================================
 
 model AuditLog {
-  id           String   @id @default(uuid()) @db.Uuid
-  companyId    String   @map("company_id") @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  action       String   // "LOGIN", "LOGOUT", "CREATE_PRODUCT", etc.
-  entityType   String?  @map("entity_type")
-  entityId     String?  @map("entity_id")
-  oldValue     Json?    @map("old_value")
-  newValue     Json?    @map("new_value")
-  ipAddress    String?  @map("ip_address")
-  userAgent    String?  @map("user_agent") @db.Text
+  id           String      @id @default(uuid()) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  action       AuditAction
+  entityType   String?     @map("entity_type")
+  entityId     String?     @map("entity_id")
+  oldValues    Json?       @map("old_values")
+  newValues    Json?       @map("new_values")
+  ipAddress    String?     @map("ip_address")
+  userAgent    String?     @map("user_agent") @db.Text
+  deviceId     String?     @map("device_id")
   metadata     Json?
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  reason       String?
+  severity     String?     // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  requestId    String?     @map("request_id")
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
@@ -2826,6 +2836,7 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId])
   @@index([action, createdAt])
+  @@index([companyId, createdAt])
   @@map("audit_logs")
 }
 
