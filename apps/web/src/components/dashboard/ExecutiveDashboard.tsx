@@ -79,8 +79,20 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
         const result = await fetchExecutiveDashboard(shopId);
         const endTime = performance.now();
         const elapsed = Math.round(endTime - startTime);
+
+        // Log response for debugging
+        console.log('[Dashboard] API response:', result);
+
+        // Ensure all required fields exist with defaults
+        const safeData: ExecutiveDashboardResponse = {
+          financial: result?.financial || { revenueToday: 0, revenueThisMonth: 0, netProfitMonth: 0, cashAvailable: 0 },
+          inventory: result?.inventory || { inventoryValue: 0, lowStockCount: 0, deadStockValue: 0, coverageDays: 0 },
+          attention: Array.isArray(result?.attention) ? result.attention : [],
+          recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
+        };
+
         setLoadTime(elapsed);
-        setData(result);
+        setData(safeData);
         emitDashboardEvent({ type: 'opened', loadTimeMs: elapsed, sessionId: sessionId.current });
 
         if (elapsed > 2000) {
@@ -105,8 +117,17 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
       const startTime = performance.now();
       const result = await fetchExecutiveDashboard(shopId);
       const endTime = performance.now();
+
+      // Ensure all required fields exist with defaults
+      const safeData: ExecutiveDashboardResponse = {
+        financial: result?.financial || { revenueToday: 0, revenueThisMonth: 0, netProfitMonth: 0, cashAvailable: 0 },
+        inventory: result?.inventory || { inventoryValue: 0, lowStockCount: 0, deadStockValue: 0, coverageDays: 0 },
+        attention: Array.isArray(result?.attention) ? result.attention : [],
+        recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
+      };
+
       setLoadTime(Math.round(endTime - startTime));
-      setData(result);
+      setData(safeData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to reload dashboard';
       setError(errorMessage);
