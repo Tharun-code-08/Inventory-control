@@ -11,7 +11,6 @@ import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 import { buildStockAdjustmentAudit } from '../../common/state-machines/inventory-audit';
-import { assertCompanyId } from '../../common/utils/assert-company-id';
 
 @Injectable()
 export class DamagedStockService {

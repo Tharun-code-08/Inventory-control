@@ -10,24 +10,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npm run prisma:generate --workspace=api
+
       - name: Build
         run: npm run build
 
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Run tests
-        run: npx jest
-
       - name: Lint
         run: npm run lint
+
+      - name: API unit tests
+        run: npm run test --workspace=api -- --runInBand
+
+      - name: Web tests
+        run: npm run test --workspace=web

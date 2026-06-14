@@ -65,13 +65,15 @@ export class CreateGoodsReceiptDto {
   @IsUUID()
   purchaseOrderId?: string;
 
-  @ApiProperty({ enum: ['FULL', 'PARTIAL'], default: 'FULL' })
+  @ApiPropertyOptional({ enum: ['FULL', 'PARTIAL'], default: 'FULL' })
+  @IsOptional()
   @IsIn(['FULL', 'PARTIAL'])
-  receiptType!: 'FULL' | 'PARTIAL';
+  receiptType?: 'FULL' | 'PARTIAL';
 
-  @ApiProperty({ enum: ['PURCHASE_ORDER', 'OUTSIDE'], default: 'PURCHASE_ORDER' })
+  @ApiPropertyOptional({ enum: ['PURCHASE_ORDER', 'OUTSIDE'], default: 'PURCHASE_ORDER' })
+  @IsOptional()
   @IsIn(['PURCHASE_ORDER', 'OUTSIDE'])
-  receiptSource!: 'PURCHASE_ORDER' | 'OUTSIDE';
+  receiptSource?: 'PURCHASE_ORDER' | 'OUTSIDE';
 
   @ApiPropertyOptional({ enum: ['DAY_SHIFT', 'NIGHT_SHIFT'] })
   @IsOptional()

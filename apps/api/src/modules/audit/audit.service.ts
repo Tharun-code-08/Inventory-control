@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AuditAction, AuditLog, AuditReason, AuditSeverity, Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { PrismaService } from '../../prisma/prisma.service';
 import { redactSensitive } from '../../common/utils/redact';
+import { getRequestId } from '../../common/observability/request-context.als';
 
 export type AuditLogParams = {
   companyId?: string | null;
@@ -63,6 +64,21 @@ export class AuditService {
   async log(params: AuditLogParams, tx?: Prisma.TransactionClient) {
     const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
 
+    // Fall back to the ambient request id (set by RequestIdMiddleware) when a
+    // caller does not pass one explicitly, so every audit row is correlated to
+    // its originating request.
+    const requestId = params.requestId ?? getRequestId() ?? null;
+
+    // Surface the request id inside metadata as well as the dedicated column so
+    // consumers can correlate events regardless of which they read.
+    const baseMetadata =
+      params.metadata && typeof params.metadata === 'object' && !Array.isArray(params.metadata)
+        ? (params.metadata as Record<string, unknown>)
+        : undefined;
+    const metadata = requestId
+      ? { ...(baseMetadata ?? {}), requestId }
+      : params.metadata ?? undefined;
+
     // Build data object with conditional fields for proper Prisma typing
     const data: Prisma.AuditLogCreateInput = {
       companyId: params.companyId || undefined,
@@ -75,10 +91,10 @@ export class AuditService {
       ipAddress: params.ipAddress ?? null,
       userAgent: params.userAgent ?? null,
       deviceId: params.deviceId ?? null,
-      metadata: params.metadata ?? undefined,
+      metadata: metadata ?? undefined,
       reason: params.reason ?? undefined,
       severity: params.severity ?? undefined,
-      requestId: params.requestId ?? null,
+      requestId,
     } as any; // Cast to any to avoid Prisma type issues with optional fields
 
     await client.auditLog.create({ data });

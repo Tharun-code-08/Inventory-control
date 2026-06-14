@@ -21,7 +21,6 @@ import {
   CreateNotificationDto,
   NotificationResponseDto,
   NotificationListResponseDto,
-  MarkAsReadDto,
   NotificationFilterDto,
   UpdateNotificationPreferenceDto,
   NotificationPreferenceResponseDto,
@@ -198,7 +197,7 @@ export class NotificationController {
     @Param('userId') userId: string,
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.resetToDefaults(user.id, user.companyId!);
+    return this.preferenceService.resetToDefaults(user.id);
   }
 
   @Post('preferences/:userId/toggle-all')

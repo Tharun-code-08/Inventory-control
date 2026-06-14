@@ -70,8 +70,6 @@ function makeUser() {
   } as never;
 }
 
-const TX = Symbol('tx-client');
-
 function makeHarness() {
   const tx = {
     product: {

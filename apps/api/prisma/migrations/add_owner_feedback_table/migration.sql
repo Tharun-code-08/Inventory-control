@@ -4,8 +4,8 @@
 
 CREATE TABLE IF NOT EXISTS "OwnerFeedback" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID NOT NULL REFERENCES "Company"(id) ON DELETE CASCADE,
-  owner_id UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES "companies"(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES "users"(id) ON DELETE CASCADE,
 
   -- Interview date
   feedback_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -55,22 +55,3 @@ CREATE INDEX IF NOT EXISTS idx_owner_feedback_company_date
 -- Index for tracking owner-specific feedback over time
 CREATE INDEX IF NOT EXISTS idx_owner_feedback_owner
   ON "OwnerFeedback"(owner_id, feedback_date DESC);
-
--- Add to audit trail
-INSERT INTO "AuditLog" (
-  entity_type,
-  entity_id,
-  action,
-  user_id,
-  changes,
-  ip_address,
-  user_agent
-) VALUES (
-  'OwnerFeedback',
-  gen_random_uuid(),
-  'TABLE_CREATED',
-  NULL,
-  '{"table": "OwnerFeedback", "purpose": "Week4_feedback_tracking"}',
-  '0.0.0.0',
-  'migration'
-);

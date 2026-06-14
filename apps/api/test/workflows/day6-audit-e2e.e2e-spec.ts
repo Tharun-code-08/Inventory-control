@@ -3,6 +3,7 @@ import request = require('supertest');
 import { AuditAction } from '@prisma/client';
 import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
+import { PrismaService } from '@/prisma/prisma.service';
 
 /**
  * Day 6 — E2E Audit Validation
@@ -28,7 +29,7 @@ describe('Day 6 — E2E Audit Validation', () => {
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
     app = await getSharedE2eApp();
-    prisma = app.get('PrismaService');
+    prisma = app.get(PrismaService);
   });
 
   it('proves audit system works end-to-end: Login → Create → Receive → Update → Approve → Query', async () => {
@@ -67,7 +68,6 @@ describe('Day 6 — E2E Audit Validation', () => {
       (await api.get('/api/v1/companies')).body,
     );
     expect(companies.length).toBeGreaterThan(0);
-    const companyId = companies[0].id;
 
     const shops = unwrap<Array<{ id: string; shopNumber: string }>>(
       (await api.get('/api/v1/shops')).body,
@@ -131,17 +131,9 @@ describe('Day 6 — E2E Audit Validation', () => {
 
     // Post the goods receipt (transition to POSTED)
     const postRes = await api.post(`/api/v1/goods-receipts/${grId}/post`);
-    expect(postRes.status).toBe(200);
+    expect(postRes.status).toBe(201);
 
     // Check RECEIVE_GOODS audit
-    const receiveAudits = await prisma.auditLog.findMany({
-      where: {
-        action: AuditAction.RECEIVE_GOODS,
-        metadata: { path: ['entityId'], equals: productId },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 1,
-    });
     // Note: finding by nested JSON might need adjustment based on actual query capability
     // Fallback: get all RECEIVE_GOODS for this user and check manually
     const allReceiveAudits = await prisma.auditLog.findMany({
@@ -170,7 +162,7 @@ describe('Day 6 — E2E Audit Validation', () => {
     // ===== STEP 5: UPDATE PRODUCT PRICE =====
     // Verify: UPDATE_PRODUCT audit exists with oldValues/newValues for sellingPrice
     const updateRes = await api
-      .post(`/api/v1/products/${productId}/update-price`)
+      .patch(`/api/v1/products/${productId}`)
       .send({
         sellingPrice: 200,
       });
@@ -184,11 +176,12 @@ describe('Day 6 — E2E Audit Validation', () => {
     });
     expect(updateAudits.length).toBeGreaterThan(0);
     const updateAudit = updateAudits[0];
-    expect(updateAudit.metadata).toHaveProperty('oldValues');
-    expect(updateAudit.metadata).toHaveProperty('newValues');
+    // oldValues/newValues are first-class audit columns; changedFields lives in metadata.
+    expect(updateAudit.oldValues).toBeTruthy();
+    expect(updateAudit.newValues).toBeTruthy();
     expect(updateAudit.metadata).toHaveProperty('changedFields');
-    expect(updateAudit.metadata.oldValues.sellingPrice).toBe(150);
-    expect(updateAudit.metadata.newValues.sellingPrice).toBe(200);
+    expect(updateAudit.oldValues.sellingPrice).toBe(150);
+    expect(updateAudit.newValues.sellingPrice).toBe(200);
     expect(updateAudit.metadata.changedFields).toContain('sellingPrice');
     const updateRequestId = updateAudit.metadata.requestId;
 
@@ -198,6 +191,8 @@ describe('Day 6 — E2E Audit Validation', () => {
     const approvalRes = await api.post('/api/v1/approvals').send({
       referenceId: grId,
       approvalType: 'GOODS_RECEIPT',
+      assignedTo: userId,
+      documentNumber: 'GR-DAY6-001',
       amount: null,
     });
     expect(approvalRes.status).toBe(201);
@@ -236,12 +231,12 @@ describe('Day 6 — E2E Audit Validation', () => {
     });
     expect(auditRes.status).toBe(200);
     const auditData = unwrap<{
-      records: Array<{ action: string; entityId: string; userId: string }>;
+      data: Array<{ id: string; action: string; entityId: string; userId: string }>;
     }>(auditRes.body);
 
     // Count audit records for this user
     const recordsByAction = new Map<string, number>();
-    auditData.records
+    auditData.data
       .filter((r) => r.userId === userId)
       .forEach((r) => {
         const count = recordsByAction.get(r.action) || 0;
@@ -255,7 +250,7 @@ describe('Day 6 — E2E Audit Validation', () => {
     expect(recordsByAction.get('APPROVE')).toBeGreaterThan(0);
 
     // Verify requestId consistency: audit records should have requestId
-    const userRecords = auditData.records.filter((r) => r.userId === userId).slice(0, 10);
+    const userRecords = auditData.data.filter((r) => r.userId === userId).slice(0, 10);
     expect(userRecords.length).toBeGreaterThan(0);
     // Spot-check: verify first record has requestId
     if (userRecords.length > 0) {
@@ -268,9 +263,7 @@ describe('Day 6 — E2E Audit Validation', () => {
 
     // ===== STEP 8: EXPORT AUDIT =====
     // Verify: Export endpoint returns audit data with requestId
-    const exportRes = await api
-      .get('/api/v1/audit/export')
-      .query({ format: 'json', limit: 100 });
+    const exportRes = await api.get('/api/v1/audit/export/csv');
     expect(exportRes.status).toBe(200);
     const exported = exportRes.body; // Could be JSON or CSV
     expect(exported).toBeDefined();

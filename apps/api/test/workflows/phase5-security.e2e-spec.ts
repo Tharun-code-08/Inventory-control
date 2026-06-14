@@ -65,7 +65,13 @@ describe('Phase 5 — Security workflows (e2e)', () => {
 
     await authed(app, shopSession.accessToken).get('/api/v1/products').expect(200);
 
-    await prisma.user.delete({ where: { email } });
+    // Logging in writes an audit row that references this user; the
+    // audit_logs.user_id FK is RESTRICT, so clear those rows before deleting.
+    const shopUser = await prisma.user.findUnique({ where: { email } });
+    if (shopUser) {
+      await prisma.auditLog.deleteMany({ where: { userId: shopUser.id } });
+      await prisma.user.delete({ where: { id: shopUser.id } });
+    }
   });
 
   it('allows admin to manage companies end-to-end', async () => {

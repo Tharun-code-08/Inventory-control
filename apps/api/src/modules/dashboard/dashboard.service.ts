@@ -290,7 +290,6 @@ export class DashboardService {
    */
   async executive(user: RequestUser, shop_id?: string) {
     const shopIds = await this.resolveDashboardShopIds(user, shop_id);
-    const shopFilter = shopIds.length === 1 ? shopIds[0] : { in: shopIds };
 
     // Parallel queries for the 4 cards
     const [
@@ -298,9 +297,9 @@ export class DashboardService {
       inventory,
       attention,
     ] = await Promise.all([
-      this.fetchFinancialCard(shopIds, shopFilter),
-      this.fetchInventoryCard(shopIds, shopFilter),
-      this.fetchAttentionCard(shopIds, shopFilter),
+      this.fetchFinancialCard(shopIds),
+      this.fetchInventoryCard(shopIds),
+      this.fetchAttentionCard(shopIds),
     ]);
 
     return {
@@ -311,7 +310,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchFinancialCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchFinancialCard(shopIds: string[]) {
     // Week 2: Use materialized view for performance (< 50ms query)
     // Fallback: Calculate from raw data if view doesn't exist
     try {
@@ -365,7 +364,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchInventoryCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchInventoryCard(shopIds: string[]) {
     // Week 2: Use materialized view for performance (< 50ms query)
     try {
       const result = await this.prisma.$queryRaw<
@@ -409,7 +408,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchAttentionCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchAttentionCard(shopIds: string[]) {
     // Week 2: Use materialized view for performance (< 50ms query)
     try {
       const results = await this.prisma.$queryRaw<

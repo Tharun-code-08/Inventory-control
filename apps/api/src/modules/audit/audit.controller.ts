@@ -8,19 +8,18 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { AuditExportRateLimitGuard } from '@/common/guards/audit-export-rate-limit.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
-import { RequirePermission } from '@/common/decorators/require-permission.decorator';
 import type { RequestUser } from '@/common/types/request-user';
 import { AuditService } from './audit.service';
 import {
   AuditFilterDto,
   PaginationDto,
+  AuditQueryDto,
   AuditLogResponseDto,
   AuditListResponseDto,
 } from './dto';
@@ -61,32 +60,36 @@ export class AuditController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   async listAuditLogs(
     @CurrentUser() user: RequestUser,
-    @Query() filters: AuditFilterDto,
-    @Query() pagination: PaginationDto,
+    @Query() query: AuditQueryDto,
   ): Promise<AuditListResponseDto> {
-    this.logger.debug(`Fetching audit logs for company ${user.companyId}, page ${pagination.page}`);
+    this.logger.debug(`Fetching audit logs for company ${user.companyId}, page ${query.page}`);
 
     // Convert string dates to Date objects
     const convertedFilters = {
-      ...filters,
-      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
-      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+      action: query.action,
+      entityType: query.entityType,
+      entityId: query.entityId,
+      userId: query.userId,
+      ipAddress: query.ipAddress,
+      searchQuery: query.searchQuery,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
     };
 
     const { data, total } = await this.auditService.findAll(user.companyId!, convertedFilters, {
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      sortOrder: pagination.sortOrder,
+      page: query.page,
+      limit: query.limit,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     });
 
-    const hasMore = pagination.page * pagination.limit < total;
+    const hasMore = query.page * query.limit < total;
 
     return {
       data: data as AuditLogResponseDto[],
       total,
-      page: pagination.page,
-      limit: pagination.limit,
+      page: query.page,
+      limit: query.limit,
       hasMore,
     };
   }

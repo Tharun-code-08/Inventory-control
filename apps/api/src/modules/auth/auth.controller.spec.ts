@@ -77,6 +77,10 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {
+        recordSuccessfulAttempt: jest.fn(),
+        recordFailedAttempt: jest.fn(),
+      } as never,
     );
 
     const req = {
@@ -164,6 +168,10 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {
+        recordSuccessfulAttempt: jest.fn(),
+        recordFailedAttempt: jest.fn(),
+      } as never,
     );
 
     const req = {
@@ -248,6 +256,10 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {
+        recordSuccessfulAttempt: jest.fn(),
+        recordFailedAttempt: jest.fn(),
+      } as never,
     );
 
     const req = {

@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { RegisterDeviceDto, UnregisterDeviceDto, UpdatePushTokenDto, DeviceResponseDto } from '../dto';
+import { RegisterDeviceDto, UnregisterDeviceDto, UpdatePushTokenDto } from '../dto';
 import { DeviceRegistration } from '@prisma/client';
 
 @Injectable()

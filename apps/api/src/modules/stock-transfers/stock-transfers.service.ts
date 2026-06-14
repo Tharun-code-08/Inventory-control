@@ -11,7 +11,6 @@ import { StockService } from '../stock/stock.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 import { buildTransferStockAudit } from '../../common/state-machines/inventory-audit';
-import { assertCompanyId } from '../../common/utils/assert-company-id';
 import type { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import type { ListStockTransfersDto } from './dto/list-stock-transfers.dto';
 

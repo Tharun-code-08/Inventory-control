@@ -1,6 +1,7 @@
 import { IsOptional, IsEnum, IsUUID, IsISO8601, IsString, IsInt, Min, Max } from 'class-validator';
 import { AuditAction } from '@prisma/client';
 import { Type } from 'class-transformer';
+import { IntersectionType } from '@nestjs/swagger';
 
 export class AuditFilterDto {
   @IsOptional()
@@ -58,6 +59,14 @@ export class PaginationDto {
   @IsEnum(['asc', 'desc'])
   sortOrder: 'asc' | 'desc' = 'desc';
 }
+
+/**
+ * Combined filter + pagination query. A single DTO is required because the
+ * global ValidationPipe runs with `forbidNonWhitelisted`, which would reject
+ * pagination params when validating against the filter DTO alone (and vice
+ * versa) if two separate `@Query()` bindings were used.
+ */
+export class AuditQueryDto extends IntersectionType(AuditFilterDto, PaginationDto) {}
 
 export class AuditLogResponseDto {
   id: string;
