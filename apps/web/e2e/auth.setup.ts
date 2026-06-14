@@ -19,7 +19,7 @@ setup('authenticate as admin', async ({ page }) => {
 
   const loginResponsePromise = page.waitForResponse('**/api/v1/auth/login');
 
-  await page.getByRole('button', { name: 'Continue to secure sign-in' }).click();
+  await page.getByRole('button', { name: 'Sign in securely' }).click();
 
   const response = await loginResponsePromise;
   const json = await response.json();
