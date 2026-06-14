@@ -1253,4 +1253,184 @@ COALESCE(
       pagination: { page, limit, totalCount },
     };
   }
+
+  async reorderIntelligence(
+    user: RequestUser,
+    filters: {
+      shop_id: string;
+      date_from?: string;
+      date_to?: string;
+      category?: string;
+      stock_status?: 'IN_STOCK' | 'BELOW_MIN' | 'OVERSTOCK';
+      sort_by?: 'urgency' | 'daysLeft' | 'avgSalesPerDay';
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    await this.assertReportsAllowed(user);
+    assertShopScope(user, filters.shop_id);
+
+    const now = new Date();
+    const dateFrom = filters.date_from ? new Date(filters.date_from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const dateTo = filters.date_to ? new Date(filters.date_to) : now;
+
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const sortBy = filters.sort_by ?? 'urgency';
+
+    const [totalRows, rows] = await Promise.all([
+      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+        SELECT COUNT(*)::bigint as count
+        FROM product_plants pp
+        JOIN products p ON p.id = pp.product_id AND p.is_active = true
+        LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
+        WHERE pp.shop_id = ${filters.shop_id}
+        AND pp.is_active = true
+        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          product_id: string;
+          product_code: string;
+          description: string;
+          category: string;
+          current_stock: Prisma.Decimal;
+          min_stock_level: Prisma.Decimal;
+          avg_cost: Prisma.Decimal;
+          sales_last_30: number;
+          avg_sales_per_day: number;
+          days_remaining: number;
+          suggested_order_qty: number;
+          lead_time_days: number;
+          last_restock_date: Date | null;
+        }>
+      >(Prisma.sql`
+        WITH sales_data AS (
+          SELECT
+            pp.product_id,
+            COUNT(CASE WHEN sl.transaction_type = 'OUT' AND sl.created_at >= ${dateFrom} AND sl.created_at <= ${dateTo} THEN 1 END)::int as sales_qty
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
+          WHERE pp.shop_id = ${filters.shop_id}
+          AND pp.is_active = true
+          ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+          GROUP BY pp.product_id
+        )
+        SELECT
+          p.id as product_id,
+          p.product_code,
+          p.description,
+          p.category,
+          COALESCE(ss.current_stock, 0)::numeric as current_stock,
+          COALESCE(pp.min_stock_level, 0)::numeric as min_stock_level,
+          COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as avg_cost,
+          COALESCE(sd.sales_qty, 0) as sales_last_30,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
+            ELSE COALESCE(sd.sales_qty, 0)::numeric / 30
+          END::int as avg_sales_per_day,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 999
+            ELSE (COALESCE(ss.current_stock, 0) / (COALESCE(sd.sales_qty, 0)::numeric / 30))::int
+          END as days_remaining,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
+            ELSE GREATEST(
+              (COALESCE(sd.sales_qty, 0)::numeric / 30 * (7 + 30))::int - COALESCE(ss.current_stock, 0)::int,
+              COALESCE(pp.min_stock_level, 0)::int - COALESCE(ss.current_stock, 0)::int
+            )
+          END as suggested_order_qty,
+          COALESCE(p.lead_time_days, 7)::int as lead_time_days,
+          (SELECT MAX(created_at) FROM stock_ledger WHERE product_id = p.id AND transaction_type = 'IN') as last_restock_date
+        FROM product_plants pp
+        JOIN products p ON p.id = pp.product_id AND p.is_active = true
+        LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
+        LEFT JOIN sales_data sd ON sd.product_id = p.id
+        WHERE pp.shop_id = ${filters.shop_id}
+        AND pp.is_active = true
+        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+        ORDER BY ${
+          sortBy === 'daysLeft'
+            ? Prisma.sql`days_remaining ASC`
+            : sortBy === 'avgSalesPerDay'
+              ? Prisma.sql`avg_sales_per_day DESC`
+              : Prisma.sql`
+                  CASE
+                    WHEN days_remaining < 7 THEN 1
+                    WHEN days_remaining < 14 THEN 2
+                    ELSE 3
+                  END ASC,
+                  days_remaining ASC
+                `
+        }
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      `),
+    ]);
+
+    const totalCount = Number(totalRows[0]?.count ?? 0);
+
+    const summary = {
+      totalProducts: totalCount,
+      urgent: { count: 0, totalOrderQty: 0 },
+      warning: { count: 0, totalOrderQty: 0 },
+      normal: { count: 0, totalOrderQty: 0 },
+    };
+
+    return {
+      summary: {
+        ...summary,
+        // Will be calculated from items
+      },
+      items: rows.map((r) => {
+        const avgSalesPerDay = r.avg_sales_per_day;
+        const daysRemaining = r.days_remaining;
+        const suggestedOrderQty = Math.max(r.suggested_order_qty, 0);
+
+        let urgency: 'HIGH' | 'MEDIUM' | 'LOW';
+        let riskScore: number;
+
+        if (daysRemaining < 7) {
+          urgency = 'HIGH';
+          riskScore = 90 + (7 - daysRemaining) * 5;
+        } else if (daysRemaining < 14) {
+          urgency = 'MEDIUM';
+          riskScore = 60;
+        } else {
+          urgency = 'LOW';
+          riskScore = 20;
+        }
+
+        return {
+          productId: r.product_id,
+          productCode: r.product_code,
+          name: r.description,
+          category: r.category,
+          currentStock: Number(r.current_stock ?? 0),
+          minStockLevel: Number(r.min_stock_level ?? 0),
+          avgSalesPerDay,
+          salesLast30Days: r.sales_last_30,
+          daysRemaining,
+          suggestedOrderQty,
+          leadTimeDays: r.lead_time_days,
+          lastRestockDate: r.last_restock_date?.toISOString() ?? null,
+          urgency,
+          riskScore,
+          calculation: {
+            salesLast30Days: r.sales_last_30,
+            avgSalesPerDay: Number(avgSalesPerDay),
+            currentStock: Number(r.current_stock ?? 0),
+            daysRemaining: Number(daysRemaining),
+            leadTimeDays: r.lead_time_days,
+            safetyStockDays: 3,
+            targetSupplyDays: 30,
+            suggestedOrderQty: Number(suggestedOrderQty),
+            reasoning: `Lead time (${r.lead_time_days}) + safety (3) + target (30) = ${r.lead_time_days + 33} days × ${avgSalesPerDay} = ${((r.lead_time_days + 33) * avgSalesPerDay).toFixed(0)} qty. Minus current (${Number(r.current_stock ?? 0)}) = ${suggestedOrderQty}`,
+          },
+        };
+      }),
+      pagination: { page, limit, totalCount },
+    };
+  }
 }
