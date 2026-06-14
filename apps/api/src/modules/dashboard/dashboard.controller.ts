@@ -48,6 +48,15 @@ export class DashboardController {
   }
 
   /**
+   * Month 2 Sprint 1: Dead Stock Report — products unsold > 90 days.
+   */
+  @RequirePermission('report:view')
+  @Get('inventory/dead-stock')
+  async deadStock(@CurrentUser() user: RequestUser, @Query('shop_id') shopId?: string) {
+    return this.dashboard.deadStock(user, shopId);
+  }
+
+  /**
    * Month 1 telemetry sink. Persists the three behavioural events the Week 4
    * Reality Report depends on (open / first-click / action) into the audit log.
    * Severity LOW keeps them out of the security-audit signal. Fire-and-forget

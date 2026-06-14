@@ -694,4 +694,62 @@ export class DashboardService {
     }
     return out;
   }
+
+  /**
+   * Dead stock report: products unsold for > 90 days, with inventory value locked in.
+   */
+  async deadStock(user: RequestUser, shopId?: string) {
+    const userShopIds = shopIdsForUser(user);
+    assertShopScope(user, shopId);
+    const shopIds = shopId ? [shopId] : userShopIds;
+
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - 90);
+
+    const deadProducts = await this.prisma.stockSummary.findMany({
+      where: {
+        shopId: { in: shopIds },
+        lastMovementAt: { lt: threshold },
+        currentStock: { gt: 0 },
+      },
+      select: {
+        id: true,
+        productId: true,
+        currentStock: true,
+        avgCost: true,
+        lastMovementAt: true,
+        product: {
+          select: {
+            id: true,
+            productCode: true,
+            description: true,
+            category: true,
+          },
+        },
+      },
+      orderBy: { lastMovementAt: 'asc' },
+    });
+
+    const now = new Date();
+    return deadProducts.map((s) => {
+      const daysUnsold = Math.floor(
+        (now.getTime() - s.lastMovementAt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const inventoryValue = s.currentStock.toNumber() * s.avgCost.toNumber();
+
+      return {
+        productId: s.productId,
+        name: s.product.description,
+        productCode: s.product.productCode,
+        category: s.product.category,
+        currentStock: s.currentStock.toNumber(),
+        avgCost: s.avgCost.toNumber(),
+        inventoryValue: Math.round(inventoryValue * 100) / 100,
+        daysUnsold,
+        lastSaleDate: s.lastMovementAt.toISOString().split('T')[0],
+        recommendedAction: daysUnsold > 180 ? 'LIQUIDATE' : 'DISCOUNT',
+      };
+    });
+  }
 }
+
