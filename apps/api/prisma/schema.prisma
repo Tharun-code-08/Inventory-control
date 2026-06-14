@@ -2830,8 +2830,8 @@ model AuditLog {
   requestId    String?      @map("request_id")
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User?    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 
   @@index([companyId, action, createdAt])
   @@index([userId, createdAt])
