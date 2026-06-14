@@ -206,21 +206,7 @@ export class AuthService {
     // account is locked. Ops can still see lock state in logs/admin.
     const generic = 'Invalid credentials or account temporarily locked';
     if (!user || !user.isActive) {
-      // Log failed login with null userId/companyId (user not found)
-      await this.audit.log({
-        companyId: null,
-        userId: null,
-        action: AuditAction.LOGIN_FAILED,
-        reason: AuditReason.USER_NOT_FOUND,
-        ipAddress: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        metadata: {
-          email,
-          companyCode: dto.companyCode,
-          attemptSource: AttemptSource.MOBILE,
-        },
-        requestId: ctx.requestId,
-      });
+      // Cannot audit user not found (no userId or companyId available)
       this.logger.log(
         JSON.stringify({
           requestId: ctx.requestId,
@@ -233,19 +219,22 @@ export class AuthService {
     }
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
       // Log failed login with user identified but account locked
-      await this.audit.log({
-        companyId: user.shop?.companyId ?? null,
-        userId: user.id,
-        action: AuditAction.LOGIN_FAILED,
-        reason: AuditReason.ACCOUNT_LOCKED,
-        ipAddress: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        metadata: {
-          email,
-          attemptSource: AttemptSource.MOBILE,
-        },
-        requestId: ctx.requestId,
-      });
+      const companyId = user.shop?.companyId;
+      if (companyId) {
+        await this.audit.log({
+          companyId,
+          userId: user.id,
+          action: AuditAction.LOGIN_FAILED,
+          reason: AuditReason.ACCOUNT_LOCKED,
+          ipAddress: ctx.ip ?? null,
+          userAgent: ctx.userAgent ?? null,
+          metadata: {
+            email,
+            attemptSource: AttemptSource.MOBILE,
+          },
+          requestId: ctx.requestId,
+        });
+      }
       this.logger.log(
         JSON.stringify({
           requestId: ctx.requestId,
@@ -286,19 +275,22 @@ export class AuthService {
         }
       });
       // Log failed login with user identified but invalid password
-      await this.audit.log({
-        companyId: user.shop?.companyId ?? null,
-        userId: user.id,
-        action: AuditAction.LOGIN_FAILED,
-        reason: AuditReason.INVALID_PASSWORD,
-        ipAddress: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        metadata: {
-          email,
-          attemptSource: AttemptSource.MOBILE,
-        },
-        requestId: ctx.requestId,
-      });
+      const companyId = user.shop?.companyId;
+      if (companyId) {
+        await this.audit.log({
+          companyId,
+          userId: user.id,
+          action: AuditAction.LOGIN_FAILED,
+          reason: AuditReason.INVALID_PASSWORD,
+          ipAddress: ctx.ip ?? null,
+          userAgent: ctx.userAgent ?? null,
+          metadata: {
+            email,
+            attemptSource: AttemptSource.MOBILE,
+          },
+          requestId: ctx.requestId,
+        });
+      }
       this.logger.log(
         JSON.stringify({
           requestId: ctx.requestId,
@@ -614,6 +606,11 @@ export class AuthService {
     });
 
     // Create session and log LOGIN in same transaction
+    const companyId = user.shop?.companyId;
+    if (!companyId) {
+      throw new UnauthorizedException('User shop or company not properly configured');
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const session = await this.issueSession(user.id, ctx);
 
@@ -625,7 +622,7 @@ export class AuthService {
       // Log successful login in same transaction
       await this.audit.log(
         {
-          companyId: user.shop?.companyId ?? null,
+          companyId,
           userId: user.id,
           action: AuditAction.LOGIN,
           ipAddress: ctx.ip ?? null,
