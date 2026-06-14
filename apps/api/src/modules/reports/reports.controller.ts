@@ -181,6 +181,31 @@ export class ReportsController {
   }
 
   @RequirePermission('report:view')
+  @Get('product-profitability')
+  productProfitability(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('category') category?: string,
+    @Query('show_loss_only') showLossOnly?: string,
+    @Query('sort_by') sortBy?: 'profit' | 'margin' | 'revenue',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reports.productProfitability(user, {
+      shop_id: shopId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      category,
+      show_loss_only: showLossOnly === 'true',
+      sort_by: sortBy,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @RequirePermission('report:view')
   @Get('fast-moving')
   fastMoving(
     @CurrentUser() user: RequestUser,

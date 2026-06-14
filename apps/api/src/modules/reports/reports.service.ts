@@ -1636,4 +1636,187 @@ COALESCE(
       pagination: { page, limit, totalCount },
     };
   }
+
+  async productProfitability(
+    user: RequestUser,
+    filters: {
+      shop_id?: string;
+      date_from?: string;
+      date_to?: string;
+      category?: string;
+      show_loss_only?: boolean;
+      sort_by?: 'profit' | 'margin' | 'revenue';
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    await this.assertReportsAllowed(user);
+    const shopIds = await this.resolveShopIds(user, filters.shop_id);
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
+
+    const now = new Date();
+    const dateFrom = filters.date_from ? new Date(filters.date_from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const dateTo = filters.date_to ? new Date(filters.date_to) : now;
+
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const sortBy = filters.sort_by ?? 'profit';
+
+    const [totalRows, rows, summaryRows] = await Promise.all([
+      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT p.id)::bigint as count
+        FROM products p
+        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
+        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+        WHERE p.is_active = true
+        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+        GROUP BY p.id
+        HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          product_id: string;
+          product_code: string;
+          description: string;
+          category: string;
+          units_sold: number;
+          revenue: Prisma.Decimal;
+          avg_cost_per_unit: Prisma.Decimal;
+          cogs: Prisma.Decimal;
+          profit: Prisma.Decimal;
+          margin_percentage: number;
+          avg_selling_price: Prisma.Decimal;
+        }>
+      >(Prisma.sql`
+        SELECT
+          p.id as product_id,
+          p.product_code,
+          p.description,
+          p.category,
+          COUNT(soi.id)::int as units_sold,
+          SUM(soi.quantity * soi.unit_price)::numeric as revenue,
+          COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as avg_cost_per_unit,
+          (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))::numeric as cogs,
+          (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0)))::numeric as profit,
+          CASE
+            WHEN SUM(soi.quantity * soi.unit_price) = 0 THEN 0
+            ELSE ((SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) / SUM(soi.quantity * soi.unit_price) * 100)::int
+          END as margin_percentage,
+          CASE
+            WHEN SUM(soi.quantity) = 0 THEN 0
+            ELSE (SUM(soi.quantity * soi.unit_price) / SUM(soi.quantity))::numeric
+          END as avg_selling_price
+        FROM products p
+        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
+        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+        LEFT JOIN stock_summary ss ON ss.product_id = p.id
+        WHERE p.is_active = true
+        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+        GROUP BY p.id, p.product_code, p.description, p.category, ss.avg_cost, p.purchase_price
+        HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+        ${filters.show_loss_only ? Prisma.sql`AND (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) < 0` : Prisma.empty}
+        ORDER BY ${
+          sortBy === 'margin'
+            ? Prisma.sql`margin_percentage DESC`
+            : sortBy === 'revenue'
+              ? Prisma.sql`revenue DESC`
+              : Prisma.sql`profit DESC`
+        }
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          total_revenue: string | null;
+          total_cogs: string | null;
+          total_profit: string | null;
+          avg_margin: number | null;
+          loss_making_products: number;
+          unprofitable_value: string | null;
+        }>
+      >(Prisma.sql`
+        SELECT
+          SUM(soi.quantity * soi.unit_price)::text as total_revenue,
+          (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))::text as total_cogs,
+          (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0)))::text as total_profit,
+          CASE
+            WHEN SUM(soi.quantity * soi.unit_price) = 0 THEN 0
+            ELSE ((SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) / SUM(soi.quantity * soi.unit_price) * 100)::int
+          END as avg_margin,
+          COUNT(CASE WHEN (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) < 0 THEN 1 END)::int as loss_making_products,
+          SUM(CASE WHEN (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) < 0 THEN ABS(SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) ELSE 0 END)::text as unprofitable_value
+        FROM products p
+        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
+        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+        LEFT JOIN stock_summary ss ON ss.product_id = p.id
+        WHERE p.is_active = true
+        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+        GROUP BY p.id, ss.avg_cost, p.purchase_price
+        HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+      `),
+    ]);
+
+    const totalCount = Number(totalRows[0]?.count ?? 0);
+    const summary = summaryRows[0] ?? {
+      total_revenue: '0',
+      total_cogs: '0',
+      total_profit: '0',
+      avg_margin: 0,
+      loss_making_products: 0,
+      unprofitable_value: '0',
+    };
+
+    return {
+      summary: {
+        totalRevenue: Number(summary.total_revenue ?? 0),
+        totalCogs: Number(summary.total_cogs ?? 0),
+        totalProfit: Number(summary.total_profit ?? 0),
+        avgMargin: Number(summary.avg_margin ?? 0),
+        lossMakingProducts: summary.loss_making_products,
+        unprofitableValue: Number(summary.unprofitable_value ?? 0),
+      },
+      items: rows.map((r) => {
+        const revenue = Number(r.revenue ?? 0);
+        const cogs = Number(r.cogs ?? 0);
+        const profit = Number(r.profit ?? 0);
+        const margin = r.margin_percentage;
+
+        let rank: number;
+        let recommendation: 'STOP_SELLING' | 'REDUCE_DISCOUNT' | 'MONITOR' | 'PROMOTE';
+
+        if (margin < 0) {
+          rank = 1;
+          recommendation = 'STOP_SELLING';
+        } else if (margin < 15) {
+          rank = 2;
+          recommendation = 'REDUCE_DISCOUNT';
+        } else if (margin < 25) {
+          rank = 3;
+          recommendation = 'MONITOR';
+        } else {
+          rank = 4;
+          recommendation = 'PROMOTE';
+        }
+
+        return {
+          productId: r.product_id,
+          productCode: r.product_code,
+          name: r.description,
+          category: r.category,
+          unitsSold: r.units_sold,
+          revenue,
+          cogs,
+          profit,
+          marginPercentage: margin,
+          avgSellingPrice: Number(r.avg_selling_price ?? 0),
+          avgCostPrice: Number(r.avg_cost_per_unit ?? 0),
+          profitRank: rank,
+          recommendation,
+        };
+      }),
+      pagination: { page, limit, totalCount },
+    };
+  }
 }

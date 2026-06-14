@@ -251,3 +251,93 @@ export const getRiskLabel = (riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN'
       return 'Healthy';
   }
 };
+
+// Product Profitability Types
+export interface ProfitabilityItem {
+  productId: string;
+  productCode: string;
+  name: string;
+  category: string;
+  unitsSold: number;
+  revenue: number;
+  cogs: number;
+  profit: number;
+  marginPercentage: number;
+  avgSellingPrice: number;
+  avgCostPrice: number;
+  profitRank: number;
+  recommendation: 'STOP_SELLING' | 'REDUCE_DISCOUNT' | 'MONITOR' | 'PROMOTE';
+}
+
+export interface ProfitabilityResponse {
+  summary: {
+    totalRevenue: number;
+    totalCogs: number;
+    totalProfit: number;
+    avgMargin: number;
+    lossMakingProducts: number;
+    unprofitableValue: number;
+  };
+  items: ProfitabilityItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+  };
+}
+
+export interface ProfitabilityFilters {
+  shopId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  category?: string;
+  showLossOnly?: boolean;
+  sortBy?: 'profit' | 'margin' | 'revenue';
+  page?: number;
+  limit?: number;
+}
+
+export const getProductProfitability = async (filters: ProfitabilityFilters): Promise<ProfitabilityResponse> => {
+  const params = new URLSearchParams();
+  if (filters.shopId) params.append('shop_id', filters.shopId);
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom);
+  if (filters.dateTo) params.append('date_to', filters.dateTo);
+  if (filters.category) params.append('category', filters.category);
+  if (filters.showLossOnly) params.append('show_loss_only', 'true');
+  if (filters.sortBy) params.append('sort_by', filters.sortBy);
+  if (filters.page) params.append('page', String(filters.page));
+  if (filters.limit) params.append('limit', String(filters.limit));
+
+  const response = await apiClient.get(`/reports/product-profitability?${params.toString()}`);
+  return response.data;
+};
+
+export const getProfitRankStars = (rank: number) => {
+  return '⭐'.repeat(Math.max(1, Math.min(4, rank)));
+};
+
+export const getRecommendationColor = (recommendation: 'STOP_SELLING' | 'REDUCE_DISCOUNT' | 'MONITOR' | 'PROMOTE') => {
+  switch (recommendation) {
+    case 'STOP_SELLING':
+      return 'red';
+    case 'REDUCE_DISCOUNT':
+      return 'orange';
+    case 'MONITOR':
+      return 'yellow';
+    case 'PROMOTE':
+      return 'green';
+  }
+};
+
+export const getRecommendationText = (recommendation: 'STOP_SELLING' | 'REDUCE_DISCOUNT' | 'MONITOR' | 'PROMOTE') => {
+  switch (recommendation) {
+    case 'STOP_SELLING':
+      return 'Stop selling';
+    case 'REDUCE_DISCOUNT':
+      return 'Reduce discount';
+    case 'MONITOR':
+      return 'Monitor';
+    case 'PROMOTE':
+      return 'Promote';
+  }
+};
