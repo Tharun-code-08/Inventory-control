@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { AuditAction, AuditLog, AuditReason, AuditSeverity, Prisma } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
+import { AuditAction, AuditLog, AuditSeverity, Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,7 +18,7 @@ export type AuditLogParams = {
   userAgent?: string | null;
   deviceId?: string | null;
   metadata?: Prisma.InputJsonValue;
-  reason?: AuditReason;
+  reason?: string; // Flexible string instead of enum
   severity?: AuditSeverity;
   requestId?: string;
 };
@@ -43,61 +43,77 @@ export type PaginationParams = {
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger('AuditService');
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Convenience method for tenant‑scoped audit logs. Extracts companyId from actor.
+   * Non-blocking: audit failures do not fail the operation.
    */
   async logTenant(
     actor: RequestUser,
     params: Omit<AuditLogParams, 'companyId' | 'userId'>,
     tx?: Prisma.TransactionClient,
-  ) {
-    const companyId = assertCompanyId(actor);
-    return this.log({ ...params, companyId, userId: actor.id }, tx);
+  ): Promise<void> {
+    // Use actor's company if available, otherwise leave as null for LOGIN_FAILED scenarios
+    const companyId = actor.companyId ?? null;
+    void this.logAsync({ ...params, companyId, userId: actor.id }, tx);
   }
 
   /**
-   * Write an audit row for tenant-scoped events (requires companyId).
+   * Write an audit row. Never throws. Failures are logged but don't block operations.
    * Sensitive fields (passwords, tokens) are automatically redacted.
    */
-  async log(params: AuditLogParams, tx?: Prisma.TransactionClient) {
-    const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
+  async log(params: AuditLogParams, tx?: Prisma.TransactionClient): Promise<void> {
+    void this.logAsync(params, tx);
+  }
 
-    // Fall back to the ambient request id (set by RequestIdMiddleware) when a
-    // caller does not pass one explicitly, so every audit row is correlated to
-    // its originating request.
-    const requestId = params.requestId ?? getRequestId() ?? null;
+  /**
+   * Non-blocking async audit write. Failures are logged, never thrown.
+   */
+  private async logAsync(params: AuditLogParams, tx?: Prisma.TransactionClient): Promise<void> {
+    try {
+      const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
 
-    // Surface the request id inside metadata as well as the dedicated column so
-    // consumers can correlate events regardless of which they read.
-    const baseMetadata =
-      params.metadata && typeof params.metadata === 'object' && !Array.isArray(params.metadata)
-        ? (params.metadata as Record<string, unknown>)
-        : undefined;
-    const metadata = requestId
-      ? { ...(baseMetadata ?? {}), requestId }
-      : params.metadata ?? undefined;
+      // Fall back to the ambient request id (set by RequestIdMiddleware) when a
+      // caller does not pass one explicitly, so every audit row is correlated to
+      // its originating request.
+      const requestId = params.requestId ?? getRequestId() ?? null;
 
-    // Build data object with conditional fields for proper Prisma typing
-    const data: Prisma.AuditLogCreateInput = {
-      companyId: params.companyId || undefined,
-      userId: params.userId || undefined,
-      action: params.action,
-      entityType: params.entityType ?? null,
-      entityId: params.entityId ?? null,
-      oldValues: redactSensitive(params.oldValues),
-      newValues: redactSensitive(params.newValues),
-      ipAddress: params.ipAddress ?? null,
-      userAgent: params.userAgent ?? null,
-      deviceId: params.deviceId ?? null,
-      metadata: metadata ?? undefined,
-      reason: params.reason ?? undefined,
-      severity: params.severity ?? undefined,
-      requestId,
-    } as any; // Cast to any to avoid Prisma type issues with optional fields
+      // Surface the request id inside metadata as well as the dedicated column so
+      // consumers can correlate events regardless of which they read.
+      const baseMetadata =
+        params.metadata && typeof params.metadata === 'object' && !Array.isArray(params.metadata)
+          ? (params.metadata as Record<string, unknown>)
+          : undefined;
+      const metadata = requestId
+        ? { ...(baseMetadata ?? {}), requestId }
+        : params.metadata ?? undefined;
 
-    await client.auditLog.create({ data });
+      // Build data object with conditional fields for proper Prisma typing
+      const data: Prisma.AuditLogCreateInput = {
+        companyId: params.companyId || undefined,
+        userId: params.userId || undefined,
+        action: params.action,
+        entityType: params.entityType ?? null,
+        entityId: params.entityId ?? null,
+        oldValues: redactSensitive(params.oldValues),
+        newValues: redactSensitive(params.newValues),
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+        deviceId: params.deviceId ?? null,
+        metadata: metadata ?? undefined,
+        reason: params.reason ?? undefined,
+        severity: params.severity ?? undefined,
+        requestId,
+      } as any;
+
+      await client.auditLog.create({ data });
+    } catch (error) {
+      // Log audit failure but never throw — audit is observability, not critical path
+      this.logger.error(`Audit write failed for action ${params.action}:`, error);
+    }
   }
 
   /**

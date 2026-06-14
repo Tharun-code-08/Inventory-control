@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { AuditAction, AuditReason } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AvatarStorageService } from '../../common/upload/avatar-storage.service';
 import { AuditService } from '../audit/audit.service';
@@ -206,43 +206,34 @@ export class AuthService {
     // account is locked. Ops can still see lock state in logs/admin.
     const generic = 'Invalid credentials or account temporarily locked';
     if (!user || !user.isActive) {
-      // Cannot audit user not found (no userId or companyId available)
-      this.logger.log(
-        JSON.stringify({
-          requestId: ctx.requestId,
-          event: 'LOGIN_FAILED',
-          reason: 'USER_NOT_FOUND',
-          email,
-        }),
-      );
+      // Audit user not found with null companyId/userId (no user context available)
+      await this.audit.log({
+        companyId: null,
+        userId: null,
+        action: AuditAction.LOGIN_FAILED,
+        reason: 'USER_NOT_FOUND',
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: { email, attemptSource: AttemptSource.MOBILE },
+        requestId: ctx.requestId,
+      });
       throw new UnauthorizedException(generic);
     }
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
       // Log failed login with user identified but account locked
-      const companyId = user.shop?.companyId;
-      if (companyId) {
-        await this.audit.log({
-          companyId,
-          userId: user.id,
-          action: AuditAction.LOGIN_FAILED,
-          reason: AuditReason.ACCOUNT_LOCKED,
-          ipAddress: ctx.ip ?? null,
-          userAgent: ctx.userAgent ?? null,
-          metadata: {
-            email,
-            attemptSource: AttemptSource.MOBILE,
-          },
-          requestId: ctx.requestId,
-        });
-      }
-      this.logger.log(
-        JSON.stringify({
-          requestId: ctx.requestId,
-          event: 'LOGIN_FAILED',
-          reason: 'ACCOUNT_LOCKED',
-          userId: user.id,
-        }),
-      );
+      await this.audit.log({
+        companyId: user.shop?.companyId ?? null,
+        userId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        reason: 'ACCOUNT_LOCKED',
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: {
+          email,
+          attemptSource: AttemptSource.MOBILE,
+        },
+        requestId: ctx.requestId,
+      });
       throw new UnauthorizedException(generic);
     }
 
@@ -275,30 +266,19 @@ export class AuthService {
         }
       });
       // Log failed login with user identified but invalid password
-      const companyId = user.shop?.companyId;
-      if (companyId) {
-        await this.audit.log({
-          companyId,
-          userId: user.id,
-          action: AuditAction.LOGIN_FAILED,
-          reason: AuditReason.INVALID_PASSWORD,
-          ipAddress: ctx.ip ?? null,
-          userAgent: ctx.userAgent ?? null,
-          metadata: {
-            email,
-            attemptSource: AttemptSource.MOBILE,
-          },
-          requestId: ctx.requestId,
-        });
-      }
-      this.logger.log(
-        JSON.stringify({
-          requestId: ctx.requestId,
-          event: 'LOGIN_FAILED',
-          reason: 'INVALID_PASSWORD',
-          userId: user.id,
-        }),
-      );
+      await this.audit.log({
+        companyId: user.shop?.companyId ?? null,
+        userId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        reason: 'INVALID_PASSWORD',
+        ipAddress: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        metadata: {
+          email,
+          attemptSource: AttemptSource.MOBILE,
+        },
+        requestId: ctx.requestId,
+      });
       throw new UnauthorizedException(generic);
     }
 
@@ -619,34 +599,22 @@ export class AuthService {
         data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null },
       });
 
-      // Log successful login in same transaction
-      await this.audit.log(
-        {
-          companyId,
-          userId: user.id,
-          action: AuditAction.LOGIN,
-          ipAddress: ctx.ip ?? null,
-          userAgent: ctx.userAgent ?? null,
-          deviceId: ctx.deviceId ?? null,
-          metadata: {
-            attemptSource: AttemptSource.MOBILE,
-          },
-          requestId: ctx.requestId,
-        },
-        tx,
-      );
-
       return session;
     });
 
-    this.logger.log(
-      JSON.stringify({
-        requestId: ctx.requestId,
-        event: 'LOGIN_SUCCESS',
-        userId: user.id,
-        companyId: user.shop?.companyId,
-      }),
-    );
+    // Log successful login (non-blocking, doesn't block transaction)
+    await this.audit.log({
+      companyId,
+      userId: user.id,
+      action: AuditAction.LOGIN,
+      ipAddress: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+      deviceId: ctx.deviceId ?? null,
+      metadata: {
+        attemptSource: AttemptSource.MOBILE,
+      },
+      requestId: ctx.requestId,
+    });
 
     return {
       accessToken,
