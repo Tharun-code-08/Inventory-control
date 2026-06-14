@@ -1819,4 +1819,159 @@ COALESCE(
       pagination: { page, limit, totalCount },
     };
   }
+
+  async actionCenter(
+    user: RequestUser,
+    filters: {
+      shop_id?: string;
+    },
+  ) {
+    await this.assertReportsAllowed(user);
+    const shopIds = await this.resolveShopIds(user, filters.shop_id);
+
+    const actions: Array<{
+      id: string;
+      priority: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+      category: 'cash-flow' | 'procurement' | 'inventory' | 'pricing' | 'opportunity';
+      title: string;
+      description: string;
+      details: Record<string, any>;
+      suggestedAction: string;
+      estimatedImpact: string;
+      reportSource: string;
+    }> = [];
+
+    // 1. Dead Stock Actions
+    const deadStockData = await this.deadStock(user, {
+      shop_id: filters.shop_id,
+      days_unsold: 180,
+      limit: 5,
+    });
+
+    deadStockData.items
+      .filter((item) => item.daysUnsold >= 180 && item.stockValue > 500000)
+      .forEach((item) => {
+        actions.push({
+          id: `dead-${item.productId}`,
+          priority: 'CRITICAL',
+          category: 'inventory',
+          title: `Stop ordering ${item.productCode}`,
+          description: `₹${(item.stockValue / 100000).toFixed(1)}L stuck for ${item.daysUnsold} days`,
+          details: {
+            productCode: item.productCode,
+            stockValue: item.stockValue,
+            daysUnsold: item.daysUnsold,
+          },
+          suggestedAction: 'Liquidate through discount or clearance sale',
+          estimatedImpact: `Frees up ₹${(item.stockValue / 100000).toFixed(1)}L for other inventory`,
+          reportSource: 'dead-stock',
+        });
+      });
+
+    // 2. Reorder Actions
+    const reorderData = await this.reorderIntelligence(user, {
+      shop_id: shopIds[0],
+      sort_by: 'urgency',
+      limit: 5,
+    });
+
+    reorderData.items
+      .filter((item) => item.urgency === 'HIGH')
+      .forEach((item) => {
+        actions.push({
+          id: `reorder-${item.productId}`,
+          priority: 'CRITICAL',
+          category: 'procurement',
+          title: `Order ${item.productCode} immediately`,
+          description: `Stock ends in ${item.daysRemaining} days, need ${item.suggestedOrderQty} units`,
+          details: {
+            productCode: item.productCode,
+            currentStock: item.currentStock,
+            daysRemaining: item.daysRemaining,
+            suggestedOrderQty: item.suggestedOrderQty,
+            avgSalesPerDay: item.avgSalesPerDay,
+          },
+          suggestedAction: `Place PO for ${item.suggestedOrderQty} units`,
+          estimatedImpact: 'Prevents stockout, maintains revenue stream',
+          reportSource: 'reorder-intelligence',
+        });
+      });
+
+    // 3. Customer Aging Actions
+    const agingData = await this.customerAging(user, {
+      shop_id: filters.shop_id,
+      show_overdue_only: true,
+      sort_by: 'riskScore',
+      limit: 5,
+    });
+
+    agingData.items
+      .filter((item) => item.riskScore === 'CRITICAL' || (item.riskScore === 'HIGH' && item.overdueAmount > 1000000))
+      .forEach((item) => {
+        actions.push({
+          id: `aging-${item.customerId}`,
+          priority: item.riskScore === 'CRITICAL' ? 'CRITICAL' : 'HIGH',
+          category: 'cash-flow',
+          title: `Collect ₹${(item.overdueAmount / 100000).toFixed(1)}L from ${item.customerName}`,
+          description: `${item.overdueInvoiceCount} invoice(s) overdue by ${item.avgPaymentDays - 30} days`,
+          details: {
+            customerId: item.customerId,
+            customerName: item.customerName,
+            overdueAmount: item.overdueAmount,
+            overdueInvoiceCount: item.overdueInvoiceCount,
+            riskScore: item.riskScore,
+          },
+          suggestedAction: item.riskScore === 'CRITICAL' ? 'Call customer immediately, escalate to management' : 'Send payment reminder',
+          estimatedImpact: `Improves cash position by ₹${(item.overdueAmount / 100000).toFixed(1)}L`,
+          reportSource: 'customer-aging',
+        });
+      });
+
+    // 4. Product Profitability Actions
+    const profitData = await this.productProfitability(user, {
+      shop_id: filters.shop_id,
+      show_loss_only: true,
+      limit: 5,
+    });
+
+    profitData.items
+      .filter((item) => item.marginPercentage < 0)
+      .forEach((item) => {
+        actions.push({
+          id: `profit-${item.productId}`,
+          priority: 'HIGH',
+          category: 'pricing',
+          title: `${item.productCode}: Selling at loss (${item.marginPercentage}%)`,
+          description: `Losing ₹${Math.abs(item.profit / 100000).toFixed(2)}L on ${item.unitsSold} units sold`,
+          details: {
+            productCode: item.productCode,
+            marginPercentage: item.marginPercentage,
+            profit: item.profit,
+            unitsSold: item.unitsSold,
+            avgSellingPrice: item.avgSellingPrice,
+            avgCostPrice: item.avgCostPrice,
+          },
+          suggestedAction: `Increase price from ₹${item.avgSellingPrice.toFixed(0)} to ₹${(item.avgCostPrice * 1.15).toFixed(0)} or stop selling`,
+          estimatedImpact: `Stop ₹${Math.abs(item.profit / 100000).toFixed(2)}L monthly loss`,
+          reportSource: 'product-profitability',
+        });
+      });
+
+    // Sort by priority and impact
+    const priorityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+    actions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+    // Take top 10 actions
+    const topActions = actions.slice(0, 10);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      actionsSummary: {
+        critical: topActions.filter((a) => a.priority === 'CRITICAL').length,
+        high: topActions.filter((a) => a.priority === 'HIGH').length,
+        medium: topActions.filter((a) => a.priority === 'MEDIUM').length,
+      },
+      actions: topActions,
+    };
+  }
 }

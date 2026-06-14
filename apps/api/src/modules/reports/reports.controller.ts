@@ -206,6 +206,17 @@ export class ReportsController {
   }
 
   @RequirePermission('report:view')
+  @Get('action-center')
+  actionCenter(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+  ) {
+    return this.reports.actionCenter(user, {
+      shop_id: shopId,
+    });
+  }
+
+  @RequirePermission('report:view')
   @Get('fast-moving')
   fastMoving(
     @CurrentUser() user: RequestUser,

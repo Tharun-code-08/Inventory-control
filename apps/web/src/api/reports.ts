@@ -341,3 +341,90 @@ export const getRecommendationText = (recommendation: 'STOP_SELLING' | 'REDUCE_D
       return 'Promote';
   }
 };
+
+// Action Center Types
+export interface Action {
+  id: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  category: 'cash-flow' | 'procurement' | 'inventory' | 'pricing' | 'opportunity';
+  title: string;
+  description: string;
+  details: Record<string, any>;
+  suggestedAction: string;
+  estimatedImpact: string;
+  reportSource: string;
+}
+
+export interface ActionCenterResponse {
+  generatedAt: string;
+  actionsSummary: {
+    critical: number;
+    high: number;
+    medium: number;
+  };
+  actions: Action[];
+}
+
+export interface ActionCenterFilters {
+  shopId?: string;
+}
+
+export const getActionCenter = async (filters: ActionCenterFilters): Promise<ActionCenterResponse> => {
+  const params = new URLSearchParams();
+  if (filters.shopId) params.append('shop_id', filters.shopId);
+
+  const response = await apiClient.get(`/reports/action-center?${params.toString()}`);
+  return response.data;
+};
+
+export const getPriorityIcon = (priority: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
+  switch (priority) {
+    case 'CRITICAL':
+      return '🔴';
+    case 'HIGH':
+      return '🟠';
+    case 'MEDIUM':
+      return '🟡';
+  }
+};
+
+export const getPriorityLabel = (priority: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
+  switch (priority) {
+    case 'CRITICAL':
+      return 'Critical';
+    case 'HIGH':
+      return 'High';
+    case 'MEDIUM':
+      return 'Medium';
+  }
+};
+
+export const getCategoryIcon = (category: 'cash-flow' | 'procurement' | 'inventory' | 'pricing' | 'opportunity') => {
+  switch (category) {
+    case 'cash-flow':
+      return '💰';
+    case 'procurement':
+      return '📦';
+    case 'inventory':
+      return '📊';
+    case 'pricing':
+      return '💲';
+    case 'opportunity':
+      return '💡';
+  }
+};
+
+export const getCategoryLabel = (category: 'cash-flow' | 'procurement' | 'inventory' | 'pricing' | 'opportunity') => {
+  switch (category) {
+    case 'cash-flow':
+      return 'Cash Flow';
+    case 'procurement':
+      return 'Procurement';
+    case 'inventory':
+      return 'Inventory';
+    case 'pricing':
+      return 'Pricing';
+    case 'opportunity':
+      return 'Opportunity';
+  }
+};
