@@ -133,226 +133,304 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+        <div className="absolute top-1/2 right-1/3 w-96 h-96 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+      </div>
+
       <Link
         to="/"
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white/80 backdrop-blur-sm px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:bg-white hover:shadow-md hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
-        <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
-        Back to home
+        <ArrowLeft className="h-4 w-4 text-slate-500 transition group-hover:text-slate-700" />
+        Back
       </Link>
 
       {showAvatarSplash ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)]">
-          <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-white/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
-            <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-slate-300/40 blur-2xl" />
-            <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
-            <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${splashAvatar.bgClass}`}>
-              <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative flex min-w-[300px] max-w-sm flex-col items-center gap-6 rounded-2xl border border-slate-200/20 bg-white/95 backdrop-blur px-8 py-8 text-center shadow-2xl">
+            <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${splashAvatar.bgClass} shadow-lg`}>
+              <div className="absolute inset-0 animate-ping rounded-full bg-white/30" />
               <span role="img" aria-label={`${splashAvatar.kind} avatar`} className="text-5xl">
                 {splashAvatar.emoji}
               </span>
             </div>
-            <div className="space-y-1">
-              <p className="text-base font-semibold text-white">Preparing your workspace</p>
-              <p className="text-xs text-slate-200/90">Syncing access, roles, and secure session state...</p>
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-slate-900">Preparing your workspace</p>
+              <p className="text-sm text-slate-600">Syncing access, roles, and secure session state...</p>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
-              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-white" />
+            <div className="w-full space-y-2">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+              </div>
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500">Please wait</p>
             </div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">Please wait</p>
           </div>
         </div>
       ) : null}
 
-      <div aria-hidden className="pointer-events-none absolute -left-24 top-12 h-64 w-64 rounded-full bg-slate-400/20 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-20 bottom-8 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />
-
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
-            <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
-            <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
-              <Sparkles className="h-3.5 w-3.5" />
-              {BRAND.productName}
-            </p>
-            <h1 className="mt-7 text-4xl font-semibold leading-tight">
-              Secure sign-in designed for high-trust inventory operations.
-            </h1>
-            <p className="mt-4 max-w-md text-sm text-white/80">
-              Use your password first, then confirm access with your authenticator app or a backup
-              code before SoftdigitIMS opens your workspace.
-            </p>
-            <div className="mt-10 grid max-w-md gap-3 text-sm">
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                Password plus authenticator verification
+          <section className="relative hidden overflow-hidden rounded-2xl border border-slate-200/40 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-12 text-white shadow-2xl lg:flex lg:flex-col lg:justify-between">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
+            <div className="pointer-events-none absolute -left-12 bottom-4 h-40 w-40 rounded-full bg-purple-500/20 blur-3xl" />
+
+            <div className="relative space-y-8">
+              <div className="space-y-4">
+                <p className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-blue-200">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {BRAND.productName}
+                </p>
+                <h1 className="text-5xl font-bold leading-tight tracking-tight">
+                  Secure access to your inventory system
+                </h1>
+                <p className="text-lg text-slate-300 leading-relaxed max-w-lg">
+                  Enterprise-grade security with multi-factor authentication to protect your business data and operations.
+                </p>
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                Single-use backup code fallback
+
+              <div className="space-y-3 pt-8">
+                <div className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 transition hover:bg-white/10 hover:border-white/20">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">Two-factor authentication</p>
+                    <p className="text-sm text-slate-400">Password + authenticator app verification</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 transition hover:bg-white/10 hover:border-white/20">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-300">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">Backup codes</p>
+                    <p className="text-sm text-slate-400">One-time recovery codes for emergency access</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 transition hover:bg-white/10 hover:border-white/20">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">Trusted devices</p>
+                    <p className="text-sm text-slate-400">Skip MFA on recognized browsers for 7 days</p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                Session issued only after MFA succeeds
-              </div>
+            </div>
+
+            <div className="relative mt-8 pt-8 border-t border-white/10">
+              <p className="text-xs text-slate-400 uppercase tracking-wider">Trusted by inventory managers worldwide</p>
             </div>
           </section>
 
-          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
-            <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
-            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
+          <Reveal as="section" className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white/98 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+            <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-blue-100 blur-3xl opacity-40" aria-hidden="true" />
+            <div className="pointer-events-none absolute -left-12 bottom-4 h-32 w-32 rounded-full bg-purple-100 blur-3xl opacity-40" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
 
-            <div className="mb-8">
-              <p className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+            <div className="mb-10 space-y-3">
+              <p className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-blue-700">
                 {step === 'credentials' ? <Zap className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                {step === 'credentials' ? 'Welcome back' : 'MFA verification'}
+                {step === 'credentials' ? 'Welcome back' : 'Verify your identity'}
               </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-                {step === 'credentials' ? BRAND.loginTitle : 'Verify your sign-in'}
+              <h2 className="text-4xl font-bold tracking-tight text-slate-900">
+                {step === 'credentials' ? BRAND.loginTitle : 'Secure verification'}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="text-base text-slate-600 leading-relaxed">
                 {step === 'credentials'
-                  ? 'Use your account credentials to continue.'
+                  ? 'Enter your credentials to access your inventory system.'
                   : useBackupCode
-                    ? `Use one of your one-time backup codes for ${email}.`
-                    : `Enter the 6-digit code from your authenticator app for ${email}.`}
+                    ? `Enter a backup code for ${email}`
+                    : `Enter the 6-digit code from your authenticator app for ${email}`}
               </p>
             </div>
 
             {step === 'credentials' ? (
-              <form onSubmit={onSubmit} className="space-y-5">
+              <form onSubmit={onSubmit} className="relative space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-sm font-semibold text-slate-900">
+                    Email address
+                  </Label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <Input
                       id="email"
+                      type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       autoComplete="username"
-                      className="h-12 rounded-xl bg-slate-50 pl-10"
+                      placeholder="you@company.com"
+                      className="h-12 rounded-lg bg-slate-50/50 border border-slate-200/60 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-semibold text-slate-900">
+                      Password
+                    </Label>
+                  </div>
                   <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       autoComplete="current-password"
-                      className="h-12 rounded-xl bg-slate-50 pl-10 pr-10"
+                      placeholder="Enter your password"
+                      className="h-12 rounded-lg bg-slate-50/50 border border-slate-200/60 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                <div className="flex justify-end pt-2">
+                  <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition">
                     Forgot password?
                   </Link>
                 </div>
 
                 {err ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {err}
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100">
+                        <span className="text-red-600 font-bold">!</span>
+                      </div>
+                    </div>
+                    <p>{err}</p>
                   </div>
                 ) : null}
 
-                <Button className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-950" type="submit" disabled={isSubmitting || showAvatarSplash}>
-                  {isSubmitting ? 'Signing in...' : 'Continue to secure sign-in'}
+                <Button className="relative h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900 transition-all disabled:opacity-70 disabled:shadow-none" type="submit" disabled={isSubmitting || showAvatarSplash}>
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Signing in...
+                    </span>
+                  ) : (
+                    'Sign in securely'
+                  )}
                 </Button>
 
-                <p className="text-center text-sm text-slate-500">
-                  New organisation?{' '}
-                  <Link to="/signup" className="font-medium text-primary hover:underline">
-                    Create account with email verification
+                <p className="text-center text-sm text-slate-600">
+                  Don't have an account?{' '}
+                  <Link to="/signup" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition">
+                    Create one now
                   </Link>
                 </p>
               </form>
             ) : (
-              <form onSubmit={onVerifyMfa} className="space-y-5">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <form onSubmit={onVerifyMfa} className="relative space-y-6">
+                <div className="rounded-lg border border-slate-200/60 bg-slate-50/50 p-6">
                   {!useBackupCode ? (
-                    <>
-                      <div className="mb-4 text-center">
-                        <p className="text-sm font-medium text-slate-700">Authenticator code</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Challenge expires at {new Date(challengeExpiry).toLocaleTimeString()}.
+                    <div className="space-y-5">
+                      <div className="space-y-1 text-center">
+                        <p className="text-sm font-semibold text-slate-900">Enter your authenticator code</p>
+                        <p className="text-xs text-slate-500">
+                          Code expires at <span className="font-medium text-slate-700">{new Date(challengeExpiry).toLocaleTimeString()}</span>
                         </p>
                         {attemptsRemaining ? (
-                          <p className="mt-1 text-xs font-medium text-slate-600">
-                            {attemptsRemaining} attempt(s) before the challenge locks.
+                          <p className="mt-2 inline-block rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+                            {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining
                           </p>
                         ) : null}
                       </div>
                       <OtpCodeInput value={otpCode} onChange={setOtpCode} hasError={!!err} autoFocus />
-                    </>
+                    </div>
                   ) : (
-                    <div className="space-y-2">
-                      <Label htmlFor="backup-code">Backup code</Label>
+                    <div className="space-y-3">
+                      <Label htmlFor="backup-code" className="text-sm font-semibold text-slate-900">
+                        Backup code
+                      </Label>
                       <div className="relative">
-                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                         <Input
                           id="backup-code"
                           value={backupCode}
                           onChange={(event) => setBackupCode(event.target.value.toUpperCase())}
-                          placeholder="ABCD-EFGH"
-                          className="h-12 rounded-xl bg-white pl-10 uppercase tracking-[0.18em]"
+                          placeholder="XXXX-XXXX"
+                          className="h-12 rounded-lg bg-white border border-slate-200/60 pl-12 pr-4 uppercase tracking-[0.18em] text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
                         />
                       </div>
+                      <p className="text-xs text-slate-500">Enter one of your backup codes</p>
                     </div>
                   )}
                 </div>
 
                 {!useBackupCode ? (
-                  <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <label className="flex items-start gap-3 rounded-lg border border-slate-200/60 bg-white/50 px-4 py-3.5 cursor-pointer hover:bg-blue-50 transition group">
                     <input
                       type="checkbox"
                       checked={rememberDevice}
                       disabled={!functionalCookiesEnabled}
                       onChange={(event) => setRememberDevice(event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      className="mt-1 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span>
-                      <span className="block font-medium text-slate-900">Remember this device for 7 days</span>
-                      <span className="block text-xs text-slate-500">
+                    <span className="flex-1">
+                      <span className="block font-semibold text-slate-900 group-hover:text-slate-950">Trust this device for 7 days</span>
+                      <span className="block text-xs text-slate-600 mt-0.5">
                         {functionalCookiesEnabled
-                          ? 'Skip the authenticator step on this browser for the next 7 days.'
-                          : 'Enable functional cookies in Cookie Preferences to use this convenience feature.'}
+                          ? "You won't need to enter your authenticator code on this browser for 7 days."
+                          : 'Enable functional cookies in preferences to use this feature.'}
                       </span>
                     </span>
                   </label>
                 ) : null}
 
-                <div className="flex items-center justify-between text-sm">
+                {err ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100">
+                        <span className="text-red-600 font-bold">!</span>
+                      </div>
+                    </div>
+                    <p>{err}</p>
+                  </div>
+                ) : null}
+
+                <Button className="relative h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900 transition-all disabled:opacity-70 disabled:shadow-none" type="submit" disabled={isSubmitting || showAvatarSplash}>
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Verifying...
+                    </span>
+                  ) : (
+                    'Verify and sign in'
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
                   <button
                     type="button"
-                    className="font-medium text-primary hover:underline"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition"
                     onClick={() => {
                       setUseBackupCode((current) => !current);
                       setErr('');
                       setRememberDevice(false);
                     }}
                   >
-                    {useBackupCode ? 'Use authenticator app instead' : 'Use a backup code instead'}
+                    {useBackupCode ? 'Use authenticator instead' : 'Use backup code'}
                   </button>
                   <button
                     type="button"
-                    className="text-slate-500 hover:text-slate-700"
+                    className="text-sm font-medium text-slate-500 hover:text-slate-700 transition"
                     onClick={() => {
                       setStep('credentials');
                       setErr('');
@@ -363,19 +441,9 @@ export function LoginPage() {
                       setRememberDevice(true);
                     }}
                   >
-                    Back
+                    ← Back
                   </button>
                 </div>
-
-                {err ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {err}
-                  </div>
-                ) : null}
-
-                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting || showAvatarSplash}>
-                  {isSubmitting ? 'Verifying...' : 'Verify and sign in'}
-                </Button>
               </form>
             )}
           </Reveal>
