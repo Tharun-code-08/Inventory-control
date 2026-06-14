@@ -8,6 +8,7 @@ import {
   type DashboardCard,
   type ExecutiveDashboardResponse,
 } from '@/api/dashboard';
+import { PageHeader } from '@/components/shared/page-header';
 import { FinancialCard } from './FinancialCard';
 import { InventoryCard } from './InventoryCard';
 import { AttentionCard } from './AttentionCard';
@@ -116,7 +117,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+      <div className="p-4">
         <div className="text-center">
           <p className="text-lg text-red-600 font-medium mb-2">Error: {error}</p>
           <button
@@ -132,7 +133,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
 
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
           <p className="text-gray-600">Loading dashboard...</p>
@@ -141,52 +142,50 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
     );
   }
 
+  // Safety: ensure arrays are always arrays
+  const attentionData = Array.isArray(data.attention) ? data.attention : [];
+  const recommendationsData = Array.isArray(data.recommendations) ? data.recommendations : [];
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Executive Dashboard</h1>
-            <p className="text-sm text-gray-600 mt-2">
-              Updated just now • {loadTime}ms load time
-            </p>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Executive Dashboard"
+        description={`Updated just now • ${loadTime}ms load time`}
+      >
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </PageHeader>
 
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2" onClick={() => handleCardClick('financial')}>
-            <FinancialCard data={data.financial} />
-          </div>
-          <div onClick={() => handleCardClick('inventory')}>
-            <InventoryCard data={data.inventory} />
-          </div>
+      {/* Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2" onClick={() => handleCardClick('financial')}>
+          <FinancialCard data={data.financial} />
         </div>
+        <div onClick={() => handleCardClick('inventory')}>
+          <InventoryCard data={data.inventory} />
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div onClick={() => handleAction('attention', 'resolve')}>
-            <AttentionCard data={data.attention} />
-          </div>
-          <div onClick={() => handleCardClick('recommendations')}>
-            <RecommendationsCard data={data.recommendations} />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div onClick={() => handleAction('attention', 'resolve')}>
+          <AttentionCard data={attentionData} />
         </div>
+        <div onClick={() => handleCardClick('recommendations')}>
+          <RecommendationsCard data={recommendationsData} />
+        </div>
+      </div>
 
-        {/* Footer Tip */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-900">
-            💡 <strong>Tip:</strong> Check Attention first to identify urgent issues, then review
-            Financial and act on Recommendations
-          </p>
-        </div>
+      {/* Footer Tip */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          💡 <strong>Tip:</strong> Check Attention first to identify urgent issues, then review
+          Financial and act on Recommendations
+        </p>
       </div>
     </div>
   );
