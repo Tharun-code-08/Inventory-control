@@ -1126,4 +1126,131 @@ COALESCE(
       sales_value: Number(r.sales_value ?? 0),
     }));
   }
+
+  async deadStock(
+    user: RequestUser,
+    filters: {
+      shop_id?: string;
+      category?: string;
+      supplier?: string;
+      days_unsold: number;
+      sort_by?: 'stockValue' | 'daysUnsold';
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    await this.assertReportsAllowed(user);
+    const shopIds = await this.resolveShopIds(user, filters.shop_id);
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
+
+    const sortBy = filters.sort_by ?? 'stockValue';
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+
+    const whereClause = Prisma.sql`
+      p.is_active = true
+      AND pp.is_active = true
+      AND pp.shop_id = ANY(${shopArray})
+      AND EXTRACT(DAY FROM NOW() - COALESCE(sl.last_sale_date, p.created_at)) >= ${filters.days_unsold}
+      ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+      ${filters.supplier ? Prisma.sql`AND s.name ILIKE ${'%' + filters.supplier + '%'}` : Prisma.empty}
+      AND COALESCE(ss.current_stock, 0) > 0
+    `;
+
+    const [totalRows, rows] = await Promise.all([
+      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+        SELECT COUNT(*)::bigint as count
+        FROM products p
+        JOIN product_plants pp ON pp.product_id = p.id
+        LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = p.id
+        LEFT JOIN (
+          SELECT product_id, MAX(created_at) as last_sale_date
+          FROM stock_ledger
+          WHERE transaction_type = 'OUT'
+          GROUP BY product_id
+        ) sl ON sl.product_id = p.id
+        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        WHERE ${whereClause}
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          product_id: string;
+          product_code: string;
+          description: string;
+          category: string;
+          supplier_name: string | null;
+          current_stock: Prisma.Decimal;
+          unit_cost: Prisma.Decimal;
+          stock_value: Prisma.Decimal;
+          last_sale_date: Date | null;
+          days_unsold: number;
+        }>
+      >(Prisma.sql`
+        SELECT
+          p.id as product_id,
+          p.product_code,
+          p.description,
+          p.category,
+          s.name as supplier_name,
+          COALESCE(ss.current_stock, 0)::numeric as current_stock,
+          COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as unit_cost,
+          (COALESCE(ss.current_stock, 0) * COALESCE(ss.avg_cost, p.purchase_price, 0))::numeric as stock_value,
+          COALESCE(sl.last_sale_date, p.created_at) as last_sale_date,
+          EXTRACT(DAY FROM NOW() - COALESCE(sl.last_sale_date, p.created_at))::int as days_unsold
+        FROM products p
+        JOIN product_plants pp ON pp.product_id = p.id
+        LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = p.id
+        LEFT JOIN (
+          SELECT product_id, MAX(created_at) as last_sale_date
+          FROM stock_ledger
+          WHERE transaction_type = 'OUT'
+          GROUP BY product_id
+        ) sl ON sl.product_id = p.id
+        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        WHERE ${whereClause}
+        ORDER BY ${sortBy === 'daysUnsold' ? Prisma.sql`days_unsold DESC` : Prisma.sql`stock_value DESC`}
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      `),
+    ]);
+
+    const totalCount = Number(totalRows[0]?.count ?? 0);
+    const totalDeadValue = rows.reduce((sum, r) => sum + Number(r.stock_value ?? 0), 0);
+
+    return {
+      summary: {
+        totalDeadItems: totalCount,
+        totalDeadQty: rows.reduce((sum, r) => sum + Number(r.current_stock ?? 0), 0),
+        totalDeadValue,
+        theme: totalDeadValue > 1000000 ? 'Critical' : totalDeadValue > 500000 ? 'High' : 'Medium',
+      },
+      items: rows.map((r) => ({
+        productId: r.product_id,
+        productCode: r.product_code,
+        name: r.description,
+        category: r.category,
+        supplier: r.supplier_name ?? 'Unknown',
+        currentStock: Number(r.current_stock ?? 0),
+        unitCost: Number(r.unit_cost ?? 0),
+        stockValue: Number(r.stock_value ?? 0),
+        lastSaleDate: r.last_sale_date?.toISOString() ?? null,
+        daysUnsold: r.days_unsold,
+        severity:
+          r.days_unsold >= 180
+            ? 'CRITICAL'
+            : r.days_unsold >= 120
+              ? 'HIGH'
+              : 'MEDIUM',
+        recommendation:
+          r.days_unsold >= 180
+            ? 'STOP_REORDER'
+            : r.days_unsold >= 120
+              ? 'OFFER_DISCOUNT'
+              : 'MONITOR',
+      })),
+      pagination: { page, limit, totalCount },
+    };
+  }
 }

@@ -111,6 +111,30 @@ export class ReportsController {
   }
 
   @RequirePermission('report:view')
+  @Get('dead-stock')
+  deadStock(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('category') category?: string,
+    @Query('supplier') supplier?: string,
+    @Query('days_unsold') daysUnsold?: string,
+    @Query('sort_by') sortBy?: 'stockValue' | 'daysUnsold',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const days = daysUnsold ? Number(daysUnsold) : 90;
+    return this.reports.deadStock(user, {
+      shop_id: shopId,
+      category,
+      supplier,
+      days_unsold: days,
+      sort_by: sortBy,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @RequirePermission('report:view')
   @Get('fast-moving')
   fastMoving(
     @CurrentUser() user: RequestUser,
