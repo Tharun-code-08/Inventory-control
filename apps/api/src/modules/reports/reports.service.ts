@@ -1433,4 +1433,207 @@ COALESCE(
       pagination: { page, limit, totalCount },
     };
   }
+
+  async customerAging(
+    user: RequestUser,
+    filters: {
+      shop_id?: string;
+      show_overdue_only?: boolean;
+      customer_name?: string;
+      sort_by?: 'totalOutstanding' | 'overdueAmount' | 'riskScore';
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    await this.assertReportsAllowed(user);
+    const shopIds = await this.resolveShopIds(user, filters.shop_id);
+    const shopArray = Prisma.sql`ARRAY[${Prisma.join(
+      shopIds.map((id) => Prisma.sql`${id}::uuid`),
+    )}]::uuid[]`;
+
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const sortBy = filters.sort_by ?? 'totalOutstanding';
+
+    const [totalRows, rows, summaryRows] = await Promise.all([
+      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+        SELECT COUNT(DISTINCT c.id)::bigint as count
+        FROM customers c
+        LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED')
+        WHERE c.is_active = true
+        AND soh.shop_id = ANY(${shopArray})
+        ${filters.customer_name ? Prisma.sql`AND c.customer_name ILIKE ${'%' + filters.customer_name + '%'}` : Prisma.empty}
+        GROUP BY c.id
+        HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          customer_id: string;
+          customer_name: string;
+          last_transaction_date: Date | null;
+          current_0_30: Prisma.Decimal;
+          watch_31_60: Prisma.Decimal;
+          high_risk_61_90: Prisma.Decimal;
+          critical_90plus: Prisma.Decimal;
+          total_outstanding: Prisma.Decimal;
+          overdue_amount: Prisma.Decimal;
+          overdue_invoice_count: number;
+          avg_payment_days: number;
+        }>
+      >(Prisma.sql`
+        WITH customer_invoices AS (
+          SELECT
+            c.id as customer_id,
+            c.customer_name,
+            MAX(soh.order_date) as last_transaction_date,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) <= 30
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as current_0_30,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) BETWEEN 31 AND 60
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as watch_31_60,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) BETWEEN 61 AND 90
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as high_risk_61_90,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 90
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as critical_90plus,
+            SUM(COALESCE(soh.outstanding_amount, 0)) as total_outstanding,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as overdue_amount,
+            COUNT(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
+              THEN 1
+            END)::int as overdue_invoice_count,
+            COALESCE(AVG(EXTRACT(DAY FROM NOW() - soh.order_date)), 0)::int as avg_payment_days
+          FROM customers c
+          LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED') AND soh.shop_id = ANY(${shopArray})
+          WHERE c.is_active = true
+          ${filters.customer_name ? Prisma.sql`AND c.customer_name ILIKE ${'%' + filters.customer_name + '%'}` : Prisma.empty}
+          GROUP BY c.id, c.customer_name
+          HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+        )
+        SELECT *
+        FROM customer_invoices
+        ${filters.show_overdue_only ? Prisma.sql`WHERE overdue_amount > 0` : Prisma.empty}
+        ORDER BY ${
+          sortBy === 'riskScore'
+            ? Prisma.sql`(CASE WHEN overdue_amount::numeric / NULLIF(total_outstanding::numeric, 0) > 0.5 THEN 1 WHEN overdue_amount > 0 THEN 2 ELSE 3 END) ASC, overdue_amount DESC`
+            : sortBy === 'overdueAmount'
+              ? Prisma.sql`overdue_amount DESC`
+              : Prisma.sql`total_outstanding DESC`
+        }
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          total_customers: number;
+          total_outstanding: string;
+          total_overdue: string;
+          overdue_customers: number;
+          avg_collection_days: number;
+        }>
+      >(Prisma.sql`
+        WITH customer_invoices AS (
+          SELECT
+            c.id as customer_id,
+            SUM(COALESCE(soh.outstanding_amount, 0)) as total_outstanding,
+            SUM(CASE
+              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
+              THEN COALESCE(soh.outstanding_amount, 0)
+              ELSE 0
+            END) as overdue_amount,
+            COALESCE(AVG(EXTRACT(DAY FROM NOW() - soh.order_date)), 0)::int as avg_payment_days
+          FROM customers c
+          LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED') AND soh.shop_id = ANY(${shopArray})
+          WHERE c.is_active = true
+          GROUP BY c.id
+          HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+        )
+        SELECT
+          COUNT(*)::int as total_customers,
+          SUM(total_outstanding)::text as total_outstanding,
+          SUM(overdue_amount)::text as total_overdue,
+          COUNT(CASE WHEN overdue_amount > 0 THEN 1 END)::int as overdue_customers,
+          AVG(avg_payment_days)::int as avg_collection_days
+        FROM customer_invoices
+      `),
+    ]);
+
+    const totalCount = Number(totalRows[0]?.count ?? 0);
+    const summary = summaryRows[0] ?? {
+      total_customers: 0,
+      total_outstanding: '0',
+      total_overdue: '0',
+      overdue_customers: 0,
+      avg_collection_days: 0,
+    };
+
+    return {
+      summary: {
+        totalCustomers: summary.total_customers,
+        totalOutstanding: Number(summary.total_outstanding ?? 0),
+        totalOverdue: Number(summary.total_overdue ?? 0),
+        overdueCustomers: summary.overdue_customers,
+        avgCollectionDays: summary.avg_collection_days,
+      },
+      items: rows.map((r) => {
+        const total = Number(r.total_outstanding ?? 0);
+        const overdue = Number(r.overdue_amount ?? 0);
+        const collectionRate = total > 0 ? ((total - overdue) / total) * 100 : 100;
+
+        let riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN';
+        if (overdue / total > 0.5 && total > 100000) {
+          riskScore = 'CRITICAL';
+        } else if (overdue > 0) {
+          riskScore = 'HIGH';
+        } else if (Number(r.avg_payment_days ?? 0) > 45) {
+          riskScore = 'MEDIUM';
+        } else {
+          riskScore = 'GREEN';
+        }
+
+        const actions =
+          riskScore === 'CRITICAL'
+            ? ['Call customer immediately', 'Escalate to management', 'Consider stopping credit']
+            : riskScore === 'HIGH'
+              ? ['Send payment reminder', 'Schedule follow-up call', 'Review credit terms']
+              : riskScore === 'MEDIUM'
+                ? ['Send reminder email', 'Monitor next payment']
+                : ['Continue normal terms'];
+
+        return {
+          customerId: r.customer_id,
+          customerName: r.customer_name,
+          lastTransactionDate: r.last_transaction_date?.toISOString() ?? null,
+          agingBuckets: {
+            current_0_30: Number(r.current_0_30 ?? 0),
+            watch_31_60: Number(r.watch_31_60 ?? 0),
+            highRisk_61_90: Number(r.high_risk_61_90 ?? 0),
+            critical_90plus: Number(r.critical_90plus ?? 0),
+          },
+          totalOutstanding: total,
+          overdueAmount: overdue,
+          overdueInvoiceCount: r.overdue_invoice_count,
+          collectionPercentage: Math.round(collectionRate * 10) / 10,
+          avgPaymentDays: r.avg_payment_days,
+          riskScore,
+          actions,
+        };
+      }),
+      pagination: { page, limit, totalCount },
+    };
+  }
 }

@@ -167,3 +167,87 @@ export const getUrgencyLabel = (urgency: 'HIGH' | 'MEDIUM' | 'LOW') => {
       return 'Monitor';
   }
 };
+
+// Customer Aging Types
+export interface CustomerAgingItem {
+  customerId: string;
+  customerName: string;
+  lastTransactionDate: string | null;
+  agingBuckets: {
+    current_0_30: number;
+    watch_31_60: number;
+    highRisk_61_90: number;
+    critical_90plus: number;
+  };
+  totalOutstanding: number;
+  overdueAmount: number;
+  overdueInvoiceCount: number;
+  collectionPercentage: number;
+  avgPaymentDays: number;
+  riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN';
+  actions: string[];
+}
+
+export interface CustomerAgingResponse {
+  summary: {
+    totalCustomers: number;
+    totalOutstanding: number;
+    totalOverdue: number;
+    overdueCustomers: number;
+    avgCollectionDays: number;
+  };
+  items: CustomerAgingItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+  };
+}
+
+export interface CustomerAgingFilters {
+  shopId?: string;
+  showOverdueOnly?: boolean;
+  customerName?: string;
+  sortBy?: 'totalOutstanding' | 'overdueAmount' | 'riskScore';
+  page?: number;
+  limit?: number;
+}
+
+export const getCustomerAging = async (filters: CustomerAgingFilters): Promise<CustomerAgingResponse> => {
+  const params = new URLSearchParams();
+  if (filters.shopId) params.append('shop_id', filters.shopId);
+  if (filters.showOverdueOnly) params.append('show_overdue_only', 'true');
+  if (filters.customerName) params.append('customer_name', filters.customerName);
+  if (filters.sortBy) params.append('sort_by', filters.sortBy);
+  if (filters.page) params.append('page', String(filters.page));
+  if (filters.limit) params.append('limit', String(filters.limit));
+
+  const response = await apiClient.get(`/reports/customer-aging?${params.toString()}`);
+  return response.data;
+};
+
+export const getRiskIcon = (riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN') => {
+  switch (riskScore) {
+    case 'CRITICAL':
+      return '🔴';
+    case 'HIGH':
+      return '🟠';
+    case 'MEDIUM':
+      return '🟡';
+    case 'GREEN':
+      return '🟢';
+  }
+};
+
+export const getRiskLabel = (riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN') => {
+  switch (riskScore) {
+    case 'CRITICAL':
+      return 'Critical Risk';
+    case 'HIGH':
+      return 'High Risk';
+    case 'MEDIUM':
+      return 'Medium Risk';
+    case 'GREEN':
+      return 'Healthy';
+  }
+};

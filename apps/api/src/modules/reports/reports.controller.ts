@@ -160,6 +160,27 @@ export class ReportsController {
   }
 
   @RequirePermission('report:view')
+  @Get('customer-aging')
+  customerAging(
+    @CurrentUser() user: RequestUser,
+    @Query('shop_id') shopId?: string,
+    @Query('show_overdue_only') showOverdueOnly?: string,
+    @Query('customer_name') customerName?: string,
+    @Query('sort_by') sortBy?: 'totalOutstanding' | 'overdueAmount' | 'riskScore',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reports.customerAging(user, {
+      shop_id: shopId,
+      show_overdue_only: showOverdueOnly === 'true',
+      customer_name: customerName,
+      sort_by: sortBy,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @RequirePermission('report:view')
   @Get('fast-moving')
   fastMoving(
     @CurrentUser() user: RequestUser,
