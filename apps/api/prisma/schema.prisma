@@ -120,16 +120,6 @@ enum AuditAction {
   POST
 }
 
-enum AuditReason {
-  USER_NOT_FOUND
-  INVALID_PASSWORD
-  ACCOUNT_LOCKED
-  DEVICE_BLOCKED
-  ACCESS_DENIED
-  MFA_FAILED
-  SESSION_EXPIRED
-}
-
 enum AuditSeverity {
   LOW
   MEDIUM
@@ -2815,19 +2805,19 @@ model NotificationSubscription {
 // ============================================
 
 model AuditLog {
-  id           String      @id @default(uuid()) @db.Uuid
-  companyId    String      @map("company_id") @db.Uuid
-  userId       String      @map("user_id") @db.Uuid
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String?      @map("company_id") @db.Uuid
+  userId       String?      @map("user_id") @db.Uuid
   action       AuditAction
-  entityType   String?     @map("entity_type")
-  entityId     String?     @map("entity_id")
-  oldValues    Json?       @map("old_values")
+  entityType   String?      @map("entity_type")
+  entityId     String?      @map("entity_id")
+  oldValues    Json?        @map("old_values")
   newValues    Json?        @map("new_values")
   ipAddress    String?      @map("ip_address")
   userAgent    String?      @map("user_agent") @db.Text
   deviceId     String?      @map("device_id")
   metadata     Json?
-  reason       AuditReason?
+  reason       String?      // Flexible string instead of enum for easier evolution
   severity     AuditSeverity?
   requestId    String?      @map("request_id")
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
