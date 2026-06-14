@@ -40,12 +40,12 @@ export default function HomeScreen() {
           <View style={styles.headerText}>
             <Title>Hello, {user?.name?.split(' ')[0] ?? 'there'}</Title>
             <Muted>{user?.shop?.shopName ?? user?.role ?? 'Warehouse'}</Muted>
-            {query.isDirty && <Muted style={styles.dirtyIndicator}>⚠ Updates available</Muted>}
-            {query.lastUpdated && (
+            {query.isDirty ? <Muted style={styles.dirtyIndicator}>⚠ Updates available</Muted> : null}
+            {query.lastUpdated ? (
               <Muted style={styles.lastUpdated}>
                 Updated {formatTimeAgo(query.lastUpdated)}
               </Muted>
-            )}
+            ) : null}
           </View>
         </View>
 

@@ -1,8 +1,19 @@
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
-import { v4 as uuidv4 } from 'uuid';
 import { api } from '@/api/client';
 import { logDeviceRegistered, logDeviceRevoked } from '@/lib/audit-logging';
+
+// RFC4122-style v4 UUID without a crypto polyfill. React Native does not
+// provide `crypto.getRandomValues`, which the `uuid` package depends on, so we
+// generate the identifier with Math.random. This is only a device identifier,
+// not a security token, so cryptographic randomness is not required.
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 export type RegisteredDevice = {
   id: string;
