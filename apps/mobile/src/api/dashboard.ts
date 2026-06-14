@@ -7,23 +7,22 @@ import { api } from './client';
 export type FinancialCardData = {
   revenueToday: number;
   revenueThisMonth: number;
-  grossProfit: number;
-  netProfit: number;
-  receivables: number;
-  payables: number;
+  netProfitMonth: number;
+  cashAvailable: number;
 };
 
 export type InventoryCardData = {
-  totalValue: number;
+  inventoryValue: number;
   lowStockCount: number;
   deadStockValue: number;
-  stockCoverageDays: number;
+  coverageDays: number;
 };
 
 export type AttentionItem = {
-  type: string;
-  count: number;
-  severity: 'critical' | 'warning' | 'info';
+  id: string;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  action: string;
 };
 
 export type AttentionCardData = AttentionItem[];
@@ -62,12 +61,23 @@ export async function fetchExecutiveDashboard(
 export type DashboardCard = 'financial' | 'inventory' | 'attention' | 'recommendations';
 
 export type DashboardEvent = {
-  type: 'opened' | 'card' | 'action';
+  type: 'opened' | 'card' | 'action' | 'exit' | 'attention_resolved';
   card?: DashboardCard;
   firstClick?: boolean;
   action?: string;
   loadTimeMs?: number;
   sessionId?: string;
+  // DASHBOARD_EXIT metadata
+  durationMs?: number;
+  cardsViewed?: number;
+  actionsTaken?: number;
+  firstCard?: DashboardCard;
+  openedAt?: string;
+  closedAt?: string;
+  // ATTENTION_ITEM_RESOLVED metadata
+  itemId?: string;
+  itemType?: string;
+  resolution?: string;
 };
 
 /** New session id per dashboard mount — groups opens/clicks/actions into one visit. */
@@ -109,11 +119,11 @@ export function formatNumber(value: number): string {
  */
 export function getSeverityColor(severity: string): string {
   switch (severity) {
-    case 'critical':
+    case 'high':
       return '#dc2626'; // red
-    case 'warning':
+    case 'medium':
       return '#f59e0b'; // amber
-    case 'info':
+    case 'low':
     default:
       return '#3b82f6'; // blue
   }

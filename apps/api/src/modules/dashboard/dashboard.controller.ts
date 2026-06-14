@@ -21,6 +21,8 @@ const EVENT_ACTION: Record<DashboardEventDto['type'], AuditAction> = {
   opened: AuditAction.VIEW_DASHBOARD,
   card: AuditAction.DASHBOARD_CARD_CLICKED,
   action: AuditAction.DASHBOARD_ACTION_TAKEN,
+  exit: AuditAction.DASHBOARD_EXIT,
+  attention_resolved: AuditAction.ATTENTION_ITEM_RESOLVED,
 };
 
 @ApiTags('dashboard')
@@ -67,11 +69,23 @@ export class DashboardController {
       ipAddress: ip ?? null,
       userAgent: userAgent ?? null,
       metadata: {
+        // Event-specific metadata
         card: event.card ?? null,
         firstClick: event.firstClick ?? false,
         action: event.action ?? null,
         loadTimeMs: event.loadTimeMs ?? null,
         sessionId: event.sessionId ?? null,
+        // DASHBOARD_EXIT metadata
+        durationMs: event.durationMs ?? null,
+        cardsViewed: event.cardsViewed ?? null,
+        actionsTaken: event.actionsTaken ?? null,
+        firstCard: event.firstCard ?? null,
+        openedAt: event.openedAt ?? null,
+        closedAt: event.closedAt ?? null,
+        // ATTENTION_ITEM_RESOLVED metadata
+        itemId: event.itemId ?? null,
+        itemType: event.itemType ?? null,
+        resolution: event.resolution ?? null,
       },
     });
   }

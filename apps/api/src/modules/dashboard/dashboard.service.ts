@@ -311,28 +311,21 @@ export class DashboardService {
   }
 
   private async fetchFinancialCard(shopIds: string[]) {
-    // Week 2: Use materialized view for performance (< 50ms query)
-    // Fallback: Calculate from raw data if view doesn't exist
+    // Week 4A: Frozen to 4 metrics only
     try {
       const result = await this.prisma.$queryRaw<
         Array<{
           revenue_today: string;
           revenue_this_month: string;
-          gross_profit: string;
           net_profit: string;
           cash_balance: string;
-          receivables: string;
-          payables: string;
         }>
       >`
         SELECT
           COALESCE(revenue_today, 0)::text as revenue_today,
           COALESCE(revenue_this_month, 0)::text as revenue_this_month,
-          COALESCE(gross_profit, 0)::text as gross_profit,
           COALESCE(net_profit, 0)::text as net_profit,
-          COALESCE(cash_balance, 0)::text as cash_balance,
-          COALESCE(receivables, 0)::text as receivables,
-          COALESCE(payables, 0)::text as payables
+          COALESCE(cash_balance, 0)::text as cash_balance
         FROM financial_snapshot
         WHERE shop_id = ANY(${shopIds}::uuid[])
         LIMIT 1
@@ -343,29 +336,25 @@ export class DashboardService {
         return {
           revenueToday: Math.round(Number(row.revenue_today)),
           revenueThisMonth: Math.round(Number(row.revenue_this_month)),
-          grossProfit: Math.round(Number(row.gross_profit)),
-          netProfit: Math.round(Number(row.net_profit)),
-          receivables: Math.round(Number(row.receivables)),
-          payables: Math.round(Number(row.payables)),
+          netProfitMonth: Math.round(Number(row.net_profit)),
+          cashAvailable: Math.round(Number(row.cash_balance)),
         };
       }
     } catch {
       // View doesn't exist yet - fallback to example data
     }
 
-    // Week 1 fallback: hardcoded example
+    // Fallback: hardcoded example
     return {
-      revenueToday: 234000,
-      revenueThisMonth: 5432100,
-      grossProfit: 1856000,
-      netProfit: 1234000,
-      receivables: 890000,
-      payables: 450000,
+      revenueToday: 45000,
+      revenueThisMonth: 234000,
+      netProfitMonth: 78000,
+      cashAvailable: 125000,
     };
   }
 
   private async fetchInventoryCard(shopIds: string[]) {
-    // Week 2: Use materialized view for performance (< 50ms query)
+    // Week 4A: Frozen to 4 metrics only
     try {
       const result = await this.prisma.$queryRaw<
         Array<{
@@ -388,10 +377,10 @@ export class DashboardService {
       if (result.length > 0) {
         const row = result[0];
         return {
-          totalValue: Math.round(Number(row.inventory_value)),
+          inventoryValue: Math.round(Number(row.inventory_value)),
           lowStockCount: row.low_stock_count,
           deadStockValue: Math.round(Number(row.dead_stock_value)),
-          stockCoverageDays: row.stock_coverage_days,
+          coverageDays: row.stock_coverage_days,
         };
       }
     } catch {
@@ -401,29 +390,27 @@ export class DashboardService {
     // Fallback: Use existing aggregation function
     const stockData = await this.aggregateStockValueAndLowCount(shopIds);
     return {
-      totalValue: stockData.totalStockValue,
+      inventoryValue: stockData.totalStockValue,
       lowStockCount: stockData.lowStockCount,
       deadStockValue: 120000,
-      stockCoverageDays: 12,
+      coverageDays: 12,
     };
   }
 
   private async fetchAttentionCard(shopIds: string[]) {
-    // Week 2: Use materialized view for performance (< 50ms query)
+    // Week 4A: Frozen to Problem → Urgency → Action format
     try {
       const results = await this.prisma.$queryRaw<
         Array<{
+          overdue_payments: number;
+          low_stock_alerts: number;
           pending_approvals: number;
-          delayed_gr: number;
-          transfers_pending: number;
-          supplier_issues: number;
         }>
       >`
         SELECT
-          COALESCE(pending_approvals, 0)::integer as pending_approvals,
-          COALESCE(delayed_gr, 0)::integer as delayed_gr,
-          COALESCE(transfers_pending, 0)::integer as transfers_pending,
-          COALESCE(supplier_issues, 0)::integer as supplier_issues
+          COALESCE(overdue_payments, 0)::integer as overdue_payments,
+          COALESCE(low_stock_alerts, 0)::integer as low_stock_alerts,
+          COALESCE(pending_approvals, 0)::integer as pending_approvals
         FROM operations_snapshot
         WHERE shop_id = ANY(${shopIds}::uuid[])
         LIMIT 1
@@ -431,37 +418,32 @@ export class DashboardService {
 
       if (results.length > 0) {
         const data = results[0];
-        const attention: Array<{ type: string; count: number; severity: string }> = [];
+        const attention: Array<{ id: string; severity: 'high' | 'medium' | 'low'; title: string; action: string }> = [];
 
-        if (data.delayed_gr > 0) {
+        if (data.overdue_payments > 0) {
           attention.push({
-            type: 'overdue_receipts',
-            count: data.delayed_gr,
-            severity: 'critical',
+            id: 'overdue_payments',
+            severity: 'high',
+            title: `${data.overdue_payments} Overdue Payments`,
+            action: 'Call customers today',
+          });
+        }
+
+        if (data.low_stock_alerts > 0) {
+          attention.push({
+            id: 'low_stock',
+            severity: 'medium',
+            title: `${data.low_stock_alerts} Items stock finishes soon`,
+            action: 'Reorder now',
           });
         }
 
         if (data.pending_approvals > 0) {
           attention.push({
-            type: 'pending_approvals',
-            count: data.pending_approvals,
-            severity: data.pending_approvals > 5 ? 'warning' : 'info',
-          });
-        }
-
-        if (data.transfers_pending > 0) {
-          attention.push({
-            type: 'transfers_pending',
-            count: data.transfers_pending,
-            severity: 'info',
-          });
-        }
-
-        if (data.supplier_issues > 0) {
-          attention.push({
-            type: 'supplier_issues',
-            count: data.supplier_issues,
-            severity: 'warning',
+            id: 'pending_approvals',
+            severity: 'low',
+            title: `${data.pending_approvals} Approvals pending`,
+            action: 'Review',
           });
         }
 
@@ -471,22 +453,25 @@ export class DashboardService {
       // View doesn't exist yet - fallback
     }
 
-    // Fallback: hardcoded example (Week 1)
+    // Fallback: hardcoded example
     return [
       {
-        type: 'overdue_payments',
-        count: 2,
-        severity: 'critical',
+        id: 'overdue_payments',
+        severity: 'high',
+        title: '2 Overdue Payments',
+        action: 'Call customers today',
       },
       {
-        type: 'low_stock_alerts',
-        count: 3,
-        severity: 'warning',
+        id: 'low_stock',
+        severity: 'medium',
+        title: '3 Items stock finishes soon',
+        action: 'Reorder now',
       },
       {
-        type: 'pending_approvals',
-        count: 5,
-        severity: 'info',
+        id: 'pending_approvals',
+        severity: 'low',
+        title: '5 Approvals pending',
+        action: 'Review',
       },
     ];
   }
