@@ -75,8 +75,8 @@ describe('AuthService.login lockout flow', () => {
       failedLoginCount: 0,
       lockedUntil: null,
       role: { name: 'ADMIN', permissions: [] },
-      shop: null,
-      shopId: null,
+      shop: { id: 'shop1', companyId: 'company1' },
+      shopId: 'shop1',
       ...overrides,
     };
   }

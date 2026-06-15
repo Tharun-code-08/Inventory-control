@@ -1,160 +1,152 @@
 # Phase 2: Operational Confidence
 
-After Phase 1 proved the architecture works via unit tests, Phase 2 proves the **system works operationally** — that real HTTP requests flow through the system, hit the database, and produce the expected audit trail.
-
-## What Phase 2 Validates
-
-```
-Real HTTP Request
-       ↓
-     JWT Auth
-       ↓
-   Business Logic
-       ↓
-     Database Write
-       ↓
-   Audit Record
-       ↓
-    PM2 Log Entry
-```
-
-Phase 1 proved each piece works in isolation.
-Phase 2 proves they work together.
+**The shift from "Can I build this?" to "Can I operate this?"**
 
 ---
 
-## Item 1: Live E2E Curl Script ⭐⭐⭐
+## The Philosophy
 
-**Highest ROI item.** One command proves everything works end-to-end.
+At Phase 1, you proved the code works via tests.
 
-### Location
-```
-scripts/e2e-audit-journey.sh    (Bash)
-scripts/e2e-audit-journey.ps1   (PowerShell)
-```
-
-### The Journey
-
-The script walks through an entire business flow:
+At Phase 2, you prove the **system** works by running it.
 
 ```
-1. Login                    → Verify JWT works, requestId captured
-2. Resolve Shop/Location    → Verify API structure
-3. Create Product           → CREATE_PRODUCT audit written
-4. Create & Post GR         → RECEIVE_GOODS audit written, before+delta=after
-5. Update Product Price     → UPDATE_PRODUCT audit written (oldValues/newValues)
-6. Create & Approve GR      → APPROVE audit written
-7. GET /audit               → Verify 5+ records exist
-8. Export Audit             → Verify export endpoint works
-9. Verify RequestId         → Trace requestId through system
+Bad thinking:
+  "Let me automate testing so I catch regressions"
+  
+Better thinking:
+  "First, prove it works. Then automate the proof."
+```
+
+If your Live E2E journey fails, a CI pipeline just automates the failure.
+
+**This is why Phase 2 starts with Live E2E, not CI.**
+
+---
+
+## Phase 2 Priority Order
+
+```
+1. Live E2E Journey        ⭐⭐⭐⭐⭐  (Highest ROI)
+2. CI Pipeline             ⭐⭐⭐⭐
+3. Health Endpoints        ⭐⭐⭐
+4. Database Backups        ⭐⭐⭐
+5. Rate Limiting           ⭐⭐
+```
+
+**Each item builds on the previous.**
+
+---
+
+## Item 1: Live E2E Journey ⭐⭐⭐⭐⭐
+
+**Do this first. Everything else depends on it.**
+
+One command proves the entire system works.
+
+### What It Does
+
+Walks through a complete business journey:
+
+```
+Login
+  ↓
+Create Product (CREATE_PRODUCT audit written)
+  ↓
+Receive Goods (RECEIVE_GOODS audit: before + delta = after)
+  ↓
+Update Product Price (UPDATE_PRODUCT audit: oldValues/newValues)
+  ↓
+Approve GR (APPROVE audit written)
+  ↓
+Query all 5 audit records
+  ↓
+Verify requestId flows through entire system
 ```
 
 ### How to Run
 
-**Before you start:**
-- Start the dev server: `npm run dev` (or have it running on your server)
-- Ensure database is seeded: `npx prisma db seed`
-
-**Option A: Local development (Linux/Mac)**
+**Prerequisites:**
 ```bash
-cd retail-ims
+npm run dev          # Start dev server in another terminal
+npx prisma db seed  # Seed database
+```
+
+**Run the journey:**
+```bash
+# Linux/Mac
 ./scripts/e2e-audit-journey.sh
-```
 
-**Option B: Local development (Windows)**
-```powershell
-cd retail-ims
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+# Windows
 .\scripts\e2e-audit-journey.ps1
-```
 
-**Option C: Against remote server**
-```bash
+# Against remote server
 ./scripts/e2e-audit-journey.sh https://api.example.com admin@example.com password
 ```
 
 ### What Success Looks Like
 
 ```
-═══════════════════════════════════════
-Phase 2: Live E2E Audit Journey
-═══════════════════════════════════════
+══════════════════════════════════════════
+ERP AUDIT JOURNEY
+══════════════════════════════════════════
 
-→ Step 1: LOGIN
-✓ LOGIN successful (user: abc123)
+✓ LOGIN
+✓ CREATE_PRODUCT
+✓ RECEIVE_GOODS
+✓ UPDATE_PRODUCT
+✓ APPROVE
 
-→ Step 2: Resolving company and shop...
-✓ Company ID: company-1
-✓ Shop ID: shop-1
+✓ GET /audit returned 5 records
 
-→ Step 3: Resolving storage location...
-✓ Storage Location ID: loc-1
+✓ requestId found in:
+    ✓ HTTP Response
+    ✓ audit_logs database
+    (Note: PM2 logs require manual verification on VPS)
 
-→ Step 4: CREATE PRODUCT
-✓ CREATE_PRODUCT: product-123
+══════════════════════════════════════════
+REPORT
+══════════════════════════════════════════
 
-→ Step 5: RECEIVE GOODS
-✓ GR Draft created: gr-456
-→ Posting goods receipt...
-✓ RECEIVE_GOODS: GR posted
+✓ LOGIN
+✓ CREATE_PRODUCT
+✓ RECEIVE_GOODS
+✓ UPDATE_PRODUCT
+✓ APPROVE
+✓ GET /audit returned 5 records
+✓ requestId found in:
+    ✓ HTTP Response
+    ✓ audit_logs database
 
-→ Step 6: UPDATE PRODUCT PRICE
-✓ UPDATE_PRODUCT: price 150 → 200
-
-→ Step 7: APPROVE GOODS RECEIPT
-✓ Approval request created: approval-789
-✓ APPROVE: GR approved
-
-→ Step 8: GET /AUDIT
-Audit records for this user:
-  LOGIN: 1
-  CREATE_PRODUCT: 1
-  RECEIVE_GOODS: 1
-  UPDATE_PRODUCT: 1
-  APPROVE: 1
-✓ All expected audit records present
-
-→ Step 9: EXPORT AUDIT
-✓ EXPORT AUDIT: 5 records exported
-
-→ Step 10: VERIFY REQUEST ID PROPAGATION
-✓ RequestId propagated through audit system
-
-═══════════════════════════════════════
-✓ E2E Journey Complete
-═══════════════════════════════════════
-
-Proof of System Health:
-  Login works ✓
-  Create Product works ✓
-  Receive Goods works ✓
-  Update Product works ✓
-  Approve GR works ✓
-  Audit records persisted ✓
-  RequestId propagated ✓
-
-System Status: OPERATIONAL
+SYSTEM STATUS: OPERATIONAL
+══════════════════════════════════════════
 ```
 
-### What Happens If It Fails
+### What It Proves
 
-Each step logs clearly. If a step fails, the script stops with the error.
+- ✅ Real HTTP requests work
+- ✅ JWT authentication works
+- ✅ Business logic executes correctly
+- ✅ Audit records persist to database
+- ✅ RequestId propagates end-to-end
+- ✅ All 5 audit domains integrate
 
-**Common failures:**
+### Run On
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Server not responding` | Dev server not running | `npm run dev` |
-| `Login failed` | Invalid credentials | Check .env SEED_ADMIN_EMAIL/PASSWORD |
-| `No company found` | Database not seeded | `npx prisma db seed` |
-| `Missing audit records` | Audit logging not wired | Check approval.service.ts has audit.log() calls |
-| `RequestId not found` | Middleware not capturing header | Check request-context.middleware.ts |
+- [ ] Local machine
+- [ ] VPS (final proof)
+
+**When both pass, Phase 2 Item 1 is complete.**
 
 ---
 
-## Item 2: CI Pipeline ⭐⭐⭐
+## Item 2: CI Pipeline ⭐⭐⭐⭐
 
-**Every commit must pass:**
+**Now that you know it works, prevent breaking it.**
+
+### What It Does
+
+Every push runs:
 ```bash
 npm run build
 npx tsc --noEmit
@@ -162,48 +154,42 @@ npx jest
 npm run lint
 ```
 
-### How to Set Up
+If any fails → merge blocked.
 
-**GitHub Actions (if you use GitHub):**
+### GitHub Actions
 
 Create `.github/workflows/ci.yml`:
 
 ```yaml
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: retail_ims_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: 22
+
       - run: npm ci
-      - run: npx prisma migrate deploy
+
       - run: npm run build
+
       - run: npx tsc --noEmit
+
       - run: npx jest
+
       - run: npm run lint
 ```
 
-**Local Pre-commit Hook:**
+### Local Pre-Commit Hook
 
 Create `.git/hooks/pre-commit`:
 
@@ -214,35 +200,52 @@ if [ $? -ne 0 ]; then
   echo "Pre-commit checks failed"
   exit 1
 fi
+chmod +x .git/hooks/pre-commit
 ```
 
 ### Success Criteria
 
 ```
-✓ npm run build — no errors, output in dist/
+✓ npm run build — no errors, dist/ produced
 ✓ npx tsc --noEmit — 0 TypeScript errors
-✓ npx jest — all suites passing
-✓ npm run lint — no linting violations
+✓ npx jest — all suites passing (310 tests)
+✓ npm run lint — no violations
 ```
 
 ---
 
-## Item 3: Health Endpoints ⭐⭐
+## Item 3: Health Endpoints ⭐⭐⭐
 
-Three health check endpoints:
+**Know what's wrong when it breaks.**
+
+Three endpoints:
 
 ### GET /health
-Returns 200 if server is running.
 ```bash
 curl http://localhost:3000/health
 ```
 Response:
 ```json
-{ "status": "ok" }
+{
+  "status": "ok",
+  "uptime": 12543,
+  "memoryMB": 182
+}
+```
+
+### GET /health/live
+```bash
+curl http://localhost:3000/health/live
+```
+Response:
+```json
+{
+  "status": "alive",
+  "uptime": 3600
+}
 ```
 
 ### GET /health/ready
-Returns 200 if database is connected and ready to serve requests.
 ```bash
 curl http://localhost:3000/health/ready
 ```
@@ -252,20 +255,17 @@ Response:
   "status": "ready",
   "database": "connected",
   "checks": {
-    "postgres": "ok",
-    "memory_usage": "45%"
+    "postgres": "ok"
   }
 }
 ```
 
-### GET /health/live
-Returns 200 if server is alive (used by Kubernetes liveness probes).
-```bash
-curl http://localhost:3000/health/live
-```
-Response:
+If database dies:
 ```json
-{ "status": "alive", "uptime": 3600 }
+{
+  "status": "not_ready",
+  "database": "disconnected"
+}
 ```
 
 ### Implementation
@@ -273,42 +273,33 @@ Response:
 File: `src/common/health/health.controller.ts`
 
 ```typescript
-import { Controller, Get, Injectable } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 
 @Controller('health')
-@Injectable()
 export class HealthController {
   constructor(private prisma: PrismaService) {}
 
   @Get()
-  health() {
-    return { status: 'ok' };
+  async health() {
+    const uptime = Math.floor(process.uptime());
+    const memory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    return { status: 'ok', uptime, memoryMB: memory };
+  }
+
+  @Get('live')
+  live() {
+    return { status: 'alive', uptime: Math.floor(process.uptime()) };
   }
 
   @Get('ready')
   async ready() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return {
-        status: 'ready',
-        database: 'connected',
-        checks: { postgres: 'ok', memory_usage: this.getMemoryUsage() },
-      };
+      return { status: 'ready', database: 'connected', checks: { postgres: 'ok' } };
     } catch {
       return { status: 'not_ready', database: 'disconnected' };
     }
-  }
-
-  @Get('live')
-  live() {
-    return { status: 'alive', uptime: process.uptime() };
-  }
-
-  private getMemoryUsage() {
-    const used = process.memoryUsage();
-    const percent = Math.round((used.heapUsed / used.heapTotal) * 100);
-    return `${percent}%`;
   }
 }
 ```
@@ -325,11 +316,11 @@ export class AppModule {}
 
 ---
 
-## Item 4: Backups ⭐⭐
+## Item 4: Database Backups ⭐⭐⭐
 
-Daily snapshots of the PostgreSQL database.
+**You can recover from disaster.**
 
-### Script: `scripts/backup-database.sh`
+### Script: `scripts/backup-db.sh`
 
 ```bash
 #!/bin/bash
@@ -337,40 +328,37 @@ Daily snapshots of the PostgreSQL database.
 DATABASE_URL="${DATABASE_URL:-postgresql://...}"
 BACKUP_DIR="./backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="$BACKUP_DIR/retail_ims_$TIMESTAMP.dump"
+BACKUP_FILE="$BACKUP_DIR/retail_ims_$TIMESTAMP.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
 # Create backup
-pg_dump "$DATABASE_URL" -Fc -v -f "$BACKUP_FILE"
-
-# Compress
-gzip "$BACKUP_FILE"
+pg_dump "$DATABASE_URL" | gzip > "$BACKUP_FILE"
 
 # Keep only last 7 days
-find "$BACKUP_DIR" -name "*.dump.gz" -mtime +7 -delete
+find "$BACKUP_DIR" -name "*.sql.gz" -mtime +7 -delete
 
-echo "Backup completed: $BACKUP_FILE.gz"
+echo "Backup: $BACKUP_FILE"
 ```
 
-### Cron Job (Linux/Mac)
+### Cron Job (Daily at 2 AM)
 
 ```bash
-# Daily at 2 AM
-0 2 * * * cd /path/to/retail-ims && ./scripts/backup-database.sh
+0 2 * * * cd /path/to/retail-ims && ./scripts/backup-db.sh
 ```
 
 ### Verify Restore Works
 
-Once:
+**Important:** A backup is not real until you've restored it.
+
 ```bash
-# Create a test database
+# Create test database
 createdb retail_ims_test
 
 # Restore from backup
-pg_restore -d retail_ims_test ./backups/retail_ims_20260613_000000.dump.gz
+gunzip < ./backups/retail_ims_20260613_000000.sql.gz | psql retail_ims_test
 
-# Verify data exists
+# Verify data
 psql -d retail_ims_test -c "SELECT COUNT(*) FROM audit_logs;"
 
 # Clean up
@@ -379,23 +367,24 @@ dropdb retail_ims_test
 
 ---
 
-## Item 5: Rate Limiting ⭐
+## Item 5: Rate Limiting ⭐⭐
 
-Protect against brute force and abuse.
+**Protect against abuse.**
 
 ### High-Risk Endpoints
 
-- POST /api/v1/auth/login (5 attempts per 15 min per IP)
-- GET /api/v1/audit/export (100 per hour per user)
-- POST /api/v1/auth/register (1 per hour per email)
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| POST /auth/login | 5 attempts | 15 minutes |
+| GET /audit/export | 100 requests | 1 hour |
+| POST /auth/register | 1 request | 1 hour |
 
 ### Implementation
 
 File: `src/common/guards/rate-limit.guard.ts`
 
 ```typescript
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, BadRequestException, CanActivate, ExecutionContext } from '@nestjs/common';
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -436,63 +425,43 @@ async login(@Body() dto: LoginDto) {
 
 ## Phase 2 Completion Checklist
 
-- [ ] Live E2E script runs successfully
-- [ ] All 5 audit records appear in GET /audit
-- [ ] RequestId flows through entire system
-- [ ] CI pipeline blocks bad merges
+- [ ] Live E2E script passes on local machine
+- [ ] Live E2E script passes on VPS
+- [ ] CI pipeline blocks bad commits
 - [ ] Health endpoints return correct status
-- [ ] Database backup script works
+- [ ] Health endpoints integrated into monitoring
+- [ ] Database backup script runs daily
 - [ ] Restore from backup verified
-- [ ] Rate limiting protects auth endpoints
+- [ ] Rate limiting protects /login endpoint
 
 ---
 
 ## When Phase 2 is Complete
 
 ```
-Build              ✅
-Types              ✅
-Tests              ✅
-Live E2E           ✅
-
-Operational Confidence
-
-██████████
+Core Confidence         ██████████
+Operational Confidence  ██████████
+Growth Features         ░░░░░░░░░░
+Enterprise              ░░░░░░░░░░
 ```
 
-At this point, you can:
-1. Deploy with confidence
-2. Debug issues via health endpoints
-3. Recover from disaster via backups
-4. Protect against abuse via rate limiting
-5. Prove the system works via E2E script
-
-This is when you move to Phase 3: Growth.
+At this point you can:
+1. Deploy with confidence (Live E2E proves it works)
+2. Know immediately when something breaks (CI pipeline)
+3. Know what's wrong when it breaks (health endpoints)
+4. Recover from disaster (backups)
+5. Protect against abuse (rate limiting)
 
 ---
 
-## Running Phase 2 Validation
+## The Right Order Matters
 
-**One-time setup:**
-```bash
-chmod +x scripts/e2e-audit-journey.sh
-chmod +x scripts/backup-database.sh
-npm run dev  # Start server in another terminal
+```
+❌ Bad Order:
+   CI Pipeline → Build Fails → Wastes Everyone's Time
+
+✅ Right Order:
+   Live E2E Passes → CI Enforces It → Stays Passing
 ```
 
-**Daily validation:**
-```bash
-# Run the E2E journey
-./scripts/e2e-audit-journey.sh
-
-# Verify health endpoints
-curl http://localhost:3000/health/ready | jq .
-
-# Test backup
-./scripts/backup-database.sh
-```
-
-**Continuous validation:**
-- Every push: CI pipeline runs automatically
-- Every hour: Backups run via cron
-- Every request to /login: Rate limiting applies
+**Start with Live E2E. It's the proof. Everything else protects it.**

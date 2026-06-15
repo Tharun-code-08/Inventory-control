@@ -101,6 +101,9 @@ async function getLoginAttemptRecord(
 }
 
 function getAttemptKey(companyCode: string, email: string): string {
-  // Hash to avoid storing plain text in secure store key
-  return `${FAILED_ATTEMPT_KEY}:${companyCode}:${email}`;
+  // SecureStore keys may only contain alphanumeric characters plus ".", "-",
+  // and "_". Company codes and emails contain "@", ".", and other characters,
+  // so sanitize every dynamic segment to a safe form before composing the key.
+  const safe = (value: string) => value.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+  return `${FAILED_ATTEMPT_KEY}_${safe(companyCode)}_${safe(email)}`;
 }
