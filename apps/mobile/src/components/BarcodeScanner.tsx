@@ -22,14 +22,24 @@ type Props = {
   title?: string;
   /** Keep the scanner open after a successful scan (for scanning many items in a row). */
   continuous?: boolean;
+  /** Inline status message shown inside the scanner overlay after a scan. */
+  statusMessage?: string | null;
+  /** Tone for the status message. */
+  statusTone?: 'success' | 'error' | 'info';
 };
 
-export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barcode', continuous = false }: Props) {
+export function BarcodeScanner({
+  visible,
+  onClose,
+  onScanned,
+  title = 'Scan barcode',
+  continuous = false,
+  statusMessage,
+  statusTone = 'info',
+}: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [lastCode, setLastCode] = useState<string | null>(null);
-  // Refs (not state) for the lock and cooldown map: the camera callback fires
-  // on every frame and must see current values, not a stale closure.
   const lockedRef = useRef(false);
   const recentScans = useRef(new Map<string, number>());
 
@@ -51,8 +61,6 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
   const handleScan = async ({ data }: { data: string }) => {
     if (!data || lockedRef.current) return;
 
-    // Per-code cooldown: the same barcode is ignored for a while even after
-    // the lock releases, so holding the camera on one label adds it once.
     const now = Date.now();
     const lastSeen = recentScans.current.get(data);
     if (lastSeen !== undefined && now - lastSeen < PER_CODE_COOLDOWN_MS) return;
@@ -69,12 +77,18 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
       }
     } finally {
       setProcessing(false);
-      // Short tail before accepting the next (different) code.
       setTimeout(() => {
         lockedRef.current = false;
       }, SCAN_LOCK_TAIL_MS);
     }
   };
+
+  const statusBg =
+    statusTone === 'success'
+      ? 'rgba(22,163,74,0.85)'
+      : statusTone === 'error'
+        ? 'rgba(220,38,38,0.85)'
+        : 'rgba(0,0,0,0.65)';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -90,25 +104,37 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
           <CameraView
             style={styles.camera}
             facing="back"
+            active={visible}
             barcodeScannerSettings={{
-              barcodeTypes: ['code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'itf14'],
+              barcodeTypes: ['code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'itf14', 'pdf417', 'datamatrix', 'aztec'],
             }}
             onBarcodeScanned={handleScan}
           >
             <View style={styles.overlay}>
               <View style={[styles.frame, processing && styles.frameBusy]} />
+
               {processing ? (
                 <View style={styles.statusRow}>
                   <ActivityIndicator color="#fff" size="small" />
                   <Text style={styles.hint}>Processing…</Text>
                 </View>
+              ) : statusMessage ? (
+                <View style={[styles.inlineStatus, { backgroundColor: statusBg }]}>
+                  <Ionicons
+                    name={statusTone === 'success' ? 'checkmark-circle' : statusTone === 'error' ? 'alert-circle' : 'information-circle'}
+                    size={18}
+                    color="#fff"
+                  />
+                  <Text style={styles.inlineStatusText}>{statusMessage}</Text>
+                </View>
               ) : (
-                <Text style={styles.hint}>Point the camera at a barcode</Text>
+                <Text style={styles.hint}>Point the camera at a barcode or QR code</Text>
               )}
-              {continuous && lastCode && !processing ? (
+
+              {continuous && lastCode && !processing && !statusMessage ? (
                 <View style={styles.lastScan}>
                   <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                  <Text style={styles.lastScanText}>{lastCode}</Text>
+                  <Text style={styles.lastScanText} numberOfLines={1}>{lastCode}</Text>
                 </View>
               ) : null}
             </View>
@@ -127,11 +153,11 @@ export function BarcodeScanner({ visible, onClose, onScanned, title = 'Scan barc
           </View>
         )}
 
-        {continuous ? (
-          <View style={styles.footer}>
+        <View style={styles.footer}>
+          {continuous ? (
             <Button label="Done scanning" onPress={onClose} />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
       </View>
     </Modal>
   );
@@ -156,7 +182,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   frame: {
     width: 260,
-    height: 160,
+    height: 260,
     borderWidth: 2,
     borderColor: '#fff',
     borderRadius: 12,
@@ -169,7 +195,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-  hint: { color: '#fff', marginTop: spacing.md, fontSize: typography.size.md },
+  hint: { color: '#fff', marginTop: spacing.md, fontSize: typography.size.md, textAlign: 'center', paddingHorizontal: spacing.xl },
+  inlineStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: 10,
+    maxWidth: 300,
+  },
+  inlineStatusText: { color: '#fff', fontSize: typography.size.md, flex: 1, flexWrap: 'wrap' },
   lastScan: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -179,8 +216,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 8,
+    maxWidth: 280,
   },
-  lastScanText: { color: '#fff', fontSize: typography.size.sm },
+  lastScanText: { color: '#fff', fontSize: typography.size.sm, flex: 1 },
   permission: {
     flex: 1,
     alignItems: 'center',
@@ -189,5 +227,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   permissionText: { color: '#fff', textAlign: 'center', fontSize: typography.size.md },
-  footer: { padding: spacing.base },
+  footer: { padding: spacing.base, minHeight: 72, justifyContent: 'center' },
 });

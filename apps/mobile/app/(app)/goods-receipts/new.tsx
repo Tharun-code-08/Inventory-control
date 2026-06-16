@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +48,8 @@ export default function NewGoodsReceiptScreen() {
   const [productSearch, setProductSearch] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scannerStatus, setScannerStatus] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null);
+  const scannerStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
 
@@ -157,6 +159,12 @@ export default function NewGoodsReceiptScreen() {
     setProductSearch('');
   }
 
+  function flashScannerStatus(message: string, tone: 'success' | 'error' | 'info') {
+    if (scannerStatusTimer.current) clearTimeout(scannerStatusTimer.current);
+    setScannerStatus({ message, tone });
+    scannerStatusTimer.current = setTimeout(() => setScannerStatus(null), 2500);
+  }
+
   async function handleScanned(code: string) {
     try {
       const result = await lookupBarcode(code, shopId || undefined);
@@ -165,9 +173,8 @@ export default function NewGoodsReceiptScreen() {
       if (result.duplicate) return;
       if (!result.found) {
         if (po) {
-          // Creating/linking products mid-receipt doesn't help against a PO —
-          // the product still wouldn't be on the order.
-          setScanError(`No product matches "${result.barcode}" on this purchase order.`);
+          // Show the error inside the scanner so it's visible while it stays open.
+          flashScannerStatus(`Not on PO: "${result.barcode}"`, 'error');
           return;
         }
         // Hand off to the recovery sheet: create or link, then add the line.
@@ -177,7 +184,10 @@ export default function NewGoodsReceiptScreen() {
         return;
       }
       addLine(result.product);
+      flashScannerStatus(`✓ ${result.product.productCode} added`, 'success');
     } catch (e) {
+      // Close scanner so error is visible in the form.
+      setScannerOpen(false);
       setScanError(getApiErrorMessage(e, 'Could not look up the scanned barcode.'));
     }
   }
@@ -375,6 +385,7 @@ export default function NewGoodsReceiptScreen() {
                   return;
                 }
                 setScanError(null);
+                setScannerStatus(null);
                 setScannerOpen(true);
               }}
             />
@@ -420,6 +431,8 @@ export default function NewGoodsReceiptScreen() {
           visible={scannerOpen}
           continuous
           title="Scan items to receive"
+          statusMessage={scannerStatus?.message}
+          statusTone={scannerStatus?.tone}
           onClose={() => setScannerOpen(false)}
           onScanned={async (code) => {
             await handleScanned(code);

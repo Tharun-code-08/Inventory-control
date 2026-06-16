@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, Pressable, Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { PermissionGate } from '@/components/PermissionGate';
@@ -33,6 +33,8 @@ export default function NewGoodsIssueScreen() {
   const [productSearch, setProductSearch] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scannerStatus, setScannerStatus] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null);
+  const scannerStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [unknownBarcodePolicy, setUnknownBarcodePolicy] = useState<'AUTO_CREATE' | 'ASK' | 'REJECT' | null>(null);
 
@@ -69,6 +71,12 @@ export default function NewGoodsIssueScreen() {
     setProductSearch('');
   }
 
+  function flashScannerStatus(message: string, tone: 'success' | 'error' | 'info') {
+    if (scannerStatusTimer.current) clearTimeout(scannerStatusTimer.current);
+    setScannerStatus({ message, tone });
+    scannerStatusTimer.current = setTimeout(() => setScannerStatus(null), 2500);
+  }
+
   async function handleScanned(code: string) {
     try {
       const result = await lookupBarcode(code, shopId || undefined);
@@ -80,9 +88,11 @@ export default function NewGoodsIssueScreen() {
         setUnknownBarcodePolicy(result.policy ?? 'ASK');
         return;
       }
-      setScanError(null);
       addLine(result.product);
+      flashScannerStatus(`✓ ${result.product.productCode} added`, 'success');
     } catch (e) {
+      // Close scanner so the error is visible in the form.
+      setScannerOpen(false);
       setScanError(getApiErrorMessage(e, 'Could not look up the scanned barcode.'));
     }
   }
@@ -181,6 +191,7 @@ export default function NewGoodsIssueScreen() {
                 return;
               }
               setScanError(null);
+              setScannerStatus(null);
               setScannerOpen(true);
             }}
           />
@@ -216,6 +227,8 @@ export default function NewGoodsIssueScreen() {
           visible={scannerOpen}
           continuous
           title="Scan items to issue"
+          statusMessage={scannerStatus?.message}
+          statusTone={scannerStatus?.tone}
           onClose={() => setScannerOpen(false)}
           onScanned={async (code) => {
             await handleScanned(code);
