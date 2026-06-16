@@ -4,6 +4,7 @@ import type { ExpoConfig } from 'expo/config';
 const config = {
   name: 'SoftdigitIMS',
   slug: 'retail-ims-mobile',
+  owner: 'tharuncode',
   version: '0.0.1',
   orientation: 'portrait',
   scheme: 'retailims',
@@ -42,6 +43,9 @@ const config = {
   },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000',
+    eas: {
+      projectId: '4b48c460-018d-41ec-bd1b-29e0a752bbff',
+    },
   },
 };
 
