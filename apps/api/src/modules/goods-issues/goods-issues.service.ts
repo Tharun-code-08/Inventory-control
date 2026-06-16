@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AlertType, AuditAction, DocumentStatus, NotificationModule, NotificationPriority, Prisma, RoleName, TransactionType } from '@prisma/client';
+import { NotificationService } from '../notifications/services/notification.service';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -29,6 +30,7 @@ export class GoodsIssuesService {
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
     private readonly inventoryLots: InventoryLotService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private serializeListRow(row: GoodsIssueListRow) {
@@ -232,9 +234,19 @@ export class GoodsIssuesService {
     if (header.status === DocumentStatus.POSTED) throw new DocumentAlreadyPostedException();
     assertNotFuture(header.giDate);
 
-    return this.prisma.$transaction(async (tx) => {
+    const { posted, beforeStock } = await this.prisma.$transaction(async (tx) => {
       const fresh = await tx.goodsIssueHeader.findUnique({ where: { id }, include: { items: true } });
       if (!fresh || fresh.status !== DocumentStatus.DRAFT) throw new DocumentAlreadyPostedException();
+
+      // Capture stock before issuing so we can detect a low-stock *crossing*
+      // (above the threshold before, at/below after) and avoid re-notifying.
+      const beforeStock = new Map<string, number>();
+      for (const line of fresh.items) {
+        const summary = await tx.stockSummary.findUnique({
+          where: { shopId_productId: { shopId: fresh.shopId, productId: line.productId } },
+        });
+        beforeStock.set(line.productId, Number(summary?.currentStock ?? 0));
+      }
 
       const failures: { productId: string; productCode: string; available: string; requested: string }[] = [];
       for (const line of fresh.items) {
@@ -302,8 +314,54 @@ export class GoodsIssuesService {
         },
         tx,
       );
-      return posted;
+      return { posted, beforeStock };
     });
+
+    // Post-commit, best-effort: notify the team when an issue pushes a product
+    // at/below its per-plant minimum (only on the crossing, not repeatedly).
+    const companyId = posted.shop?.companyId;
+    if (companyId) {
+      for (const line of posted.items) {
+        try {
+          const [plant, summary] = await Promise.all([
+            this.prisma.productPlant.findUnique({
+              where: { productId_shopId: { productId: line.productId, shopId: posted.shopId } },
+              select: { minStockLevel: true },
+            }),
+            this.prisma.stockSummary.findUnique({
+              where: { shopId_productId: { shopId: posted.shopId, productId: line.productId } },
+              select: { currentStock: true },
+            }),
+          ]);
+          const min = Number(plant?.minStockLevel ?? 0);
+          if (min <= 0) continue;
+          const before = beforeStock.get(line.productId) ?? 0;
+          const after = Number(summary?.currentStock ?? 0);
+          if (before > min && after <= min) {
+            const critical = after <= 0;
+            await this.notifications.notifyRoles(
+              [RoleName.INVENTORY_MANAGER, RoleName.PURCHASE_MANAGER, RoleName.OWNER, RoleName.ADMIN],
+              {
+                title: critical ? 'Critical Stock Alert' : 'Low Stock Alert',
+                message: `${line.product.description} is ${critical ? 'out of stock' : 'below minimum stock level'}`,
+                type: critical ? AlertType.CRITICAL_STOCK : AlertType.LOW_STOCK,
+                module: NotificationModule.INVENTORY,
+                priority: critical ? NotificationPriority.CRITICAL : NotificationPriority.HIGH,
+                referenceType: 'product',
+                referenceId: line.productId,
+                deepLink: `/products/${line.productId}`,
+              },
+              companyId,
+              user.id,
+            );
+          }
+        } catch {
+          // Never let a notification failure roll back a posted issue.
+        }
+      }
+    }
+
+    return posted;
   }
 
   async print(user: RequestUser, id: string) {

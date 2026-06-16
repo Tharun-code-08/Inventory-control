@@ -47,7 +47,7 @@ export function notificationVisual(type: string, priority?: string): Notificatio
   }
 
   // Fall back to priority colouring.
-  if ((priority || '').toUpperCase() === 'URGENT') {
+  if ((priority || '').toUpperCase() === 'CRITICAL') {
     return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600' };
   }
   return { Icon: Bell, badgeClass: 'bg-slate-200 text-slate-600' };

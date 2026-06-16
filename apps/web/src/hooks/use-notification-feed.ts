@@ -9,7 +9,7 @@ import { api } from '@/api/client';
  * page: the actual messages a user receives.
  */
 
-export type NotificationPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type NotificationPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL';
 
 export type FeedNotification = {
   id: string;
