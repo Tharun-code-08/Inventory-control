@@ -17,6 +17,7 @@ import {
   Bell,
   Package,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Barcode,
@@ -34,6 +35,15 @@ import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
 import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 import { BrandLogo } from '@/components/BrandLogo';
+import { usePendingApprovalCount } from '@/hooks/use-approvals';
+import { preloadRoute, preloadCommonRoutesWhenIdle } from '@/lib/route-preload';
+
+type NavItem = {
+  label: string;
+  icon: typeof LayoutDashboard;
+  path: string;
+  badge?: number;
+};
 
 type SidebarProps = {
   collapsed: boolean;
@@ -66,7 +76,7 @@ function sectionFor(path: string) {
   ) {
     return 'Procurement';
   }
-  if (['/quotations', '/sales', '/goods-issues', '/invoices', '/payments'].includes(path)) return 'Sales & Finance';
+  if (['/quotations', '/sales', '/goods-issues', '/invoices', '/eway-bills', '/payments'].includes(path)) return 'Sales & Finance';
   return 'Operations';
 }
 
@@ -95,10 +105,11 @@ export function Sidebar({
   const isOrgAdmin = isOrgAdminUser(user);
   const isPlatformAdmin = isPlatformAdminUser(user);
   const perms = user?.permissions ?? EMPTY_PERMISSIONS;
+  const pendingApprovals = usePendingApprovalCount(Boolean(user)).data ?? 0;
   const navItems = useMemo(() => {
     const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
 
-    return [
+    const items: NavItem[] = [
       ...(isOrgAdmin ? [{ label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }] : []),
 
       // Master Data
@@ -124,6 +135,7 @@ export function Sidebar({
       ...(has('shop:read') ? [{ label: 'Sales', icon: ShoppingCart, path: '/sales' }] : []),
       ...(has('goods_issue:read') ? [{ label: 'Goods Issue', icon: ArrowUpFromLine, path: '/goods-issues' }] : []),
       ...(has('shop:read') ? [{ label: 'Invoices', icon: FileText, path: '/invoices' }] : []),
+      ...(has('shop:read') ? [{ label: 'E-Way Bills', icon: Truck, path: '/eway-bills' }] : []),
       ...(has('shop:read') ? [{ label: 'Payments', icon: FileCheck, path: '/payments' }] : []),
 
       // Warehouse + Admin
@@ -133,6 +145,9 @@ export function Sidebar({
       ...(has('report:view') ? [{ label: 'Warehouse', icon: Warehouse, path: '/warehouse' }] : []),
       ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
       ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
+      ...(has('shop:read')
+        ? [{ label: 'Approvals', icon: ShieldCheck, path: '/approvals', badge: pendingApprovals }]
+        : []),
       ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
       ...(isPlatformAdmin
         ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }]
@@ -140,7 +155,8 @@ export function Sidebar({
       { label: 'Print Labels', icon: Barcode, path: '/barcode-print' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ];
-  }, [perms, isOrgAdmin, isPlatformAdmin]);
+    return items;
+  }, [perms, isOrgAdmin, isPlatformAdmin, pendingApprovals]);
 
   useEffect(() => {
     function close(e: MouseEvent) {
@@ -158,6 +174,11 @@ export function Sidebar({
       setDropdownOpen(false);
     }
   }, [mobileOpen]);
+
+  // Warm the most-used route chunks once the app is idle so navigation is instant.
+  useEffect(() => {
+    preloadCommonRoutesWhenIdle();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -346,6 +367,8 @@ export function Sidebar({
                 <button
                   type="button"
                   data-nav-active={itemActive ? 'true' : undefined}
+                  onMouseEnter={() => preloadRoute(item.path)}
+                  onFocus={() => preloadRoute(item.path)}
                   onClick={() => {
                     const navEl = navScrollRef.current;
                     if (navEl) {
@@ -368,6 +391,16 @@ export function Sidebar({
                     )}
                   />
                   {showLabels && <span className="font-medium">{item.label}</span>}
+                  {item.badge != null && item.badge > 0 && (
+                    <span
+                      className={cn(
+                        'ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold leading-none text-white',
+                        !showLabels && 'absolute right-1 top-1 ml-0',
+                      )}
+                    >
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </button>
               </div>
             );

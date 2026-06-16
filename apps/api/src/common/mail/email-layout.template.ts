@@ -1,16 +1,25 @@
-﻿export type BusinessEmailLayoutContent = {
+export type BusinessEmailLayoutContent = {
   title: string;
   subtitle?: string;
   bodyHtml: string;
   brandLabel?: string;
   maxWidthPx?: number;
+  /** Support address shown in the footer. Defaults to the office mailbox. */
+  supportEmail?: string;
+  /** Optional extra line in the footer (e.g. a legal/address line). */
+  footerNote?: string;
 };
+
+const DEFAULT_SUPPORT_EMAIL = 'office@softdigitconsulting.com';
 
 export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): string {
   const brand = escapeHtml(content.brandLabel ?? 'SoftdigitIMS');
   const title = escapeHtml(content.title);
   const subtitle = content.subtitle ? `<p style="margin:6px 0 0;font-size:14px;color:#c7d2fe;">${escapeHtml(content.subtitle)}</p>` : '';
   const maxWidthPx = Number.isFinite(content.maxWidthPx) ? Math.max(360, Math.floor(content.maxWidthPx as number)) : 520;
+  const supportEmail = escapeHtml(content.supportEmail ?? DEFAULT_SUPPORT_EMAIL);
+  const footerNote = content.footerNote ? `<p style="margin:0 0 6px;font-size:12px;color:#94a3b8;" class="email-muted">${escapeHtml(content.footerNote)}</p>` : '';
+  const year = new Date().getFullYear();
 
   return `<!DOCTYPE html>
 <html>
@@ -23,7 +32,9 @@ export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): stri
       .email-card { background: #1e293b !important; }
       .email-body-text { color: #cbd5e1 !important; }
       .email-muted { color: #94a3b8 !important; }
+      .email-footer { background: #0b1220 !important; border-color: #1e293b !important; }
     }
+    a.email-link { color: #4338ca; text-decoration: none; }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;" class="email-bg">
@@ -41,6 +52,20 @@ export function wrapBusinessEmailHtml(content: BusinessEmailLayoutContent): stri
           <tr>
             <td style="padding:24px 28px;" class="email-body-text">
               ${content.bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;" class="email-footer">
+              ${footerNote}
+              <p style="margin:0 0 6px;font-size:12px;color:#64748b;" class="email-muted">
+                Questions? Reach us at <a href="mailto:${supportEmail}" class="email-link" style="color:#4338ca;text-decoration:none;">${supportEmail}</a>.
+              </p>
+              <p style="margin:0 0 6px;font-size:11px;color:#94a3b8;" class="email-muted">
+                This is an automated message from your ${brand} workspace. Please do not reply directly to this email.
+              </p>
+              <p style="margin:0;font-size:11px;color:#94a3b8;" class="email-muted">
+                &copy; ${year} ${brand}. All rights reserved.
+              </p>
             </td>
           </tr>
         </table>

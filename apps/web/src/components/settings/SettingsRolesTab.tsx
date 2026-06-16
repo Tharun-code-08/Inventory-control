@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CheckCircle2 } from 'lucide-react';
 import { api } from '@/api/client';
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuthStore } from '@/store/authStore';
+import { refreshCurrentUser } from '@/lib/session';
 import { isOrgAdminUser } from '@/lib/roles';
 import { cn } from '@/lib/cn';
 import {
@@ -69,6 +70,7 @@ const matrixRoleLabels: Record<SystemRoleName, string> = {
 export function SettingsRolesTab() {
   const actor = useAuthStore((s) => s.user);
   const canEditPermissions = isOrgAdminUser(actor);
+  const queryClient = useQueryClient();
   const { data: roleRows = [] } = useQuery({
     queryKey: ['roles', 'permissions'],
     queryFn: async () => {
@@ -84,7 +86,19 @@ export function SettingsRolesTab() {
       const res = await api.patch(`/users/roles/${roleName}/permissions`, { permissions });
       return res.data.data;
     },
-    onSuccess: () => {
+    onSuccess: async (_data, variables) => {
+      // Sync: drop the local draft and re-read the saved permissions from the server.
+      setDraftByRole((prev) => {
+        const next = { ...prev };
+        delete next[variables.roleName];
+        return next;
+      });
+      await queryClient.invalidateQueries({ queryKey: ['roles', 'permissions'] });
+      // If the signed-in user's own role changed, refresh their session so the
+      // sidebar nav and feature gates update live (no re-login required).
+      if (actor?.role && variables.roleName === actor.role) {
+        await refreshCurrentUser();
+      }
       toast.success('Role permissions updated');
       setEditingRole(null);
     },

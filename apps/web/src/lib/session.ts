@@ -28,3 +28,21 @@ export async function initializeSessionFromAuthResponse(
 
   return currentUser;
 }
+
+/**
+ * Re-fetch the current user from `/auth/me` and update the auth store. Use after
+ * a change that affects the signed-in user's own permissions (e.g. editing their
+ * role) so the sidebar nav and feature gates refresh without a re-login.
+ */
+export async function refreshCurrentUser() {
+  try {
+    const meResponse = await api.get('/auth/me');
+    const currentUser = meResponse.data.data;
+    if (currentUser) {
+      useAuthStore.getState().setUser(currentUser);
+    }
+    return currentUser;
+  } catch {
+    return null;
+  }
+}

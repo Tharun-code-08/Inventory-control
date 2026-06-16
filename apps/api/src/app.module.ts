@@ -46,6 +46,7 @@ import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DeviceRegistrationModule } from './modules/device-registration/device-registration.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { EwayBillsModule } from './modules/eway-bills/eway-bills.module';
 import { QueuesModule } from './common/queues/queues.module';
 import { UploadModule } from './common/upload/upload.module';
 import { ObservabilityModule } from './common/observability/observability.module';
@@ -161,6 +162,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     NotificationsModule,
     DeviceRegistrationModule,
     ApprovalsModule,
+    EwayBillsModule,
     HealthModule,
     BackupModule,
     WarehouseModule,

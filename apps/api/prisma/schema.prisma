@@ -439,6 +439,7 @@ model Shop {
   documentSeriesConfigs DocumentSeriesConfig[]
   mediaAssets           MediaAsset[]
   lowStockAlerts        LowStockAlert[]
+  ewayBills             EwayBill[]
 
   @@map("shops")
 }
@@ -1739,6 +1740,25 @@ enum InvoiceStatus {
   VOID
 }
 
+enum EwayBillStatus {
+  DRAFT
+  GENERATED
+  CANCELLED
+  EXPIRED
+}
+
+enum EwaySupplyType {
+  OUTWARD
+  INWARD
+}
+
+enum EwayTransportMode {
+  ROAD
+  RAIL
+  AIR
+  SHIP
+}
+
 enum SupplierBillStatus {
   DRAFT
   ISSUED
@@ -1977,6 +1997,7 @@ model InvoiceHeader {
   payments        PaymentReceipt[]
   customerReturns CustomerReturn[]
   creditNotes     CreditNote[]
+  ewayBills       EwayBill[]
 
   @@index([shopId, invoiceDate])
   @@index([shopId, status, invoiceDate])
@@ -2012,6 +2033,73 @@ model PaymentReceipt {
   @@index([shopId, receiptDate])
   @@index([invoiceId])
   @@map("payment_receipts")
+}
+
+model EwayBill {
+  id              String            @id @default(uuid()) @db.Uuid
+  ewayBillNumber  String            @unique @map("eway_bill_number")
+  shopId          String            @map("shop_id") @db.Uuid
+  invoiceId       String?           @map("invoice_id") @db.Uuid
+  status          EwayBillStatus    @default(DRAFT)
+  supplyType      EwaySupplyType    @default(OUTWARD) @map("supply_type")
+
+  // Source document
+  documentType    String            @default("TAX_INVOICE") @map("document_type")
+  documentNumber  String            @map("document_number")
+  documentDate    DateTime          @map("document_date") @db.Date
+
+  // Consignor (from)
+  fromGstin       String?           @map("from_gstin")
+  fromName        String            @map("from_name")
+  fromAddress     String?           @map("from_address")
+  fromPlace       String?           @map("from_place")
+  fromPincode     String?           @map("from_pincode")
+  fromStateCode   String?           @map("from_state_code")
+
+  // Consignee (to)
+  toGstin         String?           @map("to_gstin")
+  toName          String            @map("to_name")
+  toAddress       String?           @map("to_address")
+  toPlace         String?           @map("to_place")
+  toPincode       String?           @map("to_pincode")
+  toStateCode     String?           @map("to_state_code")
+
+  // Transport
+  transporterName String?           @map("transporter_name")
+  transporterId   String?           @map("transporter_id")
+  transportMode   EwayTransportMode @default(ROAD) @map("transport_mode")
+  vehicleNumber   String?           @map("vehicle_number")
+  distanceKm      Int?              @map("distance_km")
+  transDocNumber  String?           @map("trans_doc_number")
+  transDocDate    DateTime?         @map("trans_doc_date") @db.Date
+
+  // Values
+  taxableValue    Decimal           @default(0) @map("taxable_value") @db.Decimal(14, 2)
+  cgstValue       Decimal           @default(0) @map("cgst_value") @db.Decimal(14, 2)
+  sgstValue       Decimal           @default(0) @map("sgst_value") @db.Decimal(14, 2)
+  igstValue       Decimal           @default(0) @map("igst_value") @db.Decimal(14, 2)
+  cessValue       Decimal           @default(0) @map("cess_value") @db.Decimal(14, 2)
+  totalValue      Decimal           @default(0) @map("total_value") @db.Decimal(14, 2)
+  hsnSummary      Json?             @map("hsn_summary")
+
+  validUpto       DateTime?         @map("valid_upto") @db.Timestamptz(6)
+  generatedAt     DateTime?         @map("generated_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?           @map("cancel_reason")
+  remarks         String?
+
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?           @map("created_by") @db.Uuid
+  updatedById     String?           @map("updated_by") @db.Uuid
+
+  shop    Shop           @relation(fields: [shopId], references: [id])
+  invoice InvoiceHeader? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, documentDate])
+  @@index([shopId, status])
+  @@index([invoiceId])
+  @@map("eway_bills")
 }
 
 model AlertEvent {

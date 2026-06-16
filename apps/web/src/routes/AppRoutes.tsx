@@ -79,6 +79,8 @@ const ReturnAcknowledgementPage = lazyPage(
   'ReturnAcknowledgementPage',
 );
 const NotificationsPage = lazyPage(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
+const ApprovalsPage = lazyPage(() => import('@/pages/ApprovalsPage'), 'ApprovalsPage');
+const EwayBillsPage = lazyPage(() => import('@/pages/EwayBillsPage'), 'EwayBillsPage');
 const HelpSupportPage = lazyPage(() => import('@/pages/HelpSupportPage'), 'HelpSupportPage');
 const UpgradePage = lazyPage(() => import('@/pages/UpgradePage'), 'UpgradePage');
 const PlatformSubscriptionsPage = lazyPage(
@@ -333,6 +335,9 @@ export function AppRoutes() {
             }
           />
           <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
+          <Route path="/approvals" element={<Protected><ApprovalsPage /></Protected>} />
+          <Route path="/eway-bills" element={<Protected><EwayBillsPage /></Protected>} />
+          <Route path="/eway-bills/new" element={<Protected><EwayBillsPage createOnly /></Protected>} />
           <Route path="/warehouse" element={<Protected><WarehousePage /></Protected>} />
           <Route path="/supplier-bills" element={<Protected><SupplierBillsPage /></Protected>} />
           <Route path="/supplier-payments" element={<Protected><SupplierPaymentsPage /></Protected>} />
