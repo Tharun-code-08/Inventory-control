@@ -42,7 +42,9 @@ const config = {
     enabled: false,
   },
   extra: {
-    apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000',
+    // Default to the production API so shipped/EAS builds work without a .env
+    // (EXPO_PUBLIC_API_URL in .env overrides this for local dev against localhost).
+    apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'https://softdigitconsulting.com',
     eas: {
       projectId: '4b48c460-018d-41ec-bd1b-29e0a752bbff',
     },
