@@ -4,12 +4,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { DocumentStatus, Prisma } from '@prisma/client';
+import { AlertType, DocumentStatus, NotificationModule, NotificationPriority, Prisma, RoleName } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { SubmitPortalQuoteDto } from './dto/submit-portal-quote.dto';
 import { VerifySupplierDto } from './dto/verify-supplier.dto';
 import { SubscriptionService } from '../billing/subscription.service';
+import { NotificationService } from '../notifications/services/notification.service';
 
 @Injectable()
 export class SupplierPortalService {
@@ -17,6 +18,7 @@ export class SupplierPortalService {
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
     private readonly subscriptions: SubscriptionService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async resolveSupplier(email: string) {
@@ -178,7 +180,7 @@ export class SupplierPortalService {
       .join('\n');
 
     const quoteDate = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const quoteNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: rfq.shopId,
         docType: 'QUO',
@@ -218,7 +220,40 @@ export class SupplierPortalService {
         referenceCode: quote.quoteNumber,
         totalValue: total,
         status: quote.status,
+        supplierName: quote.supplier?.supplierName ?? 'A supplier',
+        rfqNumber: quote.rfq?.rfqNumber ?? null,
+        rfqId: quote.rfqId,
       };
     });
+
+    // Notify the procurement team that a new bid arrived. The supplier is an
+    // external actor (no internal user), so this is a system notification.
+    if (supplier?.companyId) {
+      const rfqLabel = created.rfqNumber ? created.rfqNumber : 'an RFQ';
+      await this.notifications
+        .notifyRoles(
+          [RoleName.PURCHASE_MANAGER, RoleName.OWNER, RoleName.ADMIN],
+          {
+            title: 'New Bid Received',
+            message: `${created.supplierName} submitted a quote for ${rfqLabel}`,
+            type: AlertType.RFQ_RESPONSE_RECEIVED,
+            module: NotificationModule.RFQ,
+            priority: NotificationPriority.NORMAL,
+            referenceType: 'rfq',
+            referenceId: created.rfqId,
+            deepLink: `/rfqs/${created.rfqId}`,
+          },
+          supplier.companyId,
+          null,
+        )
+        .catch(() => undefined);
+    }
+
+    return {
+      quoteNumber: created.quoteNumber,
+      referenceCode: created.referenceCode,
+      totalValue: created.totalValue,
+      status: created.status,
+    };
   }
 }

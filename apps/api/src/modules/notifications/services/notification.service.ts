@@ -14,14 +14,20 @@ export class NotificationService {
   /**
    * Create and send a notification to a user
    */
-  async create(dto: CreateNotificationDto, userId: string, companyId: string): Promise<Notification> {
-    // Validate user exists and belongs to company
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+  async create(
+    dto: CreateNotificationDto,
+    actorId: string | null | undefined,
+    companyId: string,
+  ): Promise<Notification> {
+    // The recipient must exist. The actor is optional — system/externally
+    // triggered notifications (e.g. a supplier submitting a bid) have no
+    // internal acting user, and `createdById` is nullable by design.
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (!recipient) {
+      throw new NotFoundException('Recipient user not found');
     }
 
     // Create notification with 30-day expiry if not specified
@@ -41,16 +47,18 @@ export class NotificationService {
         deepLink: dto.deepLink,
         actionUrl: dto.actionUrl,
         expiresAt,
-        createdById: userId,
+        createdById: actorId ?? null,
       },
     });
 
-    // Log audit
-    await this.auditLog('NOTIFICATION_SENT', userId, companyId, notification.id, {
-      type: dto.type,
-      priority: dto.priority,
-      recipientId: dto.userId,
-    });
+    // Log audit (best-effort; skipped when there is no acting user)
+    if (actorId) {
+      await this.auditLog('NOTIFICATION_SENT', actorId, companyId, notification.id, {
+        type: dto.type,
+        priority: dto.priority,
+        recipientId: dto.userId,
+      });
+    }
 
     return notification;
   }
@@ -279,7 +287,7 @@ export class NotificationService {
     roles: string[],
     payload: Omit<CreateNotificationDto, 'userId'>,
     companyId: string,
-    actorId: string,
+    actorId?: string | null,
   ): Promise<{ sent: number; failed: number }> {
     let sent = 0;
     let failed = 0;
@@ -308,7 +316,7 @@ export class NotificationService {
     dto: CreateNotificationDto,
     roleName: string,
     companyId: string,
-    currentUserId: string,
+    currentUserId?: string | null,
   ): Promise<{ sent: number; failed: number }> {
     // Get all users with the specified role in the company
     const users = await this.prisma.user.findMany({
