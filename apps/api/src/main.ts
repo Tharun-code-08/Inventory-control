@@ -77,6 +77,12 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const httpLogger = new Logger('Http');
 
+  // Configure body size limits for bulk uploads (default is 100KB)
+  const bodyParserJson = require('body-parser').json({ limit: '50mb' });
+  const bodyParserUrlencoded = require('body-parser').urlencoded({ limit: '50mb', extended: true });
+  app.use(bodyParserJson);
+  app.use(bodyParserUrlencoded);
+
   // Drain SIGTERM/SIGINT through Nest's lifecycle so PrismaService.onModuleDestroy
   // and BullShutdownService.beforeApplicationShutdown can finish in-flight work
   // before the process exits.
