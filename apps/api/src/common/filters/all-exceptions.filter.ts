@@ -204,6 +204,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
         });
       }
 
+      // P2023: malformed value for a typed column (e.g. an id that is not a
+      // valid UUID). Surface a clean validation error instead of a raw DB code.
+      if (exception.code === 'P2023') {
+        return response.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_IDENTIFIER',
+            message: 'The request contains an invalid or malformed identifier',
+            requestId,
+          },
+        });
+      }
+
       if (exception.code === 'P2021' || exception.code === 'P2022') {
         return response.status(503).json({
           success: false,

@@ -1,5 +1,3 @@
-import { api } from '@/api/client';
-
 export type AuditLogAction =
   | 'NOTIFICATION_SENT'
   | 'NOTIFICATION_READ'
@@ -24,22 +22,12 @@ export type AuditLog = {
 };
 
 /**
- * Log an action to the backend audit log.
- * Non-blocking - errors are logged but not thrown.
+ * Audit logging is handled server-side (the API records auth, device and
+ * document actions itself). There is no client-writable audit endpoint, so this
+ * is intentionally a no-op kept for call-site compatibility.
  */
-export async function logAuditAction(log: AuditLog): Promise<void> {
-  try {
-    await api.post('/audit-logs', {
-      action: log.action,
-      entityType: log.entityType,
-      entityId: log.entityId,
-      metadata: log.metadata,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    console.error('Failed to log audit action:', log, err);
-    // Don't throw - audit logging should never break app functionality
-  }
+export async function logAuditAction(_log: AuditLog): Promise<void> {
+  // no-op
 }
 
 // Convenience functions for common audit log actions
