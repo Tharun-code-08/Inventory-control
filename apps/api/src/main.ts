@@ -74,14 +74,16 @@ async function bootstrap() {
   // are captured. No-op when SENTRY_DSN is unset.
   initSentry();
 
+  // rawBody: true keeps the raw request buffer available for Razorpay webhook
+  // signature verification (see billing-webhook.controller.ts).
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const httpLogger = new Logger('Http');
 
-  // Configure body size limits for bulk uploads (default is 100KB)
-  const bodyParserJson = require('body-parser').json({ limit: '50mb' });
-  const bodyParserUrlencoded = require('body-parser').urlencoded({ limit: '50mb', extended: true });
-  app.use(bodyParserJson);
-  app.use(bodyParserUrlencoded);
+  // Raise the body size limit (default ~100KB) so bulk product uploads of a few
+  // hundred rows fit. useBodyParser applies the limit while preserving the
+  // rawBody capture above.
+  app.useBodyParser('json', { limit: '50mb' });
+  app.useBodyParser('urlencoded', { limit: '50mb', extended: true });
 
   // Drain SIGTERM/SIGINT through Nest's lifecycle so PrismaService.onModuleDestroy
   // and BullShutdownService.beforeApplicationShutdown can finish in-flight work
