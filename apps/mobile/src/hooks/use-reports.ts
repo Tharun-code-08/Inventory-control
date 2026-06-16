@@ -73,7 +73,6 @@ export function useReorderReport(shopId?: string) {
       const data = unwrapData<{ items?: ReorderItem[] }>(res.data);
       return Array.isArray(data?.items) ? data.items : [];
     },
-    enabled: !!shopId,
     staleTime: QUERY_STALE_TIME.lists,
   });
 }
@@ -165,7 +164,6 @@ export function useFastMovingReport(shopId?: string, days = 90) {
         } as FastMovingItem;
       });
     },
-    enabled: !!shopId,
     staleTime: QUERY_STALE_TIME.lists,
   });
 }

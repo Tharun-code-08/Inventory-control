@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { useFastMovingReport } from '@/hooks/use-reports';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
+import { extractApiError } from '@/lib/envelope';
 import { Badge, Card, EmptyState, Muted, Screen, Subtitle } from '@/components/ui';
 import { spacing } from '@/theme';
 
@@ -19,7 +20,7 @@ export default function StockMovementReportScreen() {
         {query.isLoading ? (
           <ListSkeleton />
         ) : query.isError ? (
-          <ErrorState message="Could not load stock movement." onRetry={() => query.refetch()} />
+          <ErrorState message={extractApiError(query.error) ?? 'Could not load stock movement.'} onRetry={() => query.refetch()} />
         ) : (
           <FlatList
             data={query.data ?? []}

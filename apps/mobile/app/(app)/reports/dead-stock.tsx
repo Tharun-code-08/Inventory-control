@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { useDeadStockReport, type DeadStockItem } from '@/hooks/use-reports';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
+import { extractApiError } from '@/lib/envelope';
 import { Badge, Card, EmptyState, KpiTile, Muted, Screen, Subtitle } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
 import { spacing } from '@/theme';
@@ -25,7 +26,7 @@ export default function DeadStockReportScreen() {
         {query.isLoading ? (
           <ListSkeleton />
         ) : query.isError ? (
-          <ErrorState message="Could not load dead stock." onRetry={() => query.refetch()} />
+          <ErrorState message={extractApiError(query.error) ?? 'Could not load dead stock.'} onRetry={() => query.refetch()} />
         ) : (
           <FlatList
             data={query.data?.items ?? []}

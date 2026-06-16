@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { useProfitabilityReport, type ProfitabilityItem } from '@/hooks/use-reports';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
+import { extractApiError } from '@/lib/envelope';
 import { Badge, Card, EmptyState, KpiTile, Muted, Screen, Subtitle } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
 import { spacing } from '@/theme';
@@ -28,7 +29,7 @@ export default function ProfitabilityReportScreen() {
         {query.isLoading ? (
           <ListSkeleton />
         ) : query.isError ? (
-          <ErrorState message="Could not load profitability." onRetry={() => query.refetch()} />
+          <ErrorState message={extractApiError(query.error) ?? 'Could not load profitability.'} onRetry={() => query.refetch()} />
         ) : (
           <FlatList
             data={query.data?.items ?? []}
