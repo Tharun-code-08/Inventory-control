@@ -59,15 +59,33 @@ export function preloadRoute(path: string): void {
   });
 }
 
-/** Preload the most frequently visited routes once the browser is idle. */
-export function preloadCommonRoutesWhenIdle(): void {
-  const common = ['/products', '/goods-receipts', '/reports', '/settings'];
-  const run = () => common.forEach(preloadRoute);
-  const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => void })
-    .requestIdleCallback;
+type IdleScheduler = (cb: () => void) => void;
+
+function onIdle(cb: () => void): void {
+  const ric = (window as unknown as { requestIdleCallback?: IdleScheduler }).requestIdleCallback;
   if (typeof ric === 'function') {
-    ric(run);
+    ric(cb);
   } else {
-    window.setTimeout(run, 2000);
+    window.setTimeout(cb, 1);
   }
+}
+
+/**
+ * Warm every navigable route chunk once the browser is idle, a few at a time so
+ * we never compete with the initial render. After this completes, switching
+ * modules is instant — no Suspense fallback / white flash.
+ */
+export function preloadAllRoutesWhenIdle(): void {
+  const paths = Object.keys(importers).filter((p) => !warmed.has(p));
+  let i = 0;
+  const pump = () => {
+    if (i >= paths.length) return;
+    // Warm a small batch per idle tick to keep the main thread responsive.
+    for (let n = 0; n < 3 && i < paths.length; n += 1, i += 1) {
+      preloadRoute(paths[i]);
+    }
+    onIdle(pump);
+  };
+  // Give first paint a brief head start, then begin warming on idle.
+  window.setTimeout(() => onIdle(pump), 800);
 }

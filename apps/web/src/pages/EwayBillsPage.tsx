@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileSpreadsheet, Plus, Send, Truck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
-import { PageHeader, KpiCard, EmptyState, LoadingSkeleton } from '@/components/shared';
+import { PageHeader, KpiCard, EmptyState, LoadingSkeleton, CreatePageLayout } from '@/components/shared';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,6 +71,7 @@ const emptyForm = () => ({
   toGstin: '',
   toAddress: '',
   transportMode: 'ROAD' as EwayTransportMode,
+  transporterName: '',
   vehicleNumber: '',
   distanceKm: '',
   taxableValue: '',
@@ -79,6 +81,7 @@ const emptyForm = () => ({
 });
 
 export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<EwayBillStatus | 'ALL'>('ALL');
   const { data: bills = [], isLoading } = useEwayBills(tab === 'ALL' ? undefined : tab);
   const { data: stats } = useEwayBillStats();
@@ -86,7 +89,6 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   const generateBill = useGenerateEwayBill();
   const cancelBill = useCancelEwayBill();
 
-  const [createOpen, setCreateOpen] = useState(createOnly);
   const [form, setForm] = useState(emptyForm);
   const [active, setActive] = useState<EwayBill | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -109,6 +111,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
         toGstin: form.toGstin.trim() || undefined,
         toAddress: form.toAddress.trim() || undefined,
         transportMode: form.transportMode,
+        transporterName: form.transporterName.trim() || undefined,
         vehicleNumber: form.vehicleNumber.trim() || undefined,
         distanceKm: form.distanceKm ? Number(form.distanceKm) : undefined,
         taxableValue: form.taxableValue ? Number(form.taxableValue) : undefined,
@@ -118,7 +121,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
       });
       toast.success('Draft e-way bill created');
       setForm(emptyForm());
-      setCreateOpen(false);
+      navigate('/eway-bills');
     } catch {
       toast.error('Could not create e-way bill.');
     }
@@ -153,10 +156,123 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
     }
   }
 
+  // ---- Full-page create view (route: /eway-bills/new), matching GR / PO create ----
+  if (createOnly) {
+    return (
+      <AppLayout active="E-Way Bills">
+        <CreatePageLayout
+          title="New e-way bill"
+          description="Capture the consignment details, then generate the EWB number."
+          backTo="/eway-bills"
+          actionBar={
+            <>
+              <Button variant="outline" onClick={() => navigate('/eway-bills')}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreate} disabled={createBill.isPending}>
+                Create draft
+              </Button>
+            </>
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Document</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                <Field label="Document number">
+                  <Input value={form.documentNumber} onChange={(e) => set('documentNumber', e.target.value)} placeholder="INV-2026-001" />
+                </Field>
+                <Field label="Document date">
+                  <Input type="date" value={form.documentDate} onChange={(e) => set('documentDate', e.target.value)} />
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Parties</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                <Field label="Consignor (from)" className="col-span-2">
+                  <Input value={form.fromName} onChange={(e) => set('fromName', e.target.value)} placeholder="Your business name" />
+                </Field>
+                <Field label="Consignee (to)">
+                  <Input value={form.toName} onChange={(e) => set('toName', e.target.value)} placeholder="Customer name" />
+                </Field>
+                <Field label="Consignee GSTIN">
+                  <Input value={form.toGstin} onChange={(e) => set('toGstin', e.target.value)} placeholder="Optional" />
+                </Field>
+                <Field label="Consignee address" className="col-span-2">
+                  <Input value={form.toAddress} onChange={(e) => set('toAddress', e.target.value)} placeholder="Delivery address" />
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Transport</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                <Field label="Transport mode">
+                  <Select value={form.transportMode} onValueChange={(v) => set('transportMode', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TRANSPORT_MODES.map((m) => (
+                        <SelectItem key={m} value={m}>{m.charAt(0) + m.slice(1).toLowerCase()}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Transporter name">
+                  <Input value={form.transporterName} onChange={(e) => set('transporterName', e.target.value)} placeholder="Transporter / GTA" />
+                </Field>
+                <Field label="Vehicle no.">
+                  <Input value={form.vehicleNumber} onChange={(e) => set('vehicleNumber', e.target.value)} placeholder="TN01AB1234" />
+                </Field>
+                <Field label="Distance (km)">
+                  <Input type="number" value={form.distanceKm} onChange={(e) => set('distanceKm', e.target.value)} placeholder="0" />
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Values</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-3 gap-3">
+                <Field label="Taxable value">
+                  <Input type="number" value={form.taxableValue} onChange={(e) => set('taxableValue', e.target.value)} placeholder="0" />
+                </Field>
+                <Field label="IGST">
+                  <Input type="number" value={form.igstValue} onChange={(e) => set('igstValue', e.target.value)} placeholder="0" />
+                </Field>
+                <Field label="Total value">
+                  <Input type="number" value={form.totalValue} onChange={(e) => set('totalValue', e.target.value)} placeholder="0" />
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Remarks</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea value={form.remarks} onChange={(e) => set('remarks', e.target.value)} rows={3} placeholder="Optional notes" />
+              </CardContent>
+            </Card>
+          </div>
+        </CreatePageLayout>
+      </AppLayout>
+    );
+  }
+
+  // ---- List view ----
   return (
     <AppLayout active="E-Way Bills">
       <PageHeader title="E-Way Bills" description="Generate and track GST e-way bills for goods movement.">
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => navigate('/eway-bills/new')}>
           <Plus className="mr-2 h-4 w-4" />
           New e-way bill
         </Button>
@@ -248,88 +364,6 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
         </CardContent>
       </Card>
 
-      {/* Create sheet */}
-      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>New e-way bill</SheetTitle>
-            <SheetDescription>Capture the consignment details, then generate the EWB number.</SheetDescription>
-          </SheetHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Document number</Label>
-                <Input value={form.documentNumber} onChange={(e) => set('documentNumber', e.target.value)} placeholder="INV-2026-001" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Document date</Label>
-                <Input type="date" value={form.documentDate} onChange={(e) => set('documentDate', e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Consignor (from)</Label>
-              <Input value={form.fromName} onChange={(e) => set('fromName', e.target.value)} placeholder="Your business name" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Consignee (to)</Label>
-                <Input value={form.toName} onChange={(e) => set('toName', e.target.value)} placeholder="Customer name" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Consignee GSTIN</Label>
-                <Input value={form.toGstin} onChange={(e) => set('toGstin', e.target.value)} placeholder="Optional" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Consignee address</Label>
-              <Input value={form.toAddress} onChange={(e) => set('toAddress', e.target.value)} placeholder="Delivery address" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>Transport mode</Label>
-                <Select value={form.transportMode} onValueChange={(v) => set('transportMode', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TRANSPORT_MODES.map((m) => (
-                      <SelectItem key={m} value={m}>{m.charAt(0) + m.slice(1).toLowerCase()}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Vehicle no.</Label>
-                <Input value={form.vehicleNumber} onChange={(e) => set('vehicleNumber', e.target.value)} placeholder="TN01AB1234" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Distance (km)</Label>
-                <Input type="number" value={form.distanceKm} onChange={(e) => set('distanceKm', e.target.value)} placeholder="0" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>Taxable value</Label>
-                <Input type="number" value={form.taxableValue} onChange={(e) => set('taxableValue', e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>IGST</Label>
-                <Input type="number" value={form.igstValue} onChange={(e) => set('igstValue', e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Total value</Label>
-                <Input type="number" value={form.totalValue} onChange={(e) => set('totalValue', e.target.value)} placeholder="0" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Remarks</Label>
-              <Textarea value={form.remarks} onChange={(e) => set('remarks', e.target.value)} rows={2} />
-            </div>
-            <Button onClick={handleCreate} disabled={createBill.isPending}>
-              Create draft
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
       {/* Detail sheet */}
       <Sheet open={Boolean(active)} onOpenChange={(open) => { if (!open) { setActive(null); setCancelReason(''); } }}>
         <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
@@ -340,17 +374,18 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
           {active && (
             <div className="flex flex-1 flex-col gap-4 py-4">
               <dl className="space-y-3 text-sm">
-                <Row label="Status" value={<StatusBadge status={active.status} />} />
-                <Row label="Consignor" value={active.fromName} />
-                <Row label="Consignee" value={active.toName} />
-                {active.toGstin && <Row label="Consignee GSTIN" value={active.toGstin} />}
-                <Row label="Transport" value={`${active.transportMode}${active.vehicleNumber ? ` · ${active.vehicleNumber}` : ''}`} />
-                {active.distanceKm != null && <Row label="Distance" value={`${active.distanceKm} km`} />}
-                <Row label="Taxable value" value={inr(active.taxableValue)} />
-                <Row label="IGST" value={inr(active.igstValue)} />
-                <Row label="Total value" value={inr(active.totalValue)} />
-                <Row label="Document date" value={fmtDate(active.documentDate)} />
-                {active.validUpto && <Row label="Valid upto" value={fmtDate(active.validUpto)} />}
+                <DetailRow label="Status" value={<StatusBadge status={active.status} />} />
+                <DetailRow label="Consignor" value={active.fromName} />
+                <DetailRow label="Consignee" value={active.toName} />
+                {active.toGstin && <DetailRow label="Consignee GSTIN" value={active.toGstin} />}
+                {active.transporterName && <DetailRow label="Transporter" value={active.transporterName} />}
+                <DetailRow label="Transport" value={`${active.transportMode}${active.vehicleNumber ? ` · ${active.vehicleNumber}` : ''}`} />
+                {active.distanceKm != null && <DetailRow label="Distance" value={`${active.distanceKm} km`} />}
+                <DetailRow label="Taxable value" value={inr(active.taxableValue)} />
+                <DetailRow label="IGST" value={inr(active.igstValue)} />
+                <DetailRow label="Total value" value={inr(active.totalValue)} />
+                <DetailRow label="Document date" value={fmtDate(active.documentDate)} />
+                {active.validUpto && <DetailRow label="Valid upto" value={fmtDate(active.validUpto)} />}
                 {active.status === 'CANCELLED' && active.cancelReason && (
                   <div>
                     <dt className="mb-1 text-muted-foreground">Cancellation reason</dt>
@@ -393,7 +428,16 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={['space-y-1.5', className].filter(Boolean).join(' ')}>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <dt className="text-muted-foreground">{label}</dt>

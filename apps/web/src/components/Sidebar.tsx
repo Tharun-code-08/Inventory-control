@@ -36,7 +36,7 @@ import { ProfileMenuLinks } from '@/components/ProfileMenuLinks';
 import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 import { BrandLogo } from '@/components/BrandLogo';
 import { usePendingApprovalCount } from '@/hooks/use-approvals';
-import { preloadRoute, preloadCommonRoutesWhenIdle } from '@/lib/route-preload';
+import { preloadRoute, preloadAllRoutesWhenIdle } from '@/lib/route-preload';
 
 type NavItem = {
   label: string;
@@ -44,6 +44,14 @@ type NavItem = {
   path: string;
   badge?: number;
 };
+
+/**
+ * Nav scroll offset persisted at module scope. Because `AppLayout` (and this
+ * Sidebar) is rendered inside each lazy page, the sidebar remounts on every
+ * navigation — a per-instance ref would reset to 0 each time and make the drawer
+ * "jump to top". Keeping it at module scope lets it survive remounts.
+ */
+let persistedNavScrollTop = 0;
 
 type SidebarProps = {
   collapsed: boolean;
@@ -101,7 +109,6 @@ export function Sidebar({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navScrollRef = useRef<HTMLElement>(null);
   const [navIndicator, setNavIndicator] = useState<{ top: number; height: number } | null>(null);
-  const scrollPositionRef = useRef<Map<string, number>>(new Map());
   const isOrgAdmin = isOrgAdminUser(user);
   const isPlatformAdmin = isPlatformAdminUser(user);
   const perms = user?.permissions ?? EMPTY_PERMISSIONS;
@@ -177,7 +184,7 @@ export function Sidebar({
 
   // Warm the most-used route chunks once the app is idle so navigation is instant.
   useEffect(() => {
-    preloadCommonRoutesWhenIdle();
+    preloadAllRoutesWhenIdle();
   }, []);
 
   useEffect(() => {
@@ -190,14 +197,18 @@ export function Sidebar({
 
   const showLabels = !collapsed || isMobile;
 
-  useEffect(() => {
+  // Restore the nav scroll offset before paint (survives the per-navigation
+  // remount) and keep it updated as the user scrolls the drawer.
+  useLayoutEffect(() => {
     const navEl = navScrollRef.current;
     if (!navEl) return;
-    const savedPosition = scrollPositionRef.current.get(location.pathname);
-    if (savedPosition !== undefined) {
-      navEl.scrollTop = savedPosition;
-    }
-  }, [location.pathname]);
+    navEl.scrollTop = persistedNavScrollTop;
+    const onScroll = () => {
+      persistedNavScrollTop = navEl.scrollTop;
+    };
+    navEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => navEl.removeEventListener('scroll', onScroll);
+  }, []);
 
   useLayoutEffect(() => {
     const navEl = navScrollRef.current;
@@ -369,11 +380,8 @@ export function Sidebar({
                   data-nav-active={itemActive ? 'true' : undefined}
                   onMouseEnter={() => preloadRoute(item.path)}
                   onFocus={() => preloadRoute(item.path)}
+                  onPointerDown={() => preloadRoute(item.path)}
                   onClick={() => {
-                    const navEl = navScrollRef.current;
-                    if (navEl) {
-                      scrollPositionRef.current.set(location.pathname, navEl.scrollTop);
-                    }
                     nav(item.path);
                     onMobileOpenChange?.(false);
                   }}
@@ -448,10 +456,6 @@ export function Sidebar({
               <ProfileMenuLinks
                 variant="sidebar"
                 onNavigate={(path) => {
-                  const navEl = navScrollRef.current;
-                  if (navEl) {
-                    scrollPositionRef.current.set(location.pathname, navEl.scrollTop);
-                  }
                   setDropdownOpen(false);
                   onMobileOpenChange?.(false);
                   nav(path);
