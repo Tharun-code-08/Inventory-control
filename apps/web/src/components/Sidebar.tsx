@@ -91,6 +91,7 @@ export function Sidebar({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navScrollRef = useRef<HTMLElement>(null);
   const [navIndicator, setNavIndicator] = useState<{ top: number; height: number } | null>(null);
+  const scrollPositionRef = useRef<Map<string, number>>(new Map());
   const isOrgAdmin = isOrgAdminUser(user);
   const isPlatformAdmin = isPlatformAdminUser(user);
   const perms = user?.permissions ?? EMPTY_PERMISSIONS;
@@ -167,6 +168,15 @@ export function Sidebar({
   }, []);
 
   const showLabels = !collapsed || isMobile;
+
+  useEffect(() => {
+    const navEl = navScrollRef.current;
+    if (!navEl) return;
+    const savedPosition = scrollPositionRef.current.get(location.pathname);
+    if (savedPosition !== undefined) {
+      navEl.scrollTop = savedPosition;
+    }
+  }, [location.pathname]);
 
   useLayoutEffect(() => {
     const navEl = navScrollRef.current;
@@ -337,6 +347,10 @@ export function Sidebar({
                   type="button"
                   data-nav-active={itemActive ? 'true' : undefined}
                   onClick={() => {
+                    const navEl = navScrollRef.current;
+                    if (navEl) {
+                      scrollPositionRef.current.set(location.pathname, navEl.scrollTop);
+                    }
                     nav(item.path);
                     onMobileOpenChange?.(false);
                   }}
@@ -401,6 +415,10 @@ export function Sidebar({
               <ProfileMenuLinks
                 variant="sidebar"
                 onNavigate={(path) => {
+                  const navEl = navScrollRef.current;
+                  if (navEl) {
+                    scrollPositionRef.current.set(location.pathname, navEl.scrollTop);
+                  }
                   setDropdownOpen(false);
                   onMobileOpenChange?.(false);
                   nav(path);
