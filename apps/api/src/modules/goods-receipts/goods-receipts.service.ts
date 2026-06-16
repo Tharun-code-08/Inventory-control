@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, CostingMethod, DocumentEmailTrigger, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AlertType, AuditAction, CostingMethod, DocumentEmailTrigger, DocumentStatus, NotificationModule, NotificationPriority, Prisma, RoleName, TransactionType } from '@prisma/client';
+import { NotificationService } from '../notifications/services/notification.service';
 import * as Handlebars from 'handlebars';
 import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
 import type { GoodsReceiptSupplierEmailContent } from '../../common/mail/transactional-email.templates';
@@ -39,6 +40,7 @@ export class GoodsReceiptsService {
     private readonly emailNotifications: EmailNotificationsService,
     private readonly documentPdf: DocumentPdfService,
     private readonly documentEmail: DocumentEmailService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async assertStorageLocationsForShop(
@@ -594,6 +596,31 @@ export class GoodsReceiptsService {
         .catch(() => undefined);
 
       await this.autoSendGoodsReceiptEmail(user, posted).catch(() => undefined);
+
+      // In-app notification to the procurement/inventory team: "Goods Received".
+      const companyId = posted.shop?.companyId;
+      if (companyId) {
+        const poRef = posted.purchaseOrder?.poNumber
+          ? ` for ${posted.purchaseOrder.poNumber}`
+          : '';
+        await this.notifications
+          .notifyRoles(
+            [RoleName.INVENTORY_MANAGER, RoleName.PURCHASE_MANAGER, RoleName.OWNER, RoleName.ADMIN],
+            {
+              title: 'Goods Received',
+              message: `${posted.grNumber} has been posted${poRef}`,
+              type: AlertType.GOODS_RECEIPT_CREATED,
+              module: NotificationModule.GOODS_RECEIPT,
+              priority: NotificationPriority.NORMAL,
+              referenceType: 'goods_receipt',
+              referenceId: posted.id,
+              deepLink: `/goods-receipts/${posted.id}`,
+            },
+            companyId,
+            user.id,
+          )
+          .catch(() => undefined);
+      }
       return posted;
     });
   }

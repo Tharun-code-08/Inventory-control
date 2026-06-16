@@ -269,6 +269,39 @@ export class NotificationService {
   }
 
   /**
+   * Fan a notification out to every user holding any of the given roles in a
+   * company. A convenience wrapper over {@link sendToRole} so callers (goods
+   * receipts, low-stock, RFQ bids, …) can emit one event to a whole team
+   * without repeating the per-role loop. The `userId` on the payload is a
+   * placeholder — it is overwritten per recipient.
+   */
+  async notifyRoles(
+    roles: string[],
+    payload: Omit<CreateNotificationDto, 'userId'>,
+    companyId: string,
+    actorId: string,
+  ): Promise<{ sent: number; failed: number }> {
+    let sent = 0;
+    let failed = 0;
+    for (const role of roles) {
+      try {
+        const result = await this.sendToRole(
+          { ...payload, userId: actorId } as CreateNotificationDto,
+          role,
+          companyId,
+          actorId,
+        );
+        sent += result.sent;
+        failed += result.failed;
+      } catch (error) {
+        this.logger.error(`notifyRoles failed for role ${role}`, error as Error);
+        failed += 1;
+      }
+    }
+    return { sent, failed };
+  }
+
+  /**
    * Send notifications to a role (role-based notifications)
    */
   async sendToRole(
