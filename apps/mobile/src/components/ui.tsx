@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  type StyleProp,
   type TextInputProps,
   type TextStyle,
   type ViewStyle,
@@ -25,19 +26,19 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
   );
 }
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
+export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function Title({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.title}>{children}</Text>;
+export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.title, style]}>{children}</Text>;
 }
 
-export function Subtitle({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.subtitle}>{children}</Text>;
+export function Subtitle({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.subtitle, style]}>{children}</Text>;
 }
 
-export function Muted({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
+export function Muted({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   return <Text style={[styles.muted, style]}>{children}</Text>;
 }
 
@@ -45,12 +46,14 @@ export function Button({
   label,
   onPress,
   variant = 'primary',
+  size = 'md',
   disabled,
   loading,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
 }) {
@@ -60,6 +63,8 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
+        size === 'sm' && styles.buttonSm,
+        size === 'lg' && styles.buttonLg,
         variant === 'secondary' && styles.buttonSecondary,
         variant === 'danger' && styles.buttonDanger,
         (disabled || loading) && styles.buttonDisabled,
@@ -72,6 +77,7 @@ export function Button({
         <Text
           style={[
             styles.buttonText,
+            size === 'sm' && styles.buttonTextSm,
             variant === 'secondary' && styles.buttonTextSecondary,
           ]}
         >
@@ -182,9 +188,12 @@ const styles = StyleSheet.create({
   },
   buttonSecondary: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border },
   buttonDanger: { backgroundColor: colors.danger },
+  buttonSm: { paddingVertical: 8, paddingHorizontal: 12, marginTop: 0 },
+  buttonLg: { paddingVertical: 16, paddingHorizontal: 20 },
   buttonDisabled: { opacity: 0.5 },
   buttonPressed: { opacity: 0.85 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  buttonTextSm: { fontSize: 14 },
   buttonTextSecondary: { color: colors.text },
   input: {
     borderWidth: 1,

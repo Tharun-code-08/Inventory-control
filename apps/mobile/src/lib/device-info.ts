@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '@/api/client';
+import { unwrapData } from '@/lib/envelope';
 import { logDeviceRegistered, logDeviceRevoked } from '@/lib/audit-logging';
 
 // RFC4122-style v4 UUID without a crypto polyfill. React Native does not
@@ -66,45 +67,50 @@ export async function getDeviceInfo(): Promise<{
   };
 }
 
-export async function registerDevice(): Promise<void> {
+export async function registerDevice(pushToken: string): Promise<void> {
   try {
     const info = await getDeviceInfo();
-    await api.post('/auth/devices', {
+    const platform = Device.osName === 'iOS' ? 'IOS' : 'ANDROID';
+    await api.post('/devices/register', {
       deviceId: info.deviceId,
       deviceName: info.deviceName,
-      platform: info.platform,
+      platform,
+      pushToken,
       osVersion: info.osVersion,
     });
     await logDeviceRegistered(info.deviceId, info.deviceName);
-  } catch (err) {
-    console.error('Failed to register device:', err);
-    // Don't throw - this is non-critical
+  } catch {
+    // Non-critical (e.g. push unavailable on this build) — ignore silently.
   }
 }
 
 export async function getActiveDevices(): Promise<RegisteredDevice[]> {
   try {
     const currentDeviceId = await getDeviceId();
-    const res = await api.get('/auth/devices');
-    const devices = (res.data?.data || []) as any[];
-    return devices.map((d: any) => ({
-      id: d.id,
-      deviceId: d.deviceId,
-      deviceName: d.deviceName,
-      platform: d.platform,
-      osVersion: d.osVersion,
-      lastLoginAt: d.lastLoginAt,
+    const res = await api.get('/devices');
+    const payload = unwrapData<{ devices?: unknown[] } | unknown[]>(res.data);
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray((payload as { devices?: unknown[] })?.devices)
+        ? (payload as { devices: unknown[] }).devices
+        : [];
+    return (rows as Record<string, unknown>[]).map((d) => ({
+      id: String(d.id ?? d.deviceId ?? ''),
+      deviceId: String(d.deviceId ?? ''),
+      deviceName: String(d.deviceName ?? 'Unknown Device'),
+      platform: String(d.platform ?? 'Unknown'),
+      osVersion: String(d.osVersion ?? ''),
+      lastLoginAt: String(d.lastActiveAt ?? d.updatedAt ?? d.createdAt ?? ''),
       isCurrent: d.deviceId === currentDeviceId,
     }));
-  } catch (err) {
-    console.error('Failed to fetch active devices:', err);
+  } catch {
     return [];
   }
 }
 
 export async function revokeDevice(deviceId: string): Promise<void> {
   try {
-    await api.post(`/auth/devices/${deviceId}/revoke`);
+    await api.delete(`/devices/${deviceId}`, { data: { deviceId } });
     await logDeviceRevoked(deviceId);
   } catch (err) {
     console.error('Failed to revoke device:', err);
@@ -113,10 +119,11 @@ export async function revokeDevice(deviceId: string): Promise<void> {
 }
 
 export async function logoutAllDevices(): Promise<void> {
-  try {
-    await api.post('/auth/logout-all');
-  } catch (err) {
-    console.error('Failed to logout all devices:', err);
-    throw err;
-  }
+  const currentDeviceId = await getDeviceId();
+  const devices = await getActiveDevices();
+  await Promise.all(
+    devices
+      .filter((d) => d.deviceId && d.deviceId !== currentDeviceId)
+      .map((d) => api.delete(`/devices/${d.deviceId}`, { data: { deviceId: d.deviceId } })),
+  );
 }

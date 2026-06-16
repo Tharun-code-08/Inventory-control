@@ -9,14 +9,14 @@ export function formatCurrency(value: number | string | null | undefined): strin
   }
 }
 
-/** Format an ISO date string (2024-01-15 or full ISO) into a readable date. */
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+/** Format an ISO date string or epoch-ms number into a readable date. */
+export function formatDate(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—';
   try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   } catch {
-    return iso;
+    return String(value);
   }
 }

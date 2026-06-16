@@ -1,7 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { api } from '@/api/client';
-import { getDeviceId } from '@/lib/device-info';
+import { registerDevice } from '@/lib/device-info';
 
 export type NotificationType =
   | 'GR_CREATED'
@@ -84,29 +83,17 @@ export async function getPushToken(): Promise<string | null> {
 
 export async function registerPushToken(): Promise<void> {
   try {
+    if (!Device.isDevice) return;
     const permissionGranted = await requestNotificationPermissions();
-    if (!permissionGranted) {
-      console.log('Notification permissions not granted');
-      return;
-    }
+    if (!permissionGranted) return;
 
     const token = await getPushToken();
-    if (!token) {
-      console.log('No push token available');
-      return;
-    }
+    if (!token) return; // Expo Go / simulator — push unavailable, skip silently.
 
-    const platform = Device.osName === 'iOS' ? 'ios' : 'android';
-
-    await api.post('/notifications/subscribe', {
-      pushToken: token,
-      platform,
-      deviceId: await getDeviceId(),
-    });
-
-    console.log('Push token registered:', token);
-  } catch (err) {
-    console.error('Failed to register push token:', err);
+    // Registers the device with its push token (POST /devices/register).
+    await registerDevice(token);
+  } catch {
+    // Non-critical — ignore silently.
   }
 }
 

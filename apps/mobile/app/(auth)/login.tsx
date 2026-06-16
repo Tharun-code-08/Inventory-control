@@ -41,9 +41,9 @@ export default function LoginScreen() {
             await loginWithCredentials(creds.email, creds.password, creds.companyCode);
             router.replace('/(app)/(tabs)');
             return;
-          } catch (err) {
-            // Biometric login failed, show regular login
-            console.error('Biometric login failed:', err);
+          } catch {
+            // Stored biometric credentials are stale/invalid — silently fall
+            // through to the manual login form (expected, not an error).
           }
         }
         setAttemptingBiometric(false);
@@ -231,19 +231,25 @@ export default function LoginScreen() {
               Remember me
             </Text>
           </Pressable>
-          <Button label="Test API connection" variant="secondary" onPress={onTestApi} loading={testing} />
+          {__DEV__ ? (
+            <Button label="Test API connection" variant="secondary" onPress={onTestApi} loading={testing} />
+          ) : null}
           <Button label="Sign in" onPress={onLogin} loading={loading} />
           <Pressable onPress={onForgotPassword} style={{ marginTop: spacing.md }}>
             <Text style={{ textAlign: 'center', color: colors.primary, fontSize: 14 }}>
               Forgot password?
             </Text>
           </Pressable>
-          <Text style={{ marginTop: 16, fontSize: 12, color: colors.muted, textAlign: 'center' }}>
-            API: {getApiOrigin()}/api/v1
-          </Text>
-            <Text style={{ marginTop: 4, fontSize: 11, color: colors.muted, textAlign: 'center' }}>
-              Phone on Wi‑Fi? Use your PC IP in apps/mobile/.env — not localhost.
-            </Text>
+          {__DEV__ ? (
+            <>
+              <Text style={{ marginTop: 16, fontSize: 12, color: colors.muted, textAlign: 'center' }}>
+                API: {getApiOrigin()}/api/v1
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 11, color: colors.muted, textAlign: 'center' }}>
+                Phone on Wi‑Fi? Use your PC IP in apps/mobile/.env — not localhost.
+              </Text>
+            </>
+          ) : null}
           </ScrollView>
         </KeyboardAvoidingView>
       </Screen>
