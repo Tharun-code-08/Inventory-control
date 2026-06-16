@@ -11,7 +11,13 @@ import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/api/client';
 import { cn } from '@/lib/cn';
-import { useAlerts, useMarkAlertRead } from '@/hooks/use-alerts';
+import {
+  useNotificationFeed,
+  useUnreadNotificationCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from '@/hooks/use-notification-feed';
+import { notificationVisual, timeAgo } from '@/lib/notification-presentation';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { AppFooter } from '@/components/AppFooter';
 import { OrganisationIdBadge } from '@/components/OrganisationIdBadge';
@@ -61,10 +67,12 @@ export function AppLayout({ children, active }: AppLayoutProps) {
   const [routeProgress, setRouteProgress] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
-  const alertsQuery = useAlerts();
-  const markRead = useMarkAlertRead();
-  const alerts = alertsQuery.data ?? [];
-  const unreadCount = alerts.filter((alert) => !alert.isRead).length;
+  const feedQuery = useNotificationFeed({ limit: 8 });
+  const unreadCountQuery = useUnreadNotificationCount(Boolean(user));
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const notifications = feedQuery.data?.data ?? [];
+  const unreadCount = unreadCountQuery.data ?? feedQuery.data?.unreadCount ?? 0;
   const { data: subscription } = useSubscription(Boolean(user));
 
   const pageTitle = active ?? resolvePageTitle(location.pathname);
@@ -254,7 +262,9 @@ export function AppLayout({ children, active }: AppLayoutProps) {
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
                 )}
               </button>
               {notificationsOpen && (
@@ -270,39 +280,76 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                     className="absolute right-2 top-14 z-40 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:right-16 sm:max-w-[calc(100vw-2rem)]"
                   >
                     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => nav('/notifications')}
-                      >
-                        Manage
-                      </button>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {alerts.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</div>
-                      ) : (
-                        alerts.slice(0, 8).map((alert) => (
-                          <button
-                            key={alert.id}
-                            type="button"
-                            onClick={() => {
-                              if (!alert.isRead) {
-                                markRead.mutate(alert.id);
-                              }
-                            }}
-                            className={cn(
-                              'w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/80',
-                              !alert.isRead && 'bg-muted dark:bg-accent',
-                            )}
-                          >
-                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{alert.title}</p>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{alert.message}</p>
-                          </button>
-                        ))
+                      <p className="text-base font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                          onClick={() => markAllRead.mutate()}
+                          disabled={markAllRead.isPending}
+                        >
+                          Mark all read
+                        </button>
                       )}
                     </div>
+                    <div className="max-h-[420px] overflow-y-auto">
+                      {feedQuery.isLoading ? (
+                        <div className="px-4 py-10 text-center text-sm text-muted-foreground">Loading…</div>
+                      ) : notifications.length === 0 ? (
+                        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                          You&apos;re all caught up.
+                        </div>
+                      ) : (
+                        notifications.map((n) => {
+                          const { Icon, badgeClass } = notificationVisual(n.type, n.priority);
+                          return (
+                            <button
+                              key={n.id}
+                              type="button"
+                              onClick={() => {
+                                if (!n.isRead) markRead.mutate(n.id);
+                                if (n.deepLink) {
+                                  setNotificationsOpen(false);
+                                  nav(n.deepLink);
+                                }
+                              }}
+                              className={cn(
+                                'flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3.5 text-left last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/80',
+                                !n.isRead && 'bg-blue-50/60 dark:bg-slate-800/50',
+                              )}
+                            >
+                              <span className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full', badgeClass)}>
+                                <Icon className="h-[18px] w-[18px]" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                  {n.title}
+                                </span>
+                                <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">
+                                  {n.message}
+                                </span>
+                                <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">
+                                  {timeAgo(n.createdAt)}
+                                </span>
+                              </span>
+                              {!n.isRead && (
+                                <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-hidden="true" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        nav('/notifications');
+                      }}
+                      className="block w-full border-t border-slate-200 px-4 py-3 text-center text-sm font-semibold text-primary hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/80"
+                    >
+                      View All Notifications
+                    </button>
                   </div>
                 </>
               )}
