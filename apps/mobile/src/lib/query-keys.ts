@@ -77,6 +77,9 @@ export const reportKeys = {
   inventory: (filters?: Record<string, unknown>) => [...reportKeys.all, 'inventory', filters] as const,
   lowStock: (filters?: Record<string, unknown>) => [...reportKeys.all, 'low-stock', filters] as const,
   fastMoving: (filters?: Record<string, unknown>) => [...reportKeys.all, 'fast-moving', filters] as const,
+  deadStock: (filters?: Record<string, unknown>) => [...reportKeys.all, 'dead-stock', filters] as const,
+  reorder: (filters?: Record<string, unknown>) => [...reportKeys.all, 'reorder', filters] as const,
+  profitability: (filters?: Record<string, unknown>) => [...reportKeys.all, 'profitability', filters] as const,
   shopSummary: (filters?: Record<string, unknown>) => [...reportKeys.all, 'shop-summary', filters] as const,
   overview: (filters?: Record<string, unknown>) => [...reportKeys.all, 'overview', filters] as const,
 };
