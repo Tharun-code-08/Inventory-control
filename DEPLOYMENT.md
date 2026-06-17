@@ -32,12 +32,19 @@ SSH to VPS (deploy user)
 
 ## GitHub Secrets (Required)
 
+⚠️ **SECURITY WARNING**
+- **Private key** (`deploy_key`) → GitHub Secrets ONLY
+- **Never commit** private key to git
+- **Public key** (`deploy_key.pub`) → `/home/deploy/.ssh/authorized_keys`
+- Verify permissions: `chmod 600 ~/.ssh/deploy_key`
+
 Add these 3 secrets to GitHub:
 Repository → Settings → Secrets and variables → Actions
 
 ```
 Name: DEPLOY_KEY
-Value: (SSH private key from: cat /home/deploy/.ssh/deploy_key)
+Value: (Paste ONLY the private key content - cat /home/deploy/.ssh/deploy_key)
+       (Then DELETE the local key file after confirming Secret is saved)
 
 Name: DEPLOY_HOST
 Value: 187.127.173.9
@@ -45,6 +52,63 @@ Value: 187.127.173.9
 Name: DEPLOY_USER
 Value: deploy
 ```
+
+Verify setup:
+```bash
+# Private key should ONLY exist in GitHub Secrets
+ls -la /home/deploy/.ssh/deploy_key
+# Should NOT exist after setup
+
+# Public key should be in authorized_keys
+cat /home/deploy/.ssh/authorized_keys | grep "deploy@inventory-control"
+# Should show the ed25519 public key
+```
+
+## Pre-Launch Tests (Run These 5)
+
+### Test 1: Empty Deployment
+```bash
+git commit --allow-empty -m "Test CI/CD"
+git push origin main
+```
+Expected: GitHub Actions ✅ → Health check ✅ → PM2 online ✅
+
+### Test 2: Intentional Build Failure
+```bash
+# Break the build
+echo "const x = unknownVariable;" >> apps/api/src/main.ts
+git add .
+git commit -m "Intentional build failure"
+git push origin main
+```
+Expected: Build fails → Rollback triggered → Old version still works
+
+Verify users can still log in and use the app.
+
+### Test 3: VPS Reboot
+```bash
+sudo reboot
+# Wait 30 seconds
+```
+Expected: PM2 auto-starts, health endpoint returns 200
+
+### Test 4: Prisma Migration
+Add a safe migration:
+```prisma
+description String?
+```
+Deploy and verify:
+- Migration runs
+- API starts
+- Existing data intact
+
+### Test 5: Health Endpoint
+```bash
+curl http://localhost:3000/api/v1/health
+```
+Expected: Returns 200 with `"status":"ok"`
+
+---
 
 ## Deployment Readiness Checklist
 
@@ -277,6 +341,51 @@ Response:
 - [ ] Consider Docker/blue-green deployments
 - [ ] Document runbooks for common issues
 
+## Ready for Customers?
+
+### Deployment Checklist
+- [ ] All 5 pre-launch tests pass
+- [ ] GitHub Secrets configured correctly
+- [ ] SSH private key stored ONLY in GitHub Secrets (not on VPS)
+- [ ] Public key in `/home/deploy/.ssh/authorized_keys`
+- [ ] VPS survives reboot with PM2 online
+- [ ] Health endpoint returns 200
+
+### If All Tests Pass
+✅ **YES. Ship it.**
+
+Your infrastructure is production-ready for:
+- First 10 customers
+- Daily deployments
+- Rapid iteration
+- Automatic error recovery
+
+---
+
+## Next Priorities After Launch
+
+### Infrastructure (Do These When You Have 10+ Customers)
+1. **Database Backups** - Automated PostgreSQL backups
+2. **Error Tracking** - Sentry or similar for error monitoring
+3. **Uptime Monitoring** - StatusPage or Ping monitoring
+4. **Staging Environment** - Test deployments before production
+
+### Engineering (Do These When You Have 50+ Customers)
+1. **Dockerize** - API in Docker when deployments become frequent
+2. **Blue-Green Deployments** - Zero-downtime deployments
+3. **Database Replicas** - Read replicas for performance
+4. **CDN** - Cache static assets globally
+
+### Right Now (Next 2 Weeks)
+❌ Don't optimize infrastructure  
+✅ **Focus on:**
+- Customer feedback
+- Critical bugs
+- Feature requests
+- Product/market fit
+
+---
+
 ## Final Notes
 
 - **Production-grade:** Yes, for MVP SaaS stage
@@ -285,4 +394,17 @@ Response:
 - **Safety:** Health checks prevent broken deployments
 - **Scalability:** Good for 1-100 customers
 
-Next: Add GitHub Secrets and push a test deployment! 🚀
+### You've Done Well
+
+Building an ERP SaaS with:
+- Vite + React frontend (Vercel)
+- NestJS API backend (VPS)
+- PostgreSQL database
+- Automated CI/CD
+- Automatic rollback
+
+is a **solid engineering foundation** for the first 100 customers.
+
+**Next: Run the 5 tests, add GitHub Secrets, and ship.** 🚀
+
+Your ERP SaaS is ready. Focus on customers, not infrastructure.
