@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
 import { FileSpreadsheet, Plus, Send, Truck, XCircle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
@@ -100,10 +101,11 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   async function handleDownloadPdf() {
     if (!active) return;
     try {
+      const accessToken = useAuthStore.getState().accessToken;
       const response = await fetch(`/api/v1/eway-bills/${active.id}/pdf`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
       if (!response.ok) throw new Error('Failed to download PDF');
