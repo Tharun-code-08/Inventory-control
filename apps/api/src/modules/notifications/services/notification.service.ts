@@ -1,7 +1,7 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { CreateNotificationDto, NotificationFilterDto, UpdateNotificationStatusDto } from '../dto';
-import { Notification, NotificationStatus, User } from '@prisma/client';
+import { CreateNotificationDto, NotificationFilterDto } from '../dto';
+import { Notification, NotificationStatus } from '@prisma/client';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 

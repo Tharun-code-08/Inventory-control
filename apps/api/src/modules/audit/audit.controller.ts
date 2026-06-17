@@ -8,14 +8,12 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { AuditExportRateLimitGuard } from '@/common/guards/audit-export-rate-limit.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
-import { RequirePermission } from '@/common/decorators/require-permission.decorator';
 import type { RequestUser } from '@/common/types/request-user';
 import { AuditService } from './audit.service';
 import {

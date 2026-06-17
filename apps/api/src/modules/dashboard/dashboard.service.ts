@@ -311,7 +311,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchFinancialCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchFinancialCard(shopIds: string[]) {
     // Week 4A: Frozen to 4 metrics only
     try {
       const result = await this.prisma.$queryRaw<
@@ -354,7 +354,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchInventoryCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchInventoryCard(shopIds: string[]) {
     // Week 4A: Frozen to 4 metrics only
     try {
       const result = await this.prisma.$queryRaw<
@@ -398,7 +398,7 @@ export class DashboardService {
     };
   }
 
-  private async fetchAttentionCard(shopIds: string[], shopFilter: string | { in: string[] }) {
+  private async fetchAttentionCard(shopIds: string[]) {
     // Week 4A: Frozen to Problem → Urgency → Action format
     try {
       const results = await this.prisma.$queryRaw<

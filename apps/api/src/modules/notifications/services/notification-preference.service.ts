@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { UpdateNotificationPreferenceDto, NotificationPreferenceResponseDto } from '../dto';
+import { UpdateNotificationPreferenceDto } from '../dto';
 import { NotificationPreference } from '@prisma/client';
 
 @Injectable()
@@ -140,7 +140,7 @@ export class NotificationPreferenceService {
   /**
    * Reset preferences to defaults
    */
-  async resetToDefaults(userId: string, companyId: string): Promise<NotificationPreference> {
+  async resetToDefaults(userId: string): Promise<NotificationPreference> {
     return this.updatePreferences(userId, {
       grCreated: true,
       grApproved: true,

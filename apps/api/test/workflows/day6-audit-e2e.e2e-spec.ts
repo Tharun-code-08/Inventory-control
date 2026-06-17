@@ -67,7 +67,6 @@ describe('Day 6 — E2E Audit Validation', () => {
       (await api.get('/api/v1/companies')).body,
     );
     expect(companies.length).toBeGreaterThan(0);
-    const companyId = companies[0].id;
 
     const shops = unwrap<Array<{ id: string; shopNumber: string }>>(
       (await api.get('/api/v1/shops')).body,
@@ -134,14 +133,6 @@ describe('Day 6 — E2E Audit Validation', () => {
     expect(postRes.status).toBe(200);
 
     // Check RECEIVE_GOODS audit
-    const receiveAudits = await prisma.auditLog.findMany({
-      where: {
-        action: AuditAction.RECEIVE_GOODS,
-        metadata: { path: ['entityId'], equals: productId },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 1,
-    });
     // Note: finding by nested JSON might need adjustment based on actual query capability
     // Fallback: get all RECEIVE_GOODS for this user and check manually
     const allReceiveAudits = await prisma.auditLog.findMany({

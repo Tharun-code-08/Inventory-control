@@ -4,7 +4,6 @@ import {
   CreateApprovalRequestDto,
   ApproveApprovalDto,
   RejectApprovalDto,
-  AddApprovalCommentDto,
   ApprovalFilterDto,
   ApprovalRequestResponseDto,
 } from '../dto';
@@ -320,7 +319,7 @@ export class ApprovalService {
    * Add comment to approval
    */
   async addComment(approvalId: string, userId: string, comment: string): Promise<ApprovalComment> {
-    const approval = await this.getApproval(approvalId);
+    await this.getApproval(approvalId);
 
     return this.prisma.approvalComment.create({
       data: {

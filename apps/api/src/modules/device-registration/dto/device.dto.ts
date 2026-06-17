@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
 import { DevicePlatform } from '@prisma/client';
 
 export class RegisterDeviceDto {

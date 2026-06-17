@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { assertCompanyId } from '../../common/utils/assert-company-id';
-import { AuditAction, Prisma, PurchaseOrderStatus, TaxPreference, TransactionType } from '@prisma/client';
+import { Prisma, PurchaseOrderStatus, TaxPreference, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';

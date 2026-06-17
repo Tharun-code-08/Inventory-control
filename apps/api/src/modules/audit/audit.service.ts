@@ -1,7 +1,6 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuditAction, AuditLog, AuditSeverity, Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { PrismaService } from '../../prisma/prisma.service';
 import { redactSensitive } from '../../common/utils/redact';
 

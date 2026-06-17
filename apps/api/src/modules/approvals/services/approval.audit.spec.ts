@@ -31,8 +31,6 @@ function makeApproval(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const TX = Symbol('tx-client');
-
 function makeHarness() {
   const tx = {
     approvalRequest: { update: jest.fn() },

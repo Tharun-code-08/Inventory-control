@@ -1160,7 +1160,7 @@ COALESCE(
     `;
 
     const [totalRows, rows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
         SELECT COUNT(*)::bigint as count
         FROM products p
         JOIN product_plants pp ON pp.product_id = p.id
@@ -1279,7 +1279,7 @@ COALESCE(
     const sortBy = filters.sort_by ?? 'urgency';
 
     const [totalRows, rows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
         SELECT COUNT(*)::bigint as count
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
@@ -1456,7 +1456,7 @@ COALESCE(
     const sortBy = filters.sort_by ?? 'totalOutstanding';
 
     const [totalRows, rows, summaryRows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
         SELECT COUNT(DISTINCT c.id)::bigint as count
         FROM customers c
         LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED')
@@ -1665,7 +1665,7 @@ COALESCE(
     const sortBy = filters.sort_by ?? 'profit';
 
     const [totalRows, rows, summaryRows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: BigInt }]>(Prisma.sql`
+      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
         SELECT COUNT(DISTINCT p.id)::bigint as count
         FROM products p
         LEFT JOIN sales_order_items soi ON soi.product_id = p.id
