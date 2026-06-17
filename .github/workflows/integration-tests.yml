@@ -51,7 +51,11 @@ jobs:
           cache: npm
       - run: npm install
       - run: npm run prisma:generate --workspace=api
-      - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+      # CI uses an ephemeral DB: push the current schema directly instead of
+      # replaying the (production-baselined, non-linear) migration history.
+      - run: npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate --accept-data-loss
+      # db push omits hand-written PL/pgSQL triggers; reapply the stock-ledger ones.
+      - run: npx prisma db execute --schema apps/api/prisma/schema.prisma --file apps/api/prisma/ci-runtime-objects.sql
       - run: npm run db:seed --workspace=api
       - run: npm run test:e2e:workflows --workspace=api -- --runInBand
 
@@ -102,7 +106,8 @@ jobs:
       - run: npm install
       - run: npm run prisma:generate --workspace=api
       - run: |
-          npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+          npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate --accept-data-loss
+          npx prisma db execute --schema apps/api/prisma/schema.prisma --file apps/api/prisma/ci-runtime-objects.sql
           npm run db:seed --workspace=api
       - run: npm run build
       - run: npx playwright install chromium --with-deps
