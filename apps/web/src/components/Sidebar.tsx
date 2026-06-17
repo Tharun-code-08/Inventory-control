@@ -1,31 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ArrowLeftRight,
-  BarChart3,
-  Building2,
   ChevronUp,
   ChevronsLeft,
-  ClipboardList,
-  Factory,
-  FileCheck,
-  FileSignature,
-  FileText,
-  LayoutDashboard,
-  Bell,
-  Package,
-  Settings,
-  ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Barcode,
-  Truck,
-  Undo2,
-  Users,
-  Warehouse,
 } from 'lucide-react';
+import { menuIcons } from '@/config/iconMap';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { resetClientSessionState } from '@/lib/reset-session-state';
@@ -117,50 +96,50 @@ export function Sidebar({
     const has = (perm: string) => perms.includes(perm) || isOrgAdmin;
 
     const items: NavItem[] = [
-      ...(isOrgAdmin ? [{ label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }] : []),
+      ...(isOrgAdmin ? [{ label: 'Dashboard', icon: menuIcons.dashboard, path: '/dashboard' }] : []),
 
       // Master Data
-      ...(has('company:read') ? [{ label: 'Companies', icon: Building2, path: '/companies' }] : []),
-      ...(has('shop:read') ? [{ label: 'Plants', icon: Factory, path: '/plants' }] : []),
-      ...(has('storage_location:read') ? [{ label: 'Storage Locations', icon: Warehouse, path: '/storage-locations' }] : []),
-      ...(has('product:read') ? [{ label: 'Products', icon: Package, path: '/products' }] : []),
-      ...(has('supplier:read') ? [{ label: 'Suppliers', icon: Truck, path: '/suppliers' }] : []),
-      ...(has('shop:read') ? [{ label: 'Customers', icon: Users, path: '/customers' }] : []),
+      ...(has('company:read') ? [{ label: 'Companies', icon: menuIcons.companies, path: '/companies' }] : []),
+      ...(has('shop:read') ? [{ label: 'Plants', icon: menuIcons.plants, path: '/plants' }] : []),
+      ...(has('storage_location:read') ? [{ label: 'Storage Locations', icon: menuIcons.storageLocations, path: '/storage-locations' }] : []),
+      ...(has('product:read') ? [{ label: 'Products', icon: menuIcons.products, path: '/products' }] : []),
+      ...(has('supplier:read') ? [{ label: 'Suppliers', icon: menuIcons.suppliers, path: '/suppliers' }] : []),
+      ...(has('shop:read') ? [{ label: 'Customers', icon: menuIcons.customers, path: '/customers' }] : []),
 
       // Procurement
-      ...(has('rfq:read') ? [{ label: 'RFQs', icon: FileText, path: '/rfqs' }] : []),
-      ...(has('contract:read') ? [{ label: 'Contracts', icon: FileSignature, path: '/contracts' }] : []),
-      ...(has('purchase_order:read') ? [{ label: 'Purchase Orders', icon: ClipboardList, path: '/purchase-orders' }] : []),
-      { label: 'Goods Receipt', icon: ArrowDownToLine, path: '/goods-receipts' },
-      ...(has('shop:read') ? [{ label: 'Goods Returns', icon: Undo2, path: '/returns' }] : []),
-      ...(has('supplier:read') ? [{ label: 'Supplier Portal', icon: Truck, path: '/supplier-portal' }] : []),
-      ...(has('shop:read') ? [{ label: 'Supplier Bills', icon: FileText, path: '/supplier-bills' }] : []),
-      ...(has('shop:read') ? [{ label: 'Supplier Payments', icon: FileCheck, path: '/supplier-payments' }] : []),
+      ...(has('rfq:read') ? [{ label: 'RFQs', icon: menuIcons.rfqs, path: '/rfqs' }] : []),
+      ...(has('contract:read') ? [{ label: 'Contracts', icon: menuIcons.contracts, path: '/contracts' }] : []),
+      ...(has('purchase_order:read') ? [{ label: 'Purchase Orders', icon: menuIcons.purchaseOrders, path: '/purchase-orders' }] : []),
+      { label: 'Goods Receipt', icon: menuIcons.goodsReceipt, path: '/goods-receipts' },
+      ...(has('shop:read') ? [{ label: 'Goods Returns', icon: menuIcons.goodsReturns, path: '/returns' }] : []),
+      ...(has('supplier:read') ? [{ label: 'Supplier Portal', icon: menuIcons.supplierPortal, path: '/supplier-portal' }] : []),
+      ...(has('shop:read') ? [{ label: 'Supplier Bills', icon: menuIcons.supplierBills, path: '/supplier-bills' }] : []),
+      ...(has('shop:read') ? [{ label: 'Supplier Payments', icon: menuIcons.supplierPayments, path: '/supplier-payments' }] : []),
 
       // Sales
-      ...(has('shop:read') ? [{ label: 'Sales Quotations', icon: FileCheck, path: '/quotations' }] : []),
-      ...(has('shop:read') ? [{ label: 'Sales', icon: ShoppingCart, path: '/sales' }] : []),
-      ...(has('goods_issue:read') ? [{ label: 'Goods Issue', icon: ArrowUpFromLine, path: '/goods-issues' }] : []),
-      ...(has('shop:read') ? [{ label: 'Invoices', icon: FileText, path: '/invoices' }] : []),
-      ...(has('shop:read') ? [{ label: 'E-Way Bills', icon: Truck, path: '/eway-bills' }] : []),
-      ...(has('shop:read') ? [{ label: 'Payments', icon: FileCheck, path: '/payments' }] : []),
+      ...(has('shop:read') ? [{ label: 'Sales Quotations', icon: menuIcons.salesQuotations, path: '/quotations' }] : []),
+      ...(has('shop:read') ? [{ label: 'Sales', icon: menuIcons.sales, path: '/sales' }] : []),
+      ...(has('goods_issue:read') ? [{ label: 'Goods Issue', icon: menuIcons.goodsIssue, path: '/goods-issues' }] : []),
+      ...(has('shop:read') ? [{ label: 'Invoices', icon: menuIcons.invoices, path: '/invoices' }] : []),
+      ...(has('shop:read') ? [{ label: 'E-Way Bills', icon: menuIcons.ewayBills, path: '/eway-bills' }] : []),
+      ...(has('shop:read') ? [{ label: 'Payments', icon: menuIcons.payments, path: '/payments' }] : []),
 
       // Warehouse + Admin
       ...(has('stock_transfer:read')
-        ? [{ label: 'Stock Transfers', icon: ArrowLeftRight, path: '/stock-transfers' }]
+        ? [{ label: 'Stock Transfers', icon: menuIcons.stockTransfers, path: '/stock-transfers' }]
         : []),
-      ...(has('report:view') ? [{ label: 'Warehouse', icon: Warehouse, path: '/warehouse' }] : []),
-      ...(has('report:view') ? [{ label: 'Reports', icon: BarChart3, path: '/reports' }] : []),
-      ...(has('report:view') ? [{ label: 'Notifications', icon: Bell, path: '/notifications' }] : []),
+      ...(has('report:view') ? [{ label: 'Warehouse', icon: menuIcons.warehouseOps, path: '/warehouse' }] : []),
+      ...(has('report:view') ? [{ label: 'Reports', icon: menuIcons.reports, path: '/reports' }] : []),
+      ...(has('report:view') ? [{ label: 'Notifications', icon: menuIcons.notifications, path: '/notifications' }] : []),
       ...(has('shop:read')
-        ? [{ label: 'Approvals', icon: ShieldCheck, path: '/approvals', badge: pendingApprovals }]
+        ? [{ label: 'Approvals', icon: menuIcons.approvals, path: '/approvals', badge: pendingApprovals }]
         : []),
-      ...(has('billing:manage') ? [{ label: 'Upgrade', icon: Sparkles, path: '/upgrade' }] : []),
+      ...(has('billing:manage') ? [{ label: 'Upgrade', icon: menuIcons.upgrade, path: '/upgrade' }] : []),
       ...(isPlatformAdmin
-        ? [{ label: 'Platform Admin', icon: BarChart3, path: '/platform/subscriptions' }]
+        ? [{ label: 'Platform Admin', icon: menuIcons.platformAdmin, path: '/platform/subscriptions' }]
         : []),
-      { label: 'Print Labels', icon: Barcode, path: '/barcode-print' },
-      { label: 'Settings', icon: Settings, path: '/settings' },
+      { label: 'Print Labels', icon: menuIcons.printLabels, path: '/barcode-print' },
+      { label: 'Settings', icon: menuIcons.settings, path: '/settings' },
     ];
     return items;
   }, [perms, isOrgAdmin, isPlatformAdmin, pendingApprovals]);
