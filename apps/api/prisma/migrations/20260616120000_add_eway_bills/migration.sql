@@ -73,4 +73,3 @@ CREATE INDEX "eway_bills_invoice_id_idx" ON "eway_bills"("invoice_id");
 ALTER TABLE "eway_bills" ADD CONSTRAINT "eway_bills_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "eway_bills" ADD CONSTRAINT "eway_bills_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
