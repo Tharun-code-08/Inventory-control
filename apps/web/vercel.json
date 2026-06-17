@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://api.softdigitconsulting.com/api/:path*"
+      "source": "/api/v1/:path*",
+      "destination": "https://api.softdigitconsulting.com/api/v1/:path*"
     }
   ]
 }
