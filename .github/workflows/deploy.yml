@@ -18,16 +18,23 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: deploy
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
+          # Validate required secrets
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+            echo "❌ Missing required secrets: DEPLOY_KEY, DEPLOY_HOST, or DEPLOY_USER"
+            exit 1
+          fi
+
           # Install SSH key
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           # Run deployment script
-          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST "/opt/Inventory-control/scripts/deploy.sh"
+          echo "🚀 Connecting to $DEPLOY_USER@$DEPLOY_HOST..."
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "/opt/Inventory-control/scripts/deploy.sh"
 
       - name: Deployment Status
         if: success()

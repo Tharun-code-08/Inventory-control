@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 echo "=== Starting Inventory Control Deployment ==="
 echo "Timestamp: $(date)"
