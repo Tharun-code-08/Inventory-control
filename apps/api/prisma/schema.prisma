@@ -1752,11 +1752,45 @@ enum EwaySupplyType {
   INWARD
 }
 
+enum EwaySubType {
+  SUPPLY
+  EXPORT
+  IMPORT
+  JOB_WORK
+  SKD_CKD
+  RECIPIENT_NOT_KNOWN
+  LINE_SALES
+  SALES_RETURN
+  EXHIBITION
+  OTHERS
+}
+
+enum EwayTransactionType {
+  REGULAR
+  BILL_TO_SHIP_TO
+  BILL_FROM_DISPATCH_FROM
+  COMBINATION
+}
+
+enum EwayDocumentType {
+  TAX_INVOICE
+  BILL_OF_SUPPLY
+  DELIVERY_CHALLAN
+  CREDIT_NOTE
+  BILL_OF_ENTRY
+  OTHERS
+}
+
 enum EwayTransportMode {
   ROAD
   RAIL
   AIR
   SHIP
+}
+
+enum EwayVehicleType {
+  REGULAR
+  ODC
 }
 
 enum SupplierBillStatus {
@@ -2036,70 +2070,103 @@ model PaymentReceipt {
 }
 
 model EwayBill {
-  id              String            @id @default(uuid()) @db.Uuid
-  ewayBillNumber  String            @unique @map("eway_bill_number")
-  shopId          String            @map("shop_id") @db.Uuid
-  invoiceId       String?           @map("invoice_id") @db.Uuid
-  status          EwayBillStatus    @default(DRAFT)
-  supplyType      EwaySupplyType    @default(OUTWARD) @map("supply_type")
+  id              String               @id @default(uuid()) @db.Uuid
+  ewayBillNumber  String               @unique @map("eway_bill_number")
+  shopId          String               @map("shop_id") @db.Uuid
+  invoiceId       String?              @map("invoice_id") @db.Uuid
+  salesOrderId    String?              @map("sales_order_id") @db.Uuid
+  customerId      String?              @map("customer_id") @db.Uuid
+  status          EwayBillStatus       @default(DRAFT)
 
-  // Source document
-  documentType    String            @default("TAX_INVOICE") @map("document_type")
-  documentNumber  String            @map("document_number")
-  documentDate    DateTime          @map("document_date") @db.Date
+  // Transaction
+  supplyType      EwaySupplyType       @default(OUTWARD)      @map("supply_type")
+  subType         EwaySubType          @default(SUPPLY)       @map("sub_type")
+  transactionType EwayTransactionType  @default(REGULAR)      @map("transaction_type")
+  documentType    EwayDocumentType     @default(TAX_INVOICE)  @map("document_type")
+  documentNumber  String               @map("document_number")
+  documentDate    DateTime             @map("document_date") @db.Date
 
-  // Consignor (from)
-  fromGstin       String?           @map("from_gstin")
-  fromName        String            @map("from_name")
-  fromAddress     String?           @map("from_address")
-  fromPlace       String?           @map("from_place")
-  fromPincode     String?           @map("from_pincode")
-  fromStateCode   String?           @map("from_state_code")
+  // Dispatch From (seller / from)
+  fromGstin       String?              @map("from_gstin")
+  fromName        String               @map("from_name")
+  fromAddress1    String?              @map("from_address1")
+  fromAddress2    String?              @map("from_address2")
+  fromPlace       String?              @map("from_place")
+  fromPincode     String?              @map("from_pincode")
+  fromStateCode   String?              @map("from_state_code")
 
-  // Consignee (to)
-  toGstin         String?           @map("to_gstin")
-  toName          String            @map("to_name")
-  toAddress       String?           @map("to_address")
-  toPlace         String?           @map("to_place")
-  toPincode       String?           @map("to_pincode")
-  toStateCode     String?           @map("to_state_code")
+  // Ship To (buyer / to)
+  toGstin         String?              @map("to_gstin")
+  toName          String               @map("to_name")
+  toAddress1      String?              @map("to_address1")
+  toAddress2      String?              @map("to_address2")
+  toPlace         String?              @map("to_place")
+  toPincode       String?              @map("to_pincode")
+  toStateCode     String?              @map("to_state_code")
 
   // Transport
-  transporterName String?           @map("transporter_name")
-  transporterId   String?           @map("transporter_id")
-  transportMode   EwayTransportMode @default(ROAD) @map("transport_mode")
-  vehicleNumber   String?           @map("vehicle_number")
-  distanceKm      Int?              @map("distance_km")
-  transDocNumber  String?           @map("trans_doc_number")
-  transDocDate    DateTime?         @map("trans_doc_date") @db.Date
+  transporterGstin  String?              @map("transporter_gstin")
+  transporterName   String?              @map("transporter_name")
+  transporterId     String?              @map("transporter_id")
+  transportMode     EwayTransportMode    @default(ROAD) @map("transport_mode")
+  transDocNumber    String?              @map("trans_doc_number")
+  transDocDate      DateTime?            @map("trans_doc_date") @db.Date
+  vehicleNumber     String?              @map("vehicle_number")
+  vehicleType       EwayVehicleType      @default(REGULAR) @map("vehicle_type")
+  distanceKm        Int?                 @map("distance_km")
 
-  // Values
-  taxableValue    Decimal           @default(0) @map("taxable_value") @db.Decimal(14, 2)
-  cgstValue       Decimal           @default(0) @map("cgst_value") @db.Decimal(14, 2)
-  sgstValue       Decimal           @default(0) @map("sgst_value") @db.Decimal(14, 2)
-  igstValue       Decimal           @default(0) @map("igst_value") @db.Decimal(14, 2)
-  cessValue       Decimal           @default(0) @map("cess_value") @db.Decimal(14, 2)
-  totalValue      Decimal           @default(0) @map("total_value") @db.Decimal(14, 2)
-  hsnSummary      Json?             @map("hsn_summary")
+  // Summary values (auto-calculated from items)
+  taxableValue    Decimal              @default(0) @map("taxable_value") @db.Decimal(14, 2)
+  cgstValue       Decimal              @default(0) @map("cgst_value") @db.Decimal(14, 2)
+  sgstValue       Decimal              @default(0) @map("sgst_value") @db.Decimal(14, 2)
+  igstValue       Decimal              @default(0) @map("igst_value") @db.Decimal(14, 2)
+  cessValue       Decimal              @default(0) @map("cess_value") @db.Decimal(14, 2)
+  totalValue      Decimal              @default(0) @map("total_value") @db.Decimal(14, 2)
 
-  validUpto       DateTime?         @map("valid_upto") @db.Timestamptz(6)
-  generatedAt     DateTime?         @map("generated_at") @db.Timestamptz(6)
-  cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
-  cancelReason    String?           @map("cancel_reason")
+  // EWB lifecycle
+  validUpto       DateTime?            @map("valid_upto") @db.Timestamptz(6)
+  generatedAt     DateTime?            @map("generated_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?              @map("cancel_reason")
   remarks         String?
 
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById     String?           @map("created_by") @db.Uuid
-  updatedById     String?           @map("updated_by") @db.Uuid
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById     String?              @map("created_by") @db.Uuid
+  updatedById     String?              @map("updated_by") @db.Uuid
 
-  shop    Shop           @relation(fields: [shopId], references: [id])
-  invoice InvoiceHeader? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  shop     Shop           @relation(fields: [shopId], references: [id])
+  invoice  InvoiceHeader? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  items    EwayBillItem[]
 
   @@index([shopId, documentDate])
   @@index([shopId, status])
   @@index([invoiceId])
+  @@index([customerId])
   @@map("eway_bills")
+}
+
+model EwayBillItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  ewayBillId      String   @map("eway_bill_id") @db.Uuid
+  productId       String?  @map("product_id") @db.Uuid
+  productName     String   @map("product_name")
+  description     String?
+  hsnCode         String   @map("hsn_code")
+  quantity        Decimal  @db.Decimal(14, 3)
+  unit            String   @default("PCS")
+  taxableAmount   Decimal  @map("taxable_amount") @db.Decimal(14, 2)
+  gstRate         Decimal  @map("gst_rate") @db.Decimal(5, 2)
+  cgst            Decimal  @default(0) @db.Decimal(14, 2)
+  sgst            Decimal  @default(0) @db.Decimal(14, 2)
+  igst            Decimal  @default(0) @db.Decimal(14, 2)
+  cess            Decimal  @default(0) @db.Decimal(14, 2)
+  total           Decimal  @db.Decimal(14, 2)
+
+  ewayBill EwayBill @relation(fields: [ewayBillId], references: [id], onDelete: Cascade)
+
+  @@index([ewayBillId])
+  @@map("eway_bill_items")
 }
 
 model AlertEvent {
