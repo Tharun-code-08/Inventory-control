@@ -48,9 +48,7 @@ sleep 3
 
 # Step 7: Health check
 echo -e "\n${GREEN}Step 7: Running health check...${NC}"
-if curl -f -s https://api.softdigitconsulting.com/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"test"}' > /dev/null 2>&1; then
+if curl -f -s http://localhost:3000/api/v1/health > /dev/null 2>&1; then
   echo -e "${GREEN}✓ Health check passed (API responding)${NC}"
 else
   echo -e "${RED}✗ Health check failed${NC}"
