@@ -96,7 +96,7 @@ async function bootstrap() {
   const uploadDir = path.resolve(process.env.UPLOAD_STORAGE_DIR ?? './storage/uploads');
   app.useStaticAssets(uploadDir, { prefix: '/uploads/' });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api');
 
   // Helmet hardens common HTTP response headers (HSTS, X-Frame-Options, etc.).
   // CSP is left disabled by default because this API is not the document host

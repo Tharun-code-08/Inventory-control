@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileSpreadsheet, Plus, Send, Truck, XCircle } from 'lucide-react';
+import { FileSpreadsheet, Plus, Send, Truck, XCircle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { PageHeader, KpiCard, EmptyState, LoadingSkeleton, CreatePageLayout } from '@/components/shared';
@@ -95,6 +95,32 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
 
   function set<K extends keyof ReturnType<typeof emptyForm>>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleDownloadPdf() {
+    if (!active) return;
+    try {
+      const response = await fetch(`/api/v1/eway-bills/${active.id}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to download PDF');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eway-bill-${active.ewayBillNumber || active.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('PDF downloaded');
+    } catch (error) {
+      toast.error('Failed to download PDF');
+      console.error(error);
+    }
   }
 
   async function handleCreate() {
@@ -403,6 +429,13 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
 
               {active.status === 'GENERATED' && (
                 <div className="mt-auto space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                  <Button
+                    className="w-full"
+                    onClick={handleDownloadPdf}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </Button>
                   <Textarea
                     placeholder="Reason for cancellation…"
                     value={cancelReason}

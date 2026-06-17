@@ -28,5 +28,14 @@
     "check:bundle-budget": "node scripts/check-web-bundle-budget.mjs",
     "check:api-slo": "node scripts/check-api-slo.mjs"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@nestjs/bullmq": "^11.0.4",
+    "@nestjs/throttler": "^6.5.0",
+    "bullmq": "^5.78.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "helmet": "^8.2.0",
+    "joi": "^18.2.1",
+    "otplib": "^13.4.1"
+  }
 }
