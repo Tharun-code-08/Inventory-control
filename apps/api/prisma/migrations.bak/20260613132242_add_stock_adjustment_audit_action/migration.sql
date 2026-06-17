@@ -1,2 +1,0 @@
--- Add STOCK_ADJUSTMENT to AuditAction enum
-ALTER TYPE "AuditAction" ADD VALUE 'STOCK_ADJUSTMENT';

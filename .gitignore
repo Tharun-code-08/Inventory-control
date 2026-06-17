@@ -27,3 +27,14 @@ pnpm-debug.log*
 # OS / editor
 .DS_Store
 .vscode/
+
+# Backups and temporary files
+*.bak
+*.sql.gz
+*.json.gz
+backups/
+apps/api/storage/backups/
+*.pdf
+
+# Accidental files
+q
