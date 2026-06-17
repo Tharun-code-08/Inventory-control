@@ -290,7 +290,6 @@ export class DashboardService {
    */
   async executive(user: RequestUser, shop_id?: string) {
     const shopIds = await this.resolveDashboardShopIds(user, shop_id);
-    const shopFilter = shopIds.length === 1 ? shopIds[0] : { in: shopIds };
 
     // Parallel queries for the 4 cards
     const [
