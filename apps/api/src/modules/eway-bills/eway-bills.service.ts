@@ -424,4 +424,17 @@ export class EwayBillsService {
     d.setDate(d.getDate() + days);
     return d;
   }
+
+  async generatePdf(user: RequestUser, billId: string): Promise<Buffer> {
+    const bill = await this.get(user, billId);
+    if (!bill) throw new NotFoundException('E-Way Bill not found');
+
+    const { renderHtmlToPdfBuffer } = await import('../../common/pdf/html-to-pdf.service');
+    const { generateEwayBillHtml } = await import('./eway-bills.pdf');
+
+    const html = generateEwayBillHtml(bill);
+    const pdf = await renderHtmlToPdfBuffer(html);
+
+    return pdf;
+  }
 }

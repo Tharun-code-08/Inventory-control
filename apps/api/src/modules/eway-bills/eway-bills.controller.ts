@@ -9,7 +9,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -88,5 +90,18 @@ export class EwayBillsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.cancel(user, id, dto.reason);
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Download E-Way Bill as PDF' })
+  async downloadPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.service.generatePdf(user, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="eway-bill-${id}.pdf"`);
+    res.send(pdf);
   }
 }
