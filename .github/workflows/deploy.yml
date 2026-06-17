@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy API to VPS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: deploy
+        run: |
+          # Install SSH key
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Run deployment script
+          ssh -i ~/.ssh/deploy_key $DEPLOY_USER@$DEPLOY_HOST "/opt/Inventory-control/scripts/deploy.sh"
+
+      - name: Deployment Status
+        if: success()
+        run: echo "✅ Deployment successful - $(git rev-parse --short HEAD)"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Deployment failed"
