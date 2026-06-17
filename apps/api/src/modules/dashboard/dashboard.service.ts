@@ -298,9 +298,9 @@ export class DashboardService {
       inventory,
       attention,
     ] = await Promise.all([
-      this.fetchFinancialCard(shopIds, shopFilter),
-      this.fetchInventoryCard(shopIds, shopFilter),
-      this.fetchAttentionCard(shopIds, shopFilter),
+      this.fetchFinancialCard(shopIds),
+      this.fetchInventoryCard(shopIds),
+      this.fetchAttentionCard(shopIds),
     ]);
 
     return {

@@ -3,6 +3,7 @@ import { Prisma, PurchaseOrderStatus, TaxPreference, TransactionType } from '@pr
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
+import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { verifyShopInTenant } from '../../common/utils/shop-access';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { StockService } from '../stock/stock.service';
