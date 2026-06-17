@@ -12,7 +12,7 @@ export class NotificationPreferenceService {
   /**
    * Get or create notification preferences for a user
    */
-  async getOrCreatePreferences(userId: string, companyId: string): Promise<NotificationPreference> {
+  async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
     let preferences = await this.prisma.notificationPreference.findUnique({
       where: { userId },
     });
@@ -22,7 +22,6 @@ export class NotificationPreferenceService {
       preferences = await this.prisma.notificationPreference.create({
         data: {
           userId,
-          companyId,
           grCreated: true,
           grApproved: true,
           grRejected: true,
@@ -63,7 +62,7 @@ export class NotificationPreferenceService {
    */
   async updatePreferences(userId: string, dto: UpdateNotificationPreferenceDto): Promise<NotificationPreference> {
     // Ensure preferences exist
-    await this.getOrCreatePreferences(userId, '');
+    await this.getOrCreatePreferences(userId);
 
     const preferences = await this.prisma.notificationPreference.update({
       where: { userId },
@@ -91,7 +90,7 @@ export class NotificationPreferenceService {
    * Check if a user wants to receive a specific notification type
    */
   async shouldReceiveNotification(userId: string, notificationType: string): Promise<boolean> {
-    const prefs = await this.getOrCreatePreferences(userId, '');
+    const prefs = await this.getOrCreatePreferences(userId);
 
     const typeMap: Record<string, keyof NotificationPreference> = {
       GOODS_RECEIPT_CREATED: 'grCreated',

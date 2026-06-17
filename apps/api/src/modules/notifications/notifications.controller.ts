@@ -23,7 +23,6 @@ import {
   NotificationListResponseDto,
   NotificationFilterDto,
   UpdateNotificationPreferenceDto,
-  NotificationPreferenceResponseDto,
 } from './dto';
 
 @ApiTags('Notifications')

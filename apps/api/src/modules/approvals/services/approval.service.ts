@@ -5,7 +5,6 @@ import {
   ApproveApprovalDto,
   RejectApprovalDto,
   ApprovalFilterDto,
-  ApprovalRequestResponseDto,
 } from '../dto';
 import { ApprovalRequest, ApprovalStatus, ApprovalComment } from '@prisma/client';
 import { NotificationService } from '../../notifications/services';
@@ -319,7 +318,7 @@ export class ApprovalService {
    * Add comment to approval
    */
   async addComment(approvalId: string, userId: string, comment: string): Promise<ApprovalComment> {
-    await this.getApproval(approvalId);
+    this.getApproval(approvalId);
 
     return this.prisma.approvalComment.create({
       data: {

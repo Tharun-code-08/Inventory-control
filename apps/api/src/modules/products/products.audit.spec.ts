@@ -71,7 +71,7 @@ function makeUser() {
 }
 
 function makeHarness() {
-  const tx = {
+  const mockTx = {
     product: {
       create: jest.fn(),
       update: jest.fn(),
@@ -87,7 +87,7 @@ function makeHarness() {
     // Pass the tx client through so we can assert audit.log received it.
     $transaction: jest.fn(async (cb: unknown) =>
       typeof cb === 'function'
-        ? (cb as (c: unknown) => Promise<unknown>)(tx)
+        ? (cb as (c: unknown) => Promise<unknown>)(mockTx)
         : cb,
     ),
     product: { findUnique: jest.fn(), delete: jest.fn() },
@@ -110,10 +110,10 @@ function makeHarness() {
     audit as never,
   );
 
-  return { service, prisma, tx, stock, audit } as {
+  return { service, prisma, tx: mockTx, stock, audit } as {
     service: ProductsService;
     prisma: { $transaction: Mock; product: { findUnique: Mock; delete: Mock } };
-    tx: typeof tx;
+    tx: typeof mockTx;
     stock: { postMovement: Mock; buildStockBalanceMap: Mock };
     audit: { log: Mock };
   };

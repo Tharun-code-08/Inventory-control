@@ -32,14 +32,14 @@ function makeApproval(overrides: Record<string, unknown> = {}) {
 }
 
 function makeHarness() {
-  const tx = {
+  const mockTx = {
     approvalRequest: { update: jest.fn() },
     approvalEscalation: { create: jest.fn() },
   };
 
   const prisma = {
     $transaction: jest.fn(async (cb: unknown) =>
-      typeof cb === 'function' ? (cb as (c: unknown) => Promise<unknown>)(tx) : cb,
+      typeof cb === 'function' ? (cb as (c: unknown) => Promise<unknown>)(mockTx) : cb,
     ),
     user: { findUnique: jest.fn().mockResolvedValue(null) },
     approvalEscalation: { count: jest.fn().mockResolvedValue(0) },
@@ -55,10 +55,10 @@ function makeHarness() {
     audit as never,
   );
 
-  return { service, prisma, tx, audit } as {
+  return { service, prisma, tx: mockTx, audit } as {
     service: ApprovalService;
     prisma: { $transaction: Mock };
-    tx: typeof tx;
+    tx: typeof mockTx;
     audit: { log: Mock };
   };
 }
