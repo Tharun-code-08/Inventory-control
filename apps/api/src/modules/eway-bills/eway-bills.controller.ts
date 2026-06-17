@@ -44,6 +44,19 @@ export class EwayBillsController {
     return this.service.stats(user);
   }
 
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Download E-Way Bill as PDF' })
+  async downloadPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.service.generatePdf(user, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="eway-bill-${id}.pdf"`);
+    res.send(pdf);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single e-way bill' })
   get(@Param('id') id: string, @CurrentUser() user: RequestUser) {
@@ -90,18 +103,5 @@ export class EwayBillsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.cancel(user, id, dto.reason);
-  }
-
-  @Get(':id/pdf')
-  @ApiOperation({ summary: 'Download E-Way Bill as PDF' })
-  async downloadPdf(
-    @Param('id') id: string,
-    @CurrentUser() user: RequestUser,
-    @Res() res: Response,
-  ) {
-    const pdf = await this.service.generatePdf(user, id);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="eway-bill-${id}.pdf"`);
-    res.send(pdf);
   }
 }

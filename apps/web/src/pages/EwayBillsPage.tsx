@@ -102,26 +102,50 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
     if (!active) return;
     try {
       const accessToken = useAuthStore.getState().accessToken;
-      const response = await fetch(`/api/v1/eway-bills/${active.id}/pdf`, {
+      if (!accessToken) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      const url = `/api/v1/eway-bills/${active.id}/pdf`;
+      console.log('[EwayBillsPDF] Downloading:', { billId: active.id, billNumber: active.ewayBillNumber, url });
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
+        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to download PDF');
+
+      console.log('[EwayBillsPDF] Response:', { status: response.status, contentType: response.headers.get('content-type') });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[EwayBillsPDF] Error response:', text);
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      console.log('[EwayBillsPDF] Blob received:', { size: blob.size, type: blob.type });
+
+      if (blob.size === 0) {
+        throw new Error('PDF is empty');
+      }
+
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = `eway-bill-${active.ewayBillNumber || active.id}.pdf`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
       toast.success('PDF downloaded');
     } catch (error) {
-      toast.error('Failed to download PDF');
-      console.error(error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to download PDF: ${message}`);
+      console.error('[EwayBillsPDF] Error:', error);
     }
   }
 
