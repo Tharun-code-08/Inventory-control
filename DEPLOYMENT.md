@@ -32,19 +32,37 @@ SSH to VPS (deploy user)
 
 ## GitHub Secrets (Required)
 
-⚠️ **SECURITY WARNING**
-- **Private key** (`deploy_key`) → GitHub Secrets ONLY
-- **Never commit** private key to git
-- **Public key** (`deploy_key.pub`) → `/home/deploy/.ssh/authorized_keys`
-- Verify permissions: `chmod 600 ~/.ssh/deploy_key`
+⚠️ **CRITICAL: SSH Key Dual-Use**
 
-Add these 3 secrets to GitHub:
+Your setup uses the **same SSH key for two purposes**:
+
+1. **GitHub Actions → VPS**: Stored in GitHub Secrets, used to SSH into deploy user
+2. **VPS → GitHub**: Used for `git pull` operations (git remote is `git@github.com:...`)
+
+**DO NOT DELETE** `/home/deploy/.ssh/deploy_key` from the VPS.
+
+If you delete it, `git pull` will fail and deployments will break.
+
+### Safe Setup
+
+```bash
+# VPS side: Keep the key for git operations
+cat /home/deploy/.ssh/deploy_key  # KEEP THIS
+cat /home/deploy/.ssh/deploy_key.pub  # KEEP THIS
+
+# GitHub side: Copy private key to Secrets
+# Private key content → GitHub Secrets as DEPLOY_KEY
+# Public key content → /home/deploy/.ssh/authorized_keys (for GitHub Actions SSH)
+```
+
+### Add These 3 Secrets to GitHub
+
 Repository → Settings → Secrets and variables → Actions
 
 ```
 Name: DEPLOY_KEY
-Value: (Paste ONLY the private key content - cat /home/deploy/.ssh/deploy_key)
-       (Then DELETE the local key file after confirming Secret is saved)
+Value: (Private key content from: cat /home/deploy/.ssh/deploy_key)
+       (DO NOT delete the file from VPS - it's needed for git pull)
 
 Name: DEPLOY_HOST
 Value: 187.127.173.9
@@ -53,15 +71,20 @@ Name: DEPLOY_USER
 Value: deploy
 ```
 
-Verify setup:
-```bash
-# Private key should ONLY exist in GitHub Secrets
-ls -la /home/deploy/.ssh/deploy_key
-# Should NOT exist after setup
+### Verify Setup
 
-# Public key should be in authorized_keys
-cat /home/deploy/.ssh/authorized_keys | grep "deploy@inventory-control"
-# Should show the ed25519 public key
+```bash
+# Check git remote (must be SSH format)
+git remote -v
+# Output: git@github.com:Tharun-code-08/Inventory-control.git
+
+# Private key on VPS (MUST exist for git pull)
+ls -la /home/deploy/.ssh/deploy_key
+# Output: -rw------- 1 deploy deploy ...
+
+# Public key in authorized_keys (for GitHub Actions to SSH in)
+cat /home/deploy/.ssh/authorized_keys | grep "deploy@"
+# Output: ssh-ed25519 AAAA...
 ```
 
 ## Pre-Launch Tests (Run These 5)
@@ -345,11 +368,13 @@ Response:
 
 ### Deployment Checklist
 - [ ] All 5 pre-launch tests pass
-- [ ] GitHub Secrets configured correctly
-- [ ] SSH private key stored ONLY in GitHub Secrets (not on VPS)
+- [ ] GitHub Secrets configured correctly (DEPLOY_KEY, DEPLOY_HOST, DEPLOY_USER)
+- [ ] Private key file STILL EXISTS on VPS: `/home/deploy/.ssh/deploy_key`
+  - ⚠️ DO NOT DELETE (used for git pull)
 - [ ] Public key in `/home/deploy/.ssh/authorized_keys`
 - [ ] VPS survives reboot with PM2 online
 - [ ] Health endpoint returns 200
+- [ ] One successful test deployment completed
 
 ### If All Tests Pass
 ✅ **YES. Ship it.**
