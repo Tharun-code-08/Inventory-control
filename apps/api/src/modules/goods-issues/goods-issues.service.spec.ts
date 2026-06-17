@@ -48,8 +48,9 @@ function makeService(tx: ReturnType<typeof buildTx>) {
   const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
   const inventoryLots = { consumeFifo: jest.fn() } as any;
 
-  const service = new GoodsIssuesService(prisma, stock, numbers, audit, inventoryLots);
-  return { service, prisma, tx, stock, audit, inventoryLots };
+  const notifications = { create: jest.fn() } as any;
+  const service = new GoodsIssuesService(prisma, stock, numbers, audit, inventoryLots, notifications);
+  return { service, prisma, tx, stock, audit, inventoryLots, notifications };
 }
 
 describe('GoodsIssuesService', () => {

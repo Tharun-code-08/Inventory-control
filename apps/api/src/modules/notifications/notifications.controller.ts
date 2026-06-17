@@ -23,6 +23,7 @@ import {
   NotificationListResponseDto,
   NotificationFilterDto,
   UpdateNotificationPreferenceDto,
+  NotificationPreferenceResponseDto,
 } from './dto';
 
 @ApiTags('Notifications')
@@ -153,7 +154,7 @@ export class NotificationController {
   async getMyPreferences(
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.getOrCreatePreferences(user.id, '');
+    return this.preferenceService.getOrCreatePreferences(user.id, user.companyId!);
   }
 
   @Get('preferences/:userId')
@@ -173,7 +174,7 @@ export class NotificationController {
     @Body() dto: UpdateNotificationPreferenceDto,
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.updatePreferences(user.id, dto);
+    return this.preferenceService.updatePreferences(user.id, user.companyId!, dto);
   }
 
   @Put('preferences/:userId')
@@ -185,7 +186,7 @@ export class NotificationController {
     @Body() dto: UpdateNotificationPreferenceDto,
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.updatePreferences(user.id, dto);
+    return this.preferenceService.updatePreferences(user.id, user.companyId!, dto);
   }
 
   @Post('preferences/:userId/reset')
@@ -196,7 +197,7 @@ export class NotificationController {
     @Param('userId') userId: string,
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.resetToDefaults(user.id);
+    return this.preferenceService.resetToDefaults(user.id, user.companyId!);
   }
 
   @Post('preferences/:userId/toggle-all')
@@ -208,7 +209,7 @@ export class NotificationController {
     @Body() body: { enable: boolean },
     @CurrentUser() user: any,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.bulkToggle(user.id, body.enable);
+    return this.preferenceService.bulkToggle(user.id, user.companyId!, body.enable);
   }
 }
 

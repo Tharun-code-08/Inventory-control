@@ -12,7 +12,7 @@ export class NotificationPreferenceService {
   /**
    * Get or create notification preferences for a user
    */
-  async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
+  async getOrCreatePreferences(userId: string, companyId: string): Promise<NotificationPreference> {
     let preferences = await this.prisma.notificationPreference.findUnique({
       where: { userId },
     });
@@ -22,6 +22,7 @@ export class NotificationPreferenceService {
       preferences = await this.prisma.notificationPreference.create({
         data: {
           userId,
+          companyId,
           grCreated: true,
           grApproved: true,
           grRejected: true,
@@ -60,9 +61,9 @@ export class NotificationPreferenceService {
   /**
    * Update user's notification preferences
    */
-  async updatePreferences(userId: string, dto: UpdateNotificationPreferenceDto): Promise<NotificationPreference> {
+  async updatePreferences(userId: string, companyId: string, dto: UpdateNotificationPreferenceDto): Promise<NotificationPreference> {
     // Ensure preferences exist
-    await this.getOrCreatePreferences(userId);
+    await this.getOrCreatePreferences(userId, companyId);
 
     const preferences = await this.prisma.notificationPreference.update({
       where: { userId },
@@ -89,8 +90,8 @@ export class NotificationPreferenceService {
   /**
    * Check if a user wants to receive a specific notification type
    */
-  async shouldReceiveNotification(userId: string, notificationType: string): Promise<boolean> {
-    const prefs = await this.getOrCreatePreferences(userId);
+  async shouldReceiveNotification(userId: string, companyId: string, notificationType: string): Promise<boolean> {
+    const prefs = await this.getOrCreatePreferences(userId, companyId);
 
     const typeMap: Record<string, keyof NotificationPreference> = {
       GOODS_RECEIPT_CREATED: 'grCreated',
@@ -119,8 +120,8 @@ export class NotificationPreferenceService {
   /**
    * Bulk enable/disable notifications
    */
-  async bulkToggle(userId: string, enable: boolean): Promise<NotificationPreference> {
-    return this.updatePreferences(userId, {
+  async bulkToggle(userId: string, companyId: string, enable: boolean): Promise<NotificationPreference> {
+    return this.updatePreferences(userId, companyId, {
       grCreated: enable,
       grApproved: enable,
       grRejected: enable,
@@ -139,8 +140,8 @@ export class NotificationPreferenceService {
   /**
    * Reset preferences to defaults
    */
-  async resetToDefaults(userId: string): Promise<NotificationPreference> {
-    return this.updatePreferences(userId, {
+  async resetToDefaults(userId: string, companyId: string): Promise<NotificationPreference> {
+    return this.updatePreferences(userId, companyId, {
       grCreated: true,
       grApproved: true,
       grRejected: true,

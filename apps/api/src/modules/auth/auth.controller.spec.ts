@@ -77,6 +77,7 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {} as never,
     );
 
     const req = {
@@ -164,6 +165,7 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {} as never,
     );
 
     const req = {
@@ -248,6 +250,7 @@ describe('AuthController login MFA flow', () => {
       mfa as never,
       passwordReset as never,
       makeConfig(),
+      {} as never,
     );
 
     const req = {

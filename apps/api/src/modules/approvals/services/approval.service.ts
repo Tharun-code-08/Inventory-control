@@ -5,6 +5,7 @@ import {
   ApproveApprovalDto,
   RejectApprovalDto,
   ApprovalFilterDto,
+  ApprovalRequestResponseDto,
 } from '../dto';
 import { ApprovalRequest, ApprovalStatus, ApprovalComment } from '@prisma/client';
 import { NotificationService } from '../../notifications/services';
