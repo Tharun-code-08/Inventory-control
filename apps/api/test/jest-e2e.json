@@ -10,7 +10,7 @@
     "^@/(.*)$": "<rootDir>/src/$1"
   },
   "transform": {
-    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "isolatedModules": true } }]
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "isolatedModules": true, "paths": { "@/*": ["src/*"] } } }]
   },
   "transformIgnorePatterns": [
     "node_modules/(?!(@scure|@noble|otplib|@otplib)/)"

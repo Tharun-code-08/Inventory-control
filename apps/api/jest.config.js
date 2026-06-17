@@ -12,7 +12,7 @@ module.exports = {
   // The e2e suite has its own config (test/jest-e2e.json) and runs separately.
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '\\.e2e-spec\\.ts$'],
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: { isolatedModules: true } }],
+    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: { isolatedModules: true, paths: { '@/*': ['src/*'] } } }],
   },
   collectCoverageFrom: [
     'src/**/*.ts',
