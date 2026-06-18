@@ -24,6 +24,30 @@ Settings
 
 ## Tab 1: Company Information
 
+### Status Indicator (Top-Right)
+
+```
+Branding Status
+
+● Complete          (all required fields filled)
+
+or
+
+⚠ Missing Logo      (specific issue)
+
+or
+
+⚠ Missing GST       (specific issue)
+
+or
+
+⚠ Branch Overrides Pending
+```
+
+Helps users answer: "Can I generate professional PDFs?"
+
+---
+
 ### Form Fields
 
 ```
@@ -171,10 +195,11 @@ Response: {
 
 ### Structure
 
-For each document type, show toggles:
+For each document type, show toggles with icons for visual scanning:
 
 ```
-INVOICE
+📄 Invoice
+
 ☑ Show Logo
 ☑ Show GST
 ☑ Show Address
@@ -186,7 +211,8 @@ INVOICE
 ```
 
 ```
-PURCHASE_ORDER
+📦 Purchase Order
+
 ☑ Show Logo
 ☑ Show GST
 ☑ Show Address
@@ -198,7 +224,8 @@ PURCHASE_ORDER
 ```
 
 ```
-QUOTATION
+💬 Quotation
+
 ☑ Show Logo
 ☑ Show GST
 ☑ Show Address
@@ -210,7 +237,8 @@ QUOTATION
 ```
 
 ```
-GOODS_ISSUE
+🚚 Goods Issue
+
 ☑ Show Logo
 ☑ Show GST
 ☐ Show Address
@@ -222,7 +250,8 @@ GOODS_ISSUE
 ```
 
 ```
-GOODS_RECEIPT
+📥 Goods Receipt
+
 ☑ Show Logo
 ☑ Show GST
 ☐ Show Address
@@ -234,7 +263,8 @@ GOODS_RECEIPT
 ```
 
 ```
-DELIVERY_CHALLAN
+🧾 Delivery Challan
+
 ☑ Show Logo
 ☑ Show GST
 ☑ Show Address
@@ -294,11 +324,14 @@ Branch Selection
 
 Branch: HQ Chennai
 
-☐ Override Enabled
+Branding Strategy
+
+(⦿) Use Company Branding
+( ) Custom Branding
 
 ---
 
-If enabled:
+If "Custom Branding" selected:
 
 Logo Override
 [Upload Logo]
@@ -320,8 +353,9 @@ Email Override
 
 ---
 
-If disabled:
-"Uses company branding"
+If "Use Company Branding" selected:
+(fields hidden)
+"This branch uses company-wide branding"
 ```
 
 ### API Contract
@@ -402,11 +436,12 @@ Download Section
 
 ### Behavior
 
-- **Real-time updates**: When user changes logo, footer, or toggles settings, preview updates immediately
+- **Real-time updates**: When user changes logo, footer, or toggles settings, preview updates instantly
 - **No page refresh needed**
 - **Shows exactly what users will see** when they generate actual PDFs
+- **Fast and stateless**: Rendered in browser, not server
 
-### API Contract
+### Preview API (HTML Only)
 
 ```typescript
 POST /branding/preview
@@ -422,16 +457,40 @@ Request: {
   }
 }
 Response: {
-  html: string (HTML to render with view mode CSS)
-  // or
-  pdf: Buffer (downloadable PDF)
+  html: string
+  css: string
 }
 ```
 
-### Notes
-- Uses current branding (not snapshots)
-- Helps users catch design issues before saving
-- Prevents: "oops, logo overlaps footer" after saving
+Render via:
+- `<iframe srcdoc={html}>`
+- or `dangerouslySetInnerHTML`
+- or HTML preview component
+
+### Sample PDF API (Separate)
+
+```typescript
+POST /branding/sample-pdf
+Request: {
+  documentType: "INVOICE"
+  overrides?: { ... }
+}
+Response: {
+  pdf: Buffer (downloadable)
+}
+```
+
+Button:
+```
+[ Download Sample PDF ]
+```
+
+### Design Rationale
+
+- **Preview**: Fast, stateless, real-time (HTML only)
+- **PDF**: Explicit action, slower, server-side (PDF generation)
+- Better UX: Preview instant feedback, PDF on demand
+- Prevents: Sluggish UI from PDF generation on every keystroke
 
 ---
 
