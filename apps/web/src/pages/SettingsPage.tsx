@@ -1124,205 +1124,378 @@ function BrandingTab() {
   const { data: shops = [] } = useShops();
   const company = companies.find((c) => c.id === user?.companyId) ?? companies[0];
   const shop = shops.find((s) => s.id === user?.shopId) ?? shops[0];
+
+  // Query company branding
   const companyBranding = useQuery({
     queryKey: ['branding', 'company', company?.id],
     queryFn: async () => {
       if (!company?.id) return null;
-      const res = await api.get(`/companies/${company.id}/branding`);
-      return res.data.data ?? res.data;
+      try {
+        const res = await api.get(`/companies/${company.id}/branding`);
+        return res.data.data ?? res.data;
+      } catch (err) {
+        console.error('Failed to fetch company branding:', err);
+        return null;
+      }
     },
     enabled: !!company?.id,
   });
+
+  // Query shop branding
   const shopBranding = useQuery({
     queryKey: ['branding', 'shop', shop?.id],
     queryFn: async () => {
       if (!shop?.id) return null;
-      const res = await api.get(`/shops/${shop.id}/branding`);
-      return res.data.data ?? res.data;
+      try {
+        const res = await api.get(`/shops/${shop.id}/branding`);
+        return res.data.data ?? res.data;
+      } catch (err) {
+        console.error('Failed to fetch shop branding:', err);
+        return null;
+      }
     },
     enabled: !!shop?.id,
   });
 
-  const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
-  const [shopLogoFile, setShopLogoFile] = useState<File | null>(null);
-  const [companyPreview, setCompanyPreview] = useState<string | null>(null);
-  const [shopPreview, setShopPreview] = useState<string | null>(null);
+  const [companyForm, setCompanyForm] = useState({
+    companyName: companyBranding.data?.profile?.companyName || '',
+    gstNumber: companyBranding.data?.profile?.gstNumber || '',
+    address: companyBranding.data?.profile?.address || '',
+    phone: companyBranding.data?.profile?.phone || '',
+    email: companyBranding.data?.profile?.email || '',
+    website: companyBranding.data?.profile?.website || '',
+    footerText: companyBranding.data?.profile?.footerText || '',
+    primaryColor: companyBranding.data?.profile?.primaryColor || '#000000',
+    secondaryColor: companyBranding.data?.profile?.secondaryColor || '#FFFFFF',
+    accentColor: companyBranding.data?.profile?.accentColor || '#0066CC',
+  });
 
+  const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+  const [companyLogoPreview, setCompanyLogoPreview] = useState<string | null>(null);
+  const [shopUseCompanyBranding, setShopUseCompanyBranding] = useState(true);
+
+  // Update form when data loads
+  useEffect(() => {
+    if (companyBranding.data?.profile) {
+      setCompanyForm({
+        companyName: companyBranding.data.profile.companyName || '',
+        gstNumber: companyBranding.data.profile.gstNumber || '',
+        address: companyBranding.data.profile.address || '',
+        phone: companyBranding.data.profile.phone || '',
+        email: companyBranding.data.profile.email || '',
+        website: companyBranding.data.profile.website || '',
+        footerText: companyBranding.data.profile.footerText || '',
+        primaryColor: companyBranding.data.profile.primaryColor || '#000000',
+        secondaryColor: companyBranding.data.profile.secondaryColor || '#FFFFFF',
+        accentColor: companyBranding.data.profile.accentColor || '#0066CC',
+      });
+    }
+  }, [companyBranding.data]);
+
+  // Logo preview
   useEffect(() => {
     if (!companyLogoFile) {
-      setCompanyPreview(null);
+      setCompanyLogoPreview(null);
       return;
     }
     const url = URL.createObjectURL(companyLogoFile);
-    setCompanyPreview(url);
+    setCompanyLogoPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [companyLogoFile]);
 
-  useEffect(() => {
-    if (!shopLogoFile) {
-      setShopPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(shopLogoFile);
-    setShopPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [shopLogoFile]);
-
+  // Update company branding mutation
   const updateCompanyBranding = useMutation({
-    mutationFn: async (removeLogo = false) => {
+    mutationFn: async () => {
       if (!company) throw new Error('Company not found');
-      const form = new FormData();
-      if (companyLogoFile) form.append('logo', companyLogoFile);
-      if (removeLogo) form.append('removeLogo', 'true');
-      await api.patch(`/companies/${company.id}/branding`, form);
+      const formData = new FormData();
+      Object.entries(companyForm).forEach(([key, value]) => {
+        formData.append(key, String(value));
+      });
+      if (companyLogoFile) {
+        formData.append('logo', companyLogoFile);
+      }
+      try {
+        await api.patch(`/companies/${company.id}/branding`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } catch (err: unknown) {
+        const errorMsg = getApiErrorMessage(err, 'Failed to update branding');
+        console.error('Branding update error:', err);
+        throw new Error(errorMsg);
+      }
     },
     onSuccess: () => {
-      toast.success('Company branding updated.');
+      toast.success('Company branding updated successfully.');
       setCompanyLogoFile(null);
       companyBranding.refetch();
     },
     onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err, 'Failed to update company branding.'));
+      const msg = err instanceof Error ? err.message : 'Failed to update company branding';
+      toast.error(msg);
     },
   });
 
-  const updateShopBranding = useMutation({
-    mutationFn: async (removeLogo = false) => {
-      if (!shop) throw new Error('Shop not found');
-      const form = new FormData();
-      if (shopLogoFile) form.append('logo', shopLogoFile);
-      if (removeLogo) form.append('removeLogo', 'true');
-      await api.patch(`/shops/${shop.id}/branding`, form);
-    },
-    onSuccess: () => {
-      toast.success('Shop branding updated.');
-      setShopLogoFile(null);
-      shopBranding.refetch();
-    },
-    onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err, 'Failed to update shop branding.'));
-    },
-  });
+  // Branding health status
+  const healthStatus = companyBranding.data?.health;
+  const isHealthy = healthStatus?.score === 100;
 
   return (
     <div className="space-y-6">
+      {/* Branding Health Status */}
+      <Card className={isHealthy ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Branding Status</span>
+            <span className={`text-sm font-semibold ${isHealthy ? 'text-green-700' : 'text-amber-700'}`}>
+              {isHealthy ? '● Complete' : `⚠ ${healthStatus?.score || 0}%`}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {healthStatus?.missing && healthStatus.missing.length > 0 && (
+            <div className="space-y-2">
+              {healthStatus.missing.map((item) => (
+                <div key={item} className="flex items-center text-sm text-amber-700">
+                  <span className="mr-2">⚠</span>
+                  <span>Missing: {item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {isHealthy && <p className="text-sm text-green-700">✓ All branding fields are complete</p>}
+        </CardContent>
+      </Card>
+
+      {/* Company Branding Section */}
       <Card>
         <CardHeader>
           <CardTitle>Company Branding</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
-              {companyPreview || companyBranding.data?.profile?.logoUrl ? (
-                <img
-                  src={companyPreview ?? companyBranding.data?.profile?.logoUrl}
-                  alt="Company logo preview"
-                  className="h-14 w-14 rounded-lg object-contain"
+        <CardContent className="space-y-6">
+          {/* Logo Upload */}
+          <div className="space-y-2">
+            <Label className="text-base font-semibold">Logo</Label>
+            <div className="flex items-end gap-4">
+              <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-slate-200 bg-slate-50">
+                {companyLogoPreview || companyBranding.data?.profile?.logoUrl ? (
+                  <img
+                    src={companyLogoPreview ?? companyBranding.data?.profile?.logoUrl}
+                    alt="Company logo"
+                    className="h-16 w-16 object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-slate-400">Logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => setCompanyLogoFile(e.target.files?.[0] ?? null)}
                 />
-              ) : (
-                <span className="text-xs text-slate-400">Logo</span>
-              )}
+                <p className="text-xs text-slate-500">PNG, JPG, WebP. Max 5MB</p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Company Info */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                value={companyForm.companyName}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, companyName: e.target.value }))}
+                placeholder="Your company name"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Upload company logo</Label>
+              <Label htmlFor="gstNumber">GST Number</Label>
               <Input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => setCompanyLogoFile(e.target.files?.[0] ?? null)}
+                id="gstNumber"
+                value={companyForm.gstNumber}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, gstNumber: e.target.value }))}
+                placeholder="GST ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={companyForm.phone}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, phone: e.target.value }))}
+                placeholder="+1 (555) 123-4567"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={companyForm.email}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, email: e.target.value }))}
+                placeholder="info@company.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                type="url"
+                value={companyForm.website}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, website: e.target.value }))}
+                placeholder="https://company.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={companyForm.address}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, address: e.target.value }))}
+                placeholder="Street address"
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => updateCompanyBranding.mutate(false)}
-              disabled={!companyLogoFile || updateCompanyBranding.isPending}
-            >
-              {updateCompanyBranding.isPending ? 'Uploading…' : 'Save Company Logo'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => updateCompanyBranding.mutate(true)}
-              disabled={updateCompanyBranding.isPending}
-            >
-              Remove Logo
-            </Button>
+
+          {/* Footer Text */}
+          <div className="space-y-2">
+            <Label htmlFor="footerText">Footer Text (appears on PDFs)</Label>
+            <Input
+              id="footerText"
+              value={companyForm.footerText}
+              onChange={(e) => setCompanyForm((p) => ({ ...p, footerText: e.target.value }))}
+              placeholder="Thank you for your business"
+            />
           </div>
-          {companyBranding.data?.health && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-700">Branding Health</span>
-                <span className="font-semibold text-slate-900">{companyBranding.data.health.score}%</span>
+
+          <Separator />
+
+          {/* Theme Colors */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Theme Colors</Label>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="primaryColor">Primary Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="primaryColor"
+                    type="color"
+                    value={companyForm.primaryColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, primaryColor: e.target.value }))}
+                    className="h-10 w-20"
+                  />
+                  <Input
+                    type="text"
+                    value={companyForm.primaryColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, primaryColor: e.target.value }))}
+                    className="flex-1"
+                  />
+                </div>
               </div>
-              {companyBranding.data.health.missing?.length > 0 ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  Missing: {companyBranding.data.health.missing.join(', ')}
-                </p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">All critical branding fields are complete.</p>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="secondaryColor">Secondary Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="secondaryColor"
+                    type="color"
+                    value={companyForm.secondaryColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, secondaryColor: e.target.value }))}
+                    className="h-10 w-20"
+                  />
+                  <Input
+                    type="text"
+                    value={companyForm.secondaryColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, secondaryColor: e.target.value }))}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accentColor">Accent Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="accentColor"
+                    type="color"
+                    value={companyForm.accentColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, accentColor: e.target.value }))}
+                    className="h-10 w-20"
+                  />
+                  <Input
+                    type="text"
+                    value={companyForm.accentColor}
+                    onChange={(e) => setCompanyForm((p) => ({ ...p, accentColor: e.target.value }))}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+
+          <Separator />
+
+          {/* Save Button */}
+          <Button
+            onClick={() => updateCompanyBranding.mutate()}
+            disabled={updateCompanyBranding.isPending}
+            className="w-full"
+          >
+            {updateCompanyBranding.isPending ? 'Saving…' : 'Save Company Branding'}
+          </Button>
         </CardContent>
       </Card>
 
+      {/* Shop Branding Section */}
       <Card>
         <CardHeader>
           <CardTitle>Shop Branding</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
-              {shopPreview || shopBranding.data?.profile?.logoUrl ? (
-                <img
-                  src={shopPreview ?? shopBranding.data?.profile?.logoUrl}
-                  alt="Shop logo preview"
-                  className="h-14 w-14 rounded-lg object-contain"
-                />
-              ) : (
-                <span className="text-xs text-slate-400">Logo</span>
-              )}
-            </div>
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Branding Strategy</Label>
             <div className="space-y-2">
-              <Label>Upload shop logo</Label>
-              <Input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => setShopLogoFile(e.target.files?.[0] ?? null)}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  id="useCompany"
+                  name="shopBranding"
+                  checked={shopUseCompanyBranding}
+                  onChange={() => setShopUseCompanyBranding(true)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="useCompany" className="font-normal cursor-pointer">
+                  Use Company Branding
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  id="useCustom"
+                  name="shopBranding"
+                  checked={!shopUseCompanyBranding}
+                  onChange={() => setShopUseCompanyBranding(false)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="useCustom" className="font-normal cursor-pointer">
+                  Custom Shop Branding
+                </Label>
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => updateShopBranding.mutate(false)}
-              disabled={!shopLogoFile || updateShopBranding.isPending}
-            >
-              {updateShopBranding.isPending ? 'Uploading…' : 'Save Shop Logo'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => updateShopBranding.mutate(true)}
-              disabled={updateShopBranding.isPending}
-            >
-              Remove Logo
-            </Button>
-          </div>
-          {shopBranding.data?.health && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-700">Branding Health</span>
-                <span className="font-semibold text-slate-900">{shopBranding.data.health.score}%</span>
-              </div>
-              {shopBranding.data.health.missing?.length > 0 ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  Missing: {shopBranding.data.health.missing.join(', ')}
-                </p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">All critical branding fields are complete.</p>
-              )}
+
+          {shopUseCompanyBranding ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <p>This shop uses company-wide branding settings.</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Any changes to company branding above will automatically apply to this shop.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+              <p>⚠ Custom branding for this shop coming soon</p>
             </div>
           )}
         </CardContent>
