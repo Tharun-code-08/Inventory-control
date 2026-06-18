@@ -1,4 +1,4 @@
-import type { MediaAssetType } from '@prisma/client';
+import type { MediaAssetType, DocumentType } from '@prisma/client';
 
 export type BrandingProfileFields = {
   footerText?: string | null;
@@ -48,9 +48,24 @@ export type DocumentSettings = {
  * PDFs remain historically accurate even if company branding changes.
  *
  * version: 1 - For future schema migrations (v1, v2, etc)
+ *
+ * Includes metadata for debugging:
+ * - generatedAt: When snapshot was created
+ * - generatedBy: Who created it (audit trail)
+ * - documentType: Invoice, PO, Quotation, etc
+ *
+ * This allows debugging questions like "why does invoice look different?"
+ * by inspecting who generated it and when.
  */
 export type BrandingSnapshotV1 = {
   version: 1;
+  generatedAt: string; // ISO 8601 timestamp
+  generatedBy: {
+    userId: string;
+    userEmail?: string;
+    userName?: string;
+  };
+  documentType: DocumentType;
   company: {
     name: string;
     legalName?: string;
@@ -71,7 +86,6 @@ export type BrandingSnapshotV1 = {
   };
   documentSettings: DocumentSettings;
   footerText?: string | null;
-  generatedAt: string;
 };
 
 /**

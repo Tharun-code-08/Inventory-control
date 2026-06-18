@@ -381,15 +381,21 @@ export class BrandingService {
    * Create a branding snapshot for historical accuracy.
    * Snapshots are immutable and stored in documents to ensure
    * PDFs remain historically accurate if company branding changes.
+   *
+   * Includes metadata (generatedAt, generatedBy, documentType) for debugging
+   * when PDFs look different than expected.
    */
   async createBrandingSnapshot(
     companyId: string,
     shopId: string,
     documentType: DocumentType,
+    userId: string,
     companyData?: {
       legalName?: string;
       gstNumber?: string;
       panNumber?: string;
+      userEmail?: string;
+      userName?: string;
     },
   ): Promise<BrandingSnapshotV1> {
     const [effective, branchBranding, company] = await Promise.all([
@@ -411,6 +417,13 @@ export class BrandingService {
 
     const snapshot: BrandingSnapshotV1 = {
       version: 1,
+      generatedAt: new Date().toISOString(),
+      generatedBy: {
+        userId,
+        userEmail: companyData?.userEmail,
+        userName: companyData?.userName,
+      },
+      documentType,
       company: {
         name: effective.companyName,
         legalName: companyData?.legalName,
@@ -431,7 +444,6 @@ export class BrandingService {
       },
       documentSettings: effective.documentSettings,
       footerText: effective.footerText,
-      generatedAt: new Date().toISOString(),
     };
 
     return snapshot;
