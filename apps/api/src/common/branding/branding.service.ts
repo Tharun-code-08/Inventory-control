@@ -478,9 +478,21 @@ export class BrandingService {
   /**
    * Generate SHA256 checksum of snapshot content.
    * Used to detect corruption or tampering with snapshot JSONB.
+   * Uses explicit field ordering for stable serialization (field order doesn't change checksum).
    */
   private generateChecksum(snapshot: Omit<BrandingSnapshotV1, 'checksum'>): string {
-    const content = JSON.stringify(snapshot);
+    // Explicit field order ensures checksum is stable across refactoring
+    const orderedPayload = {
+      version: snapshot.version,
+      generatedAt: snapshot.generatedAt,
+      documentType: snapshot.documentType,
+      company: snapshot.company,
+      assets: snapshot.assets,
+      theme: snapshot.theme,
+      documentSettings: snapshot.documentSettings,
+      footerText: snapshot.footerText,
+    };
+    const content = JSON.stringify(orderedPayload);
     return createHash('sha256').update(content).digest('hex');
   }
 
