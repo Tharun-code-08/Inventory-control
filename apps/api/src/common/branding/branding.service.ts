@@ -382,20 +382,17 @@ export class BrandingService {
    * Snapshots are immutable and stored in documents to ensure
    * PDFs remain historically accurate if company branding changes.
    *
-   * Includes metadata (generatedAt, generatedBy, documentType) for debugging
-   * when PDFs look different than expected.
+   * Captures ONLY branding state, not audit information.
+   * Audit (who created/modified) belongs in document/audit tables.
    */
   async createBrandingSnapshot(
     companyId: string,
     shopId: string,
     documentType: DocumentType,
-    userId: string,
     companyData?: {
       legalName?: string;
       gstNumber?: string;
       panNumber?: string;
-      userEmail?: string;
-      userName?: string;
     },
   ): Promise<BrandingSnapshotV1> {
     const [effective, branchBranding, company] = await Promise.all([
@@ -418,11 +415,6 @@ export class BrandingService {
     const snapshot: BrandingSnapshotV1 = {
       version: 1,
       generatedAt: new Date().toISOString(),
-      generatedBy: {
-        userId,
-        userEmail: companyData?.userEmail,
-        userName: companyData?.userName,
-      },
       documentType,
       company: {
         name: effective.companyName,
@@ -446,7 +438,32 @@ export class BrandingService {
       footerText: effective.footerText,
     };
 
+    // Validate snapshot before returning
+    this.validateSnapshot(snapshot);
+
     return snapshot;
+  }
+
+  /**
+   * Validate snapshot before persistence.
+   * Ensures that if a document setting is enabled, the required asset exists.
+   */
+  private validateSnapshot(snapshot: BrandingSnapshotV1): void {
+    if (snapshot.documentSettings.showLogo && !snapshot.assets.logoUrl) {
+      throw new BadRequestException('Logo is enabled in document settings but logo URL is missing');
+    }
+
+    if (snapshot.documentSettings.showSignature && !snapshot.assets.signatureUrl) {
+      throw new BadRequestException('Signature is enabled in document settings but signature URL is missing');
+    }
+
+    if (snapshot.documentSettings.showSeal && !snapshot.assets.sealUrl) {
+      throw new BadRequestException('Seal is enabled in document settings but seal URL is missing');
+    }
+
+    if (snapshot.documentSettings.showGST && !snapshot.company.gstNumber) {
+      throw new BadRequestException('GST is enabled in document settings but GST number is missing');
+    }
   }
 
   /**

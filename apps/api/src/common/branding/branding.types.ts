@@ -49,22 +49,23 @@ export type DocumentSettings = {
  *
  * version: 1 - For future schema migrations (v1, v2, etc)
  *
- * Includes metadata for debugging:
- * - generatedAt: When snapshot was created
- * - generatedBy: Who created it (audit trail)
- * - documentType: Invoice, PO, Quotation, etc
+ * Contains ONLY branding data, not audit information:
+ * - generatedAt: When this branding state was captured (for debugging)
+ * - documentType: Which document type this branding is for
+ * - company/assets/theme/settings: Complete branding state
  *
- * This allows debugging questions like "why does invoice look different?"
- * by inspecting who generated it and when.
+ * DOES NOT contain:
+ * - generatedBy (who created the document) → belongs in document/audit tables
+ * - userId or audit info → belongs in audit_log or document itself
+ *
+ * Separation of concerns:
+ * - BrandingSnapshot: "What branding was used?"
+ * - Document table: "Who created/approved/posted this document?"
+ * - Audit log: "What changed and when?"
  */
 export type BrandingSnapshotV1 = {
   version: 1;
-  generatedAt: string; // ISO 8601 timestamp
-  generatedBy: {
-    userId: string;
-    userEmail?: string;
-    userName?: string;
-  };
+  generatedAt: string; // ISO 8601 - when branding was captured
   documentType: DocumentType;
   company: {
     name: string;
