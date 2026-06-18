@@ -8,6 +8,7 @@ import {
   loadPurchaseOrderForPdf,
   renderPurchaseOrderHtml,
 } from '../../common/pdf/builders/purchase-order.builder';
+import { asBrandingSnapshotOrNull } from '../../common/branding/branding.utils';
 import type { DocumentType } from '@prisma/client';
 
 /**
@@ -40,26 +41,27 @@ export class PurchaseOrderPdfService {
 
     if (!shop || !shop.company) throw new Error(`Shop or company not found`);
 
-    const snapshot = po.brandingSnapshot
-      ? (po.brandingSnapshot as any)
-      : await this.brandingService.createBrandingSnapshot(
-          shop.company.id,
-          po.shopId,
-          'PURCHASE_ORDER' as DocumentType
-        );
+    let snapshot = asBrandingSnapshotOrNull(po.brandingSnapshot);
+    if (!snapshot) {
+      snapshot = await this.brandingService.createBrandingSnapshot(
+        shop.company.id,
+        po.shopId,
+        'PURCHASE_ORDER' as DocumentType
+      );
+    }
 
     const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, shop.company.id);
     let html = renderPurchaseOrderHtml(viewModel);
 
     // Single entry point: apply all branding
-    html = PdfBrandingAdapter.applyAllBranding(html, snapshot as any);
+    html = PdfBrandingAdapter.applyAllBranding(html, snapshot);
 
     const pdf = await renderHtmlToPdfBuffer(html);
 
     if (!po.brandingSnapshot) {
       await this.prisma.purchaseOrderHeader.update({
         where: { id: poId },
-        data: { brandingSnapshot: snapshot as any },
+        data: { brandingSnapshot: snapshot },
       });
       this.logger.log(`Snapshot persisted for PO ${poId}`);
     }
@@ -74,7 +76,10 @@ export class PurchaseOrderPdfService {
       throw new Error(`PO ${poId} has no branding snapshot`);
     }
 
-    const snapshot = po.brandingSnapshot as any;
+    const snapshot = asBrandingSnapshotOrNull(po.brandingSnapshot);
+    if (!snapshot) {
+      throw new Error(`PO ${poId} snapshot is null/undefined`);
+    }
 
     if (!this.brandingService.validateChecksumIntegrity(snapshot)) {
       this.logger.warn(`Checksum mismatch for PO ${poId}`);

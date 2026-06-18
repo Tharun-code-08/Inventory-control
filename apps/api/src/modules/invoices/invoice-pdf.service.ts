@@ -8,6 +8,7 @@ import {
   loadInvoiceForPdf,
   renderInvoiceHtml,
 } from '../../common/pdf/builders/invoice.builder';
+import { asBrandingSnapshotOrNull } from '../../common/branding/branding.utils';
 import type { DocumentType } from '@prisma/client';
 
 /**
@@ -54,13 +55,14 @@ export class InvoicePdfService {
     // 3. Get or create immutable branding snapshot
     // If snapshot already exists, use it (historical accuracy)
     // If not, create one (new invoice)
-    const snapshot = invoice.brandingSnapshot
-      ? (invoice.brandingSnapshot as any) // Cast from JsonValue to BrandingSnapshotV1
-      : await this.brandingService.createBrandingSnapshot(
-          shop.company.id,
-          invoice.shopId,
-          'INVOICE' as DocumentType
-        );
+    let snapshot = asBrandingSnapshotOrNull(invoice.brandingSnapshot);
+    if (!snapshot) {
+      snapshot = await this.brandingService.createBrandingSnapshot(
+        shop.company.id,
+        invoice.shopId,
+        'INVOICE' as DocumentType
+      );
+    }
 
     // 4. Build invoice view model and HTML
     const viewModel = await buildInvoicePdfViewModel(this.prisma, invoice);
@@ -73,7 +75,7 @@ export class InvoicePdfService {
     // - Theme colors
     // - Footer text
     // - All based on documentSettings from snapshot
-    html = PdfBrandingAdapter.applyAllBranding(html, snapshot as any);
+    html = PdfBrandingAdapter.applyAllBranding(html, snapshot);
 
     // 6. Render to PDF
     const pdf = await renderHtmlToPdfBuffer(html);
@@ -83,7 +85,7 @@ export class InvoicePdfService {
       await this.prisma.invoiceHeader.update({
         where: { id: invoiceId },
         data: {
-          brandingSnapshot: snapshot as any,
+          brandingSnapshot: snapshot,
         },
       });
       this.logger.log(`Snapshot persisted for invoice ${invoiceId}`);
@@ -97,7 +99,6 @@ export class InvoicePdfService {
    * (Used when reprinting old invoices)
    */
   async regeneratePdf(invoiceId: string): Promise<Buffer> {
-    // Same flow as generatePdf, but snapshot is guaranteed to exist
     const invoice = await loadInvoiceForPdf(this.prisma, invoiceId);
 
     if (!invoice.brandingSnapshot) {
@@ -106,15 +107,18 @@ export class InvoicePdfService {
       );
     }
 
-    const snapshot = invoice.brandingSnapshot as any;
+    const snapshot = asBrandingSnapshotOrNull(invoice.brandingSnapshot);
+    if (!snapshot) {
+      throw new Error(
+        `Invoice ${invoiceId} snapshot is null/undefined.`
+      );
+    }
 
     // Verify snapshot integrity
     if (!this.brandingService.validateChecksumIntegrity(snapshot)) {
       this.logger.warn(
         `Checksum mismatch for invoice ${invoiceId}. Snapshot may be corrupted.`
       );
-      // Could throw here, or regenerate with current branding
-      // For now, log warning and regenerate with current branding
     }
 
     const viewModel = await buildInvoicePdfViewModel(this.prisma, invoice);
