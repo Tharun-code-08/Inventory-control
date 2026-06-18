@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
+import { CacheModule } from '../cache/cache.module';
 import { BrandingProfileService } from './branding-profile.service';
 import { BrandingResolverService } from './branding-resolver.service';
 import { BrandingEventsService } from './branding-events.service';
@@ -9,7 +10,7 @@ import { BrandingService } from './branding.service';
 import { DocumentBrandingService } from './document-branding.service';
 
 @Module({
-  imports: [PrismaModule, StorageModule],
+  imports: [PrismaModule, StorageModule, CacheModule],
   providers: [
     BrandingProfileService,
     BrandingResolverService,

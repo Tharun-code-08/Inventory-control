@@ -42,8 +42,15 @@ export type DocumentSettings = {
   showSeal: boolean;
 };
 
-export type FullBrandingSnapshot = {
-  version: number;
+/**
+ * BrandingSnapshotV1 - Immutable historical snapshot for document generation.
+ * Stored in document tables (invoices, purchase_orders, etc) to ensure
+ * PDFs remain historically accurate even if company branding changes.
+ *
+ * version: 1 - For future schema migrations (v1, v2, etc)
+ */
+export type BrandingSnapshotV1 = {
+  version: 1;
   company: {
     name: string;
     legalName?: string;
@@ -67,7 +74,10 @@ export type FullBrandingSnapshot = {
   generatedAt: string;
 };
 
-// Keep BrandingSnapshot for backward compatibility
+/**
+ * BrandingSnapshot (legacy format) - Used by existing PDF generation services.
+ * @deprecated Use BrandingSnapshotV1 instead
+ */
 export type BrandingSnapshot = {
   companyName: string;
   shopName: string;

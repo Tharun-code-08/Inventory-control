@@ -250,6 +250,19 @@ enum BrandingMode {
   SNAPSHOT
 }
 
+enum DocumentType {
+  INVOICE
+  PURCHASE_ORDER
+  QUOTATION
+  GOODS_ISSUE
+  GOODS_RECEIPT
+  EWAY_BILL
+  DELIVERY_CHALLAN
+  CREDIT_NOTE
+  DEBIT_NOTE
+  REPORT
+}
+
 enum MediaAssetType {
   LOGO
   STAMP
@@ -375,14 +388,14 @@ model MediaAsset {
 }
 
 model DocumentBranding {
-  id            String   @id @default(uuid()) @db.Uuid
-  companyId     String   @map("company_id") @db.Uuid
-  documentType  String   @map("document_type")
-  settings      Json     @map("settings")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById   String?  @map("created_by") @db.Uuid
-  updatedById   String?  @map("updated_by") @db.Uuid
+  id            String       @id @default(uuid()) @db.Uuid
+  companyId     String       @map("company_id") @db.Uuid
+  documentType  DocumentType @map("document_type")
+  settings      Json         @map("settings")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?      @map("created_by") @db.Uuid
+  updatedById   String?      @map("updated_by") @db.Uuid
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

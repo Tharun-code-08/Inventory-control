@@ -1,22 +1,11 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common';
 import Redis from 'ioredis';
+import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrandingResolverService } from './branding-resolver.service';
 import { StorageService } from '../storage/storage.service';
-import type { DocumentSettings, FullBrandingSnapshot } from './branding.types';
-
-export type DocumentType =
-  | 'INVOICE'
-  | 'PURCHASE_ORDER'
-  | 'QUOTATION'
-  | 'GOODS_ISSUE'
-  | 'GOODS_RECEIPT'
-  | 'EWAY_BILL'
-  | 'DELIVERY_CHALLAN'
-  | 'CREDIT_NOTE'
-  | 'DEBIT_NOTE'
-  | 'REPORT';
+import { REDIS_CLIENT } from '../cache/redis.provider';
+import type { DocumentSettings, BrandingSnapshotV1 } from './branding.types';
 
 export interface EffectiveBrandingConfig {
   companyName: string;
@@ -36,7 +25,6 @@ export interface EffectiveBrandingConfig {
 @Injectable()
 export class BrandingService {
   private readonly logger = new Logger(BrandingService.name);
-  private redis: Redis | null = null;
 
   // Default document settings if not configured
   private readonly DEFAULT_DOCUMENT_SETTINGS: Record<DocumentType, DocumentSettings> = {
@@ -126,28 +114,8 @@ export class BrandingService {
     private readonly prisma: PrismaService,
     private readonly brandingResolver: BrandingResolverService,
     private readonly storage: StorageService,
-    private readonly config: ConfigService,
-  ) {
-    this.initializeRedis();
-  }
-
-  private initializeRedis() {
-    try {
-      this.redis = new Redis({
-        host: this.config.get<string>('REDIS_HOST', '127.0.0.1'),
-        port: Number(this.config.get<string>('REDIS_PORT', '6379')),
-        retryStrategy: (times) => Math.min(times * 50, 2000),
-        maxRetriesPerRequest: null,
-      });
-
-      this.redis.on('error', (err) => {
-        this.logger.warn(`Redis connection error: ${err.message}`);
-      });
-    } catch (err) {
-      this.logger.warn(`Failed to initialize Redis: ${err.message}`);
-      this.redis = null;
-    }
-  }
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
 
   /**
    * Get company branding configuration
@@ -155,13 +123,11 @@ export class BrandingService {
   async getCompanyBranding(companyId: string) {
     const cacheKey = `branding:company:${companyId}`;
 
-    if (this.redis) {
-      try {
-        const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
-      } catch (err) {
-        this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err) {
+      this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
     }
 
     const company = await this.prisma.company.findUnique({
@@ -193,12 +159,10 @@ export class BrandingService {
       brandingVersion: company.brandingProfile?.brandingVersion ?? 1,
     };
 
-    if (this.redis) {
-      try {
-        await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
-      } catch (err) {
-        this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
+    } catch (err) {
+      this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
     }
 
     return result;
@@ -210,13 +174,11 @@ export class BrandingService {
   async getBranchBranding(shopId: string) {
     const cacheKey = `branding:branch:${shopId}`;
 
-    if (this.redis) {
-      try {
-        const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
-      } catch (err) {
-        this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err) {
+      this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
     }
 
     const shop = await this.prisma.shop.findUnique({
@@ -252,12 +214,10 @@ export class BrandingService {
       brandingVersion: shop.brandingProfile?.brandingVersion ?? 1,
     };
 
-    if (this.redis) {
-      try {
-        await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
-      } catch (err) {
-        this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
+    } catch (err) {
+      this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
     }
 
     return result;
@@ -269,13 +229,11 @@ export class BrandingService {
   async getDocumentSettings(companyId: string, documentType: DocumentType): Promise<DocumentSettings> {
     const cacheKey = `branding:document:${companyId}:${documentType}`;
 
-    if (this.redis) {
-      try {
-        const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
-      } catch (err) {
-        this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err) {
+      this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
     }
 
     const docBranding = await this.prisma.documentBranding.findUnique({
@@ -311,13 +269,11 @@ export class BrandingService {
   ): Promise<EffectiveBrandingConfig> {
     const cacheKey = `branding:effective:${companyId}:${shopId}:${documentType}`;
 
-    if (this.redis) {
-      try {
-        const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
-      } catch (err) {
-        this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err) {
+      this.logger.warn(`Redis get failed for ${cacheKey}: ${err.message}`);
     }
 
     const [companyBranding, branchBranding, documentSettings, resolvedBranding] = await Promise.all([
@@ -340,19 +296,19 @@ export class BrandingService {
       documentSettings,
     };
 
-    if (this.redis) {
-      try {
-        await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
-      } catch (err) {
-        this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
-      }
+    try {
+      await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
+    } catch (err) {
+      this.logger.warn(`Redis set failed for ${cacheKey}: ${err.message}`);
     }
 
     return result;
   }
 
   /**
-   * Create a branding snapshot for historical accuracy
+   * Create a branding snapshot for historical accuracy.
+   * Snapshots are immutable and stored in documents to ensure
+   * PDFs remain historically accurate if company branding changes.
    */
   async createBrandingSnapshot(
     companyId: string,
@@ -363,7 +319,7 @@ export class BrandingService {
       gstNumber?: string;
       panNumber?: string;
     },
-  ): Promise<FullBrandingSnapshot> {
+  ): Promise<BrandingSnapshotV1> {
     const [effective, branchBranding, company] = await Promise.all([
       this.getEffectiveBranding(companyId, shopId, documentType),
       this.getBranchBranding(shopId),
@@ -381,7 +337,7 @@ export class BrandingService {
       }),
     ]);
 
-    const snapshot: FullBrandingSnapshot = {
+    const snapshot: BrandingSnapshotV1 = {
       version: 1,
       company: {
         name: effective.companyName,
@@ -413,7 +369,6 @@ export class BrandingService {
    * Invalidate all branding caches for a company
    */
   async invalidateCompanyCache(companyId: string) {
-    if (!this.redis) return;
     try {
       await this.redis.del(`branding:company:${companyId}`);
     } catch (err) {
@@ -437,14 +392,12 @@ export class BrandingService {
    * Invalidate document settings cache
    */
   async invalidateDocumentSettingsCache(companyId: string, documentType?: DocumentType) {
-    if (!this.redis) return;
     try {
       if (documentType) {
         await this.redis.del(`branding:document:${companyId}:${documentType}`);
       } else {
-        // Invalidate all document settings for this company (using pattern)
-        const keys = await this.redis.keys(`branding:document:${companyId}:*`);
-        if (keys.length > 0) await this.redis.del(...keys);
+        // Invalidate all document settings for this company using SCAN
+        await this.scanAndDelete(`branding:document:${companyId}:*`);
       }
     } catch (err) {
       this.logger.warn(`Failed to invalidate document settings cache: ${err.message}`);
@@ -455,17 +408,37 @@ export class BrandingService {
    * Invalidate effective branding cache
    */
   async invalidateEffectiveCache(companyId: string, shopId?: string) {
-    if (!this.redis) return;
     try {
       if (shopId) {
-        const keys = await this.redis.keys(`branding:effective:${companyId}:${shopId}:*`);
-        if (keys.length > 0) await this.redis.del(...keys);
+        await this.scanAndDelete(`branding:effective:${companyId}:${shopId}:*`);
       } else {
-        const keys = await this.redis.keys(`branding:effective:${companyId}:*`);
-        if (keys.length > 0) await this.redis.del(...keys);
+        await this.scanAndDelete(`branding:effective:${companyId}:*`);
       }
     } catch (err) {
       this.logger.warn(`Failed to invalidate effective cache: ${err.message}`);
     }
+  }
+
+  /**
+   * Helper: Use SCAN to iterate and delete keys (non-blocking)
+   */
+  private async scanAndDelete(pattern: string): Promise<void> {
+    let cursor = '0';
+    const batchSize = 100;
+
+    do {
+      const [newCursor, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        batchSize,
+      );
+      cursor = newCursor;
+
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
+    } while (cursor !== '0');
   }
 }

@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrandingService } from './branding.service';
-import type { DocumentType } from './branding.service';
 import type { DocumentSettings } from './branding.types';
 
 @Injectable()
