@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, MediaAssetType, Prisma } from '@prisma/client';
 import type { RequestUser } from '../types/request-user';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,8 +14,6 @@ export type BrandingUpdateInput = BrandingProfileFields & {
 
 @Injectable()
 export class BrandingProfileService {
-  private readonly logger = new Logger(BrandingProfileService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -68,202 +66,152 @@ export class BrandingProfileService {
   }
 
   async updateCompanyBranding(user: RequestUser, companyId: string, input: BrandingUpdateInput, logo?: Express.Multer.File) {
-    try {
-      this.logger.log(`Updating company branding for ${companyId}`);
+    return this.prisma.$transaction(async (tx) => {
+      const profile = await this.getOrCreateCompanyProfile(companyId, user.id, tx);
+      const current = await tx.brandingProfile.findUnique({ where: { id: profile.id } });
+      if (!current) throw new NotFoundException('Branding profile not found');
 
-      return await this.prisma.$transaction(async (tx) => {
-        try {
-          const profile = await this.getOrCreateCompanyProfile(companyId, user.id, tx);
-          const current = await tx.brandingProfile.findUnique({ where: { id: profile.id } });
-          if (!current) throw new NotFoundException('Branding profile not found');
+      let logoAssetId = current.logoAssetId;
+      if (logo) {
+        const stored = await this.storage.storeAsset({ file: logo, type: MediaAssetType.LOGO, scope: { companyId } });
+        const nextVersion = await this.nextAssetVersion(tx, companyId, null, MediaAssetType.LOGO);
+        const asset = await tx.mediaAsset.create({
+          data: {
+            companyId,
+            brandingProfileId: profile.id,
+            type: MediaAssetType.LOGO,
+            assetKey: stored.assetKey,
+            fileName: stored.fileName,
+            version: nextVersion,
+            metadata: stored.metadata,
+            uploadedById: user.id,
+            active: true,
+          },
+        });
+        await tx.mediaAsset.updateMany({
+          where: { companyId, type: MediaAssetType.LOGO, id: { not: asset.id } },
+          data: { active: false },
+        });
+        logoAssetId = asset.id;
+      } else if (input.removeLogo) {
+        logoAssetId = null;
+      }
 
-          let logoAssetId = current.logoAssetId;
-          if (logo) {
-            try {
-              this.logger.log(`Storing logo asset for company ${companyId}`);
-              const stored = await this.storage.storeAsset({
-                file: logo,
-                type: MediaAssetType.LOGO,
-                scope: { companyId }
-              });
-              const nextVersion = await this.nextAssetVersion(tx, companyId, null, MediaAssetType.LOGO);
-              const asset = await tx.mediaAsset.create({
-                data: {
-                  companyId,
-                  brandingProfileId: profile.id,
-                  type: MediaAssetType.LOGO,
-                  assetKey: stored.assetKey,
-                  fileName: stored.fileName,
-                  version: nextVersion,
-                  metadata: stored.metadata,
-                  uploadedById: user.id,
-                  active: true,
-                },
-              });
-              await tx.mediaAsset.updateMany({
-                where: { companyId, type: MediaAssetType.LOGO, id: { not: asset.id } },
-                data: { active: false },
-              });
-              logoAssetId = asset.id;
-              this.logger.log(`Logo asset stored successfully: ${asset.id}`);
-            } catch (err) {
-              this.logger.error(`Failed to store logo: ${err instanceof Error ? err.message : String(err)}`);
-              throw new BadRequestException(`Failed to upload logo: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const logoChanged = Boolean(logo) || input.removeLogo;
+      const updateData: Prisma.BrandingProfileUpdateInput = {
+        footerText: input.footerText ?? undefined,
+        email: input.email ?? undefined,
+        phone: input.phone ?? undefined,
+        website: input.website ?? undefined,
+        ...(logoChanged
+          ? {
+              logoAsset: logoAssetId
+                ? { connect: { id: logoAssetId } }
+                : { disconnect: true },
             }
-          } else if (input.removeLogo) {
-            logoAssetId = null;
-          }
+          : {}),
+        brandingVersion: { increment: 1 },
+        updatedById: user.id,
+      };
 
-          const logoChanged = Boolean(logo) || input.removeLogo;
-          const updateData: Prisma.BrandingProfileUpdateInput = {
-            footerText: input.footerText ?? undefined,
-            email: input.email ?? undefined,
-            phone: input.phone ?? undefined,
-            website: input.website ?? undefined,
-            ...(logoChanged
-              ? {
-                  logoAsset: logoAssetId
-                    ? { connect: { id: logoAssetId } }
-                    : { disconnect: true },
-                }
-              : {}),
-            brandingVersion: { increment: 1 },
-            updatedById: user.id,
-          };
-
-          const updated = await tx.brandingProfile.update({
-            where: { id: profile.id },
-            data: updateData,
-          });
-
-          await this.audit.log(
-            {
-              companyId,
-              userId: user.id,
-              action: AuditAction.UPDATE,
-              entityType: 'branding_profile',
-              entityId: updated.id,
-              oldValues: current,
-              newValues: updated,
-            },
-            tx,
-          );
-
-          if (logo || input.removeLogo) {
-            this.events.emit('COMPANY_LOGO_UPDATED', { companyId, userId: user.id });
-          } else {
-            this.events.emit('COMPANY_BRANDING_UPDATED', { companyId, userId: user.id });
-          }
-
-          this.logger.log(`Company branding updated successfully for ${companyId}`);
-          return updated;
-        } catch (err) {
-          this.logger.error(`Transaction failed for company ${companyId}: ${err instanceof Error ? err.message : String(err)}`);
-          throw err;
-        }
+      const updated = await tx.brandingProfile.update({
+        where: { id: profile.id },
+        data: updateData,
       });
-    } catch (err) {
-      this.logger.error(`Failed to update company branding: ${err instanceof Error ? err.message : String(err)}`);
-      if (err instanceof BadRequestException) throw err;
-      throw new BadRequestException(`Failed to update company branding: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+
+      await this.audit.log(
+        {
+          companyId,
+          userId: user.id,
+          action: AuditAction.UPDATE,
+          entityType: 'branding_profile',
+          entityId: updated.id,
+          oldValues: current,
+          newValues: updated,
+        },
+        tx,
+      );
+
+      if (logo || input.removeLogo) {
+        this.events.emit('COMPANY_LOGO_UPDATED', { companyId, userId: user.id });
+      } else {
+        this.events.emit('COMPANY_BRANDING_UPDATED', { companyId, userId: user.id });
+      }
+
+      return updated;
+    });
   }
 
   async updateShopBranding(user: RequestUser, shopId: string, input: BrandingUpdateInput, logo?: Express.Multer.File) {
-    try {
-      this.logger.log(`Updating shop branding for ${shopId}`);
+    return this.prisma.$transaction(async (tx) => {
+      const profile = await this.getOrCreateShopProfile(shopId, user.id, tx);
+      const current = await tx.brandingProfile.findUnique({ where: { id: profile.id } });
+      if (!current) throw new NotFoundException('Branding profile not found');
 
-      return await this.prisma.$transaction(async (tx) => {
-        try {
-          const profile = await this.getOrCreateShopProfile(shopId, user.id, tx);
-          const current = await tx.brandingProfile.findUnique({ where: { id: profile.id } });
-          if (!current) throw new NotFoundException('Branding profile not found');
+      let logoAssetId = current.logoAssetId;
+      if (logo) {
+        const stored = await this.storage.storeAsset({ file: logo, type: MediaAssetType.LOGO, scope: { shopId } });
+        const nextVersion = await this.nextAssetVersion(tx, null, shopId, MediaAssetType.LOGO);
+        const asset = await tx.mediaAsset.create({
+          data: {
+            shopId,
+            brandingProfileId: profile.id,
+            type: MediaAssetType.LOGO,
+            assetKey: stored.assetKey,
+            fileName: stored.fileName,
+            version: nextVersion,
+            metadata: stored.metadata,
+            uploadedById: user.id,
+            active: true,
+          },
+        });
+        await tx.mediaAsset.updateMany({
+          where: { shopId, type: MediaAssetType.LOGO, id: { not: asset.id } },
+          data: { active: false },
+        });
+        logoAssetId = asset.id;
+      } else if (input.removeLogo) {
+        logoAssetId = null;
+      }
 
-          let logoAssetId = current.logoAssetId;
-          if (logo) {
-            try {
-              this.logger.log(`Storing logo asset for shop ${shopId}`);
-              const stored = await this.storage.storeAsset({
-                file: logo,
-                type: MediaAssetType.LOGO,
-                scope: { shopId }
-              });
-              const nextVersion = await this.nextAssetVersion(tx, null, shopId, MediaAssetType.LOGO);
-              const asset = await tx.mediaAsset.create({
-                data: {
-                  shopId,
-                  brandingProfileId: profile.id,
-                  type: MediaAssetType.LOGO,
-                  assetKey: stored.assetKey,
-                  fileName: stored.fileName,
-                  version: nextVersion,
-                  metadata: stored.metadata,
-                  uploadedById: user.id,
-                  active: true,
-                },
-              });
-              await tx.mediaAsset.updateMany({
-                where: { shopId, type: MediaAssetType.LOGO, id: { not: asset.id } },
-                data: { active: false },
-              });
-              logoAssetId = asset.id;
-              this.logger.log(`Logo asset stored successfully: ${asset.id}`);
-            } catch (err) {
-              this.logger.error(`Failed to store logo: ${err instanceof Error ? err.message : String(err)}`);
-              throw new BadRequestException(`Failed to upload logo: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const logoChanged = Boolean(logo) || input.removeLogo;
+      const updateData: Prisma.BrandingProfileUpdateInput = {
+        footerText: input.footerText ?? undefined,
+        email: input.email ?? undefined,
+        phone: input.phone ?? undefined,
+        website: input.website ?? undefined,
+        ...(logoChanged
+          ? {
+              logoAsset: logoAssetId
+                ? { connect: { id: logoAssetId } }
+                : { disconnect: true },
             }
-          } else if (input.removeLogo) {
-            logoAssetId = null;
-          }
+          : {}),
+        brandingVersion: { increment: 1 },
+        updatedById: user.id,
+      };
 
-          const logoChanged = Boolean(logo) || input.removeLogo;
-          const updateData: Prisma.BrandingProfileUpdateInput = {
-            footerText: input.footerText ?? undefined,
-            email: input.email ?? undefined,
-            phone: input.phone ?? undefined,
-            website: input.website ?? undefined,
-            ...(logoChanged
-              ? {
-                  logoAsset: logoAssetId
-                    ? { connect: { id: logoAssetId } }
-                    : { disconnect: true },
-                }
-              : {}),
-            brandingVersion: { increment: 1 },
-            updatedById: user.id,
-          };
-
-          const updated = await tx.brandingProfile.update({
-            where: { id: profile.id },
-            data: updateData,
-          });
-
-          await this.audit.log(
-            {
-              companyId: assertCompanyId(user),
-              userId: user.id,
-              action: AuditAction.UPDATE,
-              entityType: 'branding_profile',
-              entityId: updated.id,
-              oldValues: current,
-              newValues: updated,
-            },
-            tx,
-          );
-
-          this.events.emit('SHOP_BRANDING_UPDATED', { shopId, userId: user.id });
-          this.logger.log(`Shop branding updated successfully for ${shopId}`);
-          return updated;
-        } catch (err) {
-          this.logger.error(`Transaction failed for shop ${shopId}: ${err instanceof Error ? err.message : String(err)}`);
-          throw err;
-        }
+      const updated = await tx.brandingProfile.update({
+        where: { id: profile.id },
+        data: updateData,
       });
-    } catch (err) {
-      this.logger.error(`Failed to update shop branding: ${err instanceof Error ? err.message : String(err)}`);
-      if (err instanceof BadRequestException) throw err;
-      throw new BadRequestException(`Failed to update shop branding: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+
+      await this.audit.log(
+        {
+          companyId: assertCompanyId(user),
+          userId: user.id,
+          action: AuditAction.UPDATE,
+          entityType: 'branding_profile',
+          entityId: updated.id,
+          oldValues: current,
+          newValues: updated,
+        },
+        tx,
+      );
+
+      this.events.emit('SHOP_BRANDING_UPDATED', { shopId, userId: user.id });
+      return updated;
+    });
   }
 
   private async nextAssetVersion(
