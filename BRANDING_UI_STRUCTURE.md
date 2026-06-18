@@ -37,6 +37,14 @@ Email                    [email input]
 Website                  [text input]
 Footer Text              [textarea]
 
+---
+
+Theme
+
+Primary Color            [ Color Picker ]
+Secondary Color          [ Color Picker ]
+Accent Color             [ Color Picker ]
+
 [Save]
 ```
 
@@ -54,6 +62,11 @@ Response: {
   email: string
   website: string
   footerText: string
+  theme: {
+    primaryColor: string (hex)
+    secondaryColor: string (hex)
+    accentColor: string (hex)
+  }
 }
 
 PUT /branding/company
@@ -357,6 +370,14 @@ Document Type Selection
 
 ---
 
+View Options
+
+[ Desktop ]  [ Mobile ]  [ Print ]
+
+Zoom: [ 50% ]  [ 75% ]  [ 100% ]
+
+---
+
 Live Preview Area
 
 [Embedded PDF Preview or HTML Render]
@@ -391,14 +412,17 @@ Download Section
 POST /branding/preview
 Request: {
   documentType: "INVOICE"
+  viewMode: "desktop" | "mobile" | "print"
+  zoom: 50 | 75 | 100
   overrides?: {
     logoUrl?: string
     footerText?: string
+    primaryColor?: string
     // other overrides
   }
 }
 Response: {
-  html: string (HTML to render)
+  html: string (HTML to render with view mode CSS)
   // or
   pdf: Buffer (downloadable PDF)
 }
