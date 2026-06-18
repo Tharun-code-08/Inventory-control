@@ -6,6 +6,7 @@ import { BRAND } from '@/lib/brand';
 import { MARKETING_NAV } from '@/lib/marketing-content';
 import { MarketingCtaLink } from './MarketingCtaLink';
 import { cn } from '@/lib/cn';
+import { URLS } from '@/config/domains';
 
 export function MarketingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -35,11 +36,11 @@ export function MarketingHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <MarketingCtaLink
-            cta={{ label: 'Start free trial', href: '/signup?plan=trial' }}
+            cta={{ label: 'Start free trial', href: `${URLS.IMS_SIGNUP}?plan=trial` }}
             variant="secondary"
             className="hidden lg:inline-flex"
           />
-          <MarketingCtaLink cta={{ label: BRAND.loginTitle, href: '/login' }} variant="primary" />
+          <MarketingCtaLink cta={{ label: BRAND.loginTitle, href: URLS.IMS_LOGIN }} variant="primary" />
         </div>
 
         <button
@@ -71,8 +72,8 @@ export function MarketingHeader() {
             </a>
           ))}
           <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
-            <MarketingCtaLink cta={{ label: 'Start free trial', href: '/signup?plan=trial' }} variant="secondary" />
-            <MarketingCtaLink cta={{ label: BRAND.loginTitle, href: '/login' }} variant="primary" />
+            <MarketingCtaLink cta={{ label: 'Start free trial', href: `${URLS.IMS_SIGNUP}?plan=trial` }} variant="secondary" />
+            <MarketingCtaLink cta={{ label: BRAND.loginTitle, href: URLS.IMS_LOGIN }} variant="primary" />
           </div>
         </nav>
       </div>

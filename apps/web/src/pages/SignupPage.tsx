@@ -31,6 +31,7 @@ import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { useAuthStore } from '@/store/authStore';
 import { dashboardHomePath } from '@/lib/roles';
 import { PLAN_CATALOG, type BillingInterval, type PlanId } from '@/lib/plans';
+import { DOMAINS } from '@/config/domains';
 import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
 
 type Step = 'details' | 'verify' | 'method' | 'mfa' | 'backup' | 'complete';
@@ -398,7 +399,7 @@ export function SignupPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <Link
-        to="/"
+        href={`https://${DOMAINS.MARKETING}`}
         className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >

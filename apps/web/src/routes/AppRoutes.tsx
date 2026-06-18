@@ -123,11 +123,38 @@ function PageFallbackRoute() {
 export function AppRoutes() {
   const user = useAuthStore((s) => s.user);
   const { data: subscription } = useSubscription(Boolean(user));
+
+  // Detect which domain is being accessed
+  const isMarketing = typeof window !== 'undefined' && (
+    window.location.hostname === 'softdigitconsulting.com' ||
+    window.location.hostname === 'www.softdigitconsulting.com'
+  );
+
+  const isIMSDomain = typeof window !== 'undefined' &&
+    window.location.hostname === 'ims.softdigitconsulting.com';
+
+  // MARKETING DOMAIN: Only show landing page
+  if (isMarketing) {
+    return (
+      <AppErrorBoundary>
+        <Suspense fallback={<PageFallbackRoute />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            {/* Redirect all other paths back to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </AppErrorBoundary>
+    );
+  }
+
+  // IMS DOMAIN: Show ERP routes
   return (
     <AppErrorBoundary>
       <Suspense fallback={<PageFallbackRoute />}>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          {/* Root redirects to login */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

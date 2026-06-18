@@ -77,6 +77,14 @@ async function bootstrap() {
   // rawBody: true keeps the raw request buffer available for Razorpay webhook
   // signature verification (see billing-webhook.controller.ts).
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+
+  // Behind Cloudflare -> nginx. nginx rewrites X-Forwarded-For to Cloudflare's
+  // CF-Connecting-IP (a single, non-client-spoofable value), so trusting exactly
+  // one proxy hop makes req.ip the real client IP. Without this, every request
+  // looks like it comes from nginx (127.0.0.1): the ThrottlerGuard buckets all
+  // clients into one shared rate limit (spurious 429s) and audit logs record the
+  // wrong IP.
+  app.set('trust proxy', 1);
   const httpLogger = new Logger('Http');
 
   // Raise the body size limit (default ~100KB) so bulk product uploads of a few

@@ -15,6 +15,7 @@ import {
 } from '@/lib/plans';
 import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
 import { openRazorpayPaymentLink } from '@/lib/razorpay-payment-links';
+import { URLS, DOMAINS } from '@/config/domains';
 
 type PricingSectionProps = {
   variant?: 'landing' | 'upgrade';
@@ -46,11 +47,20 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   const lightSurface = variant === 'landing' || isUpgrade;
 
   async function handlePlanClick(plan: PlanId) {
-    // Public (unauthenticated) flow: send users to signup with plan context.
+    // Public (unauthenticated) flow: send users to IMS signup with plan context.
     if (!onPaidUpgrade) {
       const params = new URLSearchParams({ plan });
       if (plan !== 'trial') params.set('billing', billing);
-      nav(`/signup?${params.toString()}`);
+      // Redirect to IMS domain signup page (full URL to ensure cross-domain navigation)
+      const isOnMarketing = window.location.hostname === DOMAINS.MARKETING ||
+                            window.location.hostname === `www.${DOMAINS.MARKETING}`;
+      if (isOnMarketing) {
+        // From marketing site: navigate to IMS domain
+        window.location.href = `${URLS.IMS_SIGNUP}?${params.toString()}`;
+      } else {
+        // Already on IMS domain: use React Router
+        nav(`/signup?${params.toString()}`);
+      }
       return;
     }
 

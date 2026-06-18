@@ -26,6 +26,7 @@ import { useCookieConsentStore } from '@/store/cookieConsentStore';
 import { animalAvatarForUser } from '@/lib/profile-avatar';
 import { BRAND } from '@/lib/brand';
 import { dashboardHomePath } from '@/lib/roles';
+import { DOMAINS } from '@/config/domains';
 
 type LoginPayload =
   | {
@@ -134,14 +135,14 @@ export function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
-      <Link
-        to="/"
+      <a
+        href={`https://${DOMAINS.MARKETING}`}
         className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
         <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
         Back to home
-      </Link>
+      </a>
 
       {showAvatarSplash ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)]">
