@@ -77,6 +77,12 @@ export type BrandingSnapshotV1 = {
 /**
  * BrandingSnapshot (legacy format) - Used by existing PDF generation services.
  * @deprecated Use BrandingSnapshotV1 instead
+ *
+ * TODO: Remove after Phase 2 PDF integration is complete.
+ * This type exists only for backward compatibility with the legacy
+ * branding-resolver.service.ts and document-pdf.service.ts implementations.
+ * Once those services are refactored to use BrandingSnapshotV1 and
+ * createBrandingSnapshot(), this type can be safely deleted.
  */
 export type BrandingSnapshot = {
   companyName: string;
