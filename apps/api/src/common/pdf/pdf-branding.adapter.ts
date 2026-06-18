@@ -149,12 +149,21 @@ export class PdfBrandingAdapter {
    * Do NOT call applyHeader/Footer/Signature/Seal/Theme directly.
    */
   static applyAllBranding(html: string, snapshot: BrandingSnapshotV1): string {
-    // Apply in order: header, footer, signature, seal, theme
-    html = this.applyHeader(html, snapshot);
-    html = this.applyFooter(html, snapshot);
-    html = this.applySignature(html, snapshot);
-    html = this.applySeal(html, snapshot);
-    html = this.applyTheme(html, snapshot);
+    // Apply branding in explicit order (order matters for PDF layering)
+    // Future additions: watermark, QR code, e-sign, branch footer, etc
+    const brandingSteps: Array<(html: string, snap: BrandingSnapshotV1) => string> = [
+      this.applyTheme, // CSS variables first (affects everything)
+      this.applyHeader, // Company header with logo
+      this.applyFooter, // Footer text
+      this.applySignature, // Authorized signature
+      this.applySeal, // Company seal/stamp
+      // Next additions go here
+    ];
+
+    // Apply each step in order
+    for (const step of brandingSteps) {
+      html = step.call(this, html, snapshot);
+    }
 
     return html;
   }

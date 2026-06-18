@@ -62,6 +62,19 @@ export type DocumentSettings = {
  * - BrandingSnapshot: "What branding was used?"
  * - Document table: "Who created/approved/posted this document?"
  * - Audit log: "What changed and when?"
+ *
+ * Future evolution:
+ * If you introduce BrandingSnapshotV2 (e.g., adding watermark, QR code),
+ * add brandingSnapshotVersion INT to document tables to track which
+ * version was used. This enables historical PDF regeneration for all versions.
+ *
+ * Example:
+ * ```
+ * invoices {
+ *   branding_snapshot JSONB (v1, v2, v3)
+ *   branding_snapshot_version INT (1, 2, 3)
+ * }
+ * ```
  */
 export type BrandingSnapshotV1 = {
   version: 1;
