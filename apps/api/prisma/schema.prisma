@@ -265,6 +265,10 @@ enum DocumentType {
   RFQ
   DELIVERY_NOTE
   STOCK_TRANSFER
+  PURCHASE_RETURN
+  SALES_RETURN
+  MATERIAL_REQUEST
+  WORK_ORDER
   REPORT
 }
 
@@ -1109,7 +1113,6 @@ model RfqHeader {
   shopId           String         @map("shop_id") @db.Uuid
   brandingMode     BrandingMode   @default(LIVE) @map("branding_mode")
   brandingSnapshot Json?          @map("branding_snapshot")
-  brandingVersion  Int?           @map("branding_version")
   templateVersion  Int            @default(1) @map("template_version")
   status           DocumentStatus @default(DRAFT)
   postedAt         DateTime?      @map("posted_at") @db.Timestamptz(6)
@@ -1283,7 +1286,6 @@ model GoodsReceiptHeader {
   remarks          String?
   brandingMode     BrandingMode   @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?          @map("branding_snapshot")
-  brandingVersion  Int?           @map("branding_version")
   templateVersion  Int            @default(1) @map("template_version")
   status           DocumentStatus @default(DRAFT)
   postedAt         DateTime?      @map("posted_at") @db.Timestamptz(6)
@@ -1344,7 +1346,6 @@ model GoodsIssueHeader {
   remarks          String?
   brandingMode     BrandingMode   @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?          @map("branding_snapshot")
-  brandingVersion  Int?           @map("branding_version")
   templateVersion  Int            @default(1) @map("template_version")
   status           DocumentStatus @default(DRAFT)
   postedAt         DateTime?      @map("posted_at") @db.Timestamptz(6)
@@ -1418,7 +1419,6 @@ model PurchaseOrderHeader {
   remarks          String?
   brandingMode     BrandingMode        @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?               @map("branding_snapshot")
-  brandingVersion  Int?                @map("branding_version")
   templateVersion  Int                 @default(1) @map("template_version")
   currency         String              @default("USD")
   fxRateUsed       Decimal?            @map("fx_rate_used") @db.Decimal(18, 8)
@@ -1922,7 +1922,6 @@ model SalesQuotationHeader {
   status                 SalesQuotationStatus @default(DRAFT)
   brandingMode           BrandingMode         @default(LIVE) @map("branding_mode")
   brandingSnapshot       Json?                @map("branding_snapshot")
-  brandingVersion        Int?                 @map("branding_version")
   templateVersion        Int                  @default(1) @map("template_version")
   salesOrderId           String?              @unique @map("sales_order_id") @db.Uuid
   portalToken            String?              @unique @map("portal_token")
@@ -1977,7 +1976,6 @@ model SalesOrderHeader {
   status            SalesOrderStatus  @default(DRAFT)
   brandingMode      BrandingMode      @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot  Json?             @map("branding_snapshot")
-  brandingVersion   Int?              @map("branding_version")
   templateVersion   Int               @default(1) @map("template_version")
   fulfillmentStatus FulfillmentStatus @default(NONE) @map("fulfillment_status")
   remarks           String?
@@ -2046,7 +2044,6 @@ model InvoiceHeader {
   status           InvoiceStatus @default(DRAFT)
   brandingMode     BrandingMode  @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?         @map("branding_snapshot")
-  brandingVersion  Int?          @map("branding_version")
   templateVersion  Int           @default(1) @map("template_version")
   currency         String        @default("USD")
   fxRateUsed       Decimal?      @map("fx_rate_used") @db.Decimal(18, 8)
@@ -2090,7 +2087,6 @@ model PaymentReceipt {
   remarks          String?
   brandingMode     BrandingMode @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?        @map("branding_snapshot")
-  brandingVersion  Int?         @map("branding_version")
   templateVersion  Int          @default(1) @map("template_version")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2342,7 +2338,6 @@ model SupplierReturn {
   internalCcEmail  String?      @map("internal_cc_email")
   brandingMode     BrandingMode @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?        @map("branding_snapshot")
-  brandingVersion  Int?         @map("branding_version")
   templateVersion  Int          @default(1) @map("template_version")
   status           ReturnStatus @default(DRAFT)
   totalValue       Decimal      @default(0) @map("total_value") @db.Decimal(14, 2)
@@ -2470,7 +2465,6 @@ model SupplierBillHeader {
   status           SupplierBillStatus @default(DRAFT)
   brandingMode     BrandingMode       @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?              @map("branding_snapshot")
-  brandingVersion  Int?               @map("branding_version")
   templateVersion  Int                @default(1) @map("template_version")
   totalValue       Decimal            @map("total_value") @db.Decimal(14, 2)
   paidValue        Decimal            @default(0) @map("paid_value") @db.Decimal(14, 2)
@@ -2523,7 +2517,6 @@ model SupplierPayment {
   remarks          String?
   brandingMode     BrandingMode @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?        @map("branding_snapshot")
-  brandingVersion  Int?         @map("branding_version")
   templateVersion  Int          @default(1) @map("template_version")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
