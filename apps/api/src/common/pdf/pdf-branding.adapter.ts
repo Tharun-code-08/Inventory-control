@@ -3,6 +3,8 @@ import type { BrandingSnapshotV1 } from '../branding/branding.types';
 /**
  * PdfBrandingAdapter - Pure, stateless PDF branding application.
  *
+ * SINGLE PUBLIC API: applyAllBranding(html, snapshot)
+ *
  * RULES:
  * - NO database queries
  * - NO service calls
@@ -17,12 +19,22 @@ import type { BrandingSnapshotV1 } from '../branding/branding.types';
  * - Easy testing (no mocks needed)
  * - Easy engine migration (Puppeteer → other)
  * - Clear separation of concerns
+ * - Centralized branding rules (all PDFs use same entry point)
+ *
+ * Usage in PDF services:
+ * ```typescript
+ * const htmlWithBranding = PdfBrandingAdapter.applyAllBranding(
+ *   html,
+ *   invoice.brandingSnapshot
+ * );
+ * ```
  */
 export class PdfBrandingAdapter {
   /**
    * Apply company header with logo, name, GST, address
+   * @private - Use applyAllBranding() instead
    */
-  static applyHeader(html: string, snapshot: BrandingSnapshotV1): string {
+  private static applyHeader(html: string, snapshot: BrandingSnapshotV1): string {
     if (!snapshot.documentSettings.showLogo) {
       // If logo not enabled, skip logo section
       html = html.replace(/<div class="logo-section">.*?<\/div>/s, '');
@@ -55,8 +67,9 @@ export class PdfBrandingAdapter {
 
   /**
    * Apply footer text
+   * @private - Use applyAllBranding() instead
    */
-  static applyFooter(html: string, snapshot: BrandingSnapshotV1): string {
+  private static applyFooter(html: string, snapshot: BrandingSnapshotV1): string {
     if (!snapshot.documentSettings.showFooter) {
       html = html.replace(/<footer>.*?<\/footer>/s, '');
     } else if (snapshot.footerText) {
@@ -68,8 +81,9 @@ export class PdfBrandingAdapter {
 
   /**
    * Apply authorized signature if enabled
+   * @private - Use applyAllBranding() instead
    */
-  static applySignature(html: string, snapshot: BrandingSnapshotV1): string {
+  private static applySignature(html: string, snapshot: BrandingSnapshotV1): string {
     if (!snapshot.documentSettings.showSignature) {
       html = html.replace(/<div class="signature-section">.*?<\/div>/s, '');
     } else if (snapshot.assets.signatureUrl) {
@@ -84,8 +98,9 @@ export class PdfBrandingAdapter {
 
   /**
    * Apply company seal/stamp if enabled
+   * @private - Use applyAllBranding() instead
    */
-  static applySeal(html: string, snapshot: BrandingSnapshotV1): string {
+  private static applySeal(html: string, snapshot: BrandingSnapshotV1): string {
     if (!snapshot.documentSettings.showSeal) {
       html = html.replace(/<div class="seal-section">.*?<\/div>/s, '');
     } else if (snapshot.assets.sealUrl) {
@@ -97,8 +112,9 @@ export class PdfBrandingAdapter {
 
   /**
    * Apply theme colors (primary, secondary)
+   * @private - Use applyAllBranding() instead
    */
-  static applyTheme(html: string, snapshot: BrandingSnapshotV1): string {
+  private static applyTheme(html: string, snapshot: BrandingSnapshotV1): string {
     if (snapshot.theme.primaryColor) {
       html = html.replace(
         /--primary-color: [^;]+;/g,
@@ -117,7 +133,20 @@ export class PdfBrandingAdapter {
   }
 
   /**
-   * Apply all branding based on document settings
+   * Apply all branding based on document settings.
+   *
+   * THIS IS THE ONLY PUBLIC API. All PDF services must use this method.
+   *
+   * This ensures branding rules are centralized and consistent across:
+   * - Invoice PDF
+   * - Purchase Order PDF
+   * - Quotation PDF
+   * - Goods Issue PDF
+   * - Goods Receipt PDF
+   * - E-Way Bill PDF
+   * - Reports PDF
+   *
+   * Do NOT call applyHeader/Footer/Signature/Seal/Theme directly.
    */
   static applyAllBranding(html: string, snapshot: BrandingSnapshotV1): string {
     // Apply in order: header, footer, signature, seal, theme
