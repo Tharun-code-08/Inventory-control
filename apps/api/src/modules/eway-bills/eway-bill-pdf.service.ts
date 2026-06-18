@@ -39,7 +39,7 @@ export class EWayBillPdfService {
     const pdf = await renderHtmlToPdfBuffer(html);
 
     if (!bill.brandingSnapshot) {
-      await this.prisma.eWayBill.update({
+      await this.prisma.ewayBill.update({
         where: { id: billId },
         data: { brandingSnapshot: snapshot as any },
       });

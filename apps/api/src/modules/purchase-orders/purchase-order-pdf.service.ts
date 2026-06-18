@@ -48,7 +48,7 @@ export class PurchaseOrderPdfService {
           'PURCHASE_ORDER' as DocumentType
         );
 
-    const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po);
+    const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, shop.company.id);
     let html = renderPurchaseOrderHtml(viewModel);
 
     // Single entry point: apply all branding
@@ -80,7 +80,14 @@ export class PurchaseOrderPdfService {
       this.logger.warn(`Checksum mismatch for PO ${poId}`);
     }
 
-    const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po);
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: po.shopId },
+      include: { company: { select: { id: true } } },
+    });
+
+    if (!shop || !shop.company) throw new Error(`Shop or company not found`);
+
+    const viewModel = await buildPurchaseOrderPdfViewModel(this.prisma, po, shop.company.id);
     let html = renderPurchaseOrderHtml(viewModel);
 
     html = PdfBrandingAdapter.applyAllBranding(html, snapshot);
