@@ -78,6 +78,7 @@ export type DocumentSettings = {
  */
 export type BrandingSnapshotV1 = {
   version: 1;
+  checksum: string; // SHA256 of snapshot content (for corruption detection)
   generatedAt: string; // ISO 8601 - when branding was captured
   documentType: DocumentType;
   company: {

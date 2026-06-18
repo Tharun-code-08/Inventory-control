@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common';
+import { createHash } from 'crypto';
 import Redis from 'ioredis';
 import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -412,7 +413,7 @@ export class BrandingService {
       }),
     ]);
 
-    const snapshot: BrandingSnapshotV1 = {
+    const snapshotBase: Omit<BrandingSnapshotV1, 'checksum'> = {
       version: 1,
       generatedAt: new Date().toISOString(),
       documentType,
@@ -439,7 +440,15 @@ export class BrandingService {
     };
 
     // Validate snapshot before returning
-    this.validateSnapshot(snapshot);
+    this.validateSnapshot(snapshotBase as BrandingSnapshotV1);
+
+    // Generate checksum (detects corruption/tampering)
+    const checksum = this.generateChecksum(snapshotBase);
+
+    const snapshot: BrandingSnapshotV1 = {
+      ...snapshotBase,
+      checksum,
+    };
 
     return snapshot;
   }
@@ -464,6 +473,34 @@ export class BrandingService {
     if (snapshot.documentSettings.showGST && !snapshot.company.gstNumber) {
       throw new BadRequestException('GST is enabled in document settings but GST number is missing');
     }
+  }
+
+  /**
+   * Generate SHA256 checksum of snapshot content.
+   * Used to detect corruption or tampering with snapshot JSONB.
+   */
+  private generateChecksum(snapshot: Omit<BrandingSnapshotV1, 'checksum'>): string {
+    const content = JSON.stringify(snapshot);
+    return createHash('sha256').update(content).digest('hex');
+  }
+
+  /**
+   * Verify snapshot integrity via checksum.
+   * Detects DB corruption, manual JSONB edits, or migration errors.
+   */
+  validateChecksumIntegrity(snapshot: BrandingSnapshotV1): boolean {
+    const expectedChecksum = this.generateChecksum({
+      version: snapshot.version,
+      generatedAt: snapshot.generatedAt,
+      documentType: snapshot.documentType,
+      company: snapshot.company,
+      assets: snapshot.assets,
+      theme: snapshot.theme,
+      documentSettings: snapshot.documentSettings,
+      footerText: snapshot.footerText,
+    });
+
+    return expectedChecksum === snapshot.checksum;
   }
 
   /**
