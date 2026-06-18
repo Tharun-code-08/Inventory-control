@@ -297,6 +297,7 @@ model Company {
   companySettings           CompanySetting[]
   barcodeAuditLogs          BarcodeAuditLog[]
   barcodeHistories          BarcodeHistory[]
+  documentBrandings         DocumentBranding[]
 
   // Notifications & Approvals (Sprint 3)
   notifications           Notification[]
@@ -371,6 +372,23 @@ model MediaAsset {
   @@index([brandingProfileId])
   @@index([type, active])
   @@map("media_assets")
+}
+
+model DocumentBranding {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  documentType  String   @map("document_type")
+  settings      Json     @map("settings")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  updatedById   String?  @map("updated_by") @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, documentType])
+  @@index([companyId])
+  @@map("document_branding")
 }
 
 model Role {

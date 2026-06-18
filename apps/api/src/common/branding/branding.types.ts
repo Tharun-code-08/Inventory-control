@@ -33,6 +33,41 @@ export type ResolvedBrandingProfile = {
   brandingVersion?: number | null;
 };
 
+export type DocumentSettings = {
+  showLogo: boolean;
+  showGST: boolean;
+  showAddress: boolean;
+  showFooter: boolean;
+  showSignature: boolean;
+  showSeal: boolean;
+};
+
+export type FullBrandingSnapshot = {
+  version: number;
+  company: {
+    name: string;
+    legalName?: string;
+    gstNumber?: string;
+    panNumber?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+  };
+  assets: {
+    logoUrl?: string | null;
+    signatureUrl?: string | null;
+    sealUrl?: string | null;
+  };
+  theme: {
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+  };
+  documentSettings: DocumentSettings;
+  footerText?: string | null;
+  generatedAt: string;
+};
+
+// Keep BrandingSnapshot for backward compatibility
 export type BrandingSnapshot = {
   companyName: string;
   shopName: string;
