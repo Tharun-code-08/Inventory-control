@@ -1,3 +1,4 @@
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { existsSync } from 'fs';
 import * as puppeteer from 'puppeteer';
 import type { Browser } from 'puppeteer';
@@ -69,42 +70,50 @@ async function getBrowser(): Promise<Browser> {
   return browser;
 }
 
-export async function closePdfBrowser(): Promise<void> {
-  if (!browserPromise) return;
-  try {
-    const browser = await browserPromise;
-    await browser.close();
-  } catch {
-    // Ignore shutdown errors.
-  } finally {
-    browserPromise = null;
-  }
-}
-
-export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'load', timeout: 45_000 });
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-      timeout: 45_000,
-    });
-    const buffer = Buffer.from(pdf);
-    if (buffer.length < 100 || buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
-      throw new Error('PDF render produced an empty or invalid file');
+@Injectable()
+export class HtmlToPdfService implements OnModuleDestroy {
+  async render(html: string): Promise<Buffer> {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    try {
+      await page.setContent(html, { waitUntil: 'load', timeout: 45_000 });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+        timeout: 45_000,
+      });
+      const buffer = Buffer.from(pdf);
+      if (buffer.length < 100 || buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
+        throw new Error('PDF render produced an empty or invalid file');
+      }
+      return buffer;
+    } catch (err) {
+      const message = (err as Error).message ?? 'PDF render failed';
+      throw new Error(`Could not render PDF: ${message}`, { cause: err });
+    } finally {
+      await page.close().catch(() => undefined);
     }
-    return buffer;
-  } catch (err) {
-    const message = (err as Error).message ?? 'PDF render failed';
-    throw new Error(`Could not render PDF: ${message}`, { cause: err });
-  } finally {
-    await page.close().catch(() => undefined);
+  }
+
+  async close(): Promise<void> {
+    if (!browserPromise) return;
+    try {
+      const browser = await browserPromise;
+      await browser.close();
+    } catch {
+      // Ignore shutdown errors.
+    } finally {
+      browserPromise = null;
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.close();
   }
 }
 
-process.once('beforeExit', () => {
-  void closePdfBrowser();
+process.once('beforeExit', async () => {
+  const service = new HtmlToPdfService();
+  await service.close();
 });
