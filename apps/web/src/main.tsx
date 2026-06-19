@@ -15,10 +15,6 @@ import { initThemeFromStorage } from './store/themeStore';
 
 initThemeFromStorage();
 
-if (typeof window !== 'undefined') {
-  window.localStorage.removeItem('retail-ims-auth');
-}
-
 const qc = new QueryClient({
   defaultOptions: {
     queries: {
@@ -33,6 +29,10 @@ const qc = new QueryClient({
 async function bootstrapSession() {
   const state = useAuthStore.getState();
   const tokenAtBootstrapStart = state.accessToken;
+
+  if (tokenAtBootstrapStart) {
+    applyAccessToken(tokenAtBootstrapStart);
+  }
 
   try {
     const res = await api.post('/auth/refresh');
@@ -49,21 +49,44 @@ async function bootstrapSession() {
   }
 }
 
-function mountApp() {
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <QueryClientProvider client={qc}>
-        <BrowserRouter>
-          <DocumentTitleManager />
-          <AppRoutes />
-          <GoogleAnalyticsManager />
-          <CookieConsentManager />
-          <SpeedInsights />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </React.StrictMode>,
-  );
+function restoreAuthFromStorage() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const stored = window.localStorage.getItem('retail-ims-auth-state');
+    if (stored) {
+      const state = JSON.parse(stored);
+      if (state.state?.accessToken) {
+        useAuthStore.getState().setSession(state.state.accessToken, state.state.user);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to restore auth from storage:', e);
+  }
 }
 
-mountApp();
-void bootstrapSession();
+async function init() {
+  // Restore auth from localStorage immediately (Zustand persist middleware will also do this)
+  restoreAuthFromStorage();
+
+  function mountApp() {
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
+        <QueryClientProvider client={qc}>
+          <BrowserRouter>
+            <DocumentTitleManager />
+            <AppRoutes />
+            <GoogleAnalyticsManager />
+            <CookieConsentManager />
+            <SpeedInsights />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </React.StrictMode>,
+    );
+  }
+
+  mountApp();
+  await bootstrapSession();
+}
+
+init().catch(console.error);

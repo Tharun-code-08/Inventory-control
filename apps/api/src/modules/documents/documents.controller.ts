@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
+import { Controller, Get, Param, Res, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { BadRequestException } from '@nestjs/common';
@@ -13,6 +13,8 @@ import { DOCUMENT_KIND_TO_ENTITY } from '../document-email/document-email.consta
 @ApiBearerAuth()
 @Controller('documents')
 export class DocumentsController {
+  private readonly logger = new Logger(DocumentsController.name);
+
   constructor(
     private readonly documentPdf: DocumentPdfService,
     private readonly documentEmail: DocumentEmailService,
@@ -25,17 +27,27 @@ export class DocumentsController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    if (!isDocumentPdfKind(kind)) {
-      throw new BadRequestException(`Unsupported document kind: ${kind}`);
-    }
+    try {
+      this.logger.log(`PDF request: kind=${kind}, id=${id}, user=${user.id}`);
 
-    const result = await this.documentPdf.renderPdf(user, kind, id);
-    res.set({
-      'Content-Type': result.contentType,
-      'Content-Disposition': `attachment; filename="${result.filename}"`,
-      'Content-Length': result.buffer.length,
-    });
-    res.send(result.buffer);
+      if (!isDocumentPdfKind(kind)) {
+        throw new BadRequestException(`Unsupported document kind: ${kind}`);
+      }
+
+      this.logger.log(`Rendering PDF for ${kind}:${id}`);
+      const result = await this.documentPdf.renderPdf(user, kind, id);
+
+      this.logger.log(`PDF rendered successfully: ${result.filename}`);
+      res.set({
+        'Content-Type': result.contentType,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+        'Content-Length': result.buffer.length,
+      });
+      res.send(result.buffer);
+    } catch (error) {
+      this.logger.error(`PDF generation failed: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Get(':kind/:id/email-history')

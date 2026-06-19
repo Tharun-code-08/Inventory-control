@@ -99,10 +99,16 @@ export class BrandingProfileService {
 
       const logoChanged = Boolean(logo) || input.removeLogo;
       const updateData: Prisma.BrandingProfileUpdateInput = {
+        companyName: input.companyName ?? undefined,
+        gstNumber: input.gstNumber ?? undefined,
+        address: input.address ?? undefined,
         footerText: input.footerText ?? undefined,
         email: input.email ?? undefined,
         phone: input.phone ?? undefined,
         website: input.website ?? undefined,
+        primaryColor: input.primaryColor ?? undefined,
+        secondaryColor: input.secondaryColor ?? undefined,
+        accentColor: input.accentColor ?? undefined,
         ...(logoChanged
           ? {
               logoAsset: logoAssetId
@@ -176,10 +182,16 @@ export class BrandingProfileService {
 
       const logoChanged = Boolean(logo) || input.removeLogo;
       const updateData: Prisma.BrandingProfileUpdateInput = {
+        companyName: input.companyName ?? undefined,
+        gstNumber: input.gstNumber ?? undefined,
+        address: input.address ?? undefined,
         footerText: input.footerText ?? undefined,
         email: input.email ?? undefined,
         phone: input.phone ?? undefined,
         website: input.website ?? undefined,
+        primaryColor: input.primaryColor ?? undefined,
+        secondaryColor: input.secondaryColor ?? undefined,
+        accentColor: input.accentColor ?? undefined,
         ...(logoChanged
           ? {
               logoAsset: logoAssetId

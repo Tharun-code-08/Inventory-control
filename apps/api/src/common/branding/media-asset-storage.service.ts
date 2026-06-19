@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MediaAssetType } from '@prisma/client';
-import sharp from 'sharp';
+import * as sharp from 'sharp';
 import { StorageService } from '../storage/storage.service';
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);

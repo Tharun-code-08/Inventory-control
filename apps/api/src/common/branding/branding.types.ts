@@ -1,10 +1,16 @@
 import type { MediaAssetType, DocumentType } from '@prisma/client';
 
 export type BrandingProfileFields = {
+  companyName?: string | null;
+  gstNumber?: string | null;
+  address?: string | null;
   footerText?: string | null;
   email?: string | null;
   phone?: string | null;
   website?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
 };
 
 export type BrandingAssets = {

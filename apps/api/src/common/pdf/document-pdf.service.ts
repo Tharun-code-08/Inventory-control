@@ -178,10 +178,10 @@ export class DocumentPdfService {
     };
   }
 
-  private async persistSnapshot(kind: DocumentPdfKind, id: string, snapshot: BrandingSnapshot, brandingVersion?: number | null) {
+  private async persistSnapshot(kind: DocumentPdfKind, id: string, snapshot: BrandingSnapshot, templateVersion?: number | null) {
     const data = {
       brandingSnapshot: snapshot,
-      brandingVersion: brandingVersion ?? undefined,
+      templateVersion: templateVersion ?? undefined,
     };
     switch (kind) {
       case 'purchase-order':

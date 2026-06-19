@@ -48,6 +48,7 @@ import { DeviceRegistrationModule } from './modules/device-registration/device-r
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { EwayBillsModule } from './modules/eway-bills/eway-bills.module';
 import { QueuesModule } from './common/queues/queues.module';
+import { QueueModule } from './common/queue/queue.module';
 import { UploadModule } from './common/upload/upload.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { FxModule } from './modules/fx/fx.module';
@@ -56,6 +57,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -125,6 +127,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     BillingModule,
     PostalCodesModule,
     QueuesModule,
+    QueueModule,
     UploadModule,
     ObservabilityModule,
     FxModule,
@@ -166,6 +169,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     HealthModule,
     BackupModule,
     WarehouseModule,
+    DocumentsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

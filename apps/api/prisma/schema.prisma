@@ -334,6 +334,10 @@ model Company {
   auditLogs               AuditLog[]
   lowStockAlerts          LowStockAlert[]
 
+  // Document Generation (Phase 1)
+  documentRegistry        DocumentRegistry[]
+  pdfJobs                 PdfJob[]
+
   @@map("companies")
 }
 
@@ -345,10 +349,16 @@ model BrandingProfile {
   sealAssetId       String?  @map("seal_asset_id") @db.Uuid
   signatureAssetId  String?  @map("signature_asset_id") @db.Uuid
   letterheadAssetId String?  @map("letterhead_asset_id") @db.Uuid
+  companyName       String?  @map("company_name")
+  gstNumber         String?  @map("gst_number")
+  address           String?  @map("address")
   footerText        String?  @map("footer_text")
   email             String?  @map("email")
   phone             String?  @map("phone")
   website           String?  @map("website")
+  primaryColor      String?  @map("primary_color")
+  secondaryColor    String?  @map("secondary_color")
+  accentColor       String?  @map("accent_color")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById       String?  @map("created_by") @db.Uuid
@@ -3047,4 +3057,75 @@ model LowStockAlert {
   @@index([productId, createdAt])
   @@map("low_stock_alerts")
 }
+
+// ============================================
+// DOCUMENT GENERATION & PDF SYSTEM
+// ============================================
+
+model DocumentRegistry {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  documentType     String    @map("document_type")
+  referenceId      String?   @map("reference_id") @db.Uuid // Optional: for report-type PDFs without single entity
+  templateVersion  String    @default("1.0") @map("template_version")
+
+  storageKey       String    @map("storage_key")
+  storageProvider  String    @default("local") @map("storage_provider")
+  fileSizeBytes    BigInt?   @map("file_size_bytes")
+  checksum         String?
+  mimeType         String    @default("application/pdf") @map("mime_type") // application/pdf, image/png, text/csv, etc
+
+  jobId            String?   @map("job_id")
+  status           String    @default("pending")  // pending, processing, completed, failed, expired
+
+  metadata         Json?                           // For storing contextual data (warehouseId, categoryId, filters, etc)
+  generatedBy      String?   @map("generated_by") @db.Uuid
+  generatedAt      DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  downloadCount    Int       @default(0) @map("download_count")
+  lastDownloadedAt DateTime? @map("last_downloaded_at") @db.Timestamptz(6)
+
+  renderDurationMs Int?      @map("render_duration_ms")    // PDF rendering time in milliseconds
+  renderedAt       DateTime? @map("rendered_at") @db.Timestamptz(6)
+  storageLatencyMs Int?      @map("storage_latency_ms")    // Storage upload time in milliseconds
+
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentType])
+  @@index([referenceId])
+  @@index([status])
+  @@index([jobId])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([tenantId, documentType, referenceId, templateVersion, status]) // Cache lookup
+  @@index([renderDurationMs])
+  @@index([renderedAt])
+  @@map("document_registry")
+}
+
+model PdfJob {
+  id          String    @id
+  tenantId    String    @map("tenant_id") @db.Uuid
+  documentId  String?   @map("document_id") @db.Uuid
+  jobType     String    @map("job_type")
+  status      String
+  progress    Int       @default(0)
+  result      Json?
+  errorMessage String?  @map("error_message") @db.Text
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("pdf_jobs")
+}
+
 
