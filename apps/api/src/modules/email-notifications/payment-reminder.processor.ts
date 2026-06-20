@@ -8,7 +8,7 @@ import {
   paymentReminderSubject,
   paymentReminderText,
 } from '../../common/mail/transactional-email.templates';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailNotificationsService } from './email-notifications.service';
 import { PAYMENT_REMINDER_QUEUE } from './payment-reminder.constants';
@@ -21,7 +21,7 @@ export class PaymentReminderProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly emailNotifications: EmailNotificationsService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
   ) {
     super();
   }

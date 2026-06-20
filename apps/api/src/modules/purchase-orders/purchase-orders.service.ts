@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { DocumentEmailService } from '../document-email/document-email.service';
 import { DocumentEmailTrigger } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
@@ -74,7 +74,7 @@ export class PurchaseOrdersService {
     private readonly subscriptions: SubscriptionService,
     private readonly rfqs: RfqsService,
     private readonly emailNotifications: EmailNotificationsService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
     private readonly documentEmail: DocumentEmailService,
   ) {}
 

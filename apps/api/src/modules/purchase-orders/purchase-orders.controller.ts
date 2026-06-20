@@ -7,7 +7,7 @@ import { SkipEnvelope } from '../../common/decorators/skip-envelope.decorator';
 import { RequireAnyPermission } from '../../common/decorators/require-any-permission.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
@@ -22,7 +22,7 @@ export class PurchaseOrdersController {
   constructor(
     private readonly service: PurchaseOrdersService,
     private readonly poCancel: PoCancelService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
   ) {}
 
   @RequirePermission('purchase_order:read')

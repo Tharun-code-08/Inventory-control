@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/types/request-user';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { isDocumentPdfKind } from '../../common/pdf/document-pdf.types';
 import { DocumentEmailService } from '../document-email/document-email.service';
 import { DOCUMENT_KIND_TO_ENTITY } from '../document-email/document-email.constants';
@@ -14,7 +14,7 @@ import { DOCUMENT_KIND_TO_ENTITY } from '../document-email/document-email.consta
 @Controller('documents')
 export class DocumentsController {
   constructor(
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
     private readonly documentEmail: DocumentEmailService,
   ) {}
 

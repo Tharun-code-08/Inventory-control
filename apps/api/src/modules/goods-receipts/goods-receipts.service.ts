@@ -4,7 +4,7 @@ import { NotificationService } from '../notifications/services/notification.serv
 import * as Handlebars from 'handlebars';
 import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
 import type { GoodsReceiptSupplierEmailContent } from '../../common/mail/transactional-email.templates';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
@@ -38,7 +38,7 @@ export class GoodsReceiptsService {
     private readonly audit: AuditService,
     private readonly costing: CostingService,
     private readonly emailNotifications: EmailNotificationsService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
     private readonly documentEmail: DocumentEmailService,
     private readonly notifications: NotificationService,
   ) {}

@@ -12,7 +12,7 @@ import {
 } from '@prisma/client';
 import { Queue } from 'bullmq';
 import type { RequestUser } from '../../common/types/request-user';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { MailService } from '../../common/mail/mail.service';
 import type { PurchaseOrderEmailContent } from '../../common/mail/purchase-order-supplier.template';
 import type { ReturnNoticeEmailContent } from '../../common/mail/return-notice.template';
@@ -55,7 +55,7 @@ export class DocumentEmailService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
     private readonly mail: MailService,
     private readonly emailNotifications: EmailNotificationsService,
     private readonly audit: AuditService,

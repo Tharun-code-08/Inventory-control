@@ -5,7 +5,7 @@ import { Job } from 'bullmq';
 import ExcelJS from 'exceljs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
+import { DocumentPdfFacade } from '../../common/pdf/document-pdf.facade';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JobFailureService } from '../../common/queues/job-failure.service';
 import { MetricsService } from '../../common/observability/metrics.service';
@@ -23,7 +23,7 @@ export class ExportProcessor extends WorkerHost {
     private readonly config: ConfigService,
     private readonly failures: JobFailureService,
     private readonly metrics: MetricsService,
-    private readonly documentPdf: DocumentPdfService,
+    private readonly documentPdf: DocumentPdfFacade,
   ) {
     super();
   }
