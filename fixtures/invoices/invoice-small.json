@@ -125,24 +125,24 @@
         "discountAmount": 0,
         "taxableAmount": 10000,
         "taxRate": 18,
-        "cgstRate": 0,
-        "cgstAmount": 0,
-        "sgstRate": 0,
-        "sgstAmount": 0,
+        "cgstRate": 9,
+        "cgstAmount": 900,
+        "sgstRate": 9,
+        "sgstAmount": 900,
         "igstRate": 0,
         "igstAmount": 0,
-        "grossAmount": 10000
+        "grossAmount": 11800
       }
     ],
     "summary": {
       "subtotal": 259999.98,
       "discountAmount": 5037.45,
       "taxableAmount": 254962.53,
-      "cgstAmount": 18796.63,
-      "sgstAmount": 18796.63,
+      "cgstAmount": 19696.63,
+      "sgstAmount": 19696.63,
       "igstAmount": 0,
-      "totalTax": 37593.26,
-      "grossTotal": 292555.79
+      "totalTax": 39393.26,
+      "grossTotal": 294355.79
     },
     "bankDetails": {
       "accountName": "Softdigit IMS Solutions Pvt Ltd",
