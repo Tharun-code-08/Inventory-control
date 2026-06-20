@@ -1,6 +1,7 @@
 {
   "name": "Small Invoice - 5 Items",
   "purpose": "Gate 1 & 2: Business Correctness & Legal Info",
+  "_notes": "PRESENTATION FIXTURE FOR PDF TESTING. If adapted for production: (1) SKU-005 HSN 4901.91 is for books; service items need SAC codes. (2) Interstate supply (KA→MH) normally requires IGST not CGST+SGST; this fixture simplified for PDF layout testing.",
   "invoice": {
     "invoiceType": "TAX_INVOICE",
     "invoiceNumber": "INV-2026-00001",
