@@ -10,7 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BrandingResolverService } from '../branding/branding-resolver.service';
 import type { BrandingSnapshot } from '../branding/branding.types';
 
-import { renderHtmlToPdfBuffer } from './html-to-pdf.service';
+import { PdfRendererService } from './pdf-renderer.service';
 
 import {
 
@@ -156,6 +156,7 @@ export class DocumentPdfService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly branding: BrandingResolverService,
+    private readonly renderer: PdfRendererService,
   ) {}
 
   private async shopNameForId(shopId: string): Promise<string> {
@@ -511,7 +512,7 @@ export class DocumentPdfService {
 
     const html = renderPurchaseOrderHtml(viewModel);
 
-    const buffer = await renderHtmlToPdfBuffer(html);
+    const buffer = await this.renderer.renderPdf(html);
 
 
 
@@ -546,7 +547,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderInvoiceHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderInvoiceHtml(viewModel));
 
     return {
 
@@ -579,7 +580,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSalesOrderHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSalesOrderHtml(viewModel));
 
     return {
 
@@ -612,7 +613,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSupplierBillHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSupplierBillHtml(viewModel));
 
     return {
 
@@ -645,7 +646,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSupplierPaymentHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSupplierPaymentHtml(viewModel));
 
     return {
 
@@ -678,7 +679,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderPaymentReceiptHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderPaymentReceiptHtml(viewModel));
 
     return {
 
@@ -713,7 +714,7 @@ export class DocumentPdfService {
 
     const html = renderPurchaseOrderHtml(viewModel);
 
-    const buffer = await renderHtmlToPdfBuffer(html);
+    const buffer = await this.renderer.renderPdf(html);
 
 
 
@@ -746,7 +747,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderInvoiceHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderInvoiceHtml(viewModel));
 
     return {
 
@@ -777,7 +778,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSalesOrderHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSalesOrderHtml(viewModel));
 
     return {
 
@@ -808,7 +809,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSupplierBillHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSupplierBillHtml(viewModel));
 
     return {
 
@@ -839,7 +840,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderSupplierPaymentHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSupplierPaymentHtml(viewModel));
 
     return {
 
@@ -870,7 +871,7 @@ export class DocumentPdfService {
       viewModel,
     });
 
-    const buffer = await renderHtmlToPdfBuffer(renderPaymentReceiptHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderPaymentReceiptHtml(viewModel));
 
     return {
 
@@ -900,7 +901,7 @@ export class DocumentPdfService {
       templateVersion: gr.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsReceiptHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsReceiptHtml(viewModel));
     return { buffer, filename: goodsReceiptPdfFilename(gr.grNumber), contentType: 'application/pdf' };
   }
 
@@ -917,7 +918,7 @@ export class DocumentPdfService {
       templateVersion: gi.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsIssueHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsIssueHtml(viewModel));
     return { buffer, filename: goodsIssuePdfFilename(gi.giNumber), contentType: 'application/pdf' };
   }
 
@@ -934,7 +935,7 @@ export class DocumentPdfService {
       templateVersion: ret.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsReturnHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsReturnHtml(viewModel));
     return { buffer, filename: goodsReturnPdfFilename(ret.returnNumber), contentType: 'application/pdf' };
   }
 
@@ -951,7 +952,7 @@ export class DocumentPdfService {
       templateVersion: quote.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderSalesQuotationHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSalesQuotationHtml(viewModel));
     return { buffer, filename: salesQuotationPdfFilename(quote.quoteNumber), contentType: 'application/pdf' };
   }
 
@@ -967,7 +968,7 @@ export class DocumentPdfService {
       templateVersion: gr.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsReceiptHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsReceiptHtml(viewModel));
     return { buffer, filename: goodsReceiptPdfFilename(gr.grNumber), contentType: 'application/pdf' };
   }
 
@@ -983,7 +984,7 @@ export class DocumentPdfService {
       templateVersion: gi.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsIssueHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsIssueHtml(viewModel));
     return { buffer, filename: goodsIssuePdfFilename(gi.giNumber), contentType: 'application/pdf' };
   }
 
@@ -999,7 +1000,7 @@ export class DocumentPdfService {
       templateVersion: ret.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderGoodsReturnHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderGoodsReturnHtml(viewModel));
     return { buffer, filename: goodsReturnPdfFilename(ret.returnNumber), contentType: 'application/pdf' };
   }
 
@@ -1015,7 +1016,7 @@ export class DocumentPdfService {
       templateVersion: quote.templateVersion,
       viewModel,
     });
-    const buffer = await renderHtmlToPdfBuffer(renderSalesQuotationHtml(viewModel));
+    const buffer = await this.renderer.renderPdf(renderSalesQuotationHtml(viewModel));
     return { buffer, filename: salesQuotationPdfFilename(quote.quoteNumber), contentType: 'application/pdf' };
   }
 
