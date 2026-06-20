@@ -1,0 +1,96 @@
+{
+  "invoice": {
+    "invoiceNumber": "INV-2026-CORRUPTED-001",
+    "invoiceDate": "2026-06-19",
+    "invoiceType": "TAX_INVOICE",
+    "company": {
+      "name": "Acme Industries Ltd",
+      "address": "123 Business Park, Mumbai, MH 400001",
+      "gstin": null,
+      "pan": "AAACR5055K",
+      "email": "billing@acmeindustries.com",
+      "phone": "+91-22-2345-6789"
+    },
+    "customer": {
+      "name": "XYZ Retail Corp",
+      "address": "456 Market Street, Bangalore, KA 560001",
+      "gstin": "36AAFCU5055K1Z0",
+      "email": "procurement@xyzretail.com",
+      "phone": "+91-80-8765-4321"
+    },
+    "supplyDetails": {
+      "placeOfSupply": "Karnataka",
+      "reverseChargeApplicable": false
+    },
+    "lineItems": [
+      {
+        "slNo": 1,
+        "sku": "SKU-CORRUPT-001",
+        "description": "Invalid Line Item",
+        "hsnCode": "84712090",
+        "quantity": -5,
+        "unit": "NOS",
+        "unitPrice": 10000,
+        "baseAmount": -50000,
+        "discountPercentage": 0,
+        "discountAmount": 0,
+        "taxableAmount": -50000,
+        "cgstRate": 9,
+        "cgstAmount": -4500,
+        "sgstRate": 9,
+        "sgstAmount": -4500,
+        "igstRate": 0,
+        "igstAmount": 0,
+        "grossAmount": -59000
+      },
+      {
+        "slNo": 2,
+        "sku": "SKU-CORRUPT-002",
+        "description": "Mismatched Totals",
+        "hsnCode": "84712090",
+        "quantity": 10,
+        "unit": "NOS",
+        "unitPrice": 5000,
+        "baseAmount": 50000,
+        "discountPercentage": 0,
+        "discountAmount": 0,
+        "taxableAmount": 50000,
+        "cgstRate": 9,
+        "cgstAmount": 4500,
+        "sgstRate": 9,
+        "sgstAmount": 4500,
+        "igstRate": 0,
+        "igstAmount": 0,
+        "grossAmount": 59000
+      }
+    ],
+    "summary": {
+      "subtotal": 0,
+      "discountAmount": 0,
+      "taxableAmount": 0,
+      "cgstAmount": 0,
+      "sgstAmount": 0,
+      "igstAmount": 0,
+      "totalTax": 0,
+      "grossTotal": 999999.99
+    },
+    "termsAndConditions": [
+      "Invalid: Grand total does not match line item sum",
+      "Invalid: Contains negative quantity",
+      "Invalid: Missing company GSTIN",
+      "Invalid: DB should reject this invoice"
+    ],
+    "authorizedSignatory": {
+      "name": "John Doe",
+      "designation": "Manager"
+    },
+    "bankDetails": {
+      "accountNumber": "1234567890",
+      "ifscCode": "ACME0001",
+      "branch": "Mumbai"
+    },
+    "generatedAt": "2026-06-19T10:00:00Z",
+    "generatedBy": "SYSTEM",
+    "templateVersion": "v1.1"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "name": "Overflow Test - Edge Cases",
+  "purpose": "Test rendering robustness with pathological inputs",
+  "invoice": {
+    "invoiceType": "TAX_INVOICE",
+    "invoiceNumber": "INV-2026-OVERFLOW",
+    "invoiceDate": "2026-06-20",
+    "dueDate": "2026-07-20",
+    "status": "SENT",
+    "currency": "INR",
+    "generatedAt": "2026-06-20T10:00:00Z",
+    "generatedBy": "SYSTEM",
+    "templateVersion": "v1.1",
+    "company": {
+      "name": "தமிழ் மெஷினரி அண்ட் ఇండస్ట్రియల్ ଉପକରଣ 日本工業機械 | Global Pvt Ltd",
+      "address": "Unit 1001, 测试多语言地址 4-47-1 東京都渋谷区, Technology Park Extension, Bangalore, Karnataka 560045, India",
+      "gstin": "18AABCU5055K1ZA",
+      "pan": "AABCS1234F",
+      "phone": "+91-080-4100-1234",
+      "email": "accounts@verylongcompanyname.com"
+    },
+    "customer": {
+      "name": "AnotherVeryLongCustomerNameInternationalCorporationLimitedWithExtendedLegacy",
+      "address": "Building 2B, Commercial Complex, 5th Floor, Technology Plaza, Avenue Road, Pune, Maharashtra 411001, India",
+      "gstin": "27AABCT1234H1Z5",
+      "pan": "AAACT5678G",
+      "phone": "+91-020-4567-8901",
+      "email": "purchases@verylongcustomername.com"
+    },
+    "supplyDetails": {
+      "placeOfSupply": "Maharashtra",
+      "stateCode": "27",
+      "reverseChargeApplicable": false
+    },
+    "lineItems": [
+      {
+        "slNo": 1,
+        "sku": "ULTRA-LONG-SKU-CODE-WITH-VERSION-AND-VARIANT-SPECIFICATION",
+        "description": "高級工業用 பண்ணை उपकरण Equipment | Haute qualité मशीनरी 機械 | Profesional Peralatan dengan dokumentasi lengkap, garansi perpanjangan & dukungan teknis 24/7 tersedia segera untuk pengiriman internasional",
+        "hsnCode": "8479.89",
+        "quantity": 1,
+        "uom": "PCS",
+        "unitPrice": 999999.99,
+        "baseAmount": 999999.99,
+        "discountAmount": 0,
+        "taxableAmount": 999999.99,
+        "taxRate": 18,
+        "cgstRate": 9,
+        "cgstAmount": 89999.99,
+        "sgstRate": 9,
+        "sgstAmount": 89999.99,
+        "igstRate": 0,
+        "igstAmount": 0,
+        "grossAmount": 1179999.97
+      }
+    ],
+    "summary": {
+      "subtotal": 999999.99,
+      "discountAmount": 0,
+      "taxableAmount": 999999.99,
+      "cgstAmount": 89999.99,
+      "sgstAmount": 89999.99,
+      "igstAmount": 0,
+      "totalTax": 179999.98,
+      "grossTotal": 1179999.97
+    },
+    "bankDetails": {
+      "accountName": "VeryLongCompanyNameLimitationTestCorporationPvtLtdWithExtendedLegalDesignation",
+      "accountNumber": "00012345678901234567890123456789",
+      "ifsc": "HDFC0001234567890",
+      "bankName": "HDFC Bank Limited - International Division",
+      "branch": "Technology Park Branch - Bangalore"
+    },
+    "paymentTerms": "Net 30 days from invoice date. 2% discount if paid within 15 days. Late payment charges at 18% per annum after 30 days.",
+    "termsAndConditions": [
+      "Goods once sold cannot be returned. All sales are final and binding. Refunds are not available under any circumstances.",
+      "Subject to Bangalore jurisdiction. All disputes shall be resolved in the courts of Bangalore only.",
+      "Payment must be received within 30 days. Failure to pay will result in legal action.",
+      "All items are covered under manufacturer warranty for 24 months from date of delivery.",
+      "Customer accepts all risks of loss or damage after goods leave our premises."
+    ],
+    "authorizedSignatory": {
+      "name": "Senior Management Official With Extended Title",
+      "designation": "Chief Financial Officer and Director of Operations"
+    },
+    "remarks": "Thank you for your business. We appreciate your partnership and look forward to serving you again in the future.",
+    "renderingMetrics": {
+      "templateVersion": "v1.1",
+      "chromeVersion": "138.0",
+      "renderTimeMs": null,
+      "pdfSizeBytes": null,
+      "pageCount": null,
+      "pageBreakCount": null,
+      "maxRowHeightPx": null,
+      "peakMemoryMb": null
+    }
+  }
+}
