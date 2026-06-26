@@ -73,6 +73,7 @@ const ROUTE_TITLES: Record<string, RouteTitleMeta> = {
   '/invoices/new': { page: 'New Invoice', module: 'Sales & Finance' },
   '/payments': { page: 'Payments', module: 'Sales & Finance' },
   '/payments/new': { page: 'New Payment', module: 'Sales & Finance' },
+  '/eway-bills': { page: 'E-way bill', module: 'Sales & Finance' },
   '/warehouse': { page: 'Warehouse', module: 'Operations' },
   '/reports': { page: 'Reports', module: 'Operations' },
   '/notifications': { page: 'Notifications', module: 'Operations' },
