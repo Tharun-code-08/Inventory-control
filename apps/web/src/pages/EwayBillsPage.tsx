@@ -68,6 +68,8 @@ const emptyForm = () => ({
   documentNumber: '',
   documentDate: new Date().toISOString().slice(0, 10),
   fromName: '',
+  fromGstin: '',
+  fromAddress: '',
   toName: '',
   toGstin: '',
   toAddress: '',
@@ -75,9 +77,15 @@ const emptyForm = () => ({
   transporterName: '',
   vehicleNumber: '',
   distanceKm: '',
-  taxableValue: '',
-  igstValue: '',
-  totalValue: '',
+  items: [{ productName: '', hsnCode: '', quantity: '', unit: 'PCS', taxableAmount: '', gstRate: '', total: '' }] as Array<{
+    productName: string;
+    hsnCode: string;
+    quantity: string;
+    unit: string;
+    taxableAmount: string;
+    gstRate: string;
+    total: string;
+  }>,
   remarks: '',
 });
 
@@ -154,28 +162,55 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
       toast.error('Document number, consignor and consignee names are required.');
       return;
     }
+
+    const validItems = form.items.filter(
+      (item) =>
+        item.productName.trim() &&
+        item.hsnCode.trim() &&
+        item.quantity &&
+        item.taxableAmount &&
+        item.gstRate &&
+        item.total,
+    );
+
+    if (validItems.length === 0) {
+      toast.error('At least one product item with all details is required.');
+      return;
+    }
+
     try {
       await createBill.mutateAsync({
         documentNumber: form.documentNumber.trim(),
         documentDate: form.documentDate,
+        fromGstin: form.fromGstin.trim() || undefined,
         fromName: form.fromName.trim(),
-        toName: form.toName.trim(),
+        fromAddress1: form.fromAddress.trim() || undefined,
         toGstin: form.toGstin.trim() || undefined,
-        toAddress: form.toAddress.trim() || undefined,
+        toName: form.toName.trim(),
+        toAddress1: form.toAddress.trim() || undefined,
         transportMode: form.transportMode,
         transporterName: form.transporterName.trim() || undefined,
         vehicleNumber: form.vehicleNumber.trim() || undefined,
         distanceKm: form.distanceKm ? Number(form.distanceKm) : undefined,
-        taxableValue: form.taxableValue ? Number(form.taxableValue) : undefined,
-        igstValue: form.igstValue ? Number(form.igstValue) : undefined,
-        totalValue: form.totalValue ? Number(form.totalValue) : undefined,
+        items: validItems.map((item) => ({
+          productName: item.productName.trim(),
+          hsnCode: item.hsnCode.trim(),
+          quantity: Number(item.quantity),
+          unit: item.unit.trim() || 'PCS',
+          taxableAmount: Number(item.taxableAmount),
+          gstRate: Number(item.gstRate),
+          total: Number(item.total),
+        })),
         remarks: form.remarks.trim() || undefined,
       });
       toast.success('Draft e-way bill created');
       setForm(emptyForm());
       navigate('/eway-bills');
-    } catch {
-      toast.error('Could not create e-way bill.');
+    } catch (error) {
+      const msg =
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message ??
+        'Could not create e-way bill.';
+      toast.error(msg);
     }
   }
 
@@ -289,20 +324,102 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Values</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Line Items</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        items: [...prev.items, { productName: '', hsnCode: '', quantity: '', unit: 'PCS', taxableAmount: '', gstRate: '', total: '' }],
+                      }))
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add item
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-3 gap-3">
-                <Field label="Taxable value">
-                  <Input type="number" value={form.taxableValue} onChange={(e) => set('taxableValue', e.target.value)} placeholder="0" />
-                </Field>
-                <Field label="IGST">
-                  <Input type="number" value={form.igstValue} onChange={(e) => set('igstValue', e.target.value)} placeholder="0" />
-                </Field>
-                <Field label="Total value">
-                  <Input type="number" value={form.totalValue} onChange={(e) => set('totalValue', e.target.value)} placeholder="0" />
-                </Field>
+              <CardContent>
+                <div className="space-y-3">
+                  {form.items.map((item, idx) => (
+                    <div key={idx} className="grid grid-cols-7 gap-2">
+                      <Input
+                        placeholder="Product name"
+                        value={item.productName}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].productName = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Input
+                        placeholder="HSN"
+                        value={item.hsnCode}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].hsnCode = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].quantity = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Taxable"
+                        value={item.taxableAmount}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].taxableAmount = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="GST%"
+                        value={item.gstRate}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].gstRate = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Total"
+                        value={item.total}
+                        onChange={(e) => {
+                          const newItems = [...form.items];
+                          newItems[idx].total = e.target.value;
+                          setForm((prev) => ({ ...prev, items: newItems }));
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            items: prev.items.filter((_, i) => i !== idx),
+                          }));
+                        }}
+                        disabled={form.items.length === 1}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
