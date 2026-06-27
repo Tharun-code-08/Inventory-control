@@ -1,23 +1,25 @@
 import { Link } from 'react-router-dom';
-import { BrandLogo } from '@/components/BrandLogo';
 import { BRAND } from '@/lib/brand';
 import { MARKETING_FOOTER, type MarketingFooterLink } from '@/lib/marketing-content';
+import { resolveAuthHref } from '@/lib/marketing-links';
 import { useCookieConsentStore } from '@/store/cookieConsentStore';
 
 function FooterLink({ link }: { link: MarketingFooterLink }) {
-  const isInternal = link.href.startsWith('/') && !link.href.startsWith('//');
+  // On the marketing apex, auth paths (/login) live on the app subdomain.
+  const href = resolveAuthHref(link.href);
+  const isInternal = href.startsWith('/') && !href.startsWith('//');
   const className = 'text-sm text-slate-600 transition hover:text-slate-900';
 
   if (isInternal) {
     return (
-      <Link to={link.href} className={className}>
+      <Link to={href} className={className}>
         {link.label}
       </Link>
     );
   }
 
   return (
-    <a href={link.href} className={className}>
+    <a href={href} className={className}>
       {link.label}
     </a>
   );

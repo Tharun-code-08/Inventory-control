@@ -10,6 +10,7 @@ import { GoogleAnalyticsManager } from './components/analytics/GoogleAnalyticsMa
 import { DocumentTitleManager } from './components/DocumentTitleManager';
 import { CookieConsentManager } from './components/cookies/CookieConsentManager';
 import { initializeSessionFromAuthResponse } from './lib/session';
+import { armChunkReloadRecovery } from './lib/chunk-reload';
 import { useAuthStore } from './store/authStore';
 import { initThemeFromStorage } from './store/themeStore';
 
@@ -87,6 +88,9 @@ async function init() {
 
   mountApp();
   await bootstrapSession();
+  // Re-arm the stale-chunk auto-reload guard once we've run stably, so a later
+  // deploy can recover again without risking a reload loop.
+  armChunkReloadRecovery();
 }
 
 init().catch(console.error);

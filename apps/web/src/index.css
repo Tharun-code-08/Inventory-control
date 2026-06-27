@@ -319,9 +319,11 @@
   @keyframes motion-page-enter {
     from {
       opacity: 0;
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
+      transform: translateY(0);
     }
   }
 
@@ -411,7 +413,8 @@
   }
 
   .motion-page-enter {
-    animation: motion-page-enter var(--motion-duration-normal) var(--motion-ease-out) both;
+    animation: motion-page-enter 380ms var(--motion-ease-out) both;
+    will-change: transform, opacity;
   }
 
   .motion-fade-up {
@@ -567,6 +570,25 @@
     transform: translateY(0) scale(0.98);
   }
 
+  /* Floating hero cards — gentle vertical drift */
+  @keyframes motion-marketing-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  .motion-marketing-float {
+    animation: motion-marketing-float 5s var(--motion-ease-in-out) infinite;
+  }
+
+  .motion-marketing-float-slow {
+    animation: motion-marketing-float 7s var(--motion-ease-in-out) infinite;
+  }
+
   @keyframes motion-success-check-circle {
     from {
       stroke-dashoffset: 63;
@@ -701,6 +723,8 @@
     .motion-spotlight-panel,
     .motion-spotlight-backdrop,
     .motion-reveal-visible,
+    .motion-marketing-float,
+    .motion-marketing-float-slow,
     .motion-success-checkmark-circle,
     .motion-success-checkmark-path,
     .motion-success-pulse {

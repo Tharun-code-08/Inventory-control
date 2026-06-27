@@ -15,7 +15,8 @@ import {
 } from '@/lib/plans';
 import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
 import { openRazorpayPaymentLink } from '@/lib/razorpay-payment-links';
-import { URLS, DOMAINS } from '@/config/domains';
+import { trackEvent } from '@/lib/analytics';
+import { resolveAuthHref } from '@/lib/marketing-links';
 
 type PricingSectionProps = {
   variant?: 'landing' | 'upgrade';
@@ -47,20 +48,20 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   const lightSurface = variant === 'landing' || isUpgrade;
 
   async function handlePlanClick(plan: PlanId) {
-    // Public (unauthenticated) flow: send users to IMS signup with plan context.
+    // Public (unauthenticated) flow: send users to signup with plan context.
     if (!onPaidUpgrade) {
+      trackEvent('pricing_plan_click', {
+        location: 'pricing',
+        plan,
+        billing: plan === 'trial' ? undefined : billing,
+      });
       const params = new URLSearchParams({ plan });
       if (plan !== 'trial') params.set('billing', billing);
-      // Redirect to IMS domain signup page (full URL to ensure cross-domain navigation)
-      const isOnMarketing = window.location.hostname === DOMAINS.MARKETING ||
-                            window.location.hostname === `www.${DOMAINS.MARKETING}`;
-      if (isOnMarketing) {
-        // From marketing site: navigate to IMS domain
-        window.location.href = `${URLS.IMS_SIGNUP}?${params.toString()}`;
-      } else {
-        // Already on IMS domain: use React Router
-        nav(`/signup?${params.toString()}`);
-      }
+      // On the marketing apex, /signup lives on the app subdomain (full nav);
+      // elsewhere it's a same-origin SPA route.
+      const target = resolveAuthHref(`/signup?${params.toString()}`);
+      if (target.startsWith('/')) nav(target);
+      else window.location.href = target;
       return;
     }
 
@@ -291,9 +292,18 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
         {variant === 'landing' ? (
           <p className="mt-10 text-center text-sm text-slate-500">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
+            {(() => {
+              const signInHref = resolveAuthHref('/login');
+              return signInHref.startsWith('/') ? (
+                <Link to={signInHref} className="font-medium text-primary hover:underline">
+                  Sign in
+                </Link>
+              ) : (
+                <a href={signInHref} className="font-medium text-primary hover:underline">
+                  Sign in
+                </a>
+              );
+            })()}
           </p>
         ) : null}
       </div>

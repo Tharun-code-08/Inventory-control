@@ -82,9 +82,10 @@ function slot(
 }
 
 export const MARKETING_NAV: MarketingNavLink[] = [
+  { label: 'How it works', href: '#how-it-works' },
   { label: 'Features', href: '#features' },
-  { label: BRAND.productName, href: '#ims' },
   { label: 'Pricing', href: '#pricing' },
+  { label: 'FAQ', href: '#faq' },
   { label: 'Contact', href: '#contact' },
 ];
 
@@ -97,14 +98,17 @@ export const MARKETING_BADGES = [
   'Supplier portal',
   'Purchase orders & RFQs',
   'Sales quotations & invoices',
+  'Barcode label printing',
 ];
 
 export const MARKETING_HERO = {
   eyebrow: BRAND.companyName.toUpperCase(),
-  title: 'Practical technology for retailers who need clarity, control, and calm operations.',
-  body: 'We help teams design lean inventory workflows, implement dependable tooling, and ship outcomes—not slide decks. When you are ready to run the floor from one source of truth, we are here.',
+  badge: 'Retail inventory & procurement ERP',
+  title: 'Run your entire retail operation from one source of truth.',
+  body: 'SoftdigitIMS connects procurement, inventory, sales, and finance into a single, GST-ready platform — from RFQ and purchase orders to barcoded goods receipts, invoices, and payments. Every plant, SKU, and document stays in sync.',
   primaryCta: { label: 'Start free trial', href: '/signup?plan=trial' } satisfies MarketingCta,
   secondaryCta: { label: 'View pricing', href: '#pricing' } satisfies MarketingCta,
+  highlights: ['No credit card required', '7-day free trial', 'Cancel anytime'],
   poweredBy: BRAND.poweredBy,
   imageSlot: slot(
     'hero-dashboard',
@@ -113,6 +117,114 @@ export const MARKETING_HERO = {
     'SoftdigitIMS dashboard overview',
     '1400×900',
   ),
+};
+
+export type MarketingStat = {
+  /** Numeric target to animate; omit for a text-only value like "Real-time". */
+  value?: number;
+  /** Static display string when there is no number to count up. */
+  display?: string;
+  prefix?: string;
+  suffix?: string;
+  label: string;
+  description: string;
+};
+
+export const MARKETING_STATS: { eyebrow: string; items: MarketingStat[] } = {
+  eyebrow: 'Built for how retail actually runs',
+  items: [
+    { value: 10, suffix: '+', label: 'Integrated modules', description: 'RFQ to payment, one platform' },
+    { value: 100, suffix: '%', label: 'GST-ready', description: 'HSN lookup & compliant invoices' },
+    { display: 'Real-time', label: 'Stock ledger', description: 'Accurate across every plant' },
+    { display: '24/7', label: 'Cloud access', description: 'Any browser, any device' },
+  ],
+};
+
+export type MarketingWorkflowStep = {
+  /** Maps to an icon in MarketingWorkflow. */
+  id: string;
+  step: string;
+  title: string;
+  body: string;
+};
+
+export const MARKETING_WORKFLOW: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  steps: MarketingWorkflowStep[];
+} = {
+  eyebrow: 'How it works',
+  title: 'One connected flow from purchase to payment',
+  body: 'Every document hands off to the next — no re-keying, no reconciliation gaps. Stock, suppliers, and finance always reflect the same truth.',
+  steps: [
+    {
+      id: 'source',
+      step: 'Step 1',
+      title: 'Source & order',
+      body: 'Raise RFQs, compare supplier quotes, and convert the winner into an approved purchase order.',
+    },
+    {
+      id: 'receive',
+      step: 'Step 2',
+      title: 'Receive & stock',
+      body: 'Book goods receipts against the PO. Stock and the plant-level ledger update in real time.',
+    },
+    {
+      id: 'sell',
+      step: 'Step 3',
+      title: 'Quote & sell',
+      body: 'Turn quotations into sales orders and GST invoices, with goods issued straight from live stock.',
+    },
+    {
+      id: 'collect',
+      step: 'Step 4',
+      title: 'Bill & collect',
+      body: 'Send invoices, track payments through Razorpay, and watch reports reconcile automatically.',
+    },
+  ],
+};
+
+export type MarketingFaqItem = {
+  q: string;
+  a: string;
+};
+
+export const MARKETING_FAQ: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  items: MarketingFaqItem[];
+} = {
+  eyebrow: 'FAQ',
+  title: 'Everything you need to know',
+  body: 'Still have a question? Reach out and we will get back to you with a clear next step.',
+  items: [
+    {
+      q: 'Is SoftdigitIMS GST-ready for Indian businesses?',
+      a: 'Yes. Pricing is in INR, invoices follow GST formatting with HSN code lookup, and address workflows are built for India-ready compliance out of the box.',
+    },
+    {
+      q: 'Can I manage multiple stores and plants?',
+      a: 'Absolutely. Assign products, storage locations, and team permissions per plant, with a real-time stock ledger that stays accurate across every location.',
+    },
+    {
+      q: 'Do I need a credit card to start?',
+      a: 'No. The 7-day free trial requires no credit card. Explore the full procure-to-pay flow first, then upgrade to a paid plan only when you are ready.',
+    },
+    {
+      q: 'How does billing and payment work?',
+      a: 'Subscriptions are handled securely through Razorpay with monthly or yearly billing. Plans are flexible with no lock-in, so you can cancel anytime.',
+    },
+    {
+      q: 'Will my team need training to get started?',
+      a: 'The workflows mirror how retail operations already run — RFQ to PO to goods receipt to invoice. Most teams are productive on day one, and the supplier portal keeps vendors in the loop.',
+    },
+    {
+      q: 'Is my data secure?',
+      a: 'Access is governed by role-based permissions, every tenant is isolated, and documents like POs and invoices are generated as auditable PDFs you fully control.',
+    },
+  ],
 };
 
 export const MARKETING_DEVICES = {

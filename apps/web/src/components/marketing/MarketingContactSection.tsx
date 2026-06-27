@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MARKETING_CONTACT } from '@/lib/marketing-content';
 import { Reveal } from '@/components/motion';
+import { resolveAuthHref } from '@/lib/marketing-links';
 
 export function MarketingContactSection() {
   return (
@@ -23,9 +24,18 @@ export function MarketingContactSection() {
             </p>
             <p className="mt-4 text-sm text-slate-600">
               For existing users, use{' '}
-              <Link className="font-medium text-primary hover:underline" to="/login">
-                the sign-in page
-              </Link>
+              {(() => {
+                const signInHref = resolveAuthHref('/login');
+                return signInHref.startsWith('/') ? (
+                  <Link className="font-medium text-primary hover:underline" to={signInHref}>
+                    the sign-in page
+                  </Link>
+                ) : (
+                  <a className="font-medium text-primary hover:underline" href={signInHref}>
+                    the sign-in page
+                  </a>
+                );
+              })()}
               .
             </p>
           </address>

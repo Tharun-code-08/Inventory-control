@@ -1,0 +1,1 @@
+let n=null;function c(o,r,s=0){try{n??(n=new AudioContext);const t=n.createOscillator(),e=n.createGain();t.type="square",t.frequency.value=o,e.gain.value=.04,t.connect(e).connect(n.destination);const a=n.currentTime+s/1e3;t.start(a),t.stop(a+r/1e3)}catch{}}function i(){c(1568,80)}function u(){c(220,140),c(220,140,200)}export{u as a,i as p};

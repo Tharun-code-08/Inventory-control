@@ -1,0 +1,42 @@
+import Handlebars from 'handlebars';
+import { Injectable } from '@nestjs/common';
+
+export interface RenderContext {
+  template: string;
+  data: any;
+}
+
+@Injectable()
+export class PdfRendererService {
+  constructor() {
+    this.registerHandlebarsHelpers();
+  }
+
+  private registerHandlebarsHelpers() {
+    Handlebars.registerHelper('currency', (value: number) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(value);
+    });
+
+    Handlebars.registerHelper('date', (value: Date, format: string) => {
+      return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value));
+    });
+
+    Handlebars.registerHelper('qty', (value: number) => {
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? '0.00' : num.toFixed(2);
+    });
+
+    Handlebars.registerHelper('if_eq', function (a: any, b: any, opts: any) {
+      return a === b ? opts.fn(this) : opts.inverse(this);
+    });
+  }
+
+  async renderPdf(context: RenderContext): Promise<Buffer> {
+    const template = Handlebars.compile(context.template);
+    const html = template(context.data);
+    return Buffer.from(html, 'utf-8');
+  }
+}

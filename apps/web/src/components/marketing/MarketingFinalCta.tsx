@@ -31,11 +31,13 @@ export function MarketingFinalCta() {
             <MarketingCtaLink
               cta={MARKETING_FINAL_CTA.primaryCta}
               variant="secondary"
+              location="final_cta"
               className="border-0 bg-white text-slate-900 hover:bg-slate-100"
             />
             <MarketingCtaLink
               cta={MARKETING_FINAL_CTA.secondaryCta}
               variant="secondary"
+              location="final_cta"
               className="border-white/30 bg-white/10 text-white hover:bg-white/20"
             />
           </div>

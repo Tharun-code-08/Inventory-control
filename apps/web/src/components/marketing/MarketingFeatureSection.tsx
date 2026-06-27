@@ -54,7 +54,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
 
           {block.cta ? (
             <div className="mt-8">
-              <MarketingCtaLink cta={block.cta} variant="primary" className="px-6 py-3" />
+              <MarketingCtaLink cta={block.cta} variant="primary" location={`feature_${block.id}`} className="px-6 py-3" />
             </div>
           ) : null}
         </Reveal>

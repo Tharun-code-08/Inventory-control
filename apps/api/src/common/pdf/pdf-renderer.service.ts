@@ -38,7 +38,8 @@ export class PdfRendererService {
     });
 
     Handlebars.registerHelper('qty', (value: number) => {
-      return value.toFixed(2);
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? '0.00' : num.toFixed(2);
     });
 
     Handlebars.registerHelper('if_eq', function (a: any, b: any, opts: any) {
