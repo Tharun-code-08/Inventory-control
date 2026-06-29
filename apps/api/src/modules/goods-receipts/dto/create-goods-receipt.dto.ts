@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -66,12 +66,14 @@ export class CreateGoodsReceiptDto {
   purchaseOrderId?: string;
 
   @ApiProperty({ enum: ['FULL', 'PARTIAL'], default: 'FULL' })
+  @Transform(({ value }) => value ?? 'FULL')
   @IsIn(['FULL', 'PARTIAL'])
-  receiptType!: 'FULL' | 'PARTIAL';
+  receiptType: 'FULL' | 'PARTIAL' = 'FULL';
 
   @ApiProperty({ enum: ['PURCHASE_ORDER', 'OUTSIDE'], default: 'PURCHASE_ORDER' })
+  @Transform(({ value }) => value ?? 'PURCHASE_ORDER')
   @IsIn(['PURCHASE_ORDER', 'OUTSIDE'])
-  receiptSource!: 'PURCHASE_ORDER' | 'OUTSIDE';
+  receiptSource: 'PURCHASE_ORDER' | 'OUTSIDE' = 'PURCHASE_ORDER';
 
   @ApiPropertyOptional({ enum: ['DAY_SHIFT', 'NIGHT_SHIFT'] })
   @IsOptional()

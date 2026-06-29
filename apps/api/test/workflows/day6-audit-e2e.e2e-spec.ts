@@ -3,6 +3,7 @@ import request = require('supertest');
 import { AuditAction } from '@prisma/client';
 import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
+import { PrismaService } from '../../src/prisma/prisma.service';
 
 /**
  * Day 6 — E2E Audit Validation
@@ -28,7 +29,7 @@ describe('Day 6 — E2E Audit Validation', () => {
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
     app = await getSharedE2eApp();
-    prisma = app.get('PrismaService');
+    prisma = app.get(PrismaService);
   });
 
   it('proves audit system works end-to-end: Login → Create → Receive → Update → Approve → Query', async () => {
