@@ -10,7 +10,6 @@ import {
   Min,
   ValidateNested,
   IsArray,
-  ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {

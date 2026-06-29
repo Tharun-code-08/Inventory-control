@@ -32,7 +32,7 @@ export class JobTrackerService {
     return record.id;
   }
 
-  async updateJobStatus(jobId: string, status: JobStatus, progress?: number): Promise<void> {
+  async updateJobStatus(jobId: string, status: JobStatus, _progress?: number): Promise<void> {
     await this.prisma.documentRegistry.updateMany({
       where: { jobId },
       data: {

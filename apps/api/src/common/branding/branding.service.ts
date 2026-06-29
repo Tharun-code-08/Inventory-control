@@ -396,7 +396,7 @@ export class BrandingService {
       panNumber?: string;
     },
   ): Promise<BrandingSnapshotV1> {
-    const [effective, branchBranding, company] = await Promise.all([
+    const [effective, _branchBranding, _company] = await Promise.all([
       this.getEffectiveBranding(companyId, shopId, documentType),
       this.getBranchBranding(shopId),
       this.prisma.company.findUnique({

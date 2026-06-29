@@ -24,7 +24,7 @@ export class LocalStorageProvider implements StorageProvider {
   async writeBuffer(
     assetKey: string,
     buffer: Buffer,
-    options?: StorageWriteOptions,
+    _options?: StorageWriteOptions,
   ): Promise<StorageWriteResult> {
     const target = this.getStoragePath(assetKey);
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -67,7 +67,7 @@ export class LocalStorageProvider implements StorageProvider {
     return url;
   }
 
-  async getSignedUrl(assetKey: string, expiresIn?: number): Promise<string> {
+  async getSignedUrl(assetKey: string, _expiresIn?: number): Promise<string> {
     // For local storage, signed URLs are just regular public URLs
     // In production with R2/S3, this would generate actual signed URLs with expiration
     return this.getPublicUrl(assetKey);

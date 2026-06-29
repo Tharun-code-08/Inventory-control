@@ -72,9 +72,9 @@ export class PdfWorkerProcessor {
       this.logger.log(`Job completed: ${jobId} (${renderDurationMs}ms render, ${storageLatencyMs}ms upload)`);
 
       return {
-        documentId: (await this.prisma.documentRegistry.findFirst({
+        documentId: ((await this.prisma.documentRegistry.findFirst({
           where: { jobId },
-        }))?.id!,
+        })) ?? { id: '' }).id,
         storageKey,
         mimeType: 'application/pdf',
         fileSize: pdfBuffer.length,
@@ -93,7 +93,7 @@ export class PdfWorkerProcessor {
     tenantId: string,
     documentType: string,
     referenceId?: string,
-    metadata?: Record<string, any>,
+    _metadata?: Record<string, any>,
   ): Promise<any> {
     const cached = await this.jobTracker.checkCachedDocument(
       tenantId,
@@ -110,10 +110,10 @@ export class PdfWorkerProcessor {
   }
 
   private async renderPdf(
-    tenantId: string,
+    _tenantId: string,
     documentType: string,
     referenceId?: string,
-    metadata?: Record<string, any>,
+    _metadata?: Record<string, any>,
   ): Promise<Buffer> {
     // Fetch document data
     const documentData = await this.fetchDocumentData(documentType, referenceId);
@@ -132,7 +132,7 @@ export class PdfWorkerProcessor {
     return this.pdfRenderer.renderPdf(context);
   }
 
-  private async fetchDocumentData(documentType: string, referenceId?: string): Promise<any> {
+  private async fetchDocumentData(_documentType: string, _referenceId?: string): Promise<any> {
     // This would fetch from the appropriate table based on documentType
     // For now, returning mock data
     return {
@@ -140,7 +140,7 @@ export class PdfWorkerProcessor {
     };
   }
 
-  private async fetchBranding(tenantId: string): Promise<any> {
+  private async fetchBranding(_tenantId: string): Promise<any> {
     // Fetch branding configuration for tenant
     return {
       logoUrl: null,

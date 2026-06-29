@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue } from 'bullmq';
 import type { ConnectionOptions } from 'bullmq';
 
 @Injectable()
@@ -19,7 +18,7 @@ export class QueueConfig {
     };
   }
 
-  getQueueConfig(queueName: string) {
+  getQueueConfig(_queueName: string) {
     return {
       connection: this.getRedisConnection(),
       settings: {

@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cluster } from 'puppeteer-cluster';
-import * as puppeteer from 'puppeteer';
 
 export interface PdfClusterMetrics {
   activeBrowsers: number;
@@ -150,7 +149,7 @@ export class PdfClusterService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async checkBrowserHealth(browser: any) {
+  private async checkBrowserHealth(_browser: any) {
     // Restart browser if:
     // 1. More than 100 PDFs rendered
     // 2. Memory usage > 1GB

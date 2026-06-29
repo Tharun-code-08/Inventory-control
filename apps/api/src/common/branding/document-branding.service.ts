@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrandingService } from './branding.service';
@@ -76,7 +76,7 @@ export class DocumentBrandingService {
   /**
    * Reset settings to defaults
    */
-  async resetSettings(companyId: string, documentType: DocumentType, userId: string) {
+  async resetSettings(companyId: string, documentType: DocumentType, _userId: string) {
     await this.prisma.documentBranding.delete({
       where: {
         companyId_documentType: {

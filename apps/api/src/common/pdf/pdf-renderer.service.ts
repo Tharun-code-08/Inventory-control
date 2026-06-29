@@ -33,7 +33,7 @@ export class PdfRendererService {
       }).format(value);
     });
 
-    Handlebars.registerHelper('date', (value: Date, format: string) => {
+    Handlebars.registerHelper('date', (value: Date, _format: string) => {
       return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value));
     });
 
@@ -87,7 +87,7 @@ export class PdfRendererService {
       return compiled;
     } catch (error) {
       this.logger.error(`Failed to load template ${documentType}: ${(error as Error).message}`);
-      throw new Error(`Template not found: ${documentType}`);
+      throw new Error(`Template not found: ${documentType}`, { cause: error });
     }
   }
 

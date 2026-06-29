@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Queue, QueueEvents, Worker } from 'bullmq';
-import type { Job } from 'bullmq';
 import * as crypto from 'crypto';
 import { QueueConfig } from './queue.config';
 import { QueueName, QUEUE_CONFIG, JobPayload, getQueueForDocumentType } from './job-types';
