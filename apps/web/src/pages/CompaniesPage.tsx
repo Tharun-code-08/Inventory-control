@@ -78,16 +78,16 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
+        </span>
       </CardContent>
     </Card>
   );
@@ -96,13 +96,13 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 function CompanyStatusBadge({ active }: { active: boolean }) {
   if (!active) {
     return (
-      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
         Inactive
       </span>
     );
   }
   return (
-    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+    <span className="rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
       Active
     </span>
   );
@@ -142,14 +142,14 @@ function CompanyFormFields({ form, setForm, codeDisabled, firstFieldRef }: Compa
           onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
         />
       </div>
-      <div className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 p-3">
         <Switch
           checked={form.isActive}
           onCheckedChange={(checked) => setForm((p) => ({ ...p, isActive: checked }))}
         />
         <div>
           <Label className="cursor-pointer">Active</Label>
-          <p className="text-xs text-slate-500">Inactive companies are hidden from new assignments</p>
+          <p className="text-xs text-muted-foreground">Inactive companies are hidden from new assignments</p>
         </div>
       </div>
     </div>
@@ -167,7 +167,7 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
   const activePlants = plants.filter((p) => p.isActive);
 
   return (
-    <Card className="flex flex-col border-slate-200/90 shadow-sm">
+    <Card className="flex flex-col border-border/90 shadow-sm">
       <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -175,8 +175,8 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
               <Building2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-slate-900">{company.companyName}</p>
-              <span className="mt-1 inline-block rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600">
+              <p className="truncate font-semibold text-foreground">{company.companyName}</p>
+              <span className="mt-1 inline-block rounded border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                 {company.companyCode}
               </span>
             </div>
@@ -184,28 +184,28 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
           <CompanyStatusBadge active={company.isActive} />
         </div>
 
-        <div className="mt-4 text-sm text-slate-600">
+        <div className="mt-4 text-sm text-muted-foreground">
           {company.address ? (
             <p className="leading-relaxed">{company.address}</p>
           ) : (
-            <p className="text-slate-400">No address on file</p>
+            <p className="text-muted-foreground">No address on file</p>
           )}
         </div>
 
         <div className="mt-4 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Plants ({activePlants.length})
           </p>
           {activePlants.length === 0 ? (
-            <p className="mt-2 text-xs text-slate-400">No plants linked to this company</p>
+            <p className="mt-2 text-xs text-muted-foreground">No plants linked to this company</p>
           ) : (
             <ul className="mt-2 max-h-36 space-y-2 overflow-y-auto">
               {activePlants.map((plant) => (
                 <li key={plant.id} className="flex gap-2 text-sm">
-                  <Factory className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <Factory className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800">{plant.shopName}</p>
-                    <p className="text-xs text-slate-500">{plant.shopNumber}</p>
+                    <p className="font-medium text-foreground">{plant.shopName}</p>
+                    <p className="text-xs text-muted-foreground">{plant.shopNumber}</p>
                   </div>
                 </li>
               ))}
@@ -213,12 +213,12 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-1 border-t border-slate-100 pt-3">
+        <div className="mt-4 flex items-center justify-end gap-1 border-t border-border pt-3">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-slate-500"
+            className="h-8 w-8 text-muted-foreground"
             aria-label="Edit company"
             onClick={onEdit}
           >
@@ -229,7 +229,7 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
               aria-label="Deactivate company"
               onClick={onDeactivate}
             >
@@ -367,13 +367,13 @@ function CompaniesListView() {
           label="Active"
           value={stats.active}
           accent="bg-emerald-500"
-          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
         />
         <KpiCard
           label="Linked Plants"
           value={stats.plants}
           accent="bg-sky-500"
-          icon={<Factory className="h-5 w-5 text-sky-600" />}
+          icon={<Factory className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
         />
       </div>
 
@@ -384,11 +384,11 @@ function CompaniesListView() {
           ))}
         </div>
       ) : companies.length === 0 ? (
-        <Card className="border-dashed border-slate-200">
+        <Card className="border-dashed border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Building2 className="mb-3 h-12 w-12 text-slate-300" />
-            <p className="font-medium text-slate-700">No organisation found</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="font-medium text-foreground">No organisation found</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               {canCreateCompany
                 ? 'Add a company to group plants and suppliers under one legal entity.'
                 : 'Your workspace company could not be loaded. Sign out and sign in again, or contact support.'}
@@ -443,7 +443,7 @@ function CompaniesListView() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full text-amber-700 hover:bg-amber-50"
+                className="w-full text-amber-700 dark:text-amber-300 hover:bg-amber-50"
                 onClick={() => {
                   setSheetOpen(false);
                   setDeactivateTarget(editing);

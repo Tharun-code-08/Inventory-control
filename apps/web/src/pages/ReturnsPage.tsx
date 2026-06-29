@@ -95,13 +95,13 @@ function formatMoney(value?: string | number | null) {
 function statusTone(status: SupplierReturn['status']) {
   switch (status) {
     case 'DONE':
-      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
     case 'SUBMITTED':
-      return 'bg-sky-50 text-sky-800 border-sky-200';
+      return 'bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-500/30';
     case 'CANCELLED':
-      return 'bg-slate-100 text-slate-600 border-slate-200';
+      return 'bg-muted text-muted-foreground border-border';
     case 'DRAFT':
-      return 'bg-amber-50 text-amber-800 border-amber-200';
+      return 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
     default:
       return 'bg-muted text-foreground border-border';
   }
@@ -476,7 +476,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
           <TableBody>
             {form.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-slate-500">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   {goodsReceiptQuery.isLoading
                     ? 'Loading goods receipt lines...'
                     : 'Select a posted goods receipt to start a return draft.'}
@@ -503,7 +503,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                   </TableCell>
                   <TableCell>
                     <p className="font-medium">{item.productCode || 'Item'}</p>
-                    <p className="text-xs text-slate-500">{item.description || '—'}</p>
+                    <p className="text-xs text-muted-foreground">{item.description || '—'}</p>
                   </TableCell>
                   <TableCell className="text-right">{item.grnQty}</TableCell>
                   <TableCell>{item.uom}</TableCell>
@@ -611,20 +611,20 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
         <div className="grid gap-3 sm:grid-cols-3">
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Draft</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{draftCount}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Draft</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{draftCount}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Submitted</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{submittedCount}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Submitted</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{submittedCount}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{doneCount}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completed</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{doneCount}</p>
             </CardContent>
           </Card>
         </div>
@@ -649,7 +649,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
               <TableBody>
                 {returns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-slate-500">
+                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                       No return orders yet.
                     </TableCell>
                   </TableRow>
@@ -715,7 +715,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
             </DialogHeader>
 
             {detailReturnQuery.isLoading ? (
-              <p className="py-8 text-center text-slate-500">Loading return order...</p>
+              <p className="py-8 text-center text-muted-foreground">Loading return order...</p>
             ) : detailReturn ? (
               <div className="space-y-5">
                 <DocumentDetailActions
@@ -726,33 +726,33 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-slate-500">Supplier</p>
+                    <p className="text-xs text-muted-foreground">Supplier</p>
                     <p className="font-medium">{detailReturn.supplier?.supplierName ?? detailReturn.supplierName}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Goods Receipt</p>
+                    <p className="text-xs text-muted-foreground">Goods Receipt</p>
                     <p className="font-medium">{detailReturn.goodsReceipt?.grNumber ?? '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Status</p>
+                    <p className="text-xs text-muted-foreground">Status</p>
                     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusTone(detailReturn.status)}`}>
                       {formatReturnStatus(detailReturn.status)}
                     </span>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Total</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
                     <p className="font-medium">{formatMoney(detailReturn.totalValue)}</p>
                   </div>
                 </div>
 
                 {detailReturn.remarks ? (
-                  <div className="rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <div className="rounded-lg border bg-muted px-4 py-3 text-sm text-foreground">
                     {detailReturn.remarks}
                   </div>
                 ) : null}
 
                 {returnStatusMessage(detailReturn.status) ? (
-                  <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                  <div className="rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900">
                     {returnStatusMessage(detailReturn.status)}
                   </div>
                 ) : null}
@@ -775,7 +775,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                             <p className="font-medium">
                               {item.product?.productCode ?? item.goodsReceiptItem?.product?.productCode ?? 'Item'}
                             </p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                               {item.product?.description ?? item.goodsReceiptItem?.product?.description ?? '—'}
                             </p>
                           </TableCell>
@@ -795,17 +795,17 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                                     {detailReturn.status === 'DRAFT' ? (
                                       <button
                                         type="button"
-                                        className="absolute -right-2 -top-2 rounded-full bg-white p-1 shadow"
+                                        className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"
                                         onClick={() => onDeleteImage(detailReturn.id, image.id)}
                                       >
-                                        <Trash2 className="h-3 w-3 text-rose-600" />
+                                        <Trash2 className="h-3 w-3 text-rose-600 dark:text-rose-400" />
                                       </button>
                                     ) : null}
                                   </div>
                                 ))}
                               </div>
                               {detailReturn.status === 'DRAFT' ? (
-                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium text-slate-700">
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium text-foreground">
                                   <ImagePlus className="h-3.5 w-3.5" />
                                   {uploadingItemId === item.id ? 'Uploading...' : 'Attach images'}
                                   <input
@@ -836,7 +836,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                       </Button>
                       <Button
                         variant="outline"
-                        className="border-rose-200 text-rose-700"
+                        className="border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300"
                         onClick={() => void onCancelReturn(detailReturn.id)}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
@@ -855,7 +855,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                     <>
                       <Button
                         variant="outline"
-                        className="border-rose-200 text-rose-700"
+                        className="border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300"
                         onClick={() => void onCancelReturn(detailReturn.id)}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
@@ -873,7 +873,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                 </div>
               </div>
             ) : (
-              <p className="py-8 text-center text-slate-500">Return order not found.</p>
+              <p className="py-8 text-center text-muted-foreground">Return order not found.</p>
             )}
           </DialogContent>
         </Dialog>

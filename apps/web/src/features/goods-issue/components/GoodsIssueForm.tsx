@@ -64,16 +64,16 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
     <div className="space-y-4">
       <ProductSearch shopId={shopId} onSelect={setProduct} />
       {hasAvailability ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Available stock</label>
-          <div className="font-mono text-lg font-semibold text-slate-900">{available}</div>
+        <div className="rounded-xl border border-border bg-muted px-3 py-2">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Available stock</label>
+          <div className="font-mono text-lg font-semibold text-foreground">{available}</div>
         </div>
       ) : null}
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Issue reason</label>
+        <label className="text-sm font-medium text-foreground">Issue reason</label>
         <input
           type="text"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={issueReason}
           onChange={(e) => setIssueReason(e.target.value)}
           placeholder="Reason for this goods issue"
@@ -81,17 +81,17 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Quantity</label>
+        <label className="text-sm font-medium text-foreground">Quantity</label>
         <input
           type="number"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={qty || ''}
           onChange={(e) => setQty(Number(e.target.value))}
           data-testid="qty-input"
         />
       </div>
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" data-testid="qty-error">
+        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300" data-testid="qty-error">
           {error}
         </div>
       )}
@@ -101,13 +101,13 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         </p>
       )}
       {formError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" data-testid="submit-error">
+        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300" data-testid="submit-error">
           {formError}
         </div>
       ) : null}
       <button
         type="button"
-        className="rounded-xl bg-slate-900 px-4 py-2 font-medium text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded-xl bg-primary px-4 py-2 font-medium text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
         disabled={disabled}
         onClick={handleSubmit}
         data-testid="submit-gi"

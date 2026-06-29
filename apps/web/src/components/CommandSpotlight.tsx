@@ -114,12 +114,12 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
       />
 
       <div
-        className="motion-spotlight-panel relative flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="motion-spotlight-panel relative flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         onKeyDown={onKeyDown}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-400 via-slate-500 to-slate-400" />
 
-        <div className="flex items-center gap-3 border-b border-slate-200/90 px-4 py-3 dark:border-slate-700">
+        <div className="flex items-center gap-3 border-b border-border/90 px-4 py-3 dark:border-slate-700">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-md">
             <Command className="h-4 w-4" />
           </div>
@@ -128,15 +128,15 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Jump to a page or action…"
-            className="min-w-0 flex-1 bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none dark:text-slate-100 dark:placeholder:text-muted-foreground"
           />
-          <kbd className="hidden rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 sm:inline dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
+          <kbd className="hidden rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline dark:border-slate-600 dark:bg-slate-800 dark:text-muted-foreground">
             esc
           </kbd>
         </div>
 
         <div className="flex min-h-[280px] max-h-[min(52vh,420px)]">
-          <aside className="hidden w-36 shrink-0 border-r border-slate-100 bg-slate-50/80 p-2 sm:block dark:border-slate-800 dark:bg-slate-950/50">
+          <aside className="hidden w-36 shrink-0 border-r border-border bg-muted/80 p-2 sm:block dark:border-slate-800 dark:bg-slate-950/50">
             {sections.map((section) => {
               const count = filtered.filter((c) => c.section === section).length;
               const active = section === activeSectionResolved;
@@ -149,7 +149,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                     'mb-1 flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-xs font-medium transition',
                     active
                       ? 'selection-active'
-                      : 'text-slate-600 hover:bg-accent hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground dark:text-muted-foreground dark:hover:bg-slate-800/50 dark:hover:text-slate-100',
                   )}
                 >
                   <span className="truncate">{section}</span>
@@ -164,20 +164,20 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
           <div className="min-w-0 flex-1 overflow-y-auto p-2">
             {visible.length === 0 ? (
               <div className="motion-fade-up flex flex-col items-center px-4 py-10 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-                  <Search className="h-6 w-6 text-slate-400" aria-hidden="true" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted dark:bg-slate-800">
+                  <Search className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 </div>
                 {query.trim() ? (
                   <>
-                    <p className="mt-4 text-sm font-medium text-slate-700 dark:text-slate-200">
+                    <p className="mt-4 text-sm font-medium text-foreground dark:text-slate-200">
                       No matches for &ldquo;{query}&rdquo;
                     </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
                       Try &ldquo;products&rdquo;, &ldquo;invoice&rdquo;, or &ldquo;dashboard&rdquo;
                     </p>
                   </>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="mt-4 text-sm text-muted-foreground dark:text-muted-foreground">
                     Type to search pages and quick actions
                   </p>
                 )}
@@ -204,17 +204,17 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                         className={cn(
                           'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
                           selected
-                            ? 'border-slate-300 bg-white selection-active-icon dark:border-slate-500/50 dark:bg-slate-900'
-                            : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
+                            ? 'border-border bg-card selection-active-icon dark:border-slate-500/50 dark:bg-slate-900'
+                            : 'border-border bg-muted text-muted-foreground dark:border-slate-700 dark:bg-slate-800 dark:text-muted-foreground',
                         )}
                       >
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <span className="block truncate text-sm font-medium text-foreground dark:text-slate-100">
                           {cmd.label}
                         </span>
-                        <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                        <span className="block truncate text-xs text-muted-foreground dark:text-muted-foreground">
                           {cmd.hint}
                         </span>
                       </span>
@@ -231,7 +231,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/90 px-4 py-2 text-[11px] text-slate-500 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400">
+        <div className="flex items-center justify-between border-t border-border bg-muted/90 px-4 py-2 text-[11px] text-muted-foreground dark:border-slate-800 dark:bg-slate-950/80 dark:text-muted-foreground">
           <span className="sm:hidden">{sections.length} modules</span>
           <span className="hidden sm:inline">↑↓ navigate · enter open · esc close</span>
           <span>{filtered.length} destinations</span>

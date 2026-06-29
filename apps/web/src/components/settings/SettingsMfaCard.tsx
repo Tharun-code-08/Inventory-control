@@ -229,24 +229,24 @@ export function SettingsMfaCard() {
               <Skeleton className="h-10 w-40" />
             </div>
           ) : statusQuery.isError ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               Could not load MFA status right now.
             </div>
           ) : statusEnabled ? (
             <div className="space-y-3">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
                 Your account is protected by an authenticator app.
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Method</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">
+                <div className="rounded-xl border bg-muted px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Method</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">
                     {status?.method === 'totp' ? 'Authenticator app' : 'Configured'}
                   </p>
                 </div>
-                <div className="rounded-xl border bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Enabled on</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">
+                <div className="rounded-xl border bg-muted px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Enabled on</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">
                     {formatDateTime(status?.enrolledAt ?? null)}
                   </p>
                 </div>
@@ -262,7 +262,7 @@ export function SettingsMfaCard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
                 MFA is currently disabled for this account.
               </div>
               <Button onClick={openSetupDialog} disabled={startEnrollment.isPending}>
@@ -285,7 +285,7 @@ export function SettingsMfaCard() {
 
           {backupCodes.length > 0 ? (
             <div className="space-y-5">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
                 MFA is now enabled. Save these backup codes before closing this dialog.
               </div>
               <BackupCodesCard codes={backupCodes} />
@@ -302,38 +302,38 @@ export function SettingsMfaCard() {
           ) : setup ? (
             <div className="space-y-5">
               <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-                <div className="flex flex-col items-center gap-3 rounded-2xl border bg-slate-50 p-4">
+                <div className="flex flex-col items-center gap-3 rounded-2xl border bg-muted p-4">
                   {setup.qrCodeDataUrl ? (
                     <img
                       src={setup.qrCodeDataUrl}
                       alt="Authenticator QR code"
-                      className="h-56 w-56 rounded-xl border bg-white p-2"
+                      className="h-56 w-56 rounded-xl border bg-card p-2"
                     />
                   ) : (
-                    <div className="flex h-56 w-56 flex-col items-center justify-center rounded-xl border border-dashed bg-white p-6 text-center text-sm text-slate-500">
+                    <div className="flex h-56 w-56 flex-col items-center justify-center rounded-xl border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
                       <QrCode className="mb-2 h-8 w-8" />
                       QR code is unavailable right now. Use the manual code below.
                     </div>
                   )}
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     Expires at {formatDateTime(setup.expiresAt)}
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div className="rounded-xl border px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Manual setup code</p>
-                    <code className="mt-2 block break-all text-sm font-semibold tracking-[0.18em] text-slate-900">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Manual setup code</p>
+                    <code className="mt-2 block break-all text-sm font-semibold tracking-[0.18em] text-foreground">
                       {setup.manualCode}
                     </code>
                   </div>
 
-                  <div className="rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <div className="rounded-xl border bg-muted px-4 py-3 text-sm text-foreground">
                     <div className="flex items-start gap-2">
-                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                       <div>
                         <p>Enter the code currently shown in your authenticator app.</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {setup.attemptsRemaining} verification attempt(s) available before you
                           need to restart setup.
                         </p>
@@ -392,7 +392,7 @@ export function SettingsMfaCard() {
               </DialogFooter>
             </div>
           ) : (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               MFA setup could not be prepared. Try again.
             </div>
           )}
@@ -414,7 +414,7 @@ export function SettingsMfaCard() {
 
           {manageMode === 'regenerate' && managedBackupCodes.length > 0 ? (
             <div className="space-y-5">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
                 Your previous backup codes have been replaced. Save the new codes before closing
                 this dialog.
               </div>
@@ -428,8 +428,8 @@ export function SettingsMfaCard() {
               <div
                 className={`rounded-xl border px-4 py-3 text-sm ${
                   manageMode === 'regenerate'
-                    ? 'border-amber-200 bg-amber-50 text-amber-900'
-                    : 'border-red-200 bg-red-50 text-red-700'
+                    ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-900'
+                    : 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300'
                 }`}
               >
                 {manageMode === 'regenerate'

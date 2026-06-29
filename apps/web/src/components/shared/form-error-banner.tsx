@@ -21,7 +21,7 @@ export function FormErrorBanner({
     <div
       role="alert"
       className={cn(
-        'motion-error-banner flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 sm:flex-row sm:items-center sm:justify-between',
+        'motion-error-banner flex flex-col gap-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-sm text-rose-900 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
     >

@@ -281,15 +281,15 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-border bg-card shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        </span>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -299,32 +299,32 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 function StockCell({ stock, min }: { stock: number; min: number }) {
   if (isOutOfStock(stock)) {
     return (
-      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-sm font-medium tabular-nums text-red-700">
+      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 text-sm font-medium tabular-nums text-red-700 dark:text-red-300">
         {stock}
       </span>
     );
   }
   if (isLowStock(stock, min)) {
     return (
-      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md bg-orange-100 px-2 py-0.5 text-sm font-medium tabular-nums text-orange-800">
+      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md bg-orange-100 dark:bg-orange-500/15 px-2 py-0.5 text-sm font-medium tabular-nums text-orange-800 dark:text-orange-300">
         {stock}
       </span>
     );
   }
-  return <span className="text-sm tabular-nums text-slate-700">{stock}</span>;
+  return <span className="text-sm tabular-nums text-foreground">{stock}</span>;
 }
 
 function ProductStatusPill({ active }: { active: boolean }) {
   if (!active) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
         <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
         Inactive
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
       Active
     </span>
@@ -475,15 +475,15 @@ function PlantAssignmentRow({
   return (
     <div
       className={cn(
-        'space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 transition-opacity',
-        !watchedActive && 'border-dashed bg-slate-100/70 opacity-70',
+        'space-y-3 rounded-lg border border-border bg-muted/50 p-3 transition-opacity',
+        !watchedActive && 'border-dashed bg-muted/70 opacity-70',
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-medium text-slate-700">Plant {index + 1}</span>
+          <span className="font-medium text-foreground">Plant {index + 1}</span>
           {!watchedActive && (
-            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+            <Badge variant="outline" className="border-amber-300 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
               Inactive
             </Badge>
           )}
@@ -492,7 +492,7 @@ function PlantAssignmentRow({
           <div className="flex items-center gap-2">
             <Label
               htmlFor={`plant-${index}-active`}
-              className="cursor-pointer text-xs text-slate-600"
+              className="cursor-pointer text-xs text-muted-foreground"
             >
               Active
             </Label>
@@ -1502,8 +1502,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
     return (
 <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6">
   {/* 1. Product Information */}
-  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-    <h3 className="text-sm font-semibold text-slate-900">Product Information</h3>
+  <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <h3 className="text-sm font-semibold text-foreground">Product Information</h3>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="description">Product Name *</Label>
@@ -1616,26 +1616,26 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           </p>
         ) : null}
         {gstHsnQuery.isError && hsnLookupDebounced.length >= 3 ? (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
             GST portal search unavailable — using local suggestions or enter HSN manually.
           </p>
         ) : null}
         {(gstHsnQuery.data?.length ?? 0) > 0 ? (
           <div className="space-y-1">
-            <p className="text-[11px] font-medium text-slate-600">
+            <p className="text-[11px] font-medium text-muted-foreground">
               GST portal ({gstHsnQuery.data!.length} result
               {gstHsnQuery.data!.length === 1 ? '' : 's'})
             </p>
-          <ul className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white text-xs shadow-sm">
+          <ul className="max-h-64 overflow-y-auto rounded-md border border-border bg-card text-xs shadow-sm">
             {gstHsnQuery.data!.map((row) => (
-              <li key={row.code} className="border-b border-slate-100 last:border-0">
+              <li key={row.code} className="border-b border-border last:border-0">
                 <button
                   type="button"
                   className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-accent sm:flex-row sm:items-center sm:gap-2"
                   onClick={() => applyHsnCode(row.code)}
                 >
                   <span className="font-mono font-semibold text-foreground">{row.code}</span>
-                  <span className="text-slate-600">{row.description}</span>
+                  <span className="text-muted-foreground">{row.description}</span>
                 </button>
               </li>
             ))}
@@ -1716,8 +1716,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   </section>
 
   {/* 2. Pricing */}
-  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-    <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
+  <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <h3 className="text-sm font-semibold text-foreground">Pricing</h3>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="sellingPrice">Selling Price *</Label>
@@ -1785,7 +1785,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           step={0.5}
           {...form.register('gstRate')}
         />
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Combined rate (e.g. 18 for 18%). Auto-fills sales order line tax when this product is selected.
         </p>
       </div>
@@ -1793,8 +1793,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   </section>
 
   {/* 3. Technical Details */}
-  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
-    <h3 className="text-sm font-semibold text-slate-900">Technical Details</h3>
+  <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <h3 className="text-sm font-semibold text-foreground">Technical Details</h3>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="drawingReference">Drawing Reference</Label>
@@ -1829,9 +1829,9 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   </section>
 
   {/* 4. Plant & Storage Location Assignment */}
-  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+  <section className="space-y-4 rounded-xl border border-border bg-card p-4">
     <div className="flex items-center justify-between">
-      <h3 className="text-sm font-semibold text-slate-900">
+      <h3 className="text-sm font-semibold text-foreground">
         Plant & Storage Location Assignment
       </h3>
       <Button
@@ -1849,7 +1849,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
       Select the plant this product belongs to (required). The product only
       shows on the Products list for shops it is assigned to. Add storage
       location and thresholds. Toggle{' '}
-      <span className="font-medium text-slate-700">Active</span> to
+      <span className="font-medium text-foreground">Active</span> to
       deactivate an assignment (kept in history but blocked from new
       transactions). Use the trash icon to delete it permanently —
       assignments with prior transactions are deactivated automatically.
@@ -1890,9 +1890,9 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   </section>
 
   {/* 5. Specifications */}
-  <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+  <section className="space-y-4 rounded-xl border border-border bg-card p-4">
     <div className="flex items-center justify-between">
-      <h3 className="text-sm font-semibold text-slate-900">Specifications</h3>
+      <h3 className="text-sm font-semibold text-foreground">Specifications</h3>
       <Button
         type="button"
         size="sm"
@@ -1912,7 +1912,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         {specsArray.fields.map((field, index) => (
           <div
             key={field.id}
-            className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 sm:grid-cols-[1fr_2fr_auto]"
+            className="grid gap-2 rounded-lg border border-border bg-muted/50 p-3 sm:grid-cols-[1fr_2fr_auto]"
           >
             <Input
               placeholder="Label (e.g. Material)"
@@ -2125,7 +2125,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         </PageHeader>
 
         {lowStockFilter ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
             <span>
               Showing <strong>{lowStockRows.length}</strong> low-stock product
               {lowStockRows.length === 1 ? '' : 's'} (at or below reorder level).
@@ -2134,7 +2134,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               type="button"
               variant="outline"
               size="sm"
-              className="border-amber-300 bg-white hover:bg-amber-100"
+              className="border-amber-300 bg-card hover:bg-amber-100"
               onClick={() => {
                 setSearchParams((prev) => {
                   const next = new URLSearchParams(prev);
@@ -2149,22 +2149,22 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         ) : null}
 
         {lastImportReport ? (
-          <Card className="border-slate-200/90 shadow-sm">
+          <Card className="border-border/90 shadow-sm">
             <CardContent className="space-y-3 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-foreground">
                     Last import {lastImportReport.validateOnly ? 'validation' : 'upload'} processed{' '}
                     {lastImportReport.total} row(s)
                   </p>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-muted-foreground">
                     {lastImportReport.validateOnly
                       ? `${lastImportReport.validated} validated`
                       : `${lastImportReport.created} created, ${lastImportReport.updated} updated`}
                     {` · ${lastImportReport.failed} failed`}
                   </p>
                   {lastImportReport.failed > 0 ? (
-                    <p className="text-xs text-amber-700">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
                       First failure:{' '}
                       {
                         lastImportReport.results.find((result) => result.status === 'failed')?.message
@@ -2196,23 +2196,23 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             label="Active"
             value={stats.active}
             accent="bg-emerald-500"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
           />
           <KpiCard
             label="Low Stock"
             value={stats.lowStock}
             accent="bg-orange-500"
-            icon={<AlertTriangle className="h-5 w-5 text-orange-600" />}
+            icon={<AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
           />
           <KpiCard
             label="Out of Stock"
             value={stats.outOfStock}
             accent="bg-red-500"
-            icon={<ShoppingCart className="h-5 w-5 text-red-600" />}
+            icon={<ShoppingCart className="h-5 w-5 text-red-600 dark:text-red-400" />}
           />
         </div>
 
-        <Card className={cn('border-slate-200/90 shadow-sm', pulseClass)}>
+        <Card className={cn('border-border/90 shadow-sm', pulseClass)}>
           <CardContent className="space-y-4 p-4 pt-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <SearchInput
@@ -2355,7 +2355,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                    <TableRow className="bg-muted/80 hover:bg-muted/80">
                       <TableHead className="text-xs font-semibold uppercase tracking-wide">SKU</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wide">Name</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wide">Category</TableHead>
@@ -2387,7 +2387,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                               {product.productCode}
                             </button>
                           </TableCell>
-                          <TableCell className="max-w-[220px] truncate font-medium text-slate-900">
+                          <TableCell className="max-w-[220px] truncate font-medium text-foreground">
                             {product.description}
                           </TableCell>
                           <TableCell>
@@ -2395,11 +2395,11 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                               {product.category}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-sm text-slate-600">{product.uom}</TableCell>
-                          <TableCell className="text-right text-sm tabular-nums text-slate-700">
+                          <TableCell className="text-sm text-muted-foreground">{product.uom}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums text-foreground">
                             {formatAmount(product.sellingPrice)}
                           </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums text-slate-700">
+                          <TableCell className="text-right text-sm tabular-nums text-foreground">
                             {formatAmount(product.purchasePrice)}
                           </TableCell>
                           <TableCell className="text-right">
@@ -2413,7 +2413,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-500"
+                                className="h-8 w-8 text-muted-foreground"
                                 aria-label="View product"
                                 onClick={() => setViewingProduct(product)}
                               >
@@ -2422,7 +2422,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-500"
+                                className="h-8 w-8 text-muted-foreground"
                                 aria-label="Edit product"
                                 onClick={() => openEdit(product)}
                               >
@@ -2431,7 +2431,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
                                 aria-label="Delete product"
                                 onClick={() => setDeleteTarget(product)}
                               >
@@ -2448,8 +2448,8 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             </div>
 
             {!isLoading && !isError && !lowStockFilter && items.length > 0 && (
-              <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-slate-500">
+              <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
                   Showing{' '}
                   <span className="font-medium">{(meta.page - 1) * meta.limit + 1}</span>–
                   <span className="font-medium">{Math.min(meta.page * meta.limit, meta.total)}</span> of{' '}
@@ -2465,7 +2465,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                     <ChevronLeft className="h-4 w-4" />
                     Previous
                   </Button>
-                  <span className="px-2 text-sm text-slate-500">
+                  <span className="px-2 text-sm text-muted-foreground">
                     Page {meta.page} of {meta.totalPages}
                   </span>
                   <Button
@@ -2495,45 +2495,45 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           {viewingProduct && (
             <dl className="mt-6 space-y-4 text-sm">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Category</dt>
-                <dd className="mt-1 text-slate-900">{viewingProduct.category}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Category</dt>
+                <dd className="mt-1 text-foreground">{viewingProduct.category}</dd>
               </div>
               {viewingProduct.hsnCode ? (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">HSN Code</dt>
-                  <dd className="mt-1 font-mono text-slate-900">{viewingProduct.hsnCode}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">HSN Code</dt>
+                  <dd className="mt-1 font-mono text-foreground">{viewingProduct.hsnCode}</dd>
                 </div>
               ) : null}
               {viewingProduct.brand ? (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Brand</dt>
-                  <dd className="mt-1 text-slate-900">{viewingProduct.brand}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Brand</dt>
+                  <dd className="mt-1 text-foreground">{viewingProduct.brand}</dd>
                 </div>
               ) : null}
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Tax preference</dt>
-                <dd className="mt-1 text-slate-900">{formatTaxPreference(viewingProduct.taxPreference)}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tax preference</dt>
+                <dd className="mt-1 text-foreground">{formatTaxPreference(viewingProduct.taxPreference)}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Unit</dt>
-                <dd className="mt-1 text-slate-900">{viewingProduct.uom}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unit</dt>
+                <dd className="mt-1 text-foreground">{viewingProduct.uom}</dd>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Selling price</dt>
-                  <dd className="mt-1 tabular-nums text-slate-900">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Selling price</dt>
+                  <dd className="mt-1 tabular-nums text-foreground">
                     {formatAmount(viewingProduct.sellingPrice)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Cost price</dt>
-                  <dd className="mt-1 tabular-nums text-slate-900">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cost price</dt>
+                  <dd className="mt-1 tabular-nums text-foreground">
                     {formatAmount(viewingProduct.purchasePrice)}
                   </dd>
                 </div>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Stock</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Stock</dt>
                 <dd className="mt-1">
                   <StockCell
                     stock={resolveProductStock(viewingProduct, listShopId)}
@@ -2542,14 +2542,14 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt>
                 <dd className="mt-1">
                   <ProductStatusPill active={viewingProduct.isActive} />
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Plants</dt>
-                <dd className="mt-2 space-y-2 text-slate-700">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Plants</dt>
+                <dd className="mt-2 space-y-2 text-foreground">
                   {viewingProduct.plants.length === 0 ? (
                     <span>No plant assignment</span>
                   ) : (
@@ -2558,12 +2558,12 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
                       return (
                         <div
                           key={plant.id ?? plant.shopId}
-                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                          className="rounded-lg border border-border bg-muted px-3 py-2"
                         >
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-foreground">
                             {shop ? `${shop.shopName} (${shop.shopNumber})` : plant.shopId}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             Storage Location:{' '}
                             {plant.storageLocation
                               ? `${plant.storageLocation.name} (${plant.storageLocation.code})`
@@ -2682,7 +2682,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
             </AlertDialogCancel>
             {!deleteImpactQuery.isLoading && deleteImpactQuery.data && !deleteImpactQuery.data.canDelete ? (
               <AlertDialogAction
-                className="bg-slate-900 text-white hover:bg-slate-800"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={updateProduct.isPending}
                 onClick={handleDeactivateInstead}
               >

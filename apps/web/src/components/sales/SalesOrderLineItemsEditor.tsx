@@ -182,9 +182,9 @@ export function SalesOrderLineItemsEditor({
   };
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200 p-4">
+    <section className="space-y-3 rounded-xl border border-border p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold text-slate-900">Line items</h3>
+        <h3 className="text-sm font-semibold text-foreground">Line items</h3>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <BarcodeInput
             onScan={handleScan}
@@ -219,7 +219,7 @@ export function SalesOrderLineItemsEditor({
       <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50/80">
+            <TableRow className="bg-muted/80">
               <TableHead className="min-w-[10rem] text-xs">Product</TableHead>
               <TableHead className="text-xs">Qty</TableHead>
               <TableHead className="text-xs">UOM</TableHead>
@@ -283,7 +283,7 @@ export function SalesOrderLineItemsEditor({
                       </SelectContent>
                     </Select>
                     {product && !compact ? (
-                      <p className="mt-1 text-xs text-slate-500">{product.description}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{product.description}</p>
                     ) : null}
                   </TableCell>
                   <TableCell>
@@ -311,7 +311,7 @@ export function SalesOrderLineItemsEditor({
                       }
                     />
                   </TableCell>
-                  <TableCell className="text-right text-xs tabular-nums text-slate-600">
+                  <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
                     {formatAmount(computed.taxable)}
                   </TableCell>
                   {interState ? (
@@ -343,7 +343,7 @@ export function SalesOrderLineItemsEditor({
                       </TableCell>
                     </>
                   )}
-                  <TableCell className="text-right text-xs tabular-nums text-slate-600">
+                  <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
                     {formatAmount(computed.taxAmount)}
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium tabular-nums">
@@ -355,7 +355,7 @@ export function SalesOrderLineItemsEditor({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-600"
+                        className="h-8 w-8 text-red-600 dark:text-red-400"
                         onClick={() => onChange(items.filter((_, i) => i !== index))}
                       >
                         <Trash2 className="h-4 w-4" />

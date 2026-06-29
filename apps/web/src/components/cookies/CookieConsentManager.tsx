@@ -55,16 +55,16 @@ function CookiePreferencesDialog() {
 
         <div className="space-y-4">
           {cookieRows.map((row) => (
-            <div key={row.category} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div key={row.category} className="rounded-2xl border border-border bg-muted p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">{row.category}</p>
-                  <p className="text-sm text-slate-600">{row.description}</p>
+                  <p className="text-sm font-semibold text-foreground">{row.category}</p>
+                  <p className="text-sm text-muted-foreground">{row.description}</p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     {row.cookies.map((cookieName) => (
                       <code
                         key={cookieName}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                        className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
                       >
                         {cookieName}
                       </code>
@@ -72,12 +72,12 @@ function CookiePreferencesDialog() {
                   </div>
                 </div>
                 {row.category === 'Essential' ? (
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                  <div className="rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                     Always on
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-700">
+                    <span className="text-sm font-medium text-foreground">
                       {functionalEnabled ? 'Enabled' : 'Disabled'}
                     </span>
                     <Switch
@@ -139,7 +139,7 @@ export function CookieConsentManager() {
             <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_240px] md:p-8">
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     Cookie notice
                   </p>
                   <h2 className="max-w-xl text-3xl font-semibold leading-tight text-white">
@@ -154,7 +154,7 @@ export function CookieConsentManager() {
                 <div className="flex flex-wrap gap-3">
                   <Button
                     type="button"
-                    className="rounded-xl bg-white text-slate-950 hover:bg-slate-200"
+                    className="rounded-xl bg-card text-slate-950 hover:bg-slate-200"
                     disabled={acceptingAll || acceptingNecessary}
                     onClick={async () => {
                       setAcceptingAll(true);
@@ -196,7 +196,7 @@ export function CookieConsentManager() {
               </div>
               <div className="relative hidden min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_35%,transparent_36%),radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.04)_16%,transparent_17%)] md:flex md:items-center md:justify-center">
                 <div className="absolute inset-0 opacity-40 [background:radial-gradient(circle_at_center,transparent_0,transparent_34%,rgba(255,255,255,0.06)_35%,transparent_36%,transparent_64%,rgba(255,255,255,0.04)_65%,transparent_66%)]" />
-                <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-white/5">
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-card/5">
                   <ShieldCheck className="h-6 w-6 text-slate-200" />
                 </div>
               </div>

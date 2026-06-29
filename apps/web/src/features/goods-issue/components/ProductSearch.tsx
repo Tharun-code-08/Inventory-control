@@ -49,20 +49,20 @@ export function ProductSearch({
   return (
     <div className="relative">
       <input
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
         placeholder="Search product code..."
         value={q}
         onChange={(e) => setQ(e.target.value)}
         data-testid="product-search-input"
       />
-      {loadError && <p className="mt-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
+      {loadError && <p className="mt-1 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{loadError}</p>}
       {open && items.length > 0 && (
-        <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10" role="listbox">
+        <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-card p-1 shadow-lg shadow-slate-900/10" role="listbox">
           {items.map((p) => (
             <button
               key={p.id}
               type="button"
-              className="block w-full rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-accent hover:text-primary"
+              className="block w-full rounded-lg px-2.5 py-2 text-left text-sm text-foreground transition hover:bg-accent hover:text-primary"
               role="option"
               onClick={() => {
                 onSelect(p);

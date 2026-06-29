@@ -20,18 +20,18 @@ export function AttentionCard({ data }: AttentionCardProps) {
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">What should I do now?</h3>
+      <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+        <h3 className="text-lg font-semibold text-foreground mb-4">What should I do now?</h3>
         <div className="text-center py-8">
-          <p className="text-green-600 font-medium text-lg">All clear ✓</p>
+          <p className="text-green-600 dark:text-green-400 font-medium text-lg">All clear ✓</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">What should I do now?</h3>
+    <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+      <h3 className="text-lg font-semibold text-foreground mb-6">What should I do now?</h3>
 
       <div className="space-y-4">
         {data.map((item) => (
@@ -45,8 +45,8 @@ export function AttentionCard({ data }: AttentionCardProps) {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
-                <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-                <p className="text-xs text-gray-600 mt-1">{item.action}</p>
+                <p className="font-semibold text-foreground text-sm">{item.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{item.action}</p>
               </div>
               <button
                 onClick={() => handleItemResolution(item)}

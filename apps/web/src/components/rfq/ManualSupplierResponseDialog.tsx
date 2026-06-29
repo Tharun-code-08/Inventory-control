@@ -154,7 +154,7 @@ export function ManualSupplierResponseDialog({
         <div className="overflow-hidden rounded-lg border">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50/80">
+              <TableRow className="bg-muted/80">
                 <TableHead className="text-xs uppercase">Product</TableHead>
                 <TableHead className="text-right text-xs uppercase">Required qty</TableHead>
                 <TableHead className="text-xs uppercase">Unit</TableHead>
@@ -169,7 +169,7 @@ export function ManualSupplierResponseDialog({
                   <TableRow key={line.rfqItemId}>
                     <TableCell className="text-sm font-medium">{line.label}</TableCell>
                     <TableCell className="text-right tabular-nums">{line.qty}</TableCell>
-                    <TableCell className="text-slate-600">{line.uom}</TableCell>
+                    <TableCell className="text-muted-foreground">{line.uom}</TableCell>
                     <TableCell>
                       <Input
                         type="number"
@@ -196,7 +196,7 @@ export function ManualSupplierResponseDialog({
           </Table>
         </div>
 
-        <div className="flex justify-end text-sm font-semibold text-slate-900">
+        <div className="flex justify-end text-sm font-semibold text-foreground">
           Grand total: <span className="ml-2 text-primary">{formatInr(grandTotal)}</span>
         </div>
 

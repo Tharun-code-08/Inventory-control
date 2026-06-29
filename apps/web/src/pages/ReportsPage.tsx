@@ -790,10 +790,10 @@ function StockLedgerTab({
                   <TableCell>
                     <StatusBadge status={row.type} />
                   </TableCell>
-                  <TableCell className="text-right font-medium text-emerald-600">
+                  <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-400">
                     {row.inQty > 0 ? `+${row.inQty}` : '—'}
                   </TableCell>
-                  <TableCell className="text-right font-medium text-red-600">
+                  <TableCell className="text-right font-medium text-red-600 dark:text-red-400">
                     {row.outQty > 0 ? `-${row.outQty}` : '—'}
                   </TableCell>
                   <TableCell className="text-right font-medium">{row.balance}</TableCell>
@@ -1142,7 +1142,7 @@ function ShopSummaryTab({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Low Stock</span>
-                  <span className="font-medium text-amber-600">{shop.lowStockCount}</span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">{shop.lowStockCount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Goods Receipts</span>
@@ -1358,8 +1358,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.stockValue ?? 0),
         format: formatCurrency,
         icon: DollarSign,
-        iconClassName: 'text-emerald-600',
-        iconWrapClassName: 'bg-emerald-500/15 border border-emerald-400/20',
+        accent: 'emerald' as const,
         ariaLabel: `Stock value ${formatCurrency(Number(overview?.stockValue ?? 0))}`,
         onClick: () => handleTabChange('shop-summary'),
       },
@@ -1368,8 +1367,7 @@ export function ReportsPage() {
         label: 'Low Stock',
         numericValue: Number(overview?.lowStockCount ?? 0),
         icon: AlertTriangle,
-        iconClassName: 'text-amber-600',
-        iconWrapClassName: 'bg-amber-500/15 border border-amber-400/20',
+        accent: 'amber' as const,
         ariaLabel: `Low stock count ${Number(overview?.lowStockCount ?? 0)}`,
         onClick: () => handleTabChange('low-stock'),
       },
@@ -1379,8 +1377,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.poValue ?? 0),
         format: formatCurrency,
         icon: FileText,
-        iconClassName: 'text-blue-600',
-        iconWrapClassName: 'bg-blue-500/15 border border-blue-400/20',
+        accent: 'sky' as const,
         ariaLabel: `PO value ${formatCurrency(Number(overview?.poValue ?? 0))}`,
         onClick: () => handleTabChange('purchase-orders'),
       },
@@ -1390,8 +1387,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.salesValue ?? 0),
         format: formatCurrency,
         icon: ShoppingCart,
-        iconClassName: 'text-violet-600',
-        iconWrapClassName: 'bg-violet-500/15 border border-violet-400/20',
+        accent: 'violet' as const,
         ariaLabel: `Sales value ${formatCurrency(Number(overview?.salesValue ?? 0))}`,
         onClick: () => handleTabChange('sales-orders'),
       },
@@ -1400,8 +1396,7 @@ export function ReportsPage() {
         label: 'GR Count',
         numericValue: Number(overview?.grCount ?? 0),
         icon: Package,
-        iconClassName: 'text-primary',
-        iconWrapClassName: 'bg-primary/15 border border-primary/20',
+        accent: 'indigo' as const,
         ariaLabel: `GR count ${Number(overview?.grCount ?? 0)}`,
         onClick: () => handleTabChange('gr-register'),
       },
@@ -1410,8 +1405,7 @@ export function ReportsPage() {
         label: 'Sales Orders',
         numericValue: Number(overview?.salesOrderCount ?? 0),
         icon: ClipboardList,
-        iconClassName: 'text-slate-600',
-        iconWrapClassName: 'bg-slate-500/15 border border-slate-400/20',
+        accent: 'rose' as const,
         ariaLabel: `Sales orders ${Number(overview?.salesOrderCount ?? 0)}`,
         onClick: () => handleTabChange('sales-orders'),
       },

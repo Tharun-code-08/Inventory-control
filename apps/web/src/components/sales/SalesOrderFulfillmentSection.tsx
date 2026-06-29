@@ -28,8 +28,8 @@ export function SalesOrderFulfillmentSection({
   const hasMasterAddress = masterPreview.trim().length > 0;
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Fulfillment Location</h3>
+    <section className="space-y-4 rounded-xl border border-border p-4">
+      <h3 className="text-sm font-semibold text-foreground">Fulfillment Location</h3>
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -50,12 +50,12 @@ export function SalesOrderFulfillmentSection({
           </Label>
         </div>
         {customer && !hasMasterAddress ? (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
             No address on file for this customer. Add street/city on the customer record or enter
             delivery address manually.
           </p>
         ) : customer && hasMasterAddress ? (
-          <p className="whitespace-pre-line text-xs text-slate-500">{masterPreview}</p>
+          <p className="whitespace-pre-line text-xs text-muted-foreground">{masterPreview}</p>
         ) : null}
         <Label>Customer Delivery Address</Label>
         <textarea

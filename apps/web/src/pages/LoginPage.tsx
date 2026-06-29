@@ -137,20 +137,20 @@ export function LoginPage() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <a
         href={`https://${DOMAINS.MARKETING}`}
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-muted hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
-        <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
+        <ArrowLeft className="h-4 w-4 text-muted-foreground transition group-hover:text-foreground" />
         Back to home
       </a>
 
       {showAvatarSplash ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)]">
-          <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-white/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+          <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-card/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
             <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-slate-300/40 blur-2xl" />
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
             <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${splashAvatar.bgClass}`}>
-              <div className="absolute inset-0 animate-ping rounded-full bg-white/20" />
+              <div className="absolute inset-0 animate-ping rounded-full bg-card/20" />
               <span role="img" aria-label={`${splashAvatar.kind} avatar`} className="text-5xl">
                 {splashAvatar.emoji}
               </span>
@@ -159,8 +159,8 @@ export function LoginPage() {
               <p className="text-base font-semibold text-white">Preparing your workspace</p>
               <p className="text-xs text-slate-200/90">Syncing access, roles, and secure session state...</p>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
-              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-white" />
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-card/20">
+              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-card" />
             </div>
             <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">Please wait</p>
           </div>
@@ -172,10 +172,10 @@ export function LoginPage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
+          <section className="relative hidden overflow-hidden rounded-[2rem] border border-border/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
             <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-card/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
               <Sparkles className="h-3.5 w-3.5" />
               {BRAND.productName}
             </p>
@@ -187,21 +187,21 @@ export function LoginPage() {
               code before SoftdigitIMS opens your workspace.
             </p>
             <div className="mt-10 grid max-w-md gap-3 text-sm">
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 Password plus authenticator verification
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 Single-use backup code fallback
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 Session issued only after MFA succeeds
               </div>
             </div>
           </section>
 
-          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
+          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-border/90 bg-card/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
             <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
-            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 dark:bg-cyan-500/15 blur-2xl" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
 
@@ -210,10 +210,10 @@ export function LoginPage() {
                 {step === 'credentials' ? <Zap className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {step === 'credentials' ? 'Welcome back' : 'MFA verification'}
               </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
                 {step === 'credentials' ? BRAND.loginTitle : 'Verify your sign-in'}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {step === 'credentials'
                   ? 'Use your account credentials to continue.'
                   : useBackupCode
@@ -227,13 +227,13 @@ export function LoginPage() {
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       autoComplete="username"
-                      className="h-12 rounded-xl bg-slate-50 pl-10"
+                      className="h-12 rounded-xl bg-muted pl-10"
                     />
                   </div>
                 </div>
@@ -241,19 +241,19 @@ export function LoginPage() {
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       autoComplete="current-password"
-                      className="h-12 rounded-xl bg-slate-50 pl-10 pr-10"
+                      className="h-12 rounded-xl bg-muted pl-10 pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -268,16 +268,16 @@ export function LoginPage() {
                 </div>
 
                 {err ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                     {err}
                   </div>
                 ) : null}
 
-                <Button className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-950" type="submit" disabled={isSubmitting || showAvatarSplash}>
+                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || showAvatarSplash}>
                   {isSubmitting ? 'Signing in...' : 'Continue to secure sign-in'}
                 </Button>
 
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-muted-foreground">
                   New organisation?{' '}
                   <Link to="/signup" className="font-medium text-primary hover:underline">
                     Create account with email verification
@@ -286,16 +286,16 @@ export function LoginPage() {
               </form>
             ) : (
               <form onSubmit={onVerifyMfa} className="space-y-5">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted p-5">
                   {!useBackupCode ? (
                     <>
                       <div className="mb-4 text-center">
-                        <p className="text-sm font-medium text-slate-700">Authenticator code</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="text-sm font-medium text-foreground">Authenticator code</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Challenge expires at {new Date(challengeExpiry).toLocaleTimeString()}.
                         </p>
                         {attemptsRemaining ? (
-                          <p className="mt-1 text-xs font-medium text-slate-600">
+                          <p className="mt-1 text-xs font-medium text-muted-foreground">
                             {attemptsRemaining} attempt(s) before the challenge locks.
                           </p>
                         ) : null}
@@ -306,13 +306,13 @@ export function LoginPage() {
                     <div className="space-y-2">
                       <Label htmlFor="backup-code">Backup code</Label>
                       <div className="relative">
-                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           id="backup-code"
                           value={backupCode}
                           onChange={(event) => setBackupCode(event.target.value.toUpperCase())}
                           placeholder="ABCD-EFGH"
-                          className="h-12 rounded-xl bg-white pl-10 uppercase tracking-[0.18em]"
+                          className="h-12 rounded-xl bg-card pl-10 uppercase tracking-[0.18em]"
                         />
                       </div>
                     </div>
@@ -320,17 +320,17 @@ export function LoginPage() {
                 </div>
 
                 {!useBackupCode ? (
-                  <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <label className="flex items-start gap-3 rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
                     <input
                       type="checkbox"
                       checked={rememberDevice}
                       disabled={!functionalCookiesEnabled}
                       onChange={(event) => setRememberDevice(event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
                     />
                     <span>
-                      <span className="block font-medium text-slate-900">Remember this device for 7 days</span>
-                      <span className="block text-xs text-slate-500">
+                      <span className="block font-medium text-foreground">Remember this device for 7 days</span>
+                      <span className="block text-xs text-muted-foreground">
                         {functionalCookiesEnabled
                           ? 'Skip the authenticator step on this browser for the next 7 days.'
                           : 'Enable functional cookies in Cookie Preferences to use this convenience feature.'}
@@ -353,7 +353,7 @@ export function LoginPage() {
                   </button>
                   <button
                     type="button"
-                    className="text-slate-500 hover:text-slate-700"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setStep('credentials');
                       setErr('');
@@ -369,7 +369,7 @@ export function LoginPage() {
                 </div>
 
                 {err ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                     {err}
                   </div>
                 ) : null}

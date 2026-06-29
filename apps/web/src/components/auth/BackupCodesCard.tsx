@@ -32,7 +32,7 @@ export function BackupCodesCard({ codes }: { codes: string[] }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {codes.map((code, index) => (
             <div key={code} className="flex items-center gap-3">
-              <span className="w-5 text-[10px] font-bold text-slate-500">
+              <span className="w-5 text-[10px] font-bold text-muted-foreground">
                 {String(index + 1).padStart(2, '0')}
               </span>
               <code className="text-sm tracking-[0.18em] text-slate-100">{code}</code>
@@ -48,7 +48,7 @@ export function BackupCodesCard({ codes }: { codes: string[] }) {
           Download
         </Button>
       </div>
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
         Store these codes safely. Each backup code works only once if you lose access to your
         authenticator app.
       </div>

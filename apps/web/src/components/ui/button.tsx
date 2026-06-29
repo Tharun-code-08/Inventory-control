@@ -13,7 +13,7 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(15_23_42_/_0.08)] hover:bg-primary-hover hover:shadow-[0_2px_4px_rgb(15_23_42_/_0.12)]",
         destructive:
-          "border border-rose-300/70 bg-rose-50 text-rose-800 shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-rose-100 hover:text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-950/70",
+          "border border-rose-300/70 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-rose-100 hover:text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-950/70",
         outline:
           "border border-input bg-background text-foreground shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-accent hover:text-accent-foreground hover:border-input/80",
         secondary:

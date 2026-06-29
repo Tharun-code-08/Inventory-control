@@ -232,15 +232,15 @@ function KpiCard({
   icon: ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        </span>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -393,7 +393,7 @@ function SupplierFormFields({
                 setForm((p) => ({ ...p, postalCode: normalizePostalCodeInput(e.target.value) }))
               }
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {postalLookup.isFetching
                 ? 'Fetching city from postal code...'
                 : postalLookup.data
@@ -667,17 +667,17 @@ function SuppliersListView() {
             label="Active"
             value={stats.active}
             accent="bg-emerald-500"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
           />
           <KpiCard
             label="Inactive"
             value={stats.inactive}
             accent="bg-amber-500"
-            icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+            icon={<AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
           />
         </div>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardContent className="space-y-4 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <SearchInput
@@ -695,7 +695,7 @@ function SuppliersListView() {
                 className="max-w-md flex-1"
               />
               <div className="flex items-center gap-2 sm:w-44">
-                <Label className="shrink-0 text-xs text-slate-500">Status</Label>
+                <Label className="shrink-0 text-xs text-muted-foreground">Status</Label>
                 <Select
                   value={statusFilter}
                   onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -738,7 +738,7 @@ function SuppliersListView() {
               ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/80">
+                  <TableRow className="bg-muted/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">
                       Supplier
                     </TableHead>
@@ -773,7 +773,7 @@ function SuppliersListView() {
                 </TableHeader>
                 <TableBody>
                   {filteredSuppliers.map((s) => (
-                      <TableRow key={s.id} className="hover:bg-slate-50/50">
+                      <TableRow key={s.id} className="hover:bg-muted/50">
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div
@@ -782,19 +782,19 @@ function SuppliersListView() {
                             >
                               {supplierInitials(s.supplierName)}
                             </div>
-                            <span className="font-semibold text-slate-900">{s.supplierName}</span>
+                            <span className="font-semibold text-foreground">{s.supplierName}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-medium text-slate-700">
+                          <span className="inline-flex rounded-md bg-muted px-2 py-0.5 font-mono text-xs font-medium text-foreground">
                             {s.supplierCode || '—'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-slate-700">{s.contactPerson || '—'}</TableCell>
+                        <TableCell className="text-foreground">{s.contactPerson || '—'}</TableCell>
                         <TableCell>
                           {s.email ? (
-                            <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
-                              <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               <span className="max-w-[180px] truncate">{s.email}</span>
                             </span>
                           ) : (
@@ -803,18 +803,18 @@ function SuppliersListView() {
                         </TableCell>
                         <TableCell>
                           {s.phone ? (
-                            <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
-                              <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               {s.phone}
                             </span>
                           ) : (
                             '—'
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-700">
+                        <TableCell className="font-mono text-xs text-foreground">
                           {s.taxId || '—'}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-700">
+                        <TableCell className="font-mono text-xs text-foreground">
                           {s.vatNumber || '—'}
                         </TableCell>
                         <TableCell>
@@ -825,8 +825,8 @@ function SuppliersListView() {
                             className={cn(
                               'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
                               s.isActive
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-600',
+                                ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                                : 'bg-muted text-muted-foreground',
                             )}
                           >
                             {s.isActive ? 'Active' : 'Inactive'}
@@ -855,7 +855,7 @@ function SuppliersListView() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
                               title="Deactivate"
                               onClick={() => setDeleteTarget(s)}
                             >
@@ -917,8 +917,8 @@ function SuppliersListView() {
                     className={cn(
                       'mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
                       viewSupplier.isActive
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-600',
+                        ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {viewSupplier.isActive ? 'Active' : 'Inactive'}
@@ -936,10 +936,10 @@ function SuppliersListView() {
                   ['Address', [viewSupplier.street, viewSupplier.city, viewSupplier.country].filter(Boolean).join(', ')],
                 ].map(([label, val]) => (
                   <div key={String(label)}>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {label}
                     </dt>
-                    <dd className="mt-0.5 text-slate-900">{val || '—'}</dd>
+                    <dd className="mt-0.5 text-foreground">{val || '—'}</dd>
                   </div>
                 ))}
               </dl>
@@ -962,15 +962,15 @@ function SuppliersListView() {
         description={
           deleteTarget ? (
             <span className="block space-y-3 text-left text-sm">
-              <span className="block text-slate-600">
+              <span className="block text-muted-foreground">
                 An email will be sent to the admin to confirm deletion of{' '}
                 <strong>{deleteTarget.supplierName}</strong>. The supplier is not removed until the
                 link in that email is opened.
               </span>
               {deletionImpact.isLoading ? (
-                <span className="block text-slate-500">Loading linked records…</span>
+                <span className="block text-muted-foreground">Loading linked records…</span>
               ) : deletionImpact.data ? (
-                <span className="block rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                <span className="block rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-amber-950">
                   <span className="font-medium">Linked records (kept in history):</span>
                   <ul className="mt-2 list-inside list-disc space-y-0.5">
                     <li>{deletionImpact.data.counts.rfqInvitations} RFQ invitation(s)</li>

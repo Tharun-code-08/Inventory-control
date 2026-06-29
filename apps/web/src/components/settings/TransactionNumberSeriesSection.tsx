@@ -172,7 +172,7 @@ export function TransactionNumberSeriesSection() {
       </Card>
 
       {!selectedShopId && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+        <div className="rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900">
           Company defaults apply to all plants unless a plant override exists. Each plant keeps its
           own sequence counter.
         </div>

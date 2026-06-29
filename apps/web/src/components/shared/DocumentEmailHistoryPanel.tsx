@@ -24,10 +24,10 @@ function statusLabel(status: string): string {
 
 function statusBadgeClass(status: string): string {
   const s = status.toLowerCase();
-  if (s === 'sent' || s === 'delivered') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-  if (s === 'pending_pdf' || s === 'pending_send') return 'bg-amber-100 text-amber-900 border-amber-200';
-  if (s === 'failed') return 'bg-red-100 text-red-800 border-red-200';
-  return 'bg-slate-100 text-slate-700 border-slate-200';
+  if (s === 'sent' || s === 'delivered') return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
+  if (s === 'pending_pdf' || s === 'pending_send') return 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 border-amber-200 dark:border-amber-500/30';
+  if (s === 'failed') return 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300 border-red-200 dark:border-red-500/30';
+  return 'bg-muted text-foreground border-border';
 }
 
 type DocumentEmailHistoryPanelProps = {
@@ -47,7 +47,7 @@ export function DocumentEmailHistoryPanel({
 
   if (isLoading) {
     return (
-      <Card className={cn('border-slate-200/80', className)}>
+      <Card className={cn('border-border/80', className)}>
         <CardHeader className="pb-2">
           <Skeleton className="h-5 w-32" />
         </CardHeader>
@@ -64,7 +64,7 @@ export function DocumentEmailHistoryPanel({
 
   if (!latest && !hasHistory) {
     return (
-      <Card className={cn('border-slate-200/80', className)}>
+      <Card className={cn('border-border/80', className)}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Mail className="h-4 w-4 text-muted-foreground" />
@@ -79,7 +79,7 @@ export function DocumentEmailHistoryPanel({
   }
 
   return (
-    <Card className={cn('border-slate-200/80', className)}>
+    <Card className={cn('border-border/80', className)}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Mail className="h-4 w-4 text-muted-foreground" />
@@ -113,7 +113,7 @@ export function DocumentEmailHistoryPanel({
               <div>
                 <dt className="text-muted-foreground">Retry count</dt>
                 <dd className="mt-0.5 flex items-center gap-1">
-                  <RefreshCw className="h-3.5 w-3.5 text-amber-600" />
+                  <RefreshCw className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                   {latest.retryCount}
                 </dd>
               </div>
@@ -121,7 +121,7 @@ export function DocumentEmailHistoryPanel({
             {latest.lastError && (
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Last error</dt>
-                <dd className="mt-0.5 text-red-700">{latest.lastError}</dd>
+                <dd className="mt-0.5 text-red-700 dark:text-red-300">{latest.lastError}</dd>
               </div>
             )}
           </dl>
@@ -134,7 +134,7 @@ export function DocumentEmailHistoryPanel({
             </p>
             <ul className="max-h-40 space-y-2 overflow-y-auto text-xs">
               {rows.map((row) => (
-                <li key={row.id} className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2">
+                <li key={row.id} className="rounded-lg border border-border bg-muted/80 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{formatDateTime(row.sentAt ?? row.createdAt)}</span>
                     <Badge variant="outline" className={cn('border text-[10px]', statusBadgeClass(row.status))}>

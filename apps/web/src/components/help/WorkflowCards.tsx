@@ -25,27 +25,27 @@ const workflowMeta: Record<
   procurement: {
     icon: ShoppingCart,
     border: 'border-t-sky-500',
-    iconBg: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+    iconBg: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 dark:bg-sky-950 dark:text-sky-300',
   },
   sales: {
     icon: Truck,
     border: 'border-t-emerald-500',
-    iconBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+    iconBg: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
   },
   inventory: {
     icon: Package,
     border: 'border-t-amber-500',
-    iconBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    iconBg: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 dark:bg-amber-950 dark:text-amber-300',
   },
   'supplier-onboarding': {
     icon: Store,
     border: 'border-t-violet-500',
-    iconBg: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+    iconBg: 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 dark:bg-violet-950 dark:text-violet-300',
   },
   approval: {
     icon: CheckCircle2,
     border: 'border-t-teal-500',
-    iconBg: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+    iconBg: 'bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 dark:bg-teal-950 dark:text-teal-300',
   },
 };
 
@@ -54,17 +54,17 @@ export function WorkflowCards() {
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+      <section className="rounded-2xl border border-border/90 bg-card shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="border-b border-border px-5 py-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-800/50 dark:text-slate-300">
               <GitBranch className="h-4 w-4" />
             </span>
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <h2 className="text-base font-semibold text-foreground dark:text-slate-100">
                 Workflow Diagrams
               </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                 Click any workflow to view the step-by-step diagram.
               </p>
             </div>
@@ -80,7 +80,7 @@ export function WorkflowCards() {
                 type="button"
                 onClick={() => setActive(workflow)}
                 className={cn(
-                  'group flex flex-col items-center rounded-xl border border-slate-200/90 border-t-4 bg-white px-4 py-5 text-center shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600',
+                  'group flex flex-col items-center rounded-xl border border-border/90 border-t-4 bg-card px-4 py-5 text-center shadow-sm transition hover:border-border hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600',
                   meta.border,
                 )}
               >
@@ -92,10 +92,10 @@ export function WorkflowCards() {
                 >
                   <Icon className="h-6 w-6" />
                 </span>
-                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span className="text-sm font-semibold text-foreground dark:text-slate-100">
                   {workflow.title}
                 </span>
-                <span className="mt-1 text-xs text-slate-500 group-hover:text-primary dark:text-slate-400 dark:group-hover:text-slate-300">
+                <span className="mt-1 text-xs text-muted-foreground group-hover:text-primary dark:text-muted-foreground dark:group-hover:text-slate-300">
                   Click to view
                 </span>
               </button>
@@ -105,7 +105,7 @@ export function WorkflowCards() {
       </section>
 
       <Dialog open={!!active} onOpenChange={(open) => !open && setActive(null)}>
-        <DialogContent className="max-w-3xl border-slate-200 dark:border-slate-700">
+        <DialogContent className="max-w-3xl border-border dark:border-slate-700">
           {active && (
             <>
               <DialogHeader>

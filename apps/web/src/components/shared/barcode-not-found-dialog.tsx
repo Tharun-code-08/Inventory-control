@@ -211,12 +211,12 @@ export function BarcodeNotFoundDialog({
             {policy === 'REJECT' ? 'Barcode Blocked' : 'Barcode Not Registered'}
           </DialogTitle>
           <DialogDescription>
-            Scanned code: <span className="font-mono font-semibold text-slate-800 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-150">{barcode}</span>
+            Scanned code: <span className="font-mono font-semibold text-foreground bg-muted px-1.5 py-0.5 rounded border border-slate-150">{barcode}</span>
           </DialogDescription>
         </DialogHeader>
 
         {error && (
-          <div className="text-xs font-medium text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-100">
+          <div className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-2.5 rounded-lg border border-red-100 dark:border-red-500/20">
             {error}
           </div>
         )}
@@ -224,7 +224,7 @@ export function BarcodeNotFoundDialog({
         {/* ── POLICY: REJECT ── */}
         {policy === 'REJECT' && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               This barcode is not registered. Registration of unknown barcodes is disabled by company policy settings.
             </p>
             <div className="flex justify-end pt-2">
@@ -250,7 +250,7 @@ export function BarcodeNotFoundDialog({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                   onClick={handleMarkInvalid}
                   disabled={busy}
                 >
@@ -280,9 +280,9 @@ export function BarcodeNotFoundDialog({
                     autoComplete="off"
                     autoFocus
                   />
-                  <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-1 bg-white">
+                  <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-1 bg-card">
                     {matches.length === 0 ? (
-                      <p className="px-2 py-3 text-center text-xs text-slate-400">No products match.</p>
+                      <p className="px-2 py-3 text-center text-xs text-muted-foreground">No products match.</p>
                     ) : (
                       matches.map((p) => (
                         <button
@@ -290,12 +290,12 @@ export function BarcodeNotFoundDialog({
                           type="button"
                           onClick={() => setSelectedId(p.id)}
                           className={cn(
-                            'flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-slate-50',
+                            'flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted',
                             selectedId === p.id ? 'bg-primary/5 ring-1 ring-primary' : ''
                           )}
                         >
-                          <span className="font-mono text-[10px] text-slate-500 font-semibold">{p.productCode}</span>
-                          <span className="truncate text-slate-800">{p.description}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground font-semibold">{p.productCode}</span>
+                          <span className="truncate text-foreground">{p.description}</span>
                         </button>
                       ))
                     )}

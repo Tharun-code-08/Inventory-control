@@ -454,7 +454,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
         <KpiCard label="Expired" value={stats?.expired ?? 0} accent="bg-amber-500" icon={<Truck className="h-5 w-5" />} />
       </div>
 
-      <div className="mb-3 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-fit">
+      <div className="mb-3 flex gap-1 rounded-xl border border-border bg-card p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-fit">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -464,7 +464,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
               'rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ' +
               (tab === t.key
                 ? 'bg-primary text-primary-foreground'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')
+                : 'text-muted-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-slate-800')
             }
           >
             {t.label}
@@ -558,7 +558,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
                 {active.status === 'CANCELLED' && active.cancelReason && (
                   <div>
                     <dt className="mb-1 text-muted-foreground">Cancellation reason</dt>
-                    <dd className="rounded-lg bg-red-50 p-3 text-red-700 dark:bg-red-950/40 dark:text-red-300">{active.cancelReason}</dd>
+                    <dd className="rounded-lg bg-red-50 dark:bg-red-500/10 p-3 text-red-700 dark:text-red-300 dark:bg-red-950/40 dark:text-red-300">{active.cancelReason}</dd>
                   </div>
                 )}
               </dl>
@@ -571,7 +571,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
               )}
 
               {active.status === 'GENERATED' && (
-                <div className="mt-auto space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                <div className="mt-auto space-y-3 border-t border-border pt-4 dark:border-slate-800">
                   <Button
                     className="w-full"
                     onClick={handleDownloadPdf}
@@ -587,7 +587,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
                   />
                   <Button
                     variant="outline"
-                    className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400"
+                    className="w-full border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:border-red-900 dark:text-red-400"
                     onClick={handleCancel}
                     disabled={cancelBill.isPending}
                   >

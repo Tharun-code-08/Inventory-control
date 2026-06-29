@@ -45,7 +45,7 @@ export function SupplierDeleteConfirmPage() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="flex items-center gap-2.5">
           <span className="text-sm font-bold text-white">SoftdigitIMS</span>
@@ -54,26 +54,26 @@ export function SupplierDeleteConfirmPage() {
       </header>
 
       <main className="mx-auto max-w-md px-4 py-12">
-        <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm text-center">
+        <div className="rounded-xl border border-border bg-card p-8 shadow-sm text-center">
           {state === 'loading' && (
             <>
               <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-slate-200" />
-              <p className="text-slate-600">Confirming deletion…</p>
+              <p className="text-muted-foreground">Confirming deletion…</p>
             </>
           )}
 
           {state === 'success' && result && (
             <>
-              <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
-              <h1 className="text-xl font-semibold text-slate-900">
+              <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600 dark:text-emerald-400" />
+              <h1 className="text-xl font-semibold text-foreground">
                 {result.alreadyDeleted ? 'Already deleted' : 'Deleted successfully'}
               </h1>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-muted-foreground">
                 <span className="font-medium">{result.supplierName}</span>
-                <span className="text-slate-400"> ({result.supplierCode})</span>
+                <span className="text-muted-foreground"> ({result.supplierCode})</span>
               </p>
-              <p className="mt-4 text-sm text-slate-500">{result.message}</p>
-              <p className="mt-4 text-xs text-slate-400">
+              <p className="mt-4 text-sm text-muted-foreground">{result.message}</p>
+              <p className="mt-4 text-xs text-muted-foreground">
                 RFQs, purchase orders, and other records keep their historical supplier name.
               </p>
             </>
@@ -82,9 +82,9 @@ export function SupplierDeleteConfirmPage() {
           {state === 'error' && (
             <>
               <XCircle className="mx-auto mb-4 h-14 w-14 text-destructive" />
-              <h1 className="text-xl font-semibold text-slate-900">Confirmation failed</h1>
+              <h1 className="text-xl font-semibold text-foreground">Confirmation failed</h1>
               <p className="mt-3 text-sm text-destructive">{error}</p>
-              <p className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+              <p className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <ShieldAlert className="h-4 w-4" />
                 Request a new link from the Suppliers page.
               </p>

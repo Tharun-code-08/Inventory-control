@@ -175,7 +175,7 @@ export function InviteAcceptPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="flex items-center gap-2.5">
           <span className="text-sm font-bold text-white">SoftdigitIMS</span>
@@ -189,11 +189,11 @@ export function InviteAcceptPage() {
             <CardTitle>Accept your invitation</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state === 'loading' && <p className="text-sm text-slate-600">Loading invitation…</p>}
+            {state === 'loading' && <p className="text-sm text-muted-foreground">Loading invitation…</p>}
             {state === 'error' && (
               <>
                 <p className="text-sm text-destructive">{error}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Need a new link? Ask your administrator to resend your invitation.
                 </p>
               </>
@@ -201,7 +201,7 @@ export function InviteAcceptPage() {
 
             {state === 'ready' && preview && (
               <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="rounded-md bg-muted p-3 text-sm text-foreground">
                   <p className="font-medium">{preview.companyName ?? 'SoftdigitIMS'}</p>
                   <p className="mt-1">Role: {preview.roleName}</p>
                   {preview.shopName && <p>Shop: {preview.shopName}</p>}
@@ -235,7 +235,7 @@ export function InviteAcceptPage() {
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? 'Creating account…' : 'Accept and continue'}
                 </Button>
-                <p className="text-xs text-slate-500 text-center">
+                <p className="text-xs text-muted-foreground text-center">
                   Already have an account? <Link to="/login" className="text-primary">Sign in</Link>
                 </p>
               </form>

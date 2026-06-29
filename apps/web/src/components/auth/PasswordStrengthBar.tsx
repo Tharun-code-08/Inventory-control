@@ -11,7 +11,7 @@ function passwordStrength(password: string) {
 
 const labels = ['', 'Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
 const colors = ['', 'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-blue-500', 'bg-green-500', 'bg-emerald-600'];
-const textColors = ['', 'text-red-500', 'text-orange-500', 'text-amber-500', 'text-blue-500', 'text-green-600', 'text-emerald-600'];
+const textColors = ['', 'text-red-500', 'text-orange-500', 'text-amber-500', 'text-blue-500', 'text-green-600 dark:text-green-400', 'text-emerald-600 dark:text-emerald-400'];
 
 export function PasswordStrengthBar({ password }: { password: string }) {
   const score = passwordStrength(password);

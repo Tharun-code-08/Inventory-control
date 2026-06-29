@@ -320,7 +320,7 @@ function ProfileTab() {
                         className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-left transition ${
                           active
                             ? 'border-primary bg-accent'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                            : 'border-border bg-card hover:bg-muted'
                         }`}
                         title={`Use ${kind} avatar`}
                       >
@@ -329,7 +329,7 @@ function ProfileTab() {
                             {a.emoji}
                           </span>
                         </span>
-                        <span className="text-xs capitalize text-slate-700">{kind}</span>
+                        <span className="text-xs capitalize text-foreground">{kind}</span>
                       </button>
                     );
                   })}
@@ -834,7 +834,7 @@ function UsersTab() {
                         className="h-8 w-8 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
                         {initialsForUser(u.name)}
                       </div>
                     )}
@@ -1225,11 +1225,11 @@ function BrandingTab() {
   return (
     <div className="space-y-6">
       {/* Branding Health Status */}
-      <Card className={isHealthy ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}>
+      <Card className={isHealthy ? 'border-green-200 dark:border-green-500/30 bg-green-50/50' : 'border-amber-200 dark:border-amber-500/30 bg-amber-50/50'}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Branding Status</span>
-            <span className={`text-sm font-semibold ${isHealthy ? 'text-green-700' : 'text-amber-700'}`}>
+            <span className={`text-sm font-semibold ${isHealthy ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
               {isHealthy ? '● Complete' : `⚠ ${healthStatus?.score || 0}%`}
             </span>
           </CardTitle>
@@ -1238,14 +1238,14 @@ function BrandingTab() {
           {healthStatus?.missing && healthStatus.missing.length > 0 && (
             <div className="space-y-2">
               {healthStatus.missing.map((item: string) => (
-                <div key={item} className="flex items-center text-sm text-amber-700">
+                <div key={item} className="flex items-center text-sm text-amber-700 dark:text-amber-300">
                   <span className="mr-2">⚠</span>
                   <span>Missing: {item}</span>
                 </div>
               ))}
             </div>
           )}
-          {isHealthy && <p className="text-sm text-green-700">✓ All branding fields are complete</p>}
+          {isHealthy && <p className="text-sm text-green-700 dark:text-green-300">✓ All branding fields are complete</p>}
         </CardContent>
       </Card>
 
@@ -1259,7 +1259,7 @@ function BrandingTab() {
           <div className="space-y-2">
             <Label className="text-base font-semibold">Logo</Label>
             <div className="flex items-end gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-slate-200 bg-slate-50">
+              <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-border bg-muted">
                 {companyLogoPreview || companyBranding.data?.profile?.logoUrl ? (
                   <img
                     src={companyLogoPreview ?? companyBranding.data?.profile?.logoUrl}
@@ -1267,7 +1267,7 @@ function BrandingTab() {
                     className="h-16 w-16 object-contain"
                   />
                 ) : (
-                  <span className="text-xs text-slate-400">Logo</span>
+                  <span className="text-xs text-muted-foreground">Logo</span>
                 )}
               </div>
               <div className="flex-1 space-y-2">
@@ -1276,7 +1276,7 @@ function BrandingTab() {
                   accept="image/png,image/jpeg,image/webp"
                   onChange={(e) => setCompanyLogoFile(e.target.files?.[0] ?? null)}
                 />
-                <p className="text-xs text-slate-500">PNG, JPG, WebP. Max 5MB</p>
+                <p className="text-xs text-muted-foreground">PNG, JPG, WebP. Max 5MB</p>
               </div>
             </div>
           </div>
@@ -1470,14 +1470,14 @@ function BrandingTab() {
           </div>
 
           {shopUseCompanyBranding ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
               <p>This shop uses company-wide branding settings.</p>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Any changes to company branding above will automatically apply to this shop.
               </p>
             </div>
           ) : (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+            <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 text-sm text-blue-700 dark:text-blue-300">
               <p>⚠ Custom branding for this shop coming soon</p>
             </div>
           )}
@@ -1621,7 +1621,7 @@ export function SettingsPage() {
           }}
           className="space-y-4"
         >
-          <TabsList className="h-auto w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-2">
+          <TabsList className="h-auto w-full flex-wrap gap-1.5 rounded-2xl border border-border bg-card p-2">
             <TabsTrigger value="profile" className="gap-1.5">
               <UserIcon className="h-3.5 w-3.5" />
               Profile

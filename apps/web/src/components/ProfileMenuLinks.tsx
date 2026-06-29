@@ -15,13 +15,13 @@ export function ProfileMenuLinks({
 }: ProfileMenuLinksProps) {
   const itemClass =
     variant === 'sidebar'
-      ? 'flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-      : 'flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800';
+      ? 'flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted hover:text-foreground'
+      : 'flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted dark:text-slate-200 dark:hover:bg-slate-800';
 
   const logoutClass = cn(
     itemClass,
     variant === 'sidebar'
-      ? 'text-rose-600 hover:bg-rose-500/10 hover:text-rose-700'
+      ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 hover:text-rose-700'
       : 'text-destructive hover:bg-destructive/10',
   );
 

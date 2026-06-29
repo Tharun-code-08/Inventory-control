@@ -98,16 +98,16 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
+        </span>
       </CardContent>
     </Card>
   );
@@ -116,13 +116,13 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 function PlantStatusBadge({ active }: { active: boolean }) {
   if (!active) {
     return (
-      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
         Inactive
       </span>
     );
   }
   return (
-    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+    <span className="rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
       Active
     </span>
   );
@@ -164,7 +164,7 @@ function PlantFormFields({
               }))
             }
           />
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Letters, numbers, hyphens, and underscores only. Spaces are removed automatically.
           </p>
         </div>
@@ -201,7 +201,7 @@ function PlantFormFields({
       </div>
 
       {showStorageLocations && (
-        <div className="space-y-3 border-t border-slate-100 pt-4">
+        <div className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <Label>Storage Locations (optional)</Label>
             <Button
@@ -319,7 +319,7 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
   const activeLocations = locations.filter((l) => l.isActive);
 
   return (
-    <Card className="flex flex-col border-slate-200/90 shadow-sm">
+    <Card className="flex flex-col border-border/90 shadow-sm">
       <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -327,8 +327,8 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
               <Warehouse className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-slate-900">{plant.shopName}</p>
-              <span className="mt-1 inline-block rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600">
+              <p className="truncate font-semibold text-foreground">{plant.shopName}</p>
+              <span className="mt-1 inline-block rounded border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                 {plant.shopNumber}
               </span>
             </div>
@@ -336,33 +336,33 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
           <PlantStatusBadge active={plant.isActive} />
         </div>
 
-        <div className="mt-4 space-y-1 text-sm text-slate-600">
-          {plant.contactPerson ? <p className="font-medium text-slate-700">{plant.contactPerson}</p> : null}
+        <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+          {plant.contactPerson ? <p className="font-medium text-foreground">{plant.contactPerson}</p> : null}
           <p className="leading-relaxed">{plant.address}</p>
           {(plant.mobile || plant.email) && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {[plant.mobile, plant.email].filter(Boolean).join(' · ')}
             </p>
           )}
         </div>
 
         <div className="mt-4 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Storage Locations ({activeLocations.length})
           </p>
           {activeLocations.length === 0 ? (
-            <p className="mt-2 text-xs text-slate-400">No storage locations yet</p>
+            <p className="mt-2 text-xs text-muted-foreground">No storage locations yet</p>
           ) : (
             <ul className="mt-2 max-h-36 space-y-2 overflow-y-auto">
               {activeLocations.map((loc) => (
                 <li key={loc.id} className="flex gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800">
+                    <p className="font-medium text-foreground">
                       {loc.code} — {loc.name}
                     </p>
                     {loc.description ? (
-                      <p className="text-xs text-slate-500">{loc.description}</p>
+                      <p className="text-xs text-muted-foreground">{loc.description}</p>
                     ) : null}
                   </div>
                 </li>
@@ -371,12 +371,12 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-1 border-t border-slate-100 pt-3">
+        <div className="mt-4 flex items-center justify-end gap-1 border-t border-border pt-3">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-slate-500"
+            className="h-8 w-8 text-muted-foreground"
             aria-label="Edit plant"
             onClick={onEdit}
           >
@@ -386,7 +386,7 @@ function PlantCard({ plant, locations, onEdit, onDelete }: PlantCardProps) {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+            className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
             aria-label="Delete plant"
             onClick={onDelete}
           >
@@ -540,13 +540,13 @@ function PlantsListView() {
           label="Active"
           value={stats.active}
           accent="bg-emerald-500"
-          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
         />
         <KpiCard
           label="Storage Locations"
           value={stats.storageLocations}
           accent="bg-sky-500"
-          icon={<MapPin className="h-5 w-5 text-sky-600" />}
+          icon={<MapPin className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
         />
       </div>
 
@@ -557,11 +557,11 @@ function PlantsListView() {
           ))}
         </div>
       ) : plants.length === 0 ? (
-        <Card className="border-dashed border-slate-200">
+        <Card className="border-dashed border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Warehouse className="mb-3 h-12 w-12 text-slate-300" />
-            <p className="font-medium text-slate-700">No plants yet</p>
-            <p className="mt-1 text-sm text-slate-500">Add your first plant and storage locations.</p>
+            <p className="font-medium text-foreground">No plants yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">Add your first plant and storage locations.</p>
             <Button className="mt-4" onClick={() => navigate('/plants/new')}>
               <Plus className="mr-2 h-4 w-4" />
               Add Plant
@@ -620,7 +620,7 @@ function PlantsListView() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full text-amber-700 hover:bg-amber-50"
+                className="w-full text-amber-700 dark:text-amber-300 hover:bg-amber-50"
                 onClick={() => {
                   setSheetOpen(false);
                   setDeactivateTarget(editingPlant);

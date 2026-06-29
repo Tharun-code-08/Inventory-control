@@ -25,12 +25,12 @@ export default function Error({
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
         <AlertTriangle className="h-5 w-5" aria-hidden />
       </span>
-      <p className="max-w-md text-sm font-medium text-slate-700">{message}</p>
+      <p className="max-w-md text-sm font-medium text-foreground">{message}</p>
       {onRetry ? (
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          className="rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground transition hover:bg-muted"
         >
           Try again
         </button>

@@ -108,9 +108,9 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
         {!createOnly && <Card className="surface-1 border-white/10">
           <CardHeader><CardTitle>Receivables Aging</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-slate-400">Current</p><p className="text-lg font-semibold text-slate-100">{aging.current.toFixed(2)}</p></div>
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-slate-400">1-30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdue30.toFixed(2)}</p></div>
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-slate-400">{'>'}30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdueMore.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">Current</p><p className="text-lg font-semibold text-slate-100">{aging.current.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">1-30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdue30.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">{'>'}30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdueMore.toFixed(2)}</p></div>
           </CardContent>
         </Card>}
 

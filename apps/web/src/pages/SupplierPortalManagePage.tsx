@@ -56,7 +56,7 @@ export function SupplierPortalManagePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-muted-foreground">
                 Send this link when you distribute an RFQ. Suppliers enter their registered email
                 and company name, review line items, and submit pricing.
               </p>
@@ -89,11 +89,11 @@ export function SupplierPortalManagePage() {
                 </Button>
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="rounded-xl border border-border bg-muted/80 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   How it works
                 </p>
-                <ol className="list-decimal space-y-2 pl-4 text-sm text-slate-600">
+                <ol className="list-decimal space-y-2 pl-4 text-sm text-muted-foreground">
                   <li>Share the portal link when you send an RFQ.</li>
                   <li>Supplier verifies email and company name against your master data.</li>
                   <li>They review RFQ line items and specifications.</li>
@@ -126,9 +126,9 @@ export function SupplierPortalManagePage() {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-medium text-slate-800">Active</span>
+                  <span className="text-sm font-medium text-foreground">Active</span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-muted-foreground">
                   External suppliers can submit quotes on posted RFQs they are invited to.
                 </p>
               </CardContent>
@@ -145,7 +145,7 @@ export function SupplierPortalManagePage() {
                 ].map((tip) => (
                   <p
                     key={tip}
-                    className="rounded-lg border border-slate-100 bg-white px-3 py-2 text-xs text-slate-600"
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground"
                   >
                     {tip}
                   </p>

@@ -257,7 +257,7 @@ export function SenderEmailPreferencesPanel() {
           </div>
 
           {primaryPublicGmail ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-950">
               <p className="font-medium">Gmail daily sending limit</p>
               <p className="mt-1">
                 Your primary sender uses Gmail. Free Gmail accounts are limited to about 500 emails per day. Enable Google
@@ -275,9 +275,9 @@ export function SenderEmailPreferencesPanel() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {domain.status === 'VERIFIED' ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       ) : (
-                        <XCircle className="h-4 w-4 text-amber-600" />
+                        <XCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                       )}
                       <span className="font-medium">{domain.domain}</span>
                       {statusBadge(domain.status)}
@@ -364,7 +364,7 @@ export function SenderEmailPreferencesPanel() {
                           ) : (
                             <button
                               type="button"
-                              className="text-amber-700 underline-offset-2 hover:underline"
+                              className="text-amber-700 dark:text-amber-300 underline-offset-2 hover:underline"
                               onClick={() => resendVerification(sender)}
                             >
                               Unverified (Resend Email)

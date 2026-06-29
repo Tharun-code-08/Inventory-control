@@ -1,23 +1,23 @@
 import { cn } from '@/lib/cn';
 
 const variants: Record<string, string> = {
-  DRAFT: 'border border-amber-300 bg-amber-100 text-amber-800',
-  POSTED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  CONFIRMED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  ACTIVE: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  COMPLETED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  FULLY_RECEIVED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  PARTIALLY_RECEIVED: 'border border-sky-200 bg-sky-50 text-sky-800',
-  SENT: 'border border-sky-200 bg-sky-50 text-sky-800',
-  PAID: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  PENDING: 'border border-amber-300 bg-amber-100 text-amber-800',
-  OPEN: 'border border-sky-200 bg-sky-50 text-sky-800',
-  CLOSED: 'border border-slate-300 bg-slate-100 text-slate-600',
-  APPROVED: 'border border-emerald-300 bg-emerald-100 text-emerald-800',
-  INACTIVE: 'border border-slate-300 bg-slate-100 text-slate-600',
-  DEACTIVE: 'border border-rose-300 bg-rose-100 text-rose-800',
-  DEACTIVATED: 'border border-rose-300 bg-rose-100 text-rose-800',
-  CANCELLED: 'border border-slate-300 bg-slate-100 text-slate-700',
+  DRAFT: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  POSTED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  CONFIRMED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  ACTIVE: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  COMPLETED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  FULLY_RECEIVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  PARTIALLY_RECEIVED: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
+  SENT: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
+  PAID: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  PENDING: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  OPEN: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
+  CLOSED: 'border border-border bg-muted text-muted-foreground',
+  APPROVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  INACTIVE: 'border border-border bg-muted text-muted-foreground',
+  DEACTIVE: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300',
+  DEACTIVATED: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300',
+  CANCELLED: 'border border-border bg-muted text-foreground',
 };
 
 function formatStatusLabel(status: string): string {
@@ -26,7 +26,7 @@ function formatStatusLabel(status: string): string {
 
 export function StatusBadge({ status, compact }: { status: string; compact?: boolean }) {
   const key = status?.toUpperCase?.() ?? status;
-  const cls = variants[key] ?? 'border border-slate-200 bg-slate-50 text-slate-700';
+  const cls = variants[key] ?? 'border border-border bg-muted text-foreground';
   const label = formatStatusLabel(status);
 
   return (

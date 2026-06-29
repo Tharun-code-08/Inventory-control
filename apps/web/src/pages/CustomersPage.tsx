@@ -101,10 +101,10 @@ function customerInitials(name: string): string {
 function avatarColor(name: string): string {
   const hues = [
     'bg-muted text-primary',
-    'bg-sky-100 text-sky-800',
-    'bg-violet-100 text-violet-800',
-    'bg-emerald-100 text-emerald-800',
-    'bg-amber-100 text-amber-800',
+    'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-300',
+    'bg-violet-100 dark:bg-violet-500/15 text-violet-800 dark:text-violet-300',
+    'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+    'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300',
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + hash * 31;
@@ -138,15 +138,15 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        </span>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -269,7 +269,7 @@ function CustomerFormFields({
               setForm((p) => ({ ...p, postalCode: normalizePostalCodeInput(e.target.value) }))
             }
           />
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             {postalLookup.isFetching
               ? 'Fetching city from postal code...'
               : postalLookup.data
@@ -569,11 +569,11 @@ function CustomersListView() {
           label="Active"
           value={stats.active}
           accent="bg-emerald-500"
-          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
         />
       </div>
 
-      <Card className="border-slate-200/90 shadow-sm">
+      <Card className="border-border/90 shadow-sm">
         <CardContent className="space-y-4 p-4 pt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <SearchInput
@@ -626,7 +626,7 @@ function CustomersListView() {
             ) : (
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/80">
+                <TableRow className="bg-muted/80">
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">
                     Customer
                   </TableHead>
@@ -658,7 +658,7 @@ function CustomersListView() {
               </TableHeader>
               <TableBody>
                 {filtered.map((c) => (
-                    <TableRow key={c.id} className="hover:bg-slate-50/50">
+                    <TableRow key={c.id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <span
@@ -669,26 +669,26 @@ function CustomersListView() {
                           >
                             {customerInitials(c.customerName)}
                           </span>
-                          <span className="font-medium text-slate-900">{c.customerName}</span>
+                          <span className="font-medium text-foreground">{c.customerName}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">{c.customerCode}</TableCell>
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="text-sm text-muted-foreground">{c.customerCode}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
                         {c.city || c.state || '—'}
                       </TableCell>
-                      <TableCell className="max-w-[180px] truncate text-sm text-slate-600">
+                      <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
                         {c.email || '—'}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">{c.phone || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-600">{c.taxId || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-600">{c.pan || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{c.phone || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{c.taxId || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{c.pan || '—'}</TableCell>
                       <TableCell>
                         <span
                           className={cn(
                             'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
                             c.isActive
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-600',
+                              ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-muted text-muted-foreground',
                           )}
                         >
                           {c.isActive ? 'Active' : 'Inactive'}
@@ -779,33 +779,33 @@ function CustomersListView() {
           {viewing && (
             <dl className="mt-6 space-y-3 text-sm">
               <div>
-                <dt className="text-slate-500">Email</dt>
+                <dt className="text-muted-foreground">Email</dt>
                 <dd>{viewing.email || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Phone</dt>
+                <dt className="text-muted-foreground">Phone</dt>
                 <dd>{viewing.phone || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">GSTIN</dt>
+                <dt className="text-muted-foreground">GSTIN</dt>
                 <dd>{viewing.taxId || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">PAN</dt>
+                <dt className="text-muted-foreground">PAN</dt>
                 <dd>{viewing.pan || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Location</dt>
+                <dt className="text-muted-foreground">Location</dt>
                 <dd>
                   {[viewing.city, viewing.state].filter(Boolean).join(', ') || '—'}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Postal code</dt>
+                <dt className="text-muted-foreground">Postal code</dt>
                 <dd>{viewing.postalCode || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Status</dt>
+                <dt className="text-muted-foreground">Status</dt>
                 <dd>{viewing.isActive ? 'Active' : 'Inactive'}</dd>
               </div>
             </dl>

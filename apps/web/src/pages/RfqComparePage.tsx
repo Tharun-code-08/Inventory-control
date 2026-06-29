@@ -54,16 +54,16 @@ type SummaryCardProps = {
 
 function SummaryCard({ title, value, sub, accent, icon }: SummaryCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
+    <Card className="overflow-hidden border-border/90 shadow-sm">
       <CardContent className="flex items-center gap-3 p-4">
         <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
           {icon}
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
-          <p className="truncate text-lg font-semibold text-slate-900">{value}</p>
-          <p className="truncate text-xs text-slate-500">{sub}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+          <p className="truncate text-lg font-semibold text-foreground">{value}</p>
+          <p className="truncate text-xs text-muted-foreground">{sub}</p>
         </div>
       </CardContent>
     </Card>
@@ -193,7 +193,7 @@ export function RfqComparePage() {
   if (isError || !rfq) {
     return (
       <AppLayout active="RFQs">
-        <p className="text-slate-600">RFQ not found.</p>
+        <p className="text-muted-foreground">RFQ not found.</p>
         <Button variant="link" onClick={() => navigate('/rfqs')}>
           Back to RFQs
         </Button>
@@ -208,7 +208,7 @@ export function RfqComparePage() {
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 text-slate-600"
+            className="-ml-2 text-muted-foreground"
             onClick={() => navigate(`/rfqs/${id}`)}
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
@@ -219,7 +219,7 @@ export function RfqComparePage() {
 
         {bids.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center text-sm text-slate-500">
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
               No submitted supplier quotes yet. Share the portal link and wait for responses.
               <div className="mt-4">
                 <Button variant="outline" asChild>
@@ -237,14 +237,14 @@ export function RfqComparePage() {
                   value={summary.top.supplierName}
                   sub={`Score: ${summary.top.weightedScore}`}
                   accent="bg-emerald-500"
-                  icon={<Trophy className="h-5 w-5 text-emerald-600" />}
+                  icon={<Trophy className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
                 />
                 <SummaryCard
                   title="Lowest price"
                   value={formatInr(summary.lowest.totalPrice)}
                   sub={summary.lowest.supplierName}
                   accent="bg-sky-500"
-                  icon={<Star className="h-5 w-5 text-sky-600" />}
+                  icon={<Star className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
                 />
                 <SummaryCard
                   title="Fastest delivery"
@@ -262,7 +262,7 @@ export function RfqComparePage() {
                   value={String(summary.totalBids)}
                   sub={`${summary.activeBids} active`}
                   accent="bg-amber-500"
-                  icon={<Award className="h-5 w-5 text-amber-600" />}
+                  icon={<Award className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
                 />
               </div>
             )}
@@ -286,11 +286,11 @@ export function RfqComparePage() {
                   <span className="rounded-lg border-2 border-border bg-muted px-4 py-2 text-sm font-semibold text-primary">
                     Price: {priceWeight}%
                   </span>
-                  <span className="rounded-lg border-2 border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
+                  <span className="rounded-lg border-2 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-900">
                     Lead time: {leadWeight}%
                   </span>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Weighted score = price score × {priceWeight}% + lead time score × {leadWeight}%.
                   Best price and fastest delivery each earn up to 100 points.
                 </p>
@@ -304,7 +304,7 @@ export function RfqComparePage() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/80">
+                    <TableRow className="bg-muted/80">
                       <TableHead className="text-xs uppercase">Rank</TableHead>
                       <TableHead className="text-xs uppercase">Supplier</TableHead>
                       <TableHead className="text-xs uppercase">Total price</TableHead>
@@ -346,25 +346,25 @@ export function RfqComparePage() {
                           <TableCell>
                             <p className="font-semibold">{row.supplierName}</p>
                             {row.email && (
-                              <p className="text-xs text-slate-500">{row.email}</p>
+                              <p className="text-xs text-muted-foreground">{row.email}</p>
                             )}
                           </TableCell>
                           <TableCell
                             className={cn(
                               'font-medium tabular-nums',
-                              lowestPrice && 'text-emerald-700',
+                              lowestPrice && 'text-emerald-700 dark:text-emerald-300',
                             )}
                           >
                             {formatInr(row.totalPrice)}
                           </TableCell>
                           <TableCell className="text-primary">{leadDisplay}</TableCell>
                           <TableCell className="text-center">
-                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-white px-2 py-0.5 text-xs font-medium tabular-nums">
+                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
                               {row.priceScore}
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-white px-2 py-0.5 text-xs font-medium tabular-nums">
+                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
                               {row.leadTimeScore}
                             </span>
                           </TableCell>
@@ -381,7 +381,7 @@ export function RfqComparePage() {
                           <TableCell>
                             {isAwarded || hasAllocation ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-white">
-                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-card" />
                                 Selected
                               </span>
                             ) : isPicked ? (
@@ -416,20 +416,20 @@ export function RfqComparePage() {
               <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-base">Product-wise comparison & allocation</CardTitle>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Allocate quantities across suppliers. Total allocated:{' '}
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-semibold text-foreground">
                       {grandAllocatedQty.allocated} / {grandAllocatedQty.required}
                     </span>
                   </p>
                   {allocationPlans.length > 0 ? (
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {allocationPlans.length} supplier{allocationPlans.length === 1 ? '' : 's'} currently have saved allocation-ready quantities.
                       Create the PO from the RFQ page after saving.
                     </p>
                   ) : selectedQuote ? (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Focused supplier: <span className="font-semibold text-slate-800">{selectedQuote.supplier?.supplierName}</span>.
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Focused supplier: <span className="font-semibold text-foreground">{selectedQuote.supplier?.supplierName}</span>.
                     </p>
                   ) : null}
                 </div>
@@ -443,7 +443,7 @@ export function RfqComparePage() {
               <CardContent className="overflow-x-auto p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/80">
+                    <TableRow className="bg-muted/80">
                       <TableHead className="min-w-[140px] text-xs uppercase">Product</TableHead>
                       <TableHead className="text-xs uppercase">Required qty</TableHead>
                       {bids.map((quote) => {
@@ -453,13 +453,13 @@ export function RfqComparePage() {
                           pickedQuoteId === quote.id || awardedQuoteIds.has(quote.id);
                         return (
                           <TableHead key={quote.id} className="min-w-[160px] text-center">
-                            <p className="font-semibold text-slate-900">
+                            <p className="font-semibold text-foreground">
                               {quote.supplier?.supplierName}
                             </p>
-                            <p className="mt-0.5 text-[10px] font-medium uppercase text-slate-500">
+                            <p className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                               Lead: {lead != null ? `${lead}d` : '—'}
                             </p>
-                            <p className="text-xs text-slate-600">
+                            <p className="text-xs text-muted-foreground">
                               {formatInr(score?.totalPrice ?? 0)}
                             </p>
                             {isSel && (
@@ -491,7 +491,7 @@ export function RfqComparePage() {
                           <TableCell>
                             <p className="font-medium">{productLabel}</p>
                             {productSub && (
-                              <p className="text-xs text-slate-500">{productSub}</p>
+                              <p className="text-xs text-muted-foreground">{productSub}</p>
                             )}
                           </TableCell>
                           <TableCell>
@@ -506,7 +506,7 @@ export function RfqComparePage() {
                             const overQuoted = numericVal > quotedQty && quotedQty > 0;
                             return (
                               <TableCell key={quote.id} className="align-top">
-                                <p className="mb-1.5 text-center text-xs font-medium text-slate-600">
+                                <p className="mb-1.5 text-center text-xs font-medium text-muted-foreground">
                                   {unit > 0 ? `${formatInr(unit)} / unit` : '—'}
                                 </p>
                                 <Input
@@ -519,11 +519,11 @@ export function RfqComparePage() {
                                     setAllocation(rfqItem.id, quote.id, e.target.value)
                                   }
                                 />
-                                <p className="mt-1 text-center text-[10px] text-slate-500">
+                                <p className="mt-1 text-center text-[10px] text-muted-foreground">
                                   Quoted: {quotedQty || 0}
                                 </p>
                                 {overQuoted ? (
-                                  <p className="mt-1 text-center text-[10px] font-medium text-red-600">
+                                  <p className="mt-1 text-center text-[10px] font-medium text-red-600 dark:text-red-400">
                                     Exceeds quoted qty
                                   </p>
                                 ) : null}
@@ -536,16 +536,16 @@ export function RfqComparePage() {
                                 className={cn(
                                   'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums',
                                   over
-                                    ? 'bg-red-100 text-red-800'
+                                    ? 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300'
                                     : rowTotal === required
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-slate-100 text-slate-700',
+                                      ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-muted text-foreground',
                                 )}
                               >
                                 {rowTotal} / {required}
                               </span>
                               {over ? (
-                                <p className="text-[10px] font-medium text-red-600">
+                                <p className="text-[10px] font-medium text-red-600 dark:text-red-400">
                                   Over-allocated: {rowTotal - required}
                                 </p>
                               ) : null}
@@ -554,7 +554,7 @@ export function RfqComparePage() {
                         </TableRow>
                       );
                     })}
-                    <TableRow className="bg-slate-50/60 font-medium">
+                    <TableRow className="bg-muted/60 font-medium">
                       <TableCell colSpan={2}>Allocated cost</TableCell>
                       {bids.map((quote) => (
                         <TableCell key={quote.id} className="text-center tabular-nums">

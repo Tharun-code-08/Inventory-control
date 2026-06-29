@@ -133,7 +133,7 @@ export function DashboardInsightsPanel({
               value={ctx.pendingPurchaseOrders}
               hint="Confirmed POs awaiting receipt"
               icon={ClipboardList}
-              iconClassName="text-blue-600"
+              iconClassName="text-blue-600 dark:text-blue-400"
               iconWrapClassName="bg-blue-500/15 border border-blue-400/20"
               onClick={() => navigate('/purchase-orders')}
             />
@@ -142,7 +142,7 @@ export function DashboardInsightsPanel({
               value={ctx.pendingSalesOrders}
               hint="Confirmed orders not yet fulfilled"
               icon={ShoppingCart}
-              iconClassName="text-violet-600"
+              iconClassName="text-violet-600 dark:text-violet-400"
               iconWrapClassName="bg-violet-500/15 border border-violet-400/20"
               onClick={() => navigate('/sales')}
             />

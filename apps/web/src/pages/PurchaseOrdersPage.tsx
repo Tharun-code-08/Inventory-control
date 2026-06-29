@@ -1765,7 +1765,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         }
       >
         {!canAddLineItems && lineItemsHint && (
-          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="mb-3 rounded-md border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
             {lineItemsHint}
           </div>
         )}
@@ -2229,7 +2229,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               </TableHeader>
               <AnimatedTableBody pageKey={page}>
                 {filteredPoList.map((po) => (
-                  <TableRow key={po.id} className="hover:bg-slate-50/80">
+                  <TableRow key={po.id} className="hover:bg-muted/80">
                     <TableCell className="max-w-[200px] truncate font-medium font-mono text-[11px]">
                       <button
                         type="button"
@@ -2252,7 +2252,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                             1,
                             Math.ceil((today.getTime() - poDate.getTime()) / (1000 * 60 * 60 * 24)),
                           );
-                          return <span className="text-[10px] text-amber-700">Overdue by {diffDays} day(s)</span>;
+                          return <span className="text-[10px] text-amber-700 dark:text-amber-300">Overdue by {diffDays} day(s)</span>;
                         })()}
                       </div>
                     </TableCell>
@@ -2400,7 +2400,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-emerald-200 text-emerald-800"
+                    className="border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
                     onClick={() => handleDownloadPoPdf(detailPO)}
                   >
                     <Download className="mr-2 h-4 w-4" />

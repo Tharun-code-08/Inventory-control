@@ -200,12 +200,12 @@ function PreviewBarcodeLabel({
 
   return (
     <div
-      className="flex flex-col items-center justify-center text-center p-1 bg-white border border-dashed border-slate-300 overflow-hidden box-border select-none"
+      className="flex flex-col items-center justify-center text-center p-1 bg-card border border-dashed border-border overflow-hidden box-border select-none"
       style={{ width: pw, height: ph }}
     >
       {options.showName && (
         <p
-          className="truncate font-semibold leading-none text-slate-800 w-full"
+          className="truncate font-semibold leading-none text-foreground w-full"
           style={{ fontSize: size.font - 0.5 }}
           title={product.description}
         >
@@ -220,13 +220,13 @@ function PreviewBarcodeLabel({
       ) : null}
 
       {options.showSku && !options.showBarcode && (
-        <p className="text-slate-500 font-mono" style={{ fontSize: size.font - 1.5 }}>
+        <p className="text-muted-foreground font-mono" style={{ fontSize: size.font - 1.5 }}>
           {product.productCode}
         </p>
       )}
 
       {options.showPrice && (
-        <p className="font-bold text-slate-900" style={{ fontSize: size.font }}>
+        <p className="font-bold text-foreground" style={{ fontSize: size.font }}>
           ₹{Number(product.sellingPrice).toFixed(2)}
         </p>
       )}
@@ -244,7 +244,7 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
   return (
     <div className="relative">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id="barcode-product-search"
           className="pl-9 pr-9"
@@ -257,7 +257,7 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
           onFocus={() => setOpen(true)}
           autoComplete="off"
         />
-        <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       </div>
       {open && (
         <>
@@ -267,9 +267,9 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
             aria-label="Close dropdown"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
             {products.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-slate-400">
+              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                 {search ? 'No products found' : 'Start typing to search…'}
               </div>
             ) : (
@@ -277,7 +277,7 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
                 <button
                   key={p.id}
                   type="button"
-                  className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left transition-colors last:border-0 hover:bg-slate-50"
+                  className="flex w-full items-center gap-3 border-b border-border px-4 py-2.5 text-left transition-colors last:border-0 hover:bg-muted"
                   onClick={() => {
                     onAdd(p);
                     setSearch('');
@@ -286,8 +286,8 @@ function ProductSelector({ onAdd }: { onAdd: (product: Product) => void }) {
                 >
                   <Package className="h-4 w-4 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">{p.description}</p>
-                    <p className="text-xs text-slate-500">{p.productCode} · {p.category}</p>
+                    <p className="truncate text-sm font-medium text-foreground">{p.description}</p>
+                    <p className="text-xs text-muted-foreground">{p.productCode} · {p.category}</p>
                   </div>
                   <Plus className="ml-auto h-4 w-4 shrink-0 text-primary" />
                 </button>
@@ -497,7 +497,7 @@ export function BarcodePrintPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 p-1"
+                    className="h-7 text-xs text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 p-1"
                     onClick={() => setQueue([])}
                   >
                     Clear All
@@ -507,16 +507,16 @@ export function BarcodePrintPage() {
                   {queue.map(({ product, qty }) => (
                     <div
                       key={product.id}
-                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5"
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-slate-800">{product.description}</p>
-                        <p className="text-[10px] text-slate-400">{product.productCode}</p>
+                        <p className="truncate text-xs font-semibold text-foreground">{product.description}</p>
+                        <p className="text-[10px] text-muted-foreground">{product.productCode}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          className="rounded border border-slate-300 p-0.5 hover:bg-slate-200 bg-white"
+                          className="rounded border border-border p-0.5 hover:bg-slate-200 bg-card"
                           onClick={() => changeQty(product.id, -1)}
                         >
                           <Minus className="h-3 w-3" />
@@ -524,7 +524,7 @@ export function BarcodePrintPage() {
                         <span className="w-6 text-center text-xs font-bold">{qty}</span>
                         <button
                           type="button"
-                          className="rounded border border-slate-300 p-0.5 hover:bg-slate-200 bg-white"
+                          className="rounded border border-border p-0.5 hover:bg-slate-200 bg-card"
                           onClick={() => changeQty(product.id, 1)}
                         >
                           <Plus className="h-3 w-3" />
@@ -532,7 +532,7 @@ export function BarcodePrintPage() {
                       </div>
                       <button
                         type="button"
-                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 shrink-0"
+                        className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500 shrink-0"
                         onClick={() => removeItem(product.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -551,7 +551,7 @@ export function BarcodePrintPage() {
               <CardContent className="space-y-4">
                 {/* Preset sizes */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase">Label Layout Size</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Label Layout Size</Label>
                   <div className="flex flex-col gap-2">
                     {(Object.keys(LABEL_SIZES) as LabelSizeKey[]).map((key) => {
                       const item = LABEL_SIZES[key];
@@ -565,14 +565,14 @@ export function BarcodePrintPage() {
                             'flex flex-col items-start rounded-lg border p-3 text-left transition-colors relative overflow-hidden',
                             active
                               ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
+                              : 'border-border bg-card hover:border-border'
                           )}
                         >
-                          <span className="text-xs font-semibold text-slate-900 capitalize flex items-center justify-between w-full">
+                          <span className="text-xs font-semibold text-foreground capitalize flex items-center justify-between w-full">
                             {key} Template
                             {active && <CheckSquare className="h-3.5 w-3.5 text-primary" />}
                           </span>
-                          <span className="mt-0.5 text-[10px] text-slate-500 leading-normal">{item.label}</span>
+                          <span className="mt-0.5 text-[10px] text-muted-foreground leading-normal">{item.label}</span>
                         </button>
                       );
                     })}
@@ -581,7 +581,7 @@ export function BarcodePrintPage() {
 
                 {/* Display Toggles */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase">Visible Columns</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Visible Columns</Label>
                   <div className="space-y-1.5">
                     {(
                       [
@@ -596,13 +596,13 @@ export function BarcodePrintPage() {
                         <button
                           key={key}
                           type="button"
-                          className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white hover:bg-slate-50 transition-colors"
+                          className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs bg-card hover:bg-muted transition-colors"
                           onClick={() => setOptions((o) => ({ ...o, [key]: !o[key] }))}
                         >
                           {isChecked ? (
                             <CheckSquare className="h-4 w-4 text-primary shrink-0" />
                           ) : (
-                            <Square className="h-4 w-4 text-slate-400 shrink-0" />
+                            <Square className="h-4 w-4 text-muted-foreground shrink-0" />
                           )}
                           <span>{label}</span>
                         </button>
@@ -613,8 +613,8 @@ export function BarcodePrintPage() {
 
                 {/* Info status */}
                 {queue.length > 0 && (
-                  <div className="rounded-lg bg-slate-50 border border-slate-150 p-3 text-xs space-y-1 text-slate-600 leading-relaxed">
-                    <p className="font-semibold text-slate-700">Sheet Print Summary</p>
+                  <div className="rounded-lg bg-muted border border-slate-150 p-3 text-xs space-y-1 text-muted-foreground leading-relaxed">
+                    <p className="font-semibold text-foreground">Sheet Print Summary</p>
                     <p>Total Labels: <strong>{totalLabels}</strong></p>
                     <p>Labels per A4 Page: <strong>{perPage}</strong></p>
                     <p>Requires: <strong>{pagesCount} A4 Page{pagesCount !== 1 ? 's' : ''}</strong></p>
@@ -626,7 +626,7 @@ export function BarcodePrintPage() {
 
           {/* ── Right A4 Live Preview Frame ── */}
           <Card className="min-h-[500px] flex flex-col">
-            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between space-y-0">
+            <CardHeader className="border-b border-border pb-3 flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle className="text-sm">Live Print Sheet Preview</CardTitle>
                 <CardDescription className="text-xs">
@@ -634,17 +634,17 @@ export function BarcodePrintPage() {
                 </CardDescription>
               </div>
               {queue.length > 0 && (
-                <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30">
                   Ready to print
                 </Badge>
               )}
             </CardHeader>
-            <CardContent className="p-6 flex-1 flex items-center justify-center bg-slate-100">
+            <CardContent className="p-6 flex-1 flex items-center justify-center bg-muted">
               {queue.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-4 text-slate-400 py-12">
+                <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground py-12">
                   <Barcode className="h-16 w-16 opacity-25" />
                   <div className="text-center">
-                    <p className="font-semibold text-slate-700">No print items queued</p>
+                    <p className="font-semibold text-foreground">No print items queued</p>
                     <p className="text-xs">Search for products on the left panel to begin layout rendering.</p>
                   </div>
                 </div>
@@ -655,7 +655,7 @@ export function BarcodePrintPage() {
 
                   {/* Rendered A4 sheet mockup */}
                   <div
-                    className="bg-white shadow-2xl border border-slate-300 box-border flex flex-wrap content-start overflow-hidden relative"
+                    className="bg-card shadow-2xl border border-border box-border flex flex-wrap content-start overflow-hidden relative"
                     style={{
                       width: a4Width,
                       height: a4Height,
@@ -681,5 +681,5 @@ export function BarcodePrintPage() {
 }
 
 function MutedText({ children }: { children: React.ReactNode }) {
-  return <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{children}</span>;
+  return <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">{children}</span>;
 }

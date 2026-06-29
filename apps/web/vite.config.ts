@@ -69,6 +69,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Stable vendor libs — split so browser can cache them across app deploys
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'vendor-react';
+          if (id.includes('node_modules/react-router')) return 'vendor-router';
+          if (id.includes('node_modules/@tanstack/react-query')) return 'vendor-query';
+          if (id.includes('node_modules/@radix-ui/')) return 'vendor-radix';
+          // Heavy optional libs — lazy-loaded pages pull these in on demand
           if (id.includes('node_modules/jspdf')) return 'jspdf';
           if (id.includes('node_modules/xlsx')) return 'xlsx';
           if (id.includes('node_modules/recharts')) return 'recharts';

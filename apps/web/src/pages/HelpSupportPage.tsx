@@ -22,19 +22,19 @@ export function HelpSupportPage() {
         <HelpGuideAccordion guides={HELP_GUIDES} />
         <WorkflowCards />
 
-        <section className="rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+        <section className="rounded-2xl border border-border/90 bg-card shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 border-b border-border px-5 py-4 dark:border-slate-800">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground dark:bg-slate-800 dark:text-slate-200">
               <Keyboard className="h-4 w-4" />
             </span>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            <h2 className="text-base font-semibold text-foreground dark:text-slate-100">
               Keyboard Shortcuts
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[280px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800">
+                <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground dark:border-slate-800">
                   <th className="px-5 py-3 font-semibold">Shortcut</th>
                   <th className="px-5 py-3 font-semibold">Action</th>
                 </tr>
@@ -45,10 +45,10 @@ export function HelpSupportPage() {
                     key={row.keys}
                     className="border-b border-slate-50 last:border-0 dark:border-slate-800/80"
                   >
-                    <td className="px-5 py-3 font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                    <td className="px-5 py-3 font-mono text-xs font-medium text-foreground dark:text-slate-200">
                       {row.keys}
                     </td>
-                    <td className="px-5 py-3 text-slate-600 dark:text-slate-300">{row.action}</td>
+                    <td className="px-5 py-3 text-muted-foreground dark:text-slate-300">{row.action}</td>
                   </tr>
                 ))}
               </tbody>
@@ -56,26 +56,26 @@ export function HelpSupportPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200/90 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section className="rounded-2xl border border-border/90 bg-card px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-950 dark:text-slate-300">
               <Mail className="h-4 w-4" />
             </span>
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <h2 className="text-base font-semibold text-foreground dark:text-slate-100">
                 Contact Support
               </h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-medium text-slate-700 dark:text-slate-200">Email: </span>
+              <p className="mt-2 text-sm text-muted-foreground dark:text-slate-300">
+                <span className="font-medium text-foreground dark:text-slate-200">Email: </span>
                 <a
                   href={`mailto:${SUPPORT_CONTACT.email}`}
-                  className="text-primary hover:underline dark:text-slate-400"
+                  className="text-primary hover:underline dark:text-muted-foreground"
                 >
                   {SUPPORT_CONTACT.email}
                 </a>
               </p>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-medium text-slate-700 dark:text-slate-200">Company: </span>
+              <p className="mt-1 text-sm text-muted-foreground dark:text-slate-300">
+                <span className="font-medium text-foreground dark:text-slate-200">Company: </span>
                 {SUPPORT_CONTACT.company} — {SUPPORT_CONTACT.location}
               </p>
             </div>

@@ -279,17 +279,17 @@ export function GoodsIssueCreatePage() {
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               <Link to="/goods-issues" className="hover:text-primary">
                 Goods Issues
               </Link>
               <span className="mx-1.5 text-slate-300">/</span>
-              <span className="text-slate-700">Create New</span>
+              <span className="text-foreground">Create New</span>
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
               Create Goods Issue
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Issue stock for production, maintenance, or sales orders. Saving a draft does not
               reduce warehouse stock; posting will reduce stock.
             </p>
@@ -302,7 +302,7 @@ export function GoodsIssueCreatePage() {
           </Button>
         </div>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Issue Details</CardTitle>
           </CardHeader>
@@ -350,7 +350,7 @@ export function GoodsIssueCreatePage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">Auto-fills items and plant from SO</p>
+                <p className="text-xs text-muted-foreground">Auto-fills items and plant from SO</p>
               </div>
             ) : (
               <div className="space-y-2 sm:col-span-1" />
@@ -368,7 +368,7 @@ export function GoodsIssueCreatePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Issue Location</CardTitle>
           </CardHeader>
@@ -411,13 +411,13 @@ export function GoodsIssueCreatePage() {
                 </SelectContent>
               </Select>
               {!shopId && (
-                <p className="text-xs text-slate-500">Select a plant first</p>
+                <p className="text-xs text-muted-foreground">Select a plant first</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Items</CardTitle>
             {!showSoTable && (
@@ -456,7 +456,7 @@ export function GoodsIssueCreatePage() {
                   <TableRow>
                     <TableCell
                       colSpan={showSoTable ? 4 : 4}
-                      className="py-12 text-center text-sm text-slate-500"
+                      className="py-12 text-center text-sm text-muted-foreground"
                     >
                       {showSoTable
                         ? 'Select a sales order to populate items.'
@@ -466,7 +466,7 @@ export function GoodsIssueCreatePage() {
                 ) : (
                   lines.map((line, index) => (
                     <TableRow key={`${line.productId}-${index}`}>
-                      <TableCell className="font-medium text-slate-800">
+                      <TableCell className="font-medium text-foreground">
                           {!showSoTable ? (
                             <Select
                               value={line.productId}
@@ -497,7 +497,7 @@ export function GoodsIssueCreatePage() {
                           )}
                       </TableCell>
                       {showSoTable && (
-                        <TableCell className="tabular-nums text-slate-600">{line.soQty}</TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground">{line.soQty}</TableCell>
                       )}
                       <TableCell>
                         <Input
@@ -534,8 +534,8 @@ export function GoodsIssueCreatePage() {
                           className={cn(
                             'mt-1 text-xs font-medium tabular-nums',
                             (stockByProductId.get(line.productId) ?? 0) === 0
-                              ? 'text-red-600'
-                              : 'text-slate-500',
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-muted-foreground',
                           )}
                         >
                           Avail: {stockByProductId.get(line.productId) ?? 0}
@@ -563,7 +563,7 @@ export function GoodsIssueCreatePage() {
         </Card>
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Save as draft to review later, or create and post to issue stock immediately.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -60,46 +60,46 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Profitability Report</h1>
-          <p className="text-sm text-gray-600 mt-1">Understand which products make money</p>
+          <h1 className="text-2xl font-bold text-foreground">Product Profitability Report</h1>
+          <p className="text-sm text-muted-foreground mt-1">Understand which products make money</p>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-          <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-          <p className="text-2xl font-bold text-gray-900">₹{(data.summary.totalRevenue / 100000).toFixed(1)}L</p>
+        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+          <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalRevenue / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-          <p className="text-sm font-medium text-gray-600">Total COGS</p>
-          <p className="text-2xl font-bold text-gray-900">₹{(data.summary.totalCogs / 100000).toFixed(1)}L</p>
+        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <p className="text-sm font-medium text-muted-foreground">Total COGS</p>
+          <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalCogs / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-          <p className="text-sm font-medium text-gray-600">Total Profit</p>
-          <p className="text-2xl font-bold text-green-600">₹{(data.summary.totalProfit / 100000).toFixed(1)}L</p>
+        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-green-500">
+          <p className="text-sm font-medium text-muted-foreground">Total Profit</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">₹{(data.summary.totalProfit / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
-          <p className="text-sm font-medium text-gray-600">Avg Margin</p>
-          <p className="text-2xl font-bold text-gray-900">{data.summary.avgMargin}%</p>
+        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-purple-500">
+          <p className="text-sm font-medium text-muted-foreground">Avg Margin</p>
+          <p className="text-2xl font-bold text-foreground">{data.summary.avgMargin}%</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-          <p className="text-sm font-medium text-gray-600">Loss-Making</p>
-          <p className="text-2xl font-bold text-red-600">{data.summary.lossMakingProducts}</p>
-          <p className="text-xs text-gray-500 mt-1">₹{(data.summary.unprofitableValue / 100000).toFixed(2)}L loss</p>
+        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-red-500">
+          <p className="text-sm font-medium text-muted-foreground">Loss-Making</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{data.summary.lossMakingProducts}</p>
+          <p className="text-xs text-muted-foreground mt-1">₹{(data.summary.unprofitableValue / 100000).toFixed(2)}L loss</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-4">
-        <h3 className="font-semibold text-gray-900">Filters</h3>
+      <div className="bg-card rounded-lg shadow p-4 space-y-4">
+        <h3 className="font-semibold text-foreground">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Sort By</label>
             <select
               value={filters.sortBy}
               onChange={(e) => handleSortChange(e.target.value as 'profit' | 'margin' | 'revenue')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="profit">Profit (High to Low)</option>
               <option value="margin">Margin % (High to Low)</option>
@@ -107,12 +107,12 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
             </select>
           </div>
           <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <input
                 type="checkbox"
                 checked={filters.showLossOnly || false}
                 onChange={(e) => setFilters({ ...filters, showLossOnly: e.target.checked, page: 1 })}
-                className="w-4 h-4 text-red-600 rounded border-gray-300"
+                className="w-4 h-4 text-red-600 dark:text-red-400 rounded border-border"
               />
               Show loss-makers only
             </label>
@@ -121,56 +121,56 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-muted border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Units Sold</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Revenue</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">COGS</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Profit</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Margin %</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Rank</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Category</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Units Sold</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Revenue</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">COGS</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Profit</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Margin %</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-foreground uppercase tracking-wider">Rank</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {data.items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
                     No products found
                   </td>
                 </tr>
               ) : (
                 data.items.map((item) => (
-                  <tr key={item.productId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                  <tr key={item.productId} className="hover:bg-muted">
+                    <td className="px-6 py-4 text-sm font-medium text-foreground">
                       <div>
                         <div className="font-semibold">{item.productCode}</div>
-                        <div className="text-xs text-gray-500">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.name}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{item.category}</td>
-                    <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">{item.unitsSold.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
+                    <td className="px-6 py-4 text-sm text-muted-foreground">{item.category}</td>
+                    <td className="px-6 py-4 text-sm text-right font-medium text-foreground">{item.unitsSold.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-right font-medium text-foreground">
                       ₹{(item.revenue / 100000).toFixed(2)}L
-                      <div className="text-xs text-gray-500">@ ₹{item.avgSellingPrice.toFixed(0)}</div>
+                      <div className="text-xs text-muted-foreground">@ ₹{item.avgSellingPrice.toFixed(0)}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
+                    <td className="px-6 py-4 text-sm text-right font-medium text-foreground">
                       ₹{(item.cogs / 100000).toFixed(2)}L
-                      <div className="text-xs text-gray-500">@ ₹{item.avgCostPrice.toFixed(0)}</div>
+                      <div className="text-xs text-muted-foreground">@ ₹{item.avgCostPrice.toFixed(0)}</div>
                     </td>
                     <td
                       className={`px-6 py-4 text-sm text-right font-bold ${
-                        item.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                        item.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                       }`}
                     >
                       ₹{(Math.abs(item.profit) / 100000).toFixed(2)}L
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-bold text-gray-900">
+                    <td className="px-6 py-4 text-sm text-right font-bold text-foreground">
                       {item.marginPercentage}%
                     </td>
                     <td className="px-6 py-4 text-center text-lg">{getProfitRankStars(item.profitRank)}</td>
@@ -208,8 +208,8 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
 
         {/* Pagination */}
         {data.pagination.totalCount > data.pagination.limit && (
-          <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
-            <p className="text-sm text-gray-600">
+          <div className="bg-muted border-t border-border px-6 py-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
               Showing {(filters.page ?? 1 - 1) * data.pagination.limit + 1} to{' '}
               {Math.min((filters.page ?? 1) * data.pagination.limit, data.pagination.totalCount)} of{' '}
               {data.pagination.totalCount} results
@@ -218,14 +218,14 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
               <button
                 onClick={() => setFilters({ ...filters, page: Math.max((filters.page ?? 1) - 1, 1) })}
                 disabled={(filters.page ?? 1) === 1}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
                 onClick={() => setFilters({ ...filters, page: (filters.page ?? 1) + 1 })}
                 disabled={(filters.page ?? 1) * data.pagination.limit >= data.pagination.totalCount}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -237,17 +237,17 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       {/* Insights */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.summary.lossMakingProducts > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
             <h3 className="font-semibold text-red-900 mb-2">⚠️ Loss-Making Products</h3>
-            <p className="text-sm text-red-800">
+            <p className="text-sm text-red-800 dark:text-red-300">
               {data.summary.lossMakingProducts} product(s) selling at a loss, losing ₹{(data.summary.unprofitableValue / 100000).toFixed(2)}L total.
               Consider adjusting prices or stopping sales.
             </p>
           </div>
         )}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
           <h3 className="font-semibold text-blue-900 mb-2">💡 Profitability Snapshot</h3>
-          <p className="text-sm text-blue-800">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
             Overall margin: {profitMargin.toFixed(1)}% | Profit per ₹100 revenue: ₹{profitMargin.toFixed(0)}
           </p>
         </div>

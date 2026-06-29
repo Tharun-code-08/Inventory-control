@@ -237,19 +237,19 @@ function KpiCard({
     amber: 'border-l-4 border-l-amber-500',
   }[accent];
   const iconBg = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-emerald-50 text-emerald-600',
-    amber: 'bg-amber-50 text-amber-600',
+    blue: 'bg-sky-500/12 text-sky-600 dark:text-sky-300',
+    green: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-300',
+    amber: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   }[accent];
   return (
-    <Card className={`${accentClass} surface-2`}>
+    <Card interactive className={`${accentClass} surface-2 group transition-shadow duration-300 hover:shadow-lg`}>
       <CardContent className="flex items-center justify-between p-5">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-          {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-foreground">{value}</p>
+          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
         </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
+        <div className={`flex h-11 w-11 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105 ${iconBg}`}>
           <Icon className="h-5 w-5" />
         </div>
       </CardContent>
@@ -525,7 +525,7 @@ export function WarehousePage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="surface-2">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold text-slate-900">
+                  <CardTitle className="text-sm font-semibold text-foreground">
                     Stock by Category
                   </CardTitle>
                 </CardHeader>
@@ -563,7 +563,7 @@ export function WarehousePage() {
 
               <Card className="surface-2">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold text-slate-900">
+                  <CardTitle className="text-sm font-semibold text-foreground">
                     Stock Levels Overview
                   </CardTitle>
                 </CardHeader>
@@ -594,7 +594,7 @@ export function WarehousePage() {
             </div>
 
             {dashboard && dashboard.lowStockCount > 0 && (
-              <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5" />
                   <div>
@@ -840,7 +840,7 @@ function StockTableSection({
                       <Badge variant={stock.variant}>{stock.label}</Badge>
                     </TableCell>
                     <TableCell
-                      className={`text-right ${belowMin ? 'text-amber-600 font-medium' : ''}`}
+                      className={`text-right ${belowMin ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}`}
                     >
                       {row.minStock || '—'}
                     </TableCell>
@@ -992,7 +992,7 @@ function UploadInventoryDialog({
 
           <label
             htmlFor="inventory-csv-file"
-            className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-500 transition hover:border-primary hover:text-primary"
+            className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
           >
             <Upload className="h-6 w-6" />
             <span>
@@ -1009,7 +1009,7 @@ function UploadInventoryDialog({
           </label>
 
           {parseError && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {parseError}
             </p>
           )}

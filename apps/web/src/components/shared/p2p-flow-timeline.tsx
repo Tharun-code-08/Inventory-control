@@ -18,18 +18,18 @@ export function P2PFlowTimeline({ title = 'P2P flow', steps }: { title?: string;
             key={step.key}
             className={cn(
               'rounded-lg border px-3 py-2 text-xs',
-              step.state === 'done' && 'border-emerald-200 bg-emerald-50/70',
-              step.state === 'active' && 'border-blue-200 bg-blue-50/70',
-              step.state === 'todo' && 'border-slate-200 bg-slate-50/40',
+              step.state === 'done' && 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70',
+              step.state === 'active' && 'border-blue-200 dark:border-blue-500/30 bg-blue-50/70',
+              step.state === 'todo' && 'border-border bg-muted/40',
             )}
           >
             <div className="flex items-center gap-2">
               {step.state === 'done' ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               ) : step.state === 'active' ? (
-                <Clock3 className="h-4 w-4 text-blue-600" />
+                <Clock3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               ) : (
-                <Circle className="h-4 w-4 text-slate-400" />
+                <Circle className="h-4 w-4 text-muted-foreground" />
               )}
               <span className="font-medium">{step.label}</span>
             </div>
