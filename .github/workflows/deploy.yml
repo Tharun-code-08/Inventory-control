@@ -20,8 +20,12 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
+          # Trim secrets (pasted values may have trailing newlines/spaces)
+          HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
+          USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
+
           # Validate required secrets
-          if [ -z "$DEPLOY_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$HOST" ] || [ -z "$USER" ]; then
             echo "❌ Missing required secrets: DEPLOY_KEY, DEPLOY_HOST, or DEPLOY_USER"
             exit 1
           fi
@@ -32,11 +36,11 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
 
           # Run deployment script
-          echo "🚀 Connecting to $DEPLOY_USER@$DEPLOY_HOST..."
+          echo "🚀 Connecting to $USER@$HOST..."
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=10 \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "$USER@$HOST" \
             "/opt/Inventory-control-prod/scripts/deploy.sh prod"
 
       - name: Deployment Status
