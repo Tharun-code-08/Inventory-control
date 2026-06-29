@@ -57,7 +57,7 @@ export class AuditService {
   ): Promise<void> {
     // Use actor's company if available, otherwise leave as null for LOGIN_FAILED scenarios
     const companyId = actor.companyId ?? null;
-    void this.logAsync({ ...params, companyId, userId: actor.id });
+    await this.logAsync({ ...params, companyId, userId: actor.id });
   }
 
   /**
@@ -65,11 +65,15 @@ export class AuditService {
    * Sensitive fields (passwords, tokens) are automatically redacted.
    */
   async log(params: AuditLogParams, _tx?: Prisma.TransactionClient): Promise<void> {
-    void this.logAsync(params);
+    await this.logAsync(params);
   }
 
   /**
-   * Non-blocking async audit write. Failures are logged, never thrown.
+   * Audit write. Awaited by callers so the row is durable before the operation
+   * responds, but failures are caught and logged here — audit is observability
+   * and must never break the operation. The write always uses the base Prisma
+   * connection (never the caller's `tx`) so a failed audit insert cannot poison
+   * the operation's transaction.
    */
   private async logAsync(params: AuditLogParams): Promise<void> {
     try {
