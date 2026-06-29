@@ -110,7 +110,7 @@ export class PdfWorkerProcessor {
   }
 
   private async renderPdf(
-    _tenantId: string,
+    tenantId: string,
     documentType: string,
     referenceId?: string,
     _metadata?: Record<string, any>,
