@@ -214,6 +214,19 @@ async function bootstrap() {
   const host = process.env.API_HOST?.trim() || '0.0.0.0';
   await app.listen(port, host);
   httpLogger.log(`API listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
+
+  // Build identity: emit once at startup so "deployed" can be told apart from
+  // "actually running the intended build". Populated by deploy.sh (--update-env).
+  httpLogger.log(
+    JSON.stringify({
+      event: 'app_startup',
+      commitSha: process.env.APP_COMMIT_SHA ?? 'unknown',
+      buildTime: process.env.APP_BUILD_TIME ?? 'unknown',
+      version: process.env.APP_VERSION ?? process.env.npm_package_version ?? 'unknown',
+      nodeEnv: process.env.NODE_ENV ?? 'unknown',
+      port,
+    }),
+  );
 }
 
 bootstrap();
