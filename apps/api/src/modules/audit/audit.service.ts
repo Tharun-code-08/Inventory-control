@@ -52,27 +52,27 @@ export class AuditService {
   async logTenant(
     actor: RequestUser,
     params: Omit<AuditLogParams, 'companyId' | 'userId'>,
-    tx?: Prisma.TransactionClient,
+    _tx?: Prisma.TransactionClient,
   ): Promise<void> {
     // Use actor's company if available, otherwise leave as null for LOGIN_FAILED scenarios
     const companyId = actor.companyId ?? null;
-    void this.logAsync({ ...params, companyId, userId: actor.id }, tx);
+    void this.logAsync({ ...params, companyId, userId: actor.id });
   }
 
   /**
    * Write an audit row. Never throws. Failures are logged but don't block operations.
    * Sensitive fields (passwords, tokens) are automatically redacted.
    */
-  async log(params: AuditLogParams, tx?: Prisma.TransactionClient): Promise<void> {
-    void this.logAsync(params, tx);
+  async log(params: AuditLogParams, _tx?: Prisma.TransactionClient): Promise<void> {
+    void this.logAsync(params);
   }
 
   /**
    * Non-blocking async audit write. Failures are logged, never thrown.
    */
-  private async logAsync(params: AuditLogParams, tx?: Prisma.TransactionClient): Promise<void> {
+  private async logAsync(params: AuditLogParams): Promise<void> {
     try {
-      const client: Prisma.TransactionClient | PrismaService = tx ?? this.prisma;
+      const client = this.prisma;
 
       // Build data object with conditional fields for proper Prisma typing
       const data: Prisma.AuditLogCreateInput = {
