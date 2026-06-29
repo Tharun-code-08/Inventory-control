@@ -3,6 +3,7 @@ import { BillingModule } from '../billing/billing.module';
 import { RfqsModule } from '../rfqs/rfqs.module';
 import { StockModule } from '../stock/stock.module';
 import { PdfModule } from '../../common/pdf/pdf.module';
+import { CommonPdfModule } from '../../common/pdf/common-pdf.module';
 import { DocumentEmailModule } from '../document-email/document-email.module';
 import { EmailNotificationsModule } from '../email-notifications/email-notifications.module';
 import { BrandingModule } from '../../common/branding/branding.module';
@@ -18,6 +19,7 @@ import { PurchaseOrderPdfService } from './purchase-order-pdf.service';
     BillingModule,
     RfqsModule,
     PdfModule,
+    CommonPdfModule,
     DocumentEmailModule,
     EmailNotificationsModule,
     BrandingModule,

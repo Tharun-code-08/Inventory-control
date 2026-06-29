@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { PdfModule } from '../../common/pdf/pdf.module';
+import { CommonPdfModule } from '../../common/pdf/common-pdf.module';
 import { MailModule } from '../../common/mail/mail.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { EmailNotificationsModule } from '../email-notifications/email-notifications.module';
@@ -13,6 +14,7 @@ import { ReturnImageStorageService } from '../../common/upload/return-image-stor
   imports: [
     PrismaModule,
     PdfModule,
+    CommonPdfModule,
     MailModule,
     EmailNotificationsModule,
     BullModule.registerQueue({ name: DOCUMENT_EMAIL_QUEUE }),
