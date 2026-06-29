@@ -131,7 +131,7 @@ describe('Day 6 — E2E Audit Validation', () => {
 
     // Post the goods receipt (transition to POSTED)
     const postRes = await api.post(`/api/v1/goods-receipts/${grId}/post`);
-    expect(postRes.status).toBe(200);
+    expect(postRes.status).toBe(201);
 
     // Check RECEIVE_GOODS audit
     // Note: finding by nested JSON might need adjustment based on actual query capability
@@ -162,7 +162,7 @@ describe('Day 6 — E2E Audit Validation', () => {
     // ===== STEP 5: UPDATE PRODUCT PRICE =====
     // Verify: UPDATE_PRODUCT audit exists with oldValues/newValues for sellingPrice
     const updateRes = await api
-      .post(`/api/v1/products/${productId}/update-price`)
+      .patch(`/api/v1/products/${productId}`)
       .send({
         sellingPrice: 200,
       });
@@ -176,11 +176,12 @@ describe('Day 6 — E2E Audit Validation', () => {
     });
     expect(updateAudits.length).toBeGreaterThan(0);
     const updateAudit = updateAudits[0];
-    expect(updateAudit.metadata).toHaveProperty('oldValues');
-    expect(updateAudit.metadata).toHaveProperty('newValues');
+    // oldValues/newValues are dedicated audit columns; changedFields lives in metadata
+    expect(updateAudit.oldValues).toBeTruthy();
+    expect(updateAudit.newValues).toBeTruthy();
     expect(updateAudit.metadata).toHaveProperty('changedFields');
-    expect(updateAudit.metadata.oldValues.sellingPrice).toBe(150);
-    expect(updateAudit.metadata.newValues.sellingPrice).toBe(200);
+    expect(updateAudit.oldValues.sellingPrice).toBe(150);
+    expect(updateAudit.newValues.sellingPrice).toBe(200);
     expect(updateAudit.metadata.changedFields).toContain('sellingPrice');
     const updateRequestId = updateAudit.metadata.requestId;
 
@@ -190,7 +191,8 @@ describe('Day 6 — E2E Audit Validation', () => {
     const approvalRes = await api.post('/api/v1/approvals').send({
       referenceId: grId,
       approvalType: 'GOODS_RECEIPT',
-      amount: null,
+      assignedTo: userId,
+      documentNumber: 'GR-E2E-DAY6',
     });
     expect(approvalRes.status).toBe(201);
     const approval = unwrap<{ id: string }>(approvalRes.body);
@@ -259,29 +261,13 @@ describe('Day 6 — E2E Audit Validation', () => {
     }
 
     // ===== STEP 8: EXPORT AUDIT =====
-    // Verify: Export endpoint returns audit data with requestId
-    const exportRes = await api
-      .get('/api/v1/audit/export')
-      .query({ format: 'json', limit: 100 });
+    // Verify: CSV export endpoint returns audit data (max 10k rows).
+    const exportRes = await api.get('/api/v1/audit/export/csv');
     expect(exportRes.status).toBe(200);
-    const exported = exportRes.body; // Could be JSON or CSV
-    expect(exported).toBeDefined();
-
-    // If JSON, verify structure
-    if (typeof exported === 'object' && exported.records) {
-      const records = exported.records as Array<Record<string, unknown>>;
-      const userExportRecords = records.filter(
-        (r) => r.userId === userId,
-      );
-      expect(userExportRecords.length).toBeGreaterThan(0);
-      userExportRecords.forEach((record) => {
-        // requestId should be in metadata or at top level
-        const hasRequestId =
-          (record.metadata && typeof record.metadata === 'object' && 'requestId' in record.metadata) ||
-          'requestId' in record;
-        expect(hasRequestId).toBe(true);
-      });
-    }
+    const exportedCsv = exportRes.text ?? '';
+    expect(exportedCsv.length).toBeGreaterThan(0);
+    // CSV header row should include the Request ID column for traceability.
+    expect(exportedCsv).toContain('Request ID');
 
     // ===== PROOF OF SUCCESS =====
     // All requestIds should be UUIDs

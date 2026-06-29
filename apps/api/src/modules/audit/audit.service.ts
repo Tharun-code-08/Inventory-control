@@ -240,6 +240,7 @@ export class AuditService {
       'Device ID',
       'Reason',
       'Severity',
+      'Request ID',
     ];
 
     const rows = logs.map((log) => [
@@ -256,6 +257,7 @@ export class AuditService {
       log.deviceId || '',
       log.reason || '',
       log.severity || '',
+      log.requestId || '',
     ]);
 
     // Escape CSV values
