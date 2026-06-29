@@ -56,8 +56,9 @@ RUNNING_COMMIT=""
 # (The old script used `|| true`, which silently left the stale process running.)
 restart_app() {
   echo -e "${GREEN}Restarting ${PM2_APP}...${NC}"
-  sudo pm2 restart "$PM2_APP" --update-env
-  sudo pm2 save
+  # sudo -E preserves exported env vars (APP_COMMIT_SHA etc.) so PM2 --update-env picks them up.
+  sudo -E pm2 restart "$PM2_APP" --update-env
+  sudo -E pm2 save
   # Confirm the process is actually online, not just that restart returned 0.
   local status
   status=$(sudo pm2 jlist | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s).find(x=>x.name==="'"$PM2_APP"'");process.stdout.write(p?p.pm2_env.status:"missing")})')
@@ -164,12 +165,14 @@ restart_app
 echo "✓ Restarted ($PM2_APP online)"
 
 # Step 6: Health check (correct port for this environment)
+# sleep 10: NestJS on this server takes ~5-8s to bind the port after pm2 marks online.
+# Using `false` (not `exit 1`) so a failing health check triggers the ERR trap → rollback.
 CURRENT_STEP="health-check"
 echo -e "\n${GREEN}Health check (:${HEALTH_PORT})...${NC}"
-sleep 3
+sleep 10
 if ! health_ok; then
   echo "Health check failed on :${HEALTH_PORT}"
-  exit 1
+  false
 fi
 echo "✓ Health check passed"
 
