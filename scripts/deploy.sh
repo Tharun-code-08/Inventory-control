@@ -1,6 +1,7 @@
 #!/bin/bash
 # Deployment script with automatic rollback on failure.
-# Rollback is CODE-only (git reset), not database (Prisma migrations persist).
+# Rollback restores: source (git reset), dist snapshot (apps/api/dist), and build identity env vars.
+# Rollback does NOT restore: database schema (Prisma migrations persist).
 #
 # Usage:  ./scripts/deploy.sh [environment] [branch]
 #   environment: prod (default) | staging
@@ -77,10 +78,30 @@ rollback() {
     PREVIOUS=$(cat "$STATE_DIR/previous_commit")
     echo -e "${RED}Rolling back code to: $PREVIOUS${NC}"
     git reset --hard "$PREVIOUS"
-    if restart_app && health_ok; then
-      echo -e "${GREEN}✓ Rollback successful${NC}"
+
+    # Restore the pre-build dist so the executable matches the rolled-back source.
+    if [ -d "$STATE_DIR/dist_prev" ]; then
+      echo -e "${RED}Restoring previous dist...${NC}"
+      rm -rf apps/api/dist
+      cp -r "$STATE_DIR/dist_prev" apps/api/dist
     else
-      echo -e "${RED}✗ WARNING: rollback failed health check — manual intervention required${NC}"
+      echo -e "${YELLOW}⚠ No dist snapshot found — rollback will restart with current dist${NC}"
+    fi
+
+    # Export build identity for the rollback commit so the startup log is accurate.
+    export APP_COMMIT_SHA="$PREVIOUS"
+    export APP_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    export APP_VERSION="$(node -p "require('./apps/api/package.json').version" 2>/dev/null || echo unknown)"
+
+    if restart_app; then
+      sleep 5
+      if health_ok; then
+        echo -e "${GREEN}✓ Rollback successful (running $PREVIOUS)${NC}"
+      else
+        echo -e "${RED}✗ WARNING: rollback restarted but health check failed — manual intervention required${NC}"
+      fi
+    else
+      echo -e "${RED}✗ WARNING: rollback restart failed — manual intervention required${NC}"
     fi
   fi
 
@@ -109,6 +130,17 @@ CURRENT_STEP="npm-ci"
 echo -e "\n${GREEN}Installing dependencies...${NC}"
 npm ci --quiet
 echo "✓ Dependencies installed"
+
+# Snapshot the current dist BEFORE overwriting it with a new build.
+# Rollback needs the previous runnable artifact, not just the source.
+CURRENT_STEP="save-dist-snapshot"
+if [ -d "apps/api/dist" ]; then
+  rm -rf "$STATE_DIR/dist_prev"
+  cp -r apps/api/dist "$STATE_DIR/dist_prev"
+  echo "✓ Dist snapshot saved ($STATE_DIR/dist_prev)"
+else
+  echo -e "${YELLOW}⚠ apps/api/dist not found — rollback will not be able to restore executable state${NC}"
+fi
 
 # Step 3: Build
 CURRENT_STEP="npm-build"
