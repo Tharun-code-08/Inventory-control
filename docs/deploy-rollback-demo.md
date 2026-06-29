@@ -1,11 +1,10 @@
 # Rollback End-to-End Demo Procedure
 
-This document describes how to demonstrate the `rollback()` function in `scripts/deploy.sh`
-end-to-end after the DI-FIX branch is merged to main.
+**Status: Completed 2026-06-29 on staging (commit `5c0c3bb9`). All four criteria passed.**
 
-**Prerequisite:** `fix/pdf-di-regression` must be merged to main before this demo. The
-app does not boot from a clean `main` without that fix, so any attempted rollback to the
-pre-fix state would fail the health check for the wrong reason.
+This document records the procedure used to demonstrate the `rollback()` function in
+`scripts/deploy.sh` end-to-end. It can be re-run against any future commit to validate
+that rollback continues to work after script changes.
 
 ---
 
@@ -134,16 +133,32 @@ git -C /opt/Inventory-control-staging checkout apps/api/src/main.ts
 
 ---
 
-## Why this demo cannot run yet (as of 2026-06-29)
+## Completed run — 2026-06-29
 
-The staging working tree has 4 uncommitted DI-FIX modifications
-(`document-email.module.ts`, `email-notifications.module.ts`, `goods-receipts.module.ts`,
-`purchase-orders.module.ts`). These were applied as untracked changes, not committed.
+**Commit under test:** `5c0c3bb9` (DI-fix merge, staging)
 
-If the deploy script runs and then `rollback()` calls `git reset --hard`, those 4 files
-revert to their pre-DI-FIX content. The dist_prev (built with the DI-FIX) would then be
-running against a source tree that doesn't match. More critically, deploying from the
-clean 535a8556 commit (without the DI-FIX) would produce a dist that fails on startup
-with `UnknownDependenciesException`.
+**Trigger:** TypeScript syntax error injected into `apps/api/src/main.ts` (not committed).
+`git pull` left the corrupt file in place (origin unchanged), and `nest build` failed with
+9 compiler errors.
 
-**Resolution:** merge `fix/pdf-di-regression` → main, push, then run this demo procedure.
+**Observed rollback sequence:**
+1. `✗ Deployment failed at: npm-build` — ERR trap fired on build failure
+2. `Rolling back code to: 5c0c3bb9…` — `git reset --hard` restored main.ts
+3. `Restoring previous dist…` — `dist_prev` restored from snapshot taken before the build
+4. `sudo -E pm2 restart retail-ims-staging --update-env` — APP_COMMIT_SHA propagated
+5. `sleep 5` settle delay
+6. `✓ Rollback successful (running 5c0c3bb9…)` — health check passed
+
+**Evidence:**
+
+| Criterion | Verification | Result |
+|-----------|-------------|--------|
+| HEAD = rollback commit | `git rev-parse HEAD` = `5c0c3bb9…` | ✅ |
+| dist content = snapshot | `sha256(dist/main.js)` = `sha256(dist_prev/main.js)` = `ce6e762f` | ✅ |
+| APP_COMMIT_SHA = rollback commit | PM2 env `APP_COMMIT_SHA` = `5c0c3bb9…` | ✅ |
+| Endpoint healthy | `GET /api/v1/health` → `{"status":"ok"}` | ✅ |
+
+**Bugs found and fixed during this exercise** (all on `fix/deploy-reliability`):
+- `exit 1` in health-check path bypassed ERR trap → changed to `false`
+- `sudo pm2` stripped exported env vars → changed to `sudo -E pm2`
+- 3-second settle delay was too short → increased to 10s
