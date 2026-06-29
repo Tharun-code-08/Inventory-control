@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AuditAction, AuditLog, AuditSeverity, Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/types/request-user';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RequestContextStore } from '../../common/context/request-context';
 import { redactSensitive } from '../../common/utils/redact';
 
 export type AuditLogParams = {
@@ -74,6 +75,22 @@ export class AuditService {
     try {
       const client = this.prisma;
 
+      // Resolve requestId from the explicit param, falling back to the per-request
+      // AsyncLocalStorage context so every audit is traceable without each caller
+      // threading it through manually.
+      const requestId = params.requestId ?? RequestContextStore.getRequestId() ?? null;
+
+      // Merge requestId into metadata for end-to-end traceability — every audit
+      // record carries the originating requestId both as a column and in metadata.
+      // Only merge into object-shaped metadata; otherwise preserve as-is.
+      const baseMetadata =
+        params.metadata && typeof params.metadata === 'object' && !Array.isArray(params.metadata)
+          ? (params.metadata as Record<string, unknown>)
+          : undefined;
+      const metadata = requestId
+        ? { ...(baseMetadata ?? {}), requestId }
+        : params.metadata ?? undefined;
+
       // Build data object with conditional fields for proper Prisma typing
       const data: Prisma.AuditLogCreateInput = {
         companyId: params.companyId || undefined,
@@ -86,10 +103,10 @@ export class AuditService {
         ipAddress: params.ipAddress ?? null,
         userAgent: params.userAgent ?? null,
         deviceId: params.deviceId ?? null,
-        metadata: params.metadata ?? undefined,
+        metadata,
         reason: params.reason ?? undefined,
         severity: params.severity ?? undefined,
-        requestId: params.requestId ?? null,
+        requestId,
       } as any;
 
       await client.auditLog.create({ data });

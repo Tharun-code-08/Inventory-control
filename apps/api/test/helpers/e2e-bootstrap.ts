@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import cookieParser = require('cookie-parser');
 import { AppModule } from '../../src/app.module';
+import { requestContextMiddleware } from '../../src/common/context/request-context.middleware';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/response-envelope.interceptor';
 
@@ -19,6 +20,9 @@ export async function createE2eApp(): Promise<INestApplication> {
   const app = moduleRef.createNestApplication();
   const cookieSecret = process.env.COOKIE_SECRET?.trim();
   app.use(cookieParser(cookieSecret && cookieSecret.length > 0 ? cookieSecret : undefined));
+  // Mirror production: resolve requestId + AsyncLocalStorage context per request
+  // so audit traceability behaves identically under e2e.
+  app.use(requestContextMiddleware());
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({

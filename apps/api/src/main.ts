@@ -1,5 +1,4 @@
 ﻿import './load-env';
-import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
@@ -7,15 +6,13 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser = require('cookie-parser');
 import helmet from 'helmet';
-import type { NextFunction, Request, Response } from 'express';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { AppModule } from './app.module';
-import { RequestContextStore } from './common/context/request-context';
+import { requestContextMiddleware } from './common/context/request-context.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { DeprecationInterceptor } from './common/interceptors/deprecation.interceptor';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { initSentry } from './common/observability/sentry';
-import { parseTraceparent } from './common/observability/traceparent';
 
 function webCorsOrigin(): string[] {
   const raw = process.env.WEB_ORIGIN?.trim();
@@ -121,65 +118,25 @@ async function bootstrap() {
   app.use(cookieParser(cookieSecret && cookieSecret.length > 0 ? cookieSecret : undefined));
 
   app.use(
-    (
-      req: Request & {
-        requestId?: string;
-        traceparent?: string | null;
-        user?: { id?: string; shopId?: string | null };
-      },
-      res: Response,
-      next: NextFunction,
-    ) => {
-      const requestId = String(req.headers['x-request-id'] ?? randomUUID());
-      // W3C traceparent: accept as-is when valid so downstream calls (and Sentry
-      // breadcrumbs) can reuse the same trace id. Otherwise drop it; we don't
-      // synthesize a fake trace just to mirror back.
-      const traceparent = parseTraceparent(req.headers['traceparent'] as string | undefined);
-      const forwardedFor = req.headers['x-forwarded-for'];
-      const ipAddress =
-        (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : undefined) ||
-        req.ip ||
-        req.socket.remoteAddress ||
-        null;
-      const userAgent =
-        typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null;
-
-      req.requestId = requestId;
-      req.traceparent = traceparent;
-      res.setHeader('x-request-id', requestId);
-      if (traceparent) {
-        res.setHeader('traceparent', traceparent);
-      }
-      const startedAt = Date.now();
-
-      RequestContextStore.run(
-        { requestId, traceparent, userId: null, shopId: null, ipAddress, userAgent },
-        () => {
-        res.on('finish', () => {
-          const finalUserId = (req as { user?: { id?: string } }).user?.id ?? null;
-          const finalShopId = (req as { user?: { shopId?: string | null } }).user?.shopId ?? null;
-          RequestContextStore.patch({ userId: finalUserId, shopId: finalShopId });
-          // Emit one structured JSON log line per HTTP request. The NestJS
-          // logger pipeline serialises each call via its own formatter, so we
-          // pre-stringify to keep the payload as a single JSON object that can
-          // be ingested by Loki/CloudWatch/etc.
-          httpLogger.log(
-            JSON.stringify({
-              event: 'http_request',
-              requestId,
-              traceparent,
-              method: req.method,
-              path: req.originalUrl ?? req.url,
-              statusCode: res.statusCode,
-              latencyMs: Date.now() - startedAt,
-              userId: finalUserId,
-              shopId: finalShopId,
-            }),
-          );
-        });
-        next();
-      });
-    },
+    requestContextMiddleware(({ req, res, requestId, traceparent, startedAt, userId, shopId }) => {
+      // Emit one structured JSON log line per HTTP request. The NestJS
+      // logger pipeline serialises each call via its own formatter, so we
+      // pre-stringify to keep the payload as a single JSON object that can
+      // be ingested by Loki/CloudWatch/etc.
+      httpLogger.log(
+        JSON.stringify({
+          event: 'http_request',
+          requestId,
+          traceparent,
+          method: req.method,
+          path: req.originalUrl ?? req.url,
+          statusCode: res.statusCode,
+          latencyMs: Date.now() - startedAt,
+          userId,
+          shopId,
+        }),
+      );
+    }),
   );
   app.enableCors(corsOptions());
   app.useGlobalPipes(

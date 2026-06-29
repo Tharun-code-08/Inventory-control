@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsDateString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 class Line {
@@ -26,10 +26,10 @@ export class CreateGoodsIssueDto {
   @IsUUID()
   shopId!: string;
 
-  @ApiProperty({ enum: ['Sales Order', 'Production', 'Maintenance', 'Transfer', 'Damage', 'Others'], default: 'Others' })
-  @Transform(({ value }) => value ?? 'Others')
+  @ApiPropertyOptional({ enum: ['Sales Order', 'Production', 'Maintenance', 'Transfer', 'Damage', 'Others'] })
+  @IsOptional()
   @IsString()
-  issueType: string = 'Others';
+  issueType?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
