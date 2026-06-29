@@ -20,7 +20,9 @@ type PoFormItem = {
   taxPercent?: number | string;
 };
 
-type PoFormValues = PoLogisticsForm & {
+// Omit the loose `items` from PoLogisticsForm so the richer PoFormItem[] wins
+// instead of being intersected down to the logistics doc's narrow item shape.
+type PoFormValues = Omit<PoLogisticsForm, 'items'> & {
   poDate: string;
   supplier: string;
   useManualPoNumber?: boolean;

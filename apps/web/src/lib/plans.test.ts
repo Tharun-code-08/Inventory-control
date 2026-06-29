@@ -10,6 +10,8 @@ const baseSnapshot = (): SubscriptionSnapshot => ({
   subscriptionEndsAt: null,
   daysLeftInTrial: null,
   isTrialExpired: false,
+  lifecycleStage: null,
+  trialProgressPct: null,
   limits: { maxUsers: 10, maxWarehouses: 3, maxSkus: null },
   features: {
     reports: true,

@@ -109,7 +109,7 @@ function FilterTriggerButton({
   isActive: boolean;
   panelId: string;
   onClick: () => void;
-  buttonRef: React.RefObject<HTMLButtonElement | null>;
+  buttonRef: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <button

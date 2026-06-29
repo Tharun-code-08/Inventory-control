@@ -47,8 +47,13 @@ export type GoodsReceiptFilters = {
   shopId?: string;
 };
 
-export type CreateGoodsReceiptPayload = Omit<GoodsReceipt, 'id' | 'grNumber' | 'createdAt' | 'totalValue' | 'status'> & {
+export type CreateGoodsReceiptPayload = Omit<
+  GoodsReceipt,
+  'id' | 'grNumber' | 'createdAt' | 'totalValue' | 'status' | 'items' | 'supplierRef' | 'remarks'
+> & {
   items: Omit<GoodsReceiptItem, 'id' | 'lineValue' | 'product'>[];
+  supplierRef?: string;
+  remarks?: string;
 };
 
 export type UpdateGoodsReceiptPayload = Partial<CreateGoodsReceiptPayload>;

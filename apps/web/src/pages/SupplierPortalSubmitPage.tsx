@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/cn';
 import { portalGet, portalPost } from '@/lib/portal-api';
-import { BrandLogo } from '@/components/BrandLogo';
 
 type Step = 1 | 2 | 3 | 4;
 

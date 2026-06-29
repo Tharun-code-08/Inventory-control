@@ -47,9 +47,7 @@ import { useContracts } from '@/hooks/use-contracts';
 import { supplierPortalSubmitUrl } from '@/lib/portal-api';
 import {
   buildAllocationPlan,
-  clearQuoteAllocations,
   loadAllocations,
-  saveAllocations,
   validateAllocations,
   type RfqAllocationMap,
 } from '@/lib/bid-comparison';
@@ -233,7 +231,7 @@ export function RfqDetailPage() {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [savedAllocations, setSavedAllocations] = useState<RfqAllocationMap>({});
   const [poDialogOpen, setPoDialogOpen] = useState(false);
-  const [creatingQuoteId, setCreatingQuoteId] = useState<string | null>(null);
+  const [creatingQuoteId] = useState<string | null>(null);
   const [isCreatingAll, setIsCreatingAll] = useState(false);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [manualSupplier, setManualSupplier] = useState<ManualResponseSupplier | null>(null);
@@ -294,6 +292,7 @@ export function RfqDetailPage() {
   }
 
   function handleExportDetail() {
+    if (!rfq) return;
     const rows = rfq.items.map((item) => ({ rfq, item }));
     const ok = exportModuleCsv(`${rfq.rfqNumber}.csv`, rows, [
       { header: 'RFQ Number', value: ({ rfq: current }) => current.rfqNumber },
@@ -350,13 +349,6 @@ export function RfqDetailPage() {
   function handleSelectQuote(quoteId: string) {
     setSelectedQuoteId(quoteId);
     toast.success('Supplier selected. Save quantities in Compare bids, then create the PO from the top action.');
-  }
-
-  function persistAllocations(next: RfqAllocationMap) {
-    setSavedAllocations(next);
-    if (id) {
-      saveAllocations(id, next);
-    }
   }
 
   async function createPoForAllocationPlan(quoteId: string) {

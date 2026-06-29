@@ -135,7 +135,7 @@ type PlantFormFieldsProps = {
   setStorageLocations: React.Dispatch<React.SetStateAction<LocationDraft[]>>;
   showStorageLocations: boolean;
   existingStorageCodes: string[];
-  firstFieldRef?: React.RefObject<HTMLInputElement | null>;
+  firstFieldRef?: React.Ref<HTMLInputElement>;
 };
 
 function PlantFormFields({

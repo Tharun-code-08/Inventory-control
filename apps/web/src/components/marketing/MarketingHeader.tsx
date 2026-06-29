@@ -16,7 +16,7 @@ export function MarketingHeader() {
           <img
             src="/LandingPageLogo.svg"
             alt={BRAND.companyName}
-            className="h-12 w-auto sm:h-14 lg:h-16"
+            className="h-8 w-auto sm:h-9 lg:h-10"
           />
         </Link>
 
@@ -34,7 +34,7 @@ export function MarketingHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <MarketingCtaLink
-            cta={{ label: 'Start free trial', href: '/signup?plan=trial' }}
+            cta={{ label: 'Try now for Free', href: '/signup?plan=trial' }}
             variant="secondary"
             location="header"
             className="hidden lg:inline-flex"
@@ -71,7 +71,7 @@ export function MarketingHeader() {
             </a>
           ))}
           <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
-            <MarketingCtaLink cta={{ label: 'Start free trial', href: '/signup?plan=trial' }} variant="secondary" location="mobile_nav" />
+            <MarketingCtaLink cta={{ label: 'Try now for Free', href: '/signup?plan=trial' }} variant="secondary" location="mobile_nav" />
             <MarketingCtaLink cta={{ label: BRAND.loginTitle, href: '/login' }} variant="primary" location="mobile_nav" />
           </div>
         </nav>

@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { api as apiClient } from './client';
 
 export interface DeadStockItem {
   productId: string;

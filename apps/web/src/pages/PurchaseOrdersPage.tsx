@@ -94,7 +94,7 @@ import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { mapPoFormToCreatePayload } from '@/lib/payload-mappers';
 import { hasAnyPermission, hasPermission } from '@/lib/permissions';
 import { parsePoRemarks } from '@/lib/po-document';
-import { resolvePoDeliveryAddress, resolvePoDocumentForPdf } from '@/lib/po-document-defaults';
+import { resolvePoDeliveryAddress } from '@/lib/po-document-defaults';
 import { downloadDocumentPdf } from '@/lib/document-pdf';
 import { DEPARTMENT_OPTIONS } from '@/lib/po-form-options';
 import { PoLogisticsTaxFields } from '@/components/purchase-orders/PoLogisticsTaxFields';
@@ -134,7 +134,9 @@ const poItemSchema = z
     suggestedQty: z.coerce.number().min(0),
     orderQty: z.coerce.number().positive('Order qty must be > 0'),
     rate: z.coerce.number().positive('Rate must be > 0'),
-    taxPercent: z.coerce.number().min(0).max(100).optional(),
+    // Empty string is the "not set" sentinel used by the numeric input before a
+    // value is entered; coercion turns a typed value into a number on submit.
+    taxPercent: z.union([z.coerce.number().min(0).max(100), z.literal('')]).optional(),
   })
   .superRefine((line, ctx) => {
     const hasProduct = Boolean(line.productId?.trim());
@@ -235,7 +237,7 @@ function defaultPoLineItem() {
     suggestedQty: 0,
     orderQty: 1,
     rate: 0,
-    taxPercent: '' as string | number,
+    taxPercent: '' as number | '',
   };
 }
 
@@ -505,7 +507,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'items' });
   const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
-  const selectedStorageLocationId = form.watch('storageLocationId');
   const manualNumberEnabled = form.watch('useManualPoNumber');
   const resolvedDeliveryPlantId =
     selectedDeliveryPlantId || shopId || (shops.length === 1 ? shops[0]?.id : '') || '';
@@ -521,10 +522,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     [productsQuery.data],
   );
   const { data: storageLocations = [] } = useStorageLocations(resolvedDeliveryPlantId || undefined);
-  const resolvedStorageLocationId =
-    selectedStorageLocationId ||
-    (storageLocations.length === 1 ? storageLocations[0]?.id : '') ||
-    '';
   const selectedRfq = sourceRfqId ? rfqMap.get(sourceRfqId) : undefined;
   const rfqPosRemaining = selectedRfq?.fulfillment?.posRemaining ?? null;
   const hasDeliveryPlant = Boolean(
@@ -618,7 +615,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     () =>
       watchedItems.map((item) => ({
         ...item,
-        taxPercent: effectivePoLineTaxPercent(item.productId, item.taxPercent, productMap),
+        taxPercent: effectivePoLineTaxPercent(item.productId ?? '', item.taxPercent, productMap),
       })),
     [watchedItems, productMap],
   );
@@ -1224,9 +1221,9 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       const product = productMap.get(item.productId);
       if (product?.taxPreference !== 'NON_TAXABLE') return;
       const currentTax = item.taxPercent;
-      if (currentTax === 0 || currentTax === '0') return;
+      if (currentTax === 0 || currentTax === '') return;
       form.setValue(`items.${idx}.taxPercent`, 0, {
-        shouldDirty: currentTax !== '' && currentTax !== undefined,
+        shouldDirty: currentTax !== undefined,
         shouldValidate: true,
       });
     });
@@ -1337,7 +1334,6 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                     if (plantId) {
                       form.setValue('deliveryPlantId', plantId);
                       if (!user?.shopId) setSelectedShopId(plantId);
-                      const plant = shops.find((s) => s.id === plantId) ?? rfq.shop;
                       form.setValue('storageLocationId', '');
                       applyDeliveryAddressFromPlant(plantId);
                     }
@@ -1409,7 +1405,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           suggestedQty: Number(it.quantity ?? 0),
                           orderQty: Number(it.quantity ?? 0),
                           rate: Number(it.unitPrice ?? 0),
-                          taxPercent: '' as string | number,
+                          taxPercent: '' as number | '',
                         }),
                       ),
                     );

@@ -106,7 +106,7 @@ export const MARKETING_HERO = {
   badge: 'Retail inventory & procurement ERP',
   title: 'Run your entire retail operation from one source of truth.',
   body: 'SoftdigitIMS connects procurement, inventory, sales, and finance into a single, GST-ready platform — from RFQ and purchase orders to barcoded goods receipts, invoices, and payments. Every plant, SKU, and document stays in sync.',
-  primaryCta: { label: 'Start free trial', href: '/signup?plan=trial' } satisfies MarketingCta,
+  primaryCta: { label: 'Try now for Free', href: '/signup?plan=trial' } satisfies MarketingCta,
   secondaryCta: { label: 'View pricing', href: '#pricing' } satisfies MarketingCta,
   highlights: ['No credit card required', '7-day free trial', 'Cancel anytime'],
   poweredBy: BRAND.poweredBy,
@@ -251,7 +251,7 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
     eyebrow: 'Warehouse & inventory',
     title: 'Keep every plant and SKU moving forward',
     body: 'Plan, receive, issue, and reconcile stock across plants and storage locations — with thresholds, ledgers, and reports your ops team can trust.',
-    cta: { label: 'Start free trial', href: '/signup?plan=trial' },
+    cta: { label: 'Try now for Free', href: '/signup?plan=trial' },
     tabs: [
       {
         id: 'products',
@@ -280,7 +280,7 @@ export const MARKETING_FEATURE_BLOCKS: MarketingFeatureBlock[] = [
     eyebrow: 'Procurement',
     title: 'Source, order, and receive without the chaos',
     body: 'From RFQ to purchase order to goods receipt — govern procurement with supplier master data, approvals, and supplier portal visibility.',
-    cta: { label: 'Start free trial', href: '/signup?plan=trial' },
+    cta: { label: 'Try now for Free', href: '/signup?plan=trial' },
     reversed: true,
     tabs: [
       {
@@ -376,7 +376,7 @@ export const MARKETING_CONTACT = {
 export const MARKETING_FINAL_CTA = {
   title: 'Ready to get started?',
   body: 'Start your free trial of SoftdigitIMS. No credit card required.',
-  primaryCta: { label: 'Start free trial', href: '/signup?plan=trial' } satisfies MarketingCta,
+  primaryCta: { label: 'Try now for Free', href: '/signup?plan=trial' } satisfies MarketingCta,
   secondaryCta: { label: 'Sign in', href: '/login' } satisfies MarketingCta,
   images: [
     slot('final-cta-dashboard', 'final-cta-dashboard.png', 'Dashboard', 'SoftdigitIMS dashboard', '800×600'),

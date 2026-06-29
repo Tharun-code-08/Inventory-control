@@ -112,7 +112,7 @@ type CompanyFormFieldsProps = {
   form: CompanyFormState;
   setForm: React.Dispatch<React.SetStateAction<CompanyFormState>>;
   codeDisabled?: boolean;
-  firstFieldRef?: React.RefObject<HTMLInputElement | null>;
+  firstFieldRef?: React.Ref<HTMLInputElement>;
 };
 
 function CompanyFormFields({ form, setForm, codeDisabled, firstFieldRef }: CompanyFormFieldsProps) {

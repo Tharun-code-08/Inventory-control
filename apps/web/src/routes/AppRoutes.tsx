@@ -130,9 +130,6 @@ export function AppRoutes() {
     window.location.hostname === 'www.softdigitconsulting.com'
   );
 
-  const isIMSDomain = typeof window !== 'undefined' &&
-    window.location.hostname === 'ims.softdigitconsulting.com';
-
   // MARKETING DOMAIN: Only show landing page
   if (isMarketing) {
     return (

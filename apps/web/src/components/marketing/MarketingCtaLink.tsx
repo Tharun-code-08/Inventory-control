@@ -20,10 +20,13 @@ export function MarketingCtaLink({ cta, variant = 'primary', className, location
     if (location) trackCtaClick(cta.href, location, cta.label);
   };
   const base = cn(
-    'motion-marketing-cta inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-    variant === 'primary' && 'bg-slate-900 text-white hover:bg-slate-800',
-    variant === 'secondary' && 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
-    variant === 'ghost' && 'text-primary hover:text-primary hover:underline',
+    'inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+    // Primary uses the premium gradient-glow treatment; secondary/ghost keep the
+    // lightweight marketing hover.
+    variant === 'primary' && 'mk-cta-glow',
+    variant === 'secondary' &&
+      'motion-marketing-cta border border-slate-200 bg-white/80 text-slate-900 backdrop-blur hover:bg-white hover:border-slate-300',
+    variant === 'ghost' && 'motion-marketing-cta text-primary hover:text-primary hover:underline',
     className,
   );
 

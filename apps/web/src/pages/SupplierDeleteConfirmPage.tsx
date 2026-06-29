@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
 import { portalGet } from '@/lib/portal-api';
-import { BrandLogo } from '@/components/BrandLogo';
 
 type ConfirmResult = {
   success: boolean;

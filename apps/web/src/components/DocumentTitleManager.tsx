@@ -6,7 +6,6 @@ import {
 } from '@/lib/page-titles';
 import {
   getDocumentTitlePageOverride,
-  setDocumentTitlePageOverride,
   subscribeDocumentTitlePageOverride,
 } from '@/lib/document-title-override';
 

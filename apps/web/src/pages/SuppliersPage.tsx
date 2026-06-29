@@ -63,7 +63,6 @@ import {
 } from '@/hooks/use-postal-code-lookup';
 import { useCompanies } from '@/hooks/use-companies';
 import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv';
-import { cn } from '@/lib/cn';
 
 type SupplierFormState = {
   companyId: string;

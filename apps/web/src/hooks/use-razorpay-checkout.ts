@@ -111,7 +111,8 @@ export function useRazorpayCheckout() {
               },
             },
           });
-          rzp.on('payment.failed', (resp: { error?: { description?: string } }) => {
+          rzp.on('payment.failed', (response: unknown) => {
+            const resp = response as { error?: { description?: string } };
             reject(new Error(resp?.error?.description ?? 'Payment failed'));
           });
           rzp.open();

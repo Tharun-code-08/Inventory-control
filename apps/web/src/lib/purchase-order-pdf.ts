@@ -7,7 +7,6 @@ import { computePoLineAmounts, taxPercentForProduct } from '@/lib/po-line-calcul
 const BLUE: [number, number, number] = [54, 96, 146];
 const BLUE_LIGHT: [number, number, number] = [220, 230, 241];
 const BORDER: [number, number, number] = [158, 180, 206];
-const MUTED: [number, number, number] = [80, 90, 100];
 
 const MARGIN = 14;
 const PAGE_W = 210;

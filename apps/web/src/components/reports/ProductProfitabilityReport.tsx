@@ -10,7 +10,7 @@ import {
   ProfitabilityFilters,
 } from '@/api/reports';
 import Loading from '@/components/Loading';
-import Error from '@/components/Error';
+import ErrorView from '@/components/Error';
 
 interface Props {
   shopId?: string;
@@ -50,8 +50,8 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
   };
 
   if (loading) return <Loading />;
-  if (error) return <Error message={error} />;
-  if (!data) return <Error message="No data available" />;
+  if (error) return <ErrorView message={error} />;
+  if (!data) return <ErrorView message="No data available" />;
 
   const profitMargin = data.summary.totalRevenue > 0 ? (data.summary.totalProfit / data.summary.totalRevenue) * 100 : 0;
 

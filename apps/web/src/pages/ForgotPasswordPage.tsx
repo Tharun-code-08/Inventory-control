@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, KeyRound, Link2, Mail } from 'lucide-react';
-import { BrandLogo } from '@/components/BrandLogo';
 import { Reveal } from '@/components/motion';
 import { TurnstileField } from '@/components/TurnstileField';
 import { Button } from '@/components/ui/button';

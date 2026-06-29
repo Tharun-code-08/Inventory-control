@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { RecommendationsCardData } from '@/api/dashboard';
 import { formatCurrency } from '@/api/dashboard';
 

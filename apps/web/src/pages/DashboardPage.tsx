@@ -245,7 +245,7 @@ export function DashboardPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => <DashboardKpiCardSkeleton key={i} />)
-            : kpiCards.map((card) => <DashboardKpiCard key={card.key} {...card} />)}
+            : kpiCards.map((card) => <DashboardKpiCard {...card} key={card.key} />)}
         </div>
 
         <DashboardInsightsPanel

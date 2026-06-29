@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { MarketingImageSlot } from '@/lib/marketing-content';
+import { ProductMockup, type MockupVariant } from './ProductMockup';
 
 type MarketingImagePlaceholderProps = {
   slot: MarketingImageSlot;
@@ -9,43 +8,49 @@ type MarketingImagePlaceholderProps = {
   aspectClassName?: string;
 };
 
+/** Maps a content slot to a generated, brand-styled SVG product scene. */
+function mockupFor(id: string): { variant: MockupVariant; title: string } {
+  const map: Record<string, { variant: MockupVariant; title: string }> = {
+    'hero-dashboard': { variant: 'dashboard', title: 'Operations Dashboard' },
+    'devices-web': { variant: 'dashboard', title: 'Operations Dashboard' },
+    'devices-mobile': { variant: 'mobile', title: 'SoftdigitIMS' },
+    'warehouse-products': { variant: 'table', title: 'Products' },
+    'warehouse-goods-receipt': { variant: 'table', title: 'Goods Receipt' },
+    'warehouse-goods-issue': { variant: 'table', title: 'Goods Issue' },
+    'warehouse-reports': { variant: 'dashboard', title: 'Inventory Reports' },
+    'procurement-rfq': { variant: 'table', title: 'Requests for Quotation' },
+    'procurement-po': { variant: 'table', title: 'Purchase Orders' },
+    'procurement-gr': { variant: 'table', title: 'Goods Receipts' },
+    'procurement-supplier-portal': { variant: 'table', title: 'Supplier Portal' },
+    'sales-quotations': { variant: 'table', title: 'Quotations' },
+    'sales-invoices': { variant: 'invoice', title: 'GST Invoice' },
+    'sales-payments': { variant: 'table', title: 'Payments' },
+    'sales-dashboard': { variant: 'dashboard', title: 'Sales Dashboard' },
+    'final-cta-dashboard': { variant: 'dashboard', title: 'Operations Dashboard' },
+    'final-cta-mobile': { variant: 'mobile', title: 'SoftdigitIMS' },
+  };
+  return map[id] ?? { variant: 'dashboard', title: 'SoftdigitIMS' };
+}
+
 export function MarketingImagePlaceholder({
   slot,
   className,
   aspectClassName = 'aspect-[16/10]',
 }: MarketingImagePlaceholderProps) {
-  const [failed, setFailed] = useState(false);
-  const showImage = Boolean(slot.src) && !failed;
+  const { variant, title } = mockupFor(slot.id);
+  const isMobile = variant === 'mobile';
 
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-lg shadow-slate-900/5',
-        aspectClassName,
+        'relative overflow-hidden rounded-2xl',
+        !isMobile && 'border border-slate-200 bg-slate-50 shadow-lg shadow-slate-900/5',
+        isMobile ? 'aspect-[4/3]' : aspectClassName,
         className,
       )}
+      aria-label={slot.alt}
     >
-      {showImage ? (
-        <img
-          src={slot.src}
-          alt={slot.alt}
-          className="h-full w-full object-cover object-top"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
-            <ImageIcon className="h-6 w-6" aria-hidden />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-700">{slot.label}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Add <code className="rounded bg-slate-100 px-1 py-0.5">{slot.src?.split('/').pop() ?? 'screenshot'}</code>
-              {' '}({slot.recommendedSize})
-            </p>
-          </div>
-        </div>
-      )}
+      <ProductMockup variant={variant} title={title} />
     </div>
   );
 }

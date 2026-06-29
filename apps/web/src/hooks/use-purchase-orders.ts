@@ -20,6 +20,7 @@ export type PurchaseOrderItem = {
     id?: string;
     description: string;
     productCode: string;
+    category?: string | null;
   };
 };
 
@@ -29,6 +30,7 @@ export type PurchaseOrder = {
   poDate: string;
   shopId: string;
   rfqId?: string | null;
+  contractId?: string | null;
   shop?: { id: string; shopName?: string; shopNumber?: string };
   supplier: string;
   status: PurchaseOrderStatus;
@@ -37,6 +39,7 @@ export type PurchaseOrder = {
   totalValue: number;
   createdAt: string;
   lifecycleStatus?: PurchaseOrderLifecycleStatus;
+  emailDelivery?: PurchaseOrderEmailDelivery;
   receiptProgress?: Array<{
     productId: string;
     productCode?: string;

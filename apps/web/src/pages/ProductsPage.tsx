@@ -31,7 +31,6 @@ import {
 } from '@/hooks/use-product-categories';
 import { useGstHsnSearch } from '@/hooks/use-gst-hsn-search';
 import { resolveHsnSuggestion, type HsnSuggestion } from '@/lib/hsn-suggest';
-import { resolveStorageLocationIdForImport } from '@/lib/resolve-storage-location';
 import { useAuthStore } from '@/store/authStore';
 import {
   useProducts,
@@ -59,7 +58,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -676,7 +674,6 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   const isAdmin = isAdminUser(user);
   const shops = useShops();
   const shopList = shops.data ?? [];
-  const defaultShopId = isShopOnlyUser(user) ? user!.shopId! : '';
   const { data: importStorageLocations = [] } = useStorageLocations(
     isShopOnlyUser(user) ? user!.shopId! : undefined,
   );

@@ -649,6 +649,151 @@
     }
   }
 
+  /* ─── Marketing 3-D + depth system ─────────────────────────────── */
+
+  /* Pointer-driven tilt surface: smooth return, GPU-friendly. */
+  .mk-tilt-3d {
+    transform-style: preserve-3d;
+    transition: transform 320ms var(--motion-ease-out);
+    will-change: transform;
+  }
+
+  /* Depth lift for layers placed inside a preserve-3d scene. */
+  .mk-depth-1 {
+    transform: translateZ(40px);
+  }
+  .mk-depth-2 {
+    transform: translateZ(80px);
+  }
+  .mk-depth-3 {
+    transform: translateZ(120px);
+  }
+
+  /* Animated gradient mesh for hero backdrops. */
+  @keyframes mk-mesh-drift {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(2.5%, -2%, 0) scale(1.08);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+  .mk-mesh {
+    background:
+      radial-gradient(38% 44% at 18% 12%, hsl(243 75% 59% / 0.22), transparent 70%),
+      radial-gradient(36% 40% at 84% 8%, hsl(199 89% 60% / 0.20), transparent 70%),
+      radial-gradient(44% 46% at 70% 88%, hsl(160 84% 45% / 0.16), transparent 72%);
+    animation: mk-mesh-drift 18s var(--motion-ease-in-out) infinite;
+    will-change: transform;
+  }
+
+  /* Slow conic aurora ring. */
+  @keyframes mk-aurora-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .mk-aurora {
+    background: conic-gradient(
+      from 0deg,
+      hsl(243 75% 59% / 0.18),
+      hsl(199 89% 60% / 0.16),
+      hsl(160 84% 45% / 0.14),
+      hsl(243 75% 59% / 0.18)
+    );
+    filter: blur(46px);
+    animation: mk-aurora-spin 26s linear infinite;
+    will-change: transform;
+  }
+
+  /* Glass surface used for floating cards. */
+  .mk-glass {
+    background: linear-gradient(135deg, hsl(0 0% 100% / 0.9), hsl(0 0% 100% / 0.7));
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid hsl(0 0% 100% / 0.65);
+    box-shadow:
+      0 18px 40px -12px hsl(222 47% 30% / 0.28),
+      inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  }
+
+  /* Premium gradient CTA with glow. */
+  .mk-cta-glow {
+    position: relative;
+    background-image: linear-gradient(135deg, hsl(243 75% 62%), hsl(243 75% 52%) 55%, hsl(221 83% 53%));
+    color: #fff;
+    box-shadow:
+      0 10px 24px -8px hsl(243 75% 52% / 0.6),
+      0 2px 6px -2px hsl(243 75% 40% / 0.5);
+    transition:
+      transform 200ms var(--motion-ease-out),
+      box-shadow 200ms var(--motion-ease-out);
+  }
+  .mk-cta-glow:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 18px 40px -10px hsl(243 75% 52% / 0.7),
+      0 4px 10px -2px hsl(243 75% 40% / 0.55);
+  }
+  .mk-cta-glow:active {
+    transform: translateY(0);
+  }
+
+  /* Animated gradient text. */
+  @keyframes mk-text-shimmer {
+    to {
+      background-position: 200% center;
+    }
+  }
+  .mk-gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      hsl(243 75% 58%),
+      hsl(199 89% 55%),
+      hsl(160 84% 42%),
+      hsl(243 75% 58%)
+    );
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: mk-text-shimmer 6s linear infinite;
+  }
+
+  /* Soft float for hero accent chips. */
+  @keyframes mk-float-y {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  .mk-float {
+    animation: mk-float-y 6s var(--motion-ease-in-out) infinite;
+  }
+  .mk-float-slow {
+    animation: mk-float-y 8.5s var(--motion-ease-in-out) infinite;
+  }
+
+  /* Tile hover lift for capability / feature cards. */
+  .mk-lift {
+    transition:
+      transform 240ms var(--motion-ease-out),
+      box-shadow 240ms var(--motion-ease-out),
+      border-color 240ms var(--motion-ease-out);
+    will-change: transform;
+  }
+  .mk-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 50px -20px hsl(222 47% 30% / 0.35);
+  }
+
   [data-sonner-toast].motion-toast-enter {
     animation: motion-toast-slide-in var(--motion-duration-fast) var(--motion-ease-out) both;
   }
@@ -741,6 +886,18 @@
     .motion-marketing-parallax {
       transform: none !important;
       transition: none !important;
+    }
+    .mk-mesh,
+    .mk-aurora,
+    .mk-gradient-text,
+    .mk-float,
+    .mk-float-slow {
+      animation: none !important;
+    }
+    .mk-tilt-3d,
+    .mk-lift:hover,
+    .mk-cta-glow:hover {
+      transform: none !important;
     }
     [data-sonner-toast] .motion-toast-progress {
       display: none;

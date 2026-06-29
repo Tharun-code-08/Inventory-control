@@ -56,10 +56,10 @@ export type CreateEwayBillPayload = {
   documentDate: string;
   fromGstin?: string;
   fromName: string;
-  fromAddress?: string;
+  fromAddress1?: string;
   toGstin?: string;
   toName: string;
-  toAddress?: string;
+  toAddress1?: string;
   transporterName?: string;
   transportMode?: EwayTransportMode;
   vehicleNumber?: string;
@@ -68,6 +68,15 @@ export type CreateEwayBillPayload = {
   igstValue?: number;
   totalValue?: number;
   remarks?: string;
+  items?: Array<{
+    productName: string;
+    hsnCode: string;
+    quantity: number;
+    unit: string;
+    taxableAmount: number;
+    gstRate: number;
+    total: number;
+  }>;
 };
 
 const keys = {

@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { InventoryCardData } from '@/api/dashboard';
 import { formatCurrency, formatNumber } from '@/api/dashboard';
 

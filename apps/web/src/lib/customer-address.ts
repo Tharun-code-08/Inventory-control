@@ -1,4 +1,3 @@
-import type { Customer } from '@/hooks/use-customers';
 
 export type AddressLike = {
   street?: string | null;

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { matchPath, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, type AuthUser } from '@/store/authStore';
 import { isOrgAdminUser } from '@/lib/roles';
 import { useRfq } from '@/hooks/use-rfqs';
 import { useSalesOrder } from '@/hooks/use-sales-orders';
@@ -11,7 +11,7 @@ type BreadcrumbResult = {
   subtitle?: string;
 };
 
-function resolveHomeHref(user: ReturnType<typeof useAuthStore>['user']): string {
+function resolveHomeHref(user: AuthUser | null): string {
   if (isOrgAdminUser(user)) return '/dashboard';
   return '/products';
 }

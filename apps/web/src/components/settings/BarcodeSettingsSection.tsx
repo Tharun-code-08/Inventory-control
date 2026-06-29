@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Barcode, Check, Edit, Printer, Search, Star, Trash2, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, Edit, Printer, Search, Star, Trash2, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

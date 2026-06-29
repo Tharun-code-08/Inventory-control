@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link2, PackagePlus, ScanLine, AlertTriangle, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -47,7 +46,6 @@ export function BarcodeNotFoundDialog({
   products,
   onAttached,
 }: BarcodeNotFoundDialogProps) {
-  const navigate = useNavigate();
   const attach = useAttachBarcode();
   const markInvalid = useMarkInvalid();
   const createProduct = useCreateProduct();

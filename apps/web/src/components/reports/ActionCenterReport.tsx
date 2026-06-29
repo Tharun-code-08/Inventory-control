@@ -4,14 +4,12 @@ import { useEffect, useState } from 'react';
 import {
   getActionCenter,
   getPriorityIcon,
-  getPriorityLabel,
   getCategoryIcon,
   getCategoryLabel,
   ActionCenterResponse,
-  ActionCenterFilters,
 } from '@/api/reports';
 import Loading from '@/components/Loading';
-import Error from '@/components/Error';
+import ErrorView from '@/components/Error';
 
 interface Props {
   shopId?: string;
@@ -42,8 +40,8 @@ export default function ActionCenterReport({ shopId }: Props) {
   }, [shopId]);
 
   if (loading) return <Loading />;
-  if (error) return <Error message={error} />;
-  if (!data) return <Error message="No data available" />;
+  if (error) return <ErrorView message={error} />;
+  if (!data) return <ErrorView message="No data available" />;
 
   const totalActions = data.actionsSummary.critical + data.actionsSummary.high + data.actionsSummary.medium;
 
@@ -94,7 +92,7 @@ export default function ActionCenterReport({ shopId }: Props) {
             <p className="text-xs text-green-600 mt-1">Keep monitoring your reports regularly.</p>
           </div>
         ) : (
-          data.actions.map((action, idx) => (
+          data.actions.map((action) => (
             <div
               key={action.id}
               className={`rounded-lg shadow border-l-4 overflow-hidden transition-all ${

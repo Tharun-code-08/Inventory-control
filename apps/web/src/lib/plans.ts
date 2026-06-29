@@ -21,7 +21,7 @@ export const PLAN_CATALOG = {
       { label: 'Integrations', included: false },
       { label: 'API access', included: false },
     ],
-    cta: 'Start free trial',
+    cta: 'Try now for Free',
   },
   pro: {
     id: 'pro' as const,

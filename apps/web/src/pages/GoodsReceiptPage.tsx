@@ -111,7 +111,8 @@ const grFormSchema = z.object({
   purchaseOrderId: z.string().optional(),
   receiptType: z.enum(['FULL', 'PARTIAL']).default('FULL'),
   receiptSource: z.enum(['PURCHASE_ORDER', 'OUTSIDE']).default('PURCHASE_ORDER'),
-  inwardShift: z.enum(['DAY_SHIFT', 'NIGHT_SHIFT']).optional(),
+  // '' is the "not selected" sentinel used by the shift dropdown before a choice.
+  inwardShift: z.union([z.enum(['DAY_SHIFT', 'NIGHT_SHIFT']), z.literal('')]).optional(),
   supplierRef: z.string().optional(),
   remarks: z.string().optional(),
   items: z.array(grItemSchema).min(1, 'At least one item is required'),
@@ -202,7 +203,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const poQuery = usePurchaseOrder(fromPoId);
   const poListQuery = usePurchaseOrders({
     shopId: shopId || undefined,
-    take: 200,
+    limit: 200,
   });
 
   const [page, setPage] = useState(1);

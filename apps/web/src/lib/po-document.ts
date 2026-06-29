@@ -79,7 +79,10 @@ export function encodePoRemarks(humanRemarks: string, document: PoDocumentMeta):
 
 export function mergePoDocument(
   base: PoDocumentMeta,
-  override: PoDocumentMeta,
+  ...overrides: Array<Partial<PoDocumentMeta> | undefined>
 ): PoDocumentMeta {
-  return { ...base, ...override };
+  return overrides.reduce<PoDocumentMeta>(
+    (acc, override) => (override ? { ...acc, ...override } : acc),
+    base,
+  );
 }

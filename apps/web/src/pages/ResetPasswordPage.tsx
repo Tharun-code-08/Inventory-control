@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Link2, LockKeyhole } from 'lucide-react';
-import { BrandLogo } from '@/components/BrandLogo';
 import { TurnstileField } from '@/components/TurnstileField';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

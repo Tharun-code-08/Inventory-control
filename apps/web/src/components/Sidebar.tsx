@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronUp,
   ChevronsLeft,
+  LayoutDashboard,
 } from 'lucide-react';
 import { menuIcons } from '@/config/iconMap';
 import { useQueryClient } from '@tanstack/react-query';

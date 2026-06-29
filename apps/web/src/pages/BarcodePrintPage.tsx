@@ -4,13 +4,11 @@ import {
   Printer,
   Plus,
   Minus,
-  X,
   Barcode,
   CheckSquare,
   Square,
   ChevronDown,
   Package,
-  FileText,
   Trash2,
 } from 'lucide-react';
 import { AppLayout } from '@/components/AppLayout';

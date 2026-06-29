@@ -349,7 +349,7 @@ export function useCreateProduct() {
       });
     },
     onSuccess: async (product) => {
-      qc.setQueriesData(
+      qc.setQueriesData<ProductListResult>(
         { queryKey: productKeys.lists() },
         (old) => {
           if (!old || !Array.isArray(old.items)) return old;

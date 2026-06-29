@@ -26,6 +26,7 @@ export type Rfq = {
   rfqDate: string;
   deadline?: string | null;
   status: string;
+  notes?: string | null;
   shopId: string;
   shop?: { id: string; shopName: string; shopNumber?: string; address?: string };
   suppliers: Array<{ supplierId: string; supplier?: { supplierName: string } }>;
@@ -36,7 +37,7 @@ export type Rfq = {
     quantity: string | number;
     uom: string;
     specifications?: string | null;
-    product?: { id: string; productCode?: string; description?: string; purchasePrice?: number | string };
+    product?: { id: string; productCode?: string; description?: string; purchasePrice?: number | string; category?: string | null };
   }>;
   fulfillment?: RfqFulfillment;
 };

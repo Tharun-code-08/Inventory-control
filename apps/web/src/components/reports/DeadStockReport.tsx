@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getDeadStockReport, getSeverityIcon, getRecommendationLabel, DeadStockResponse, DeadStockFilters } from '@/api/reports';
 import Loading from '@/components/Loading';
-import Error from '@/components/Error';
+import ErrorView from '@/components/Error';
 
 interface Props {
   shopId?: string;
@@ -48,8 +48,8 @@ export default function DeadStockReport({ shopId }: Props) {
   };
 
   if (loading) return <Loading />;
-  if (error) return <Error message={error} />;
-  if (!data) return <Error message="No data available" />;
+  if (error) return <ErrorView message={error} />;
+  if (!data) return <ErrorView message="No data available" />;
 
   return (
     <div className="space-y-6">

@@ -31,7 +31,6 @@ import {
   Globe,
   Receipt,
   CheckCircle2,
-  Scale,
   PieChart,
 } from 'lucide-react';
 

@@ -301,7 +301,13 @@ function ExecutiveSummaryTab({ filters }: Pick<TabShellProps, 'filters'>) {
 
 function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = usePoSummary(filters);
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const rows = (Array.isArray(data?.rows) ? data.rows : []) as Array<{
+    poNumber: string;
+    poDate: string;
+    supplier: string;
+    status: string;
+    totalValue: number;
+  }>;
   const kpis = data?.kpis ?? {};
   const statusValue = filters.poStatus ?? ALL;
 
@@ -393,7 +399,13 @@ function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
 
 function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = useSalesSummary(filters);
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const rows = (Array.isArray(data?.rows) ? data.rows : []) as Array<{
+    orderNumber: string;
+    orderDate: string;
+    customer: string;
+    status: string;
+    totalValue: number;
+  }>;
   const kpis = data?.kpis ?? {};
   const statusValue = filters.salesStatus ?? ALL;
 

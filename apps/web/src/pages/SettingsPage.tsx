@@ -733,7 +733,7 @@ function UsersTab() {
 
   const onSubmit = async (values: UserFormValues) => {
     try {
-      const resolvedShopId = normalizeAllShopsSelection(values.shopId);
+      const resolvedShopId = normalizeAllShopsSelection(values.shopId) ?? null;
       if (editingUser) {
         const payload = mapUserFormToUpdatePayload({
           id: editingUser.id,
@@ -1121,9 +1121,7 @@ function UsersTab() {
 function BrandingTab() {
   const user = useAuthStore((s) => s.user);
   const { data: companies = [] } = useCompanies();
-  const { data: shops = [] } = useShops();
   const company = companies.find((c) => c.id === user?.companyId) ?? companies[0];
-  const shop = shops.find((s) => s.id === user?.shopId) ?? shops[0];
 
   // Query company branding
   const companyBranding = useQuery({
@@ -1142,21 +1140,6 @@ function BrandingTab() {
   });
 
   // Query shop branding
-  const shopBranding = useQuery({
-    queryKey: ['branding', 'shop', shop?.id],
-    queryFn: async () => {
-      if (!shop?.id) return null;
-      try {
-        const res = await api.get(`/shops/${shop.id}/branding`);
-        return res.data.data ?? res.data;
-      } catch (err) {
-        console.error('Failed to fetch shop branding:', err);
-        return null;
-      }
-    },
-    enabled: !!shop?.id,
-  });
-
   const [companyForm, setCompanyForm] = useState({
     companyName: companyBranding.data?.profile?.companyName || '',
     gstNumber: companyBranding.data?.profile?.gstNumber || '',
@@ -1254,7 +1237,7 @@ function BrandingTab() {
         <CardContent>
           {healthStatus?.missing && healthStatus.missing.length > 0 && (
             <div className="space-y-2">
-              {healthStatus.missing.map((item) => (
+              {healthStatus.missing.map((item: string) => (
                 <div key={item} className="flex items-center text-sm text-amber-700">
                   <span className="mr-2">⚠</span>
                   <span>Missing: {item}</span>

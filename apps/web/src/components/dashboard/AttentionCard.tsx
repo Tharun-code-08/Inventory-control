@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { AttentionCardData } from '@/api/dashboard';
 import { getSeverityColor, getSeverityBgColor, emitDashboardEvent } from '@/api/dashboard';
 
