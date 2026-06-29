@@ -18,6 +18,7 @@ import type { RequestUser } from '@/common/types/request-user';
 import { AuditService } from './audit.service';
 import {
   AuditFilterDto,
+  AuditListQueryDto,
   PaginationDto,
   AuditLogResponseDto,
   AuditListResponseDto,
@@ -59,32 +60,31 @@ export class AuditController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   async listAuditLogs(
     @CurrentUser() user: RequestUser,
-    @Query() filters: AuditFilterDto,
-    @Query() pagination: PaginationDto,
+    @Query() query: AuditListQueryDto,
   ): Promise<AuditListResponseDto> {
-    this.logger.debug(`Fetching audit logs for company ${user.companyId}, page ${pagination.page}`);
+    this.logger.debug(`Fetching audit logs for company ${user.companyId}, page ${query.page}`);
 
     // Convert string dates to Date objects
     const convertedFilters = {
-      ...filters,
-      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
-      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+      ...query,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
     };
 
     const { data, total } = await this.auditService.findAll(user.companyId!, convertedFilters, {
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      sortOrder: pagination.sortOrder,
+      page: query.page,
+      limit: query.limit,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     });
 
-    const hasMore = pagination.page * pagination.limit < total;
+    const hasMore = query.page * query.limit < total;
 
     return {
       data: data as AuditLogResponseDto[],
       total,
-      page: pagination.page,
-      limit: pagination.limit,
+      page: query.page,
+      limit: query.limit,
       hasMore,
     };
   }

@@ -230,12 +230,12 @@ describe('Day 6 — E2E Audit Validation', () => {
     });
     expect(auditRes.status).toBe(200);
     const auditData = unwrap<{
-      records: Array<{ action: string; entityId: string; userId: string }>;
+      data: Array<{ id: string; action: string; entityId: string; userId: string }>;
     }>(auditRes.body);
 
     // Count audit records for this user
     const recordsByAction = new Map<string, number>();
-    auditData.records
+    auditData.data
       .filter((r) => r.userId === userId)
       .forEach((r) => {
         const count = recordsByAction.get(r.action) || 0;
@@ -249,7 +249,7 @@ describe('Day 6 — E2E Audit Validation', () => {
     expect(recordsByAction.get('APPROVE')).toBeGreaterThan(0);
 
     // Verify requestId consistency: audit records should have requestId
-    const userRecords = auditData.records.filter((r) => r.userId === userId).slice(0, 10);
+    const userRecords = auditData.data.filter((r) => r.userId === userId).slice(0, 10);
     expect(userRecords.length).toBeGreaterThan(0);
     // Spot-check: verify first record has requestId
     if (userRecords.length > 0) {

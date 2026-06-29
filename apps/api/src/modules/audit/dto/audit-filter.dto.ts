@@ -59,6 +59,35 @@ export class PaginationDto {
   sortOrder: 'asc' | 'desc' = 'desc';
 }
 
+/**
+ * Combined filter + pagination query for GET /audit. A single DTO is required
+ * because two separate `@Query()` params each validate the *whole* query string
+ * under `forbidNonWhitelisted`, so pagination params would be rejected by the
+ * filter DTO (and vice versa).
+ */
+export class AuditListQueryDto extends AuditFilterDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+
+  @IsOptional()
+  @IsEnum(['createdAt', 'userId', 'action'])
+  sortBy: 'createdAt' | 'userId' | 'action' = 'createdAt';
+
+  @IsOptional()
+  @IsEnum(['asc', 'desc'])
+  sortOrder: 'asc' | 'desc' = 'desc';
+}
+
 export class AuditLogResponseDto {
   id: string;
   companyId: string;
