@@ -210,7 +210,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
         {data.pagination.totalCount > data.pagination.limit && (
           <div className="bg-muted border-t border-border px-6 py-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {(filters.page ?? 1 - 1) * data.pagination.limit + 1} to{' '}
+              Showing {((filters.page ?? 1) - 1) * data.pagination.limit + 1} to{' '}
               {Math.min((filters.page ?? 1) * data.pagination.limit, data.pagination.totalCount)} of{' '}
               {data.pagination.totalCount} results
             </p>
