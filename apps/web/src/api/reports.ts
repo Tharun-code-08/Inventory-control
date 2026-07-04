@@ -51,7 +51,7 @@ export const getDeadStockReport = async (filters: DeadStockFilters): Promise<Dea
   if (filters.limit) params.append('limit', String(filters.limit));
 
   const response = await apiClient.get(`/reports/dead-stock?${params.toString()}`);
-  return response.data;
+  return response.data?.data ?? response.data;
 };
 
 export const getSeverityIcon = (severity: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
@@ -143,7 +143,7 @@ export const getReorderIntelligence = async (filters: ReorderFilters): Promise<R
   if (filters.limit) params.append('limit', String(filters.limit));
 
   const response = await apiClient.get(`/reports/reorder-intelligence?${params.toString()}`);
-  return response.data;
+  return response.data?.data ?? response.data;
 };
 
 export const getUrgencyIcon = (urgency: 'HIGH' | 'MEDIUM' | 'LOW') => {
@@ -223,7 +223,7 @@ export const getCustomerAging = async (filters: CustomerAgingFilters): Promise<C
   if (filters.limit) params.append('limit', String(filters.limit));
 
   const response = await apiClient.get(`/reports/customer-aging?${params.toString()}`);
-  return response.data;
+  return response.data?.data ?? response.data;
 };
 
 export const getRiskIcon = (riskScore: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'GREEN') => {
@@ -309,7 +309,7 @@ export const getProductProfitability = async (filters: ProfitabilityFilters): Pr
   if (filters.limit) params.append('limit', String(filters.limit));
 
   const response = await apiClient.get(`/reports/product-profitability?${params.toString()}`);
-  return response.data;
+  return response.data?.data ?? response.data;
 };
 
 export const getProfitRankStars = (rank: number) => {
@@ -374,7 +374,7 @@ export const getActionCenter = async (filters: ActionCenterFilters): Promise<Act
   if (filters.shopId) params.append('shop_id', filters.shopId);
 
   const response = await apiClient.get(`/reports/action-center?${params.toString()}`);
-  return response.data;
+  return response.data?.data ?? response.data;
 };
 
 export const getPriorityIcon = (priority: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
