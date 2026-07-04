@@ -7,5 +7,6 @@ import { StockTransfersService } from './stock-transfers.service';
   imports: [StockModule],
   controllers: [StockTransfersController],
   providers: [StockTransfersService],
+  exports: [StockTransfersService],
 })
 export class StockTransfersModule {}

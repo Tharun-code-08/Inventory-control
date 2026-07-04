@@ -12,5 +12,6 @@ import { GoodsReceiptsService } from './goods-receipts.service';
   imports: [StockModule, EmailNotificationsModule, PdfModule, CommonPdfModule, DocumentEmailModule, NotificationsModule],
   controllers: [GoodsReceiptsController],
   providers: [GoodsReceiptsService],
+  exports: [GoodsReceiptsService],
 })
 export class GoodsReceiptsModule {}

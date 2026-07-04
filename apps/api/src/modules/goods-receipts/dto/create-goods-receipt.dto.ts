@@ -103,4 +103,9 @@ export class CreateGoodsReceiptDto {
   @ValidateNested({ each: true })
   @Type(() => GoodsReceiptLineDto)
   items!: GoodsReceiptLineDto[];
+
+  @ApiPropertyOptional({ description: 'Client-supplied idempotency key (same contract as PO/SO create)' })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }

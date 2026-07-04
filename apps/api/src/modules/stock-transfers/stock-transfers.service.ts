@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { tryGetIdempotentResult, trySetIdempotentResult } from '../../common/utils/idempotency';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -159,7 +160,35 @@ export class StockTransfersService {
       if (line.quantity <= 0) throw new BadRequestException('Line quantities must be > 0');
     }
 
+    const idempotencyScope = user.companyId
+      ? `company:${user.companyId}`
+      : user.shopId
+        ? `shop:${user.shopId}`
+        : 'global';
+    const idempotencyCacheKey = dto.idempotencyKey?.trim()
+      ? `st:create:${dto.idempotencyKey.trim()}`
+      : undefined;
+
     return this.prisma.$transaction(async (tx) => {
+      const existing = await tryGetIdempotentResult<{ stId: string }>(
+        tx,
+        idempotencyCacheKey,
+        idempotencyScope,
+      );
+      if (existing?.stId) {
+        const prior = await tx.stockTransferHeader.findUnique({
+          where: { id: existing.stId },
+          include: {
+            items: { include: { product: true } },
+            fromShop: true,
+            toShop: true,
+            fromStorageLocation: true,
+            toStorageLocation: true,
+          },
+        });
+        if (prior) return prior;
+      }
+
       await this.assertSameCompanyShops(tx, dto.fromShopId, dto.toShopId);
       await this.assertStorageLocation(tx, dto.fromStorageLocationId, dto.fromShopId, 'from');
       await this.assertStorageLocation(tx, dto.toStorageLocationId, dto.toShopId, 'to');
@@ -177,7 +206,7 @@ export class StockTransfersService {
         uom: line.uom,
       }));
 
-      return tx.stockTransferHeader.create({
+      const header = await tx.stockTransferHeader.create({
         data: {
           transferNumber,
           transferDate,
@@ -198,6 +227,32 @@ export class StockTransfersService {
           toStorageLocation: true,
         },
       });
+
+      await this.audit.logTenant(
+        user,
+        {
+          action: AuditAction.CREATE,
+          entityType: 'STOCK_TRANSFER',
+          entityId: header.id,
+          newValues: {
+            transferNumber: header.transferNumber,
+            fromShopId: header.fromShopId,
+            toShopId: header.toShopId,
+            itemCount: dto.items.length,
+          },
+        },
+        tx,
+      );
+
+      await trySetIdempotentResult(
+        tx,
+        idempotencyCacheKey,
+        { stId: header.id },
+        user.id,
+        idempotencyScope,
+      );
+
+      return header;
     });
   }
 

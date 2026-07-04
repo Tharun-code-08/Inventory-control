@@ -112,5 +112,10 @@ export class CreateSalesOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSalesOrderItemDto)
   items!: CreateSalesOrderItemDto[];
+
+  @ApiPropertyOptional({ description: 'Client-supplied idempotency key (same contract as PO create)' })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }
 

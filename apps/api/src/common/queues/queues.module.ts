@@ -8,7 +8,7 @@ import { JobFailureService } from './job-failure.service';
  * Used by `BullShutdownService` to drain them on SIGTERM/SIGINT, and by tests
  * to assert the registry stays in sync.
  */
-export const REGISTERED_QUEUES = ['exports', 'notifications'] as const;
+export const REGISTERED_QUEUES = ['exports', 'notifications', 'whatsapp'] as const;
 
 @Global()
 @Module({

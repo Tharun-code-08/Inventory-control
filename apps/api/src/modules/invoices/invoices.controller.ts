@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -24,8 +24,15 @@ export class InvoicesController {
   @Post()
   @ApiOperation({ summary: 'Create an invoice (optionally linked to a sales order)' })
   @ApiResponse({ status: 409, description: 'Sales order has already been invoiced.' })
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateInvoiceDto) {
-    return this.invoices.create(user, dto);
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateInvoiceDto,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.invoices.create(user, {
+      ...dto,
+      idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
+    });
   }
 
   @RequirePermission('shop:write')

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DocumentStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -38,8 +38,15 @@ export class GoodsReceiptsController {
 
   @RequirePermission('goods_receipt:create')
   @Post()
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateGoodsReceiptDto) {
-    return this.service.create(user, dto);
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateGoodsReceiptDto,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.service.create(user, {
+      ...dto,
+      idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
+    });
   }
 
   @SkipEnvelope()

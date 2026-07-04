@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -21,8 +21,15 @@ export class StockTransfersController {
 
   @RequirePermission('stock_transfer:create')
   @Post()
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateStockTransferDto) {
-    return this.service.create(user, dto);
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateStockTransferDto,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.service.create(user, {
+      ...dto,
+      idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
+    });
   }
 
   @RequirePermission('stock_transfer:read')

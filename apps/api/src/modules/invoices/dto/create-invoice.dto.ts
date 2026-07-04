@@ -41,5 +41,12 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @ApiPropertyOptional({
+    description: 'Client-supplied idempotency key (same contract as PO/SO/GR create)',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }
 

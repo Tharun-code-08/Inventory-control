@@ -8,5 +8,6 @@ import { ShopsService } from './shops.service';
   imports: [BillingModule, BrandingModule],
   controllers: [ShopsController],
   providers: [ShopsService],
+  exports: [ShopsService],
 })
 export class ShopsModule {}

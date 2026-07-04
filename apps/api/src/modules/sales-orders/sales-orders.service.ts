@@ -21,6 +21,7 @@ import { DocumentNumberService } from '../stock/document-number.service';
 import { CostingService } from '../stock/costing.service';
 import { StockService } from '../stock/stock.service';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
+import { tryGetIdempotentResult, trySetIdempotentResult } from '../../common/utils/idempotency';
 import { CreateSalesOrderDto, CreateSalesOrderItemDto } from './dto/create-sales-order.dto';
 import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { SubscriptionService } from '../billing/subscription.service';
@@ -193,7 +194,31 @@ export class SalesOrdersService {
       totalIgst,
     } = this.computeLineTotals(dto.items, supplyType);
 
+    // Same idempotency contract as PO create: a retried request (or an agent
+    // task step re-run) returns the already-created SO instead of a duplicate.
+    const idempotencyScope = user.companyId
+      ? `company:${user.companyId}`
+      : user.shopId
+        ? `shop:${user.shopId}`
+        : 'global';
+    const idempotencyCacheKey = dto.idempotencyKey?.trim()
+      ? `so:create:${dto.idempotencyKey.trim()}`
+      : undefined;
+
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const existing = await tryGetIdempotentResult<{ soId: string }>(
+        tx,
+        idempotencyCacheKey,
+        idempotencyScope,
+      );
+      if (existing?.soId) {
+        const prior = await tx.salesOrderHeader.findUnique({
+          where: { id: existing.soId },
+          include: { customer: true, items: { include: { product: true } } },
+        });
+        if (prior) return prior;
+      }
+
       const soNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId,
         docType: 'SO',
@@ -255,6 +280,14 @@ export class SalesOrdersService {
           },
         },
         tx,
+      );
+
+      await trySetIdempotentResult(
+        tx,
+        idempotencyCacheKey,
+        { soId: created.id },
+        user.id,
+        idempotencyScope,
       );
 
       return created;

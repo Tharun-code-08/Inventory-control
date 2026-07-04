@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -26,8 +26,15 @@ export class SalesOrdersController {
   @Post()
   @ApiOperation({ summary: 'Create a sales order (DRAFT)' })
   @ApiResponse({ status: 201, description: 'The created sales order with line items.' })
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateSalesOrderDto) {
-    return this.salesOrders.create(user, dto);
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateSalesOrderDto,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.salesOrders.create(user, {
+      ...dto,
+      idempotencyKey: dto.idempotencyKey ?? idempotencyKey,
+    });
   }
 
   @RequirePermission('shop:read')

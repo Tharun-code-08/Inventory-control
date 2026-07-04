@@ -5,6 +5,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { asMoney, assertNonNegativeMoney, roundMoney } from '../../common/utils/money';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
+import { tryGetIdempotentResult, trySetIdempotentResult } from '../../common/utils/idempotency';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -94,7 +95,29 @@ export class InvoicesService {
 
     const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const idempotencyScope = user.companyId
+      ? `company:${user.companyId}`
+      : user.shopId
+        ? `shop:${user.shopId}`
+        : 'global';
+    const idempotencyCacheKey = dto.idempotencyKey?.trim()
+      ? `invoice:create:${dto.idempotencyKey.trim()}`
+      : undefined;
+
+    const { invoice, replayed } = await this.prisma.$transaction(async (tx) => {
+      const existing = await tryGetIdempotentResult<{ invoiceId: string }>(
+        tx,
+        idempotencyCacheKey,
+        idempotencyScope,
+      );
+      if (existing?.invoiceId) {
+        const prior = await tx.invoiceHeader.findUnique({
+          where: { id: existing.invoiceId },
+          include: { customer: true, salesOrder: true, payments: true },
+        });
+        if (prior) return { invoice: prior, replayed: true };
+      }
+
       if (dto.salesOrderId) {
         const so = await tx.salesOrderHeader.findUnique({
           where: { id: dto.salesOrderId },
@@ -162,11 +185,22 @@ export class InvoicesService {
         tx,
       );
 
-      return invoice;
-    }).then(async (invoice) => {
-      await this.autoSendInvoiceCreatedEmail(user, invoice).catch(() => undefined);
-      return invoice;
+      await trySetIdempotentResult(
+        tx,
+        idempotencyCacheKey,
+        { invoiceId: invoice.id },
+        user.id,
+        idempotencyScope,
+      );
+
+      return { invoice, replayed: false };
     });
+
+    // A replayed create already emailed the customer the first time.
+    if (!replayed) {
+      await this.autoSendInvoiceCreatedEmail(user, invoice).catch(() => undefined);
+    }
+    return invoice;
   }
 
   async sendToCustomer(user: RequestUser, id: string, options?: { resend?: boolean }) {
