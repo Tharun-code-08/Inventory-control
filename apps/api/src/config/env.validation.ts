@@ -76,6 +76,29 @@ export const envValidationSchema = Joi.object({
 
   APP_DEBUG: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
 
+  // Agent Platform — WhatsApp (Meta Cloud API). All optional: without creds the
+  // webhook rejects unsigned posts and the send adapter reports "not configured".
+  WHATSAPP_API_URL: Joi.string().uri().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: Joi.string().trim().empty('').optional(),
+  WHATSAPP_ACCESS_TOKEN: Joi.string().trim().empty('').optional(),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: Joi.string().trim().empty('').optional(),
+  WHATSAPP_APP_SECRET: Joi.string().trim().empty('').optional(),
+
+  // Agent Platform — AI layer. Provider-neutral config: switching providers is
+  // env-only (AI_PROVIDER selects the implementation behind the DI token).
+  // Key optional (assistant degrades gracefully); the model id is config, never
+  // hardcoded — override per tenant in ai_settings, or globally here.
+  AI_PROVIDER: Joi.string().valid('deepseek', 'fireworks', 'openai').default('deepseek'),
+  AI_API_KEY: Joi.string().trim().empty('').optional(),
+  AI_BASE_URL: Joi.string().uri().optional(),
+  AI_MODEL: Joi.string().trim().default('deepseek-chat'),
+  AI_REQUEST_TIMEOUT_MS: Joi.number().integer().min(5_000).max(300_000).default(60_000),
+  AI_MAX_TOKENS: Joi.number().integer().min(256).max(64_000).default(2_048),
+  AI_MAX_TOOL_ROUNDS: Joi.number().integer().min(1).max(20).default(6),
+  AI_TOOL_TIMEOUT_MS: Joi.number().integer().min(1_000).max(60_000).default(5_000),
+  AI_DAILY_REQUEST_LIMIT: Joi.number().integer().min(1).default(500),
+  AI_MONTHLY_TOKEN_LIMIT: Joi.number().integer().min(1).default(5_000_000),
+
   RAZORPAY_KEY_ID: Joi.string().optional(),
   RAZORPAY_KEY_SECRET: Joi.string().optional(),
   /** Demo: charge Plus at this INR amount (e.g. 5). Unset to restore ₹599/₹549 pricing. */

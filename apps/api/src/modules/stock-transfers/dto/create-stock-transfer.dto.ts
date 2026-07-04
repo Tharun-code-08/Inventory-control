@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+
 class StockTransferLineDto {
   @ApiProperty()
   @IsUUID()
@@ -53,6 +54,13 @@ export class CreateStockTransferDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Client-supplied idempotency key (same contract as PO/SO/GR/Invoice create)',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 
   @ApiProperty({ type: [StockTransferLineDto] })
   @IsArray()

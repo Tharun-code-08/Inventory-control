@@ -58,6 +58,7 @@ import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { AgentPlatformModule } from './modules/agent-platform/agent-platform.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -170,6 +171,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     BackupModule,
     WarehouseModule,
     DocumentsModule,
+    AgentPlatformModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

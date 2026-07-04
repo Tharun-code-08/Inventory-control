@@ -338,6 +338,15 @@ model Company {
   documentRegistry        DocumentRegistry[]
   pdfJobs                 PdfJob[]
 
+  // Agent Platform (WhatsApp assistant)
+  channelAccounts         ChannelAccount[]
+  userChannelLinks        UserChannelLink[]
+  conversations           Conversation[]
+  aiSettings              AiSettings?
+  aiPromptHistory         AiPromptHistory[]
+  aiUsageLogs             AiUsageLog[]
+  agentTasks              AgentTask[]
+
   @@map("companies")
 }
 
@@ -774,6 +783,11 @@ model User {
   // Device & Security (Backend)
   devices                  UserDevice[]
   pushSubscriptions        NotificationSubscription[]
+
+  // Agent Platform (WhatsApp assistant)
+  channelLinks             UserChannelLink[]
+  agentTasksRequested      AgentTask[] @relation("AgentTasksRequested")
+  agentTasksApproved       AgentTask[] @relation("AgentTasksApproved")
 
   @@index([deletedAt])
   @@map("users")
@@ -3128,4 +3142,306 @@ model PdfJob {
   @@map("pdf_jobs")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Platform (Phase 1) — WhatsApp channel, secure linking, conversations,
+// AI settings/usage. WhatsApp is the first ChannelAdapter; the schema is
+// channel-agnostic so Telegram/Slack/web-chat slot in later.
+// ─────────────────────────────────────────────────────────────────────────────
 
+enum ChatChannel {
+  WHATSAPP
+}
+
+enum ChannelAccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ChannelLinkStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  AWAITING_CONFIRMATION
+  AWAITING_APPROVAL
+  HANDOFF
+  CLOSED
+}
+
+enum MessageDirection {
+  IN
+  OUT
+}
+
+enum ChatMessageStatus {
+  RECEIVED
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum AiModelRole {
+  INTENT
+  REASONING
+  ESCALATION
+}
+
+/// A channel account we can send/receive through. `companyId = null` is the
+/// shared platform account (MVP); a tenant-owned WABA sets `companyId` (later).
+model ChannelAccount {
+  id                String               @id @default(uuid()) @db.Uuid
+  companyId         String?              @map("company_id") @db.Uuid
+  channel           ChatChannel          @default(WHATSAPP)
+  provider          String               @default("meta")
+  businessAccountId String?              @map("business_account_id")
+  phoneNumberId     String               @map("phone_number_id")
+  displayPhone      String?              @map("display_phone")
+  /// Encrypted via common/crypto/secret-cipher.ts (never plaintext).
+  accessToken       String?              @map("access_token")
+  /// Encrypted; HMAC app secret for webhook signature verification.
+  webhookSecret     String?              @map("webhook_secret")
+  status            ChannelAccountStatus @default(ACTIVE)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, phoneNumberId])
+  @@index([companyId])
+  @@map("channel_accounts")
+}
+
+/// Verified binding of an ERP user to a channel identity (phone number).
+model UserChannelLink {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @map("user_id") @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  channel     ChatChannel       @default(WHATSAPP)
+  /// E.164 without "+", as Meta sends it (e.g. "9198xxxxxxxx").
+  phoneNumber String            @map("phone_number")
+  status      ChannelLinkStatus @default(PENDING)
+  verifiedAt  DateTime?         @map("verified_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime?         @map("last_seen_at") @db.Timestamptz(6)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([channel, phoneNumber])
+  @@index([userId])
+  @@index([companyId])
+  @@map("user_channel_links")
+}
+
+/// OTP challenge for linking a WhatsApp number (mirrors SignupVerification).
+model WhatsAppVerification {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  phoneNumber  String    @map("phone_number")
+  otpHash      String    @map("otp_hash")
+  attemptCount Int       @default(0) @map("attempt_count")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt   DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([phoneNumber])
+  @@index([expiresAt])
+  @@map("whatsapp_verifications")
+}
+
+model Conversation {
+  id                String             @id @default(uuid()) @db.Uuid
+  companyId         String             @map("company_id") @db.Uuid
+  userChannelLinkId String             @map("user_channel_link_id") @db.Uuid
+  status            ConversationStatus @default(ACTIVE)
+  /// Rolling summary for AI context hydration (Phase 2).
+  summary           String?            @db.Text
+  lastMessageAt     DateTime?          @map("last_message_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userChannelLink UserChannelLink @relation(fields: [userChannelLinkId], references: [id], onDelete: Cascade)
+  messages        Message[]
+  agentTasks      AgentTask[]
+
+  @@index([companyId, lastMessageAt])
+  @@index([userChannelLinkId, status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String            @id @default(uuid()) @db.Uuid
+  conversationId String            @map("conversation_id") @db.Uuid
+  direction      MessageDirection
+  /// Provider message id (Meta `wamid...`) for dedupe + delivery status.
+  waMessageId    String?           @map("wa_message_id")
+  type           String            @default("text")
+  body           String?           @db.Text
+  /// Raw provider payload (inbound) or send request/response (outbound).
+  payload        Json?
+  status         ChatMessageStatus @default(RECEIVED)
+  error          String?
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([waMessageId])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+/// Per-company AI configuration: provider, role→model mapping, flags, limits,
+/// approval-policy thresholds, and the active versioned system prompt.
+model AiSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyId             String   @unique @map("company_id") @db.Uuid
+  provider              String   @default("deepseek")
+  intentModel           String?  @map("intent_model")
+  reasoningModel        String?  @map("reasoning_model")
+  escalationModel       String?  @map("escalation_model")
+  featureFlags          Json     @default("{}") @map("feature_flags")
+  dailyRequestLimit     Int?     @map("daily_request_limit")
+  monthlyTokenLimit     Int?     @map("monthly_token_limit")
+  monthlyCostCentsLimit Int?     @map("monthly_cost_cents_limit")
+  approvalPolicy        Json     @default("{}") @map("approval_policy")
+  promptVersion         Int      @default(0) @map("prompt_version")
+  systemPrompt          String?  @map("system_prompt") @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("ai_settings")
+}
+
+model AiPromptHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  version     Int
+  body        String   @db.Text
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, version])
+  @@map("ai_prompt_history")
+}
+
+/// One row per AI provider call: metering (tokens/cost) + observability
+/// (tool timing, failures, escalation/handoff) — drives limits and metrics.
+model AiUsageLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  companyId      String      @map("company_id") @db.Uuid
+  conversationId String?     @map("conversation_id") @db.Uuid
+  model          String
+  role           AiModelRole
+  inputTokens    Int         @default(0) @map("input_tokens")
+  outputTokens   Int         @default(0) @map("output_tokens")
+  costCents      Int         @default(0) @map("cost_cents")
+  toolDurationMs Int?        @map("tool_duration_ms")
+  toolErrors     Int         @default(0) @map("tool_errors")
+  toolCallCount  Int         @default(0) @map("tool_call_count")
+  toolRounds     Int         @default(0) @map("tool_rounds")
+  durationMs     Int?        @map("duration_ms")
+  timedOut       Boolean     @default(false) @map("timed_out")
+  escalated      Boolean     @default(false)
+  humanHandoff   Boolean     @default(false) @map("human_handoff")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([conversationId])
+  @@map("ai_usage_logs")
+}
+
+
+
+enum AgentTaskStatus {
+  DRAFT
+  WAITING_APPROVAL
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentTaskStepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+/// Phase 3: a drafted business action awaiting approval and its execution
+/// record. Business state lives here, NOT in the conversation — enables
+/// "approve task #421", task lists, and audit. One task owns ordered steps;
+/// a failed later step never invalidates an earlier completed one.
+model AgentTask {
+  id             String          @id @default(uuid()) @db.Uuid
+  /// Human-friendly reference used in chat ("task #421"). Global sequence.
+  taskNumber     Int             @unique @default(autoincrement()) @map("task_number")
+  companyId      String          @map("company_id") @db.Uuid
+  conversationId String          @map("conversation_id") @db.Uuid
+  /// Linked user who asked for the action (executes with THEIR permissions).
+  requestedById  String          @map("requested_by") @db.Uuid
+  /// Registry action id, e.g. "purchase.create_po".
+  type           String
+  status         AgentTaskStatus @default(DRAFT)
+  /// Validated service-layer payload (e.g. CreatePurchaseOrderDto shape).
+  payload        Json
+  /// Human-readable draft summary exactly as presented for approval.
+  summary        String          @db.Text
+  /// Execution result surfaced to chat (e.g. { poId, poNumber, totalValue }).
+  result         Json?
+  approvedById   String?         @map("approved_by") @db.Uuid
+  approvedAt     DateTime?       @map("approved_at") @db.Timestamptz(6)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
+  failureReason  String?         @map("failure_reason")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  requestedBy  User          @relation("AgentTasksRequested", fields: [requestedById], references: [id], onDelete: Cascade)
+  approvedBy   User?         @relation("AgentTasksApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  steps        AgentTaskStep[]
+
+  @@index([conversationId, status])
+  @@index([companyId, createdAt])
+  @@map("agent_tasks")
+}
+
+model AgentTaskStep {
+  id          String              @id @default(uuid()) @db.Uuid
+  taskId      String              @map("task_id") @db.Uuid
+  /// 1-based execution order within the task.
+  order       Int
+  /// Step-runner name, e.g. "purchase.create_po".
+  name        String
+  status      AgentTaskStepStatus @default(PENDING)
+  attempts    Int                 @default(0)
+  result      Json?
+  error       String?
+  startedAt   DateTime?           @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime?           @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, order])
+  @@map("agent_task_steps")
+}

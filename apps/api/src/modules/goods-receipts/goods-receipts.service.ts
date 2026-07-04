@@ -17,6 +17,7 @@ import { CostingService } from '../stock/costing.service';
 import { DocumentAlreadyPostedException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
+import { tryGetIdempotentResult, trySetIdempotentResult } from '../../common/utils/idempotency';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { UpdateGoodsReceiptDto } from './dto/update-goods-receipt.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
@@ -228,7 +229,31 @@ export class GoodsReceiptsService {
     }
     await this.assertStorageLocationsForShop(dto.shopId, dto.items);
 
+    // Same idempotency contract as PO/SO create: a retried request (or an
+    // agent task step re-run) returns the already-created GR, not a duplicate.
+    const idempotencyScope = user.companyId
+      ? `company:${user.companyId}`
+      : user.shopId
+        ? `shop:${user.shopId}`
+        : 'global';
+    const idempotencyCacheKey = dto.idempotencyKey?.trim()
+      ? `gr:create:${dto.idempotencyKey.trim()}`
+      : undefined;
+
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
+      const existing = await tryGetIdempotentResult<{ grId: string }>(
+        tx,
+        idempotencyCacheKey,
+        idempotencyScope,
+      );
+      if (existing?.grId) {
+        const prior = await tx.goodsReceiptHeader.findUnique({
+          where: { id: existing.grId },
+          include: { items: true, shop: true },
+        });
+        if (prior) return prior;
+      }
+
         const normalizedItems = dto.items.map((i) => ({
         productId: i.productId,
         quantity: new Prisma.Decimal(i.quantity),
@@ -300,6 +325,30 @@ export class GoodsReceiptsService {
         },
         include: { items: true, shop: true },
       });
+
+      await this.audit.logTenant(
+        user,
+        {
+          action: AuditAction.CREATE,
+          entityType: 'GOODS_RECEIPT',
+          entityId: header.id,
+          newValues: {
+            grNumber: header.grNumber,
+            supplierName: header.supplierName,
+            itemCount: dto.items.length,
+          },
+        },
+        tx,
+      );
+
+      await trySetIdempotentResult(
+        tx,
+        idempotencyCacheKey,
+        { grId: header.id },
+        user.id,
+        idempotencyScope,
+      );
+
       return header;
     });
   }

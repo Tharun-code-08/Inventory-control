@@ -9,5 +9,6 @@ import { ReportsService } from './reports.service';
   imports: [BillingModule, StockModule, BullModule.registerQueue({ name: 'exports' })],
   controllers: [ReportsController],
   providers: [ReportsService],
+  exports: [ReportsService],
 })
 export class ReportsModule {}
