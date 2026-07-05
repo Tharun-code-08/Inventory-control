@@ -1369,14 +1369,12 @@ COALESCE(
             ? Prisma.sql`days_remaining ASC`
             : sortBy === 'avgSalesPerDay'
               ? Prisma.sql`avg_sales_per_day DESC`
-              : Prisma.sql`
-                  CASE
-                    WHEN days_remaining < 7 THEN 1
-                    WHEN days_remaining < 14 THEN 2
-                    ELSE 3
-                  END ASC,
-                  days_remaining ASC
-                `
+              : // urgency: fewest days of stock remaining first. Postgres does not
+                // permit an output-column alias inside a CASE expression in ORDER BY,
+                // and ordering by days_remaining ASC is equivalent to the urgency
+                // buckets (CRITICAL <7 < WARNING <14 < NORMAL) since they are
+                // monotonic in days_remaining.
+                Prisma.sql`days_remaining ASC`
         }
         OFFSET ${(page - 1) * limit}
         LIMIT ${limit}
