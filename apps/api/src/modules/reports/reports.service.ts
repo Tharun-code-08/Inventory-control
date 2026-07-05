@@ -1298,7 +1298,7 @@ COALESCE(
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-        WHERE pp.shop_id = ${filters.shop_id}
+        WHERE pp.shop_id = ${filters.shop_id}::uuid
         AND pp.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
       `),
@@ -1326,7 +1326,7 @@ COALESCE(
           FROM product_plants pp
           JOIN products p ON p.id = pp.product_id AND p.is_active = true
           LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
-          WHERE pp.shop_id = ${filters.shop_id}
+          WHERE pp.shop_id = ${filters.shop_id}::uuid
           AND pp.is_active = true
           ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
           GROUP BY pp.product_id
@@ -1361,7 +1361,7 @@ COALESCE(
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
         LEFT JOIN sales_data sd ON sd.product_id = p.id
-        WHERE pp.shop_id = ${filters.shop_id}
+        WHERE pp.shop_id = ${filters.shop_id}::uuid
         AND pp.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
         ORDER BY ${
