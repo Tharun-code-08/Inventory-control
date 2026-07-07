@@ -2,17 +2,31 @@ import { Injectable } from '@nestjs/common';
 
 export const CAPABILITIES_REPLY = [
   'Here is what you can ask me:',
-  '- 📦 Stock: "stock of blue pens"',
-  '- 🔍 Products: "find products in Stationery"',
-  '- 🏷️ Barcode: "barcode 8901234567890"',
-  '- ⚠️ Low stock: "what is low on stock?"',
-  '- 📈 Sales: "sales this month"',
-  '- 🔝 Top sellers: "top selling items this month"',
-  '- 🛒 Reorder: "what should I reorder?"',
-  'Just ask in plain language.',
+  '',
+  '*📊 Reports & Stock*',
+  '- "How much stock of X?"',
+  '- "What is low on stock?"',
+  '- "Top selling items this month"',
+  '- "Sales overview"',
+  '- "What should I reorder?"',
+  '',
+  '*📝 Create (I will draft — you approve)*',
+  '- "Create PO for 10 units of X from Supplier Y"',
+  '- "Create sales order for customer Z"',
+  '- "Create goods receipt for PO-00001"',
+  '- "Create invoice for SO-00001"',
+  '- "Transfer 5 units of X from Shop A to Shop B"',
+  '',
+  'Just ask in plain language!',
 ].join('\n');
 
-const GREETING_REPLY = `👋 Hello! I'm your inventory assistant.\n\n${CAPABILITIES_REPLY}`;
+const GREETING_REPLY = [
+  '👋 Hello! I\'m your SoftDigit ERP assistant.',
+  '',
+  'I can answer questions about your inventory and *draft ERP transactions* for you to approve.',
+  '',
+  CAPABILITIES_REPLY,
+].join('\n');
 
 type IntentRule = {
   name: string;
