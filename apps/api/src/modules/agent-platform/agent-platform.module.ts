@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BarcodesModule } from '../barcodes/barcodes.module';
 import { CustomersModule } from '../customers/customers.module';
+import { DamagedStockModule } from '../damaged-stock/damaged-stock.module';
 import { GoodsReceiptsModule } from '../goods-receipts/goods-receipts.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { ProductsModule } from '../products/products.module';
@@ -18,8 +19,11 @@ import type { AiProvider } from './ai/provider/ai-provider.interface';
 import { AI_PROVIDER } from './ai/provider/ai-provider.token';
 import { DeepSeekProvider } from './ai/provider/deepseek.provider';
 import { ReadToolsService } from './ai/tools/read/read-tools.service';
+import { CatalogWriteToolsService } from './ai/tools/write/catalog-write-tools.service';
 import { GoodsReceiptWriteToolsService } from './ai/tools/write/goods-receipt-write-tools.service';
+import { InventoryWriteToolsService } from './ai/tools/write/inventory-write-tools.service';
 import { InvoiceWriteToolsService } from './ai/tools/write/invoice-write-tools.service';
+import { PartnerWriteToolsService } from './ai/tools/write/partner-write-tools.service';
 import { PurchaseWriteToolsService } from './ai/tools/write/purchase-write-tools.service';
 import { StockTransferWriteToolsService } from './ai/tools/write/stock-transfer-write-tools.service';
 import { NotificationProcessor } from './notifications/notification.processor';
@@ -78,6 +82,7 @@ import { AiSettingsService } from './settings/ai-settings.service';
     InvoicesModule,
     StockTransfersModule,
     SuppliersModule,
+    DamagedStockModule,
   ],
   controllers: [WhatsAppWebhookController, LinkController, AiSettingsController],
   providers: [
@@ -97,6 +102,9 @@ import { AiSettingsService } from './settings/ai-settings.service';
     GoodsReceiptWriteToolsService,
     InvoiceWriteToolsService,
     StockTransferWriteToolsService,
+    InventoryWriteToolsService,
+    CatalogWriteToolsService,
+    PartnerWriteToolsService,
     NotificationSchedulerService,
     NotificationProcessor,
     PlatformHealthService,

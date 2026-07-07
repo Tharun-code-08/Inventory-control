@@ -48,6 +48,10 @@ function buildHarness() {
     }),
   };
 
+  const purchaseOrders = {
+    get: jest.fn(),
+    list: jest.fn().mockResolvedValue({ data: [] }),
+  };
   const service = new GoodsReceiptWriteToolsService(
     registry,
     executor as never,
@@ -56,10 +60,11 @@ function buildHarness() {
     storageLocations as never,
     shops as never,
     goodsReceipts as never,
+    purchaseOrders as never,
   );
   service.onModuleInit();
   const tool = registry.get('purchase.create_gr')!;
-  return { registry, executor, tasks, products, storageLocations, shops, goodsReceipts, tool };
+  return { registry, executor, tasks, products, storageLocations, shops, goodsReceipts, purchaseOrders, tool };
 }
 
 describe('GoodsReceiptWriteToolsService — create_goods_receipt tool', () => {

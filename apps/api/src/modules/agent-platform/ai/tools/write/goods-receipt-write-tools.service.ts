@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import type { RequestUser } from '@/common/types/request-user';
 import { GoodsReceiptsService } from '@/modules/goods-receipts/goods-receipts.service';
 import { ProductsService } from '@/modules/products/products.service';
+import { PurchaseOrdersService } from '@/modules/purchase-orders/purchase-orders.service';
 import { ShopsService } from '@/modules/shops/shops.service';
 import { StorageLocationsService } from '@/modules/storage-locations/storage-locations.service';
 import { AgentTaskService } from '../../../tasks/agent-task.service';
@@ -9,6 +10,7 @@ import { TaskExecutorService } from '../../../tasks/task-executor.service';
 import { ToolRegistry, type AgentToolContext } from '../tool-registry';
 
 const CREATE_GR = 'purchase.create_gr';
+const RECEIVE_PO = 'purchase.receive_po';
 
 type DraftLineInput = {
   product_id?: unknown;
@@ -51,6 +53,26 @@ type StorageLocationRow = {
   isActive?: boolean;
 };
 
+type PoDetail = {
+  id: string;
+  poNumber: string;
+  status: string;
+  supplier: string;
+  shopId: string;
+  items: Array<{
+    productId: string;
+    orderQty: number;
+    rate: number;
+    product?: { id: string; productCode?: string; description?: string };
+  }>;
+  receiptProgress?: Array<{
+    productId: string;
+    orderedQty: number;
+    receivedQty: number;
+    remainingQty: number;
+  }>;
+};
+
 function money(value: unknown): string {
   const num = Number(value ?? 0);
   return `₹${Number.isFinite(num) ? num.toLocaleString('en-IN') : String(value)}`;
@@ -75,6 +97,7 @@ export class GoodsReceiptWriteToolsService implements OnModuleInit {
     private readonly storageLocations: StorageLocationsService,
     private readonly shops: ShopsService,
     private readonly goodsReceipts: GoodsReceiptsService,
+    private readonly purchaseOrders: PurchaseOrdersService,
   ) {}
 
   onModuleInit(): void {
@@ -126,6 +149,34 @@ export class GoodsReceiptWriteToolsService implements OnModuleInit {
       handler: (ctx, input) => this.draftGoodsReceipt(ctx, input),
     });
 
+    this.registry.register({
+      name: 'receive_purchase_order',
+      id: RECEIVE_PO,
+      description:
+        'Draft a goods receipt for ALL remaining (not yet received) quantities of an existing purchase order — ' +
+        'use when the user says "received PO-00012 in full", "PO-00012 arrived", "receive my last PO". Takes the ' +
+        'PO number (e.g. PO-00012) or po_id. This does NOT create the receipt — the user must reply "approve", ' +
+        'and even then the receipt is an ERP DRAFT that must be posted before stock changes. For a PARTIAL ' +
+        'delivery use create_goods_receipt with explicit items instead. Relay the returned summary verbatim.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          po_number: { type: 'string', description: 'Purchase order number, e.g. PO-00012' },
+          po_id: { type: 'string', description: 'Purchase order id, if known' },
+          gr_date: { type: 'string', description: 'Receipt date YYYY-MM-DD (defaults to today)' },
+          storage_location: { type: 'string', description: "Storage location code or name (defaults to the shop's only active location)" },
+          remarks: { type: 'string' },
+        },
+      },
+      requiredPermission: 'goods_receipt:create',
+      featureFlag: 'purchase',
+      version: 1,
+      confirmationRequired: true,
+      costLevel: 'low',
+      auditRequired: true,
+      handler: (ctx, input) => this.draftReceivePo(ctx, input),
+    });
+
     this.executor.registerRunner({
       name: CREATE_GR,
       run: (user, payload, task, step) =>
@@ -147,6 +198,136 @@ export class GoodsReceiptWriteToolsService implements OnModuleInit {
         return `✅ Goods receipt *${gr.grNumber}* created as a draft (total ${money(total)}). Post it under Goods Receipts in the ERP to update stock.`;
       },
     });
+  }
+
+  private async draftReceivePo(
+    ctx: AgentToolContext,
+    input: Record<string, unknown>,
+  ): Promise<unknown> {
+    if (!ctx.conversationId || !ctx.companyId) {
+      throw new Error('Goods receipt drafting is only available in a chat conversation');
+    }
+
+    const po = await this.resolvePo(ctx.user, input);
+    if ('clarify' in po) return po;
+
+    if (po.status !== 'CONFIRMED') {
+      return {
+        clarify: `PO ${po.poNumber} is ${po.status} — only CONFIRMED purchase orders can be received. Tell the user.`,
+      };
+    }
+
+    // Remaining quantities: prefer receiptProgress (accounts for prior GRs);
+    // fall back to full ordered quantities when no receipt exists yet.
+    const remainingByProduct = new Map<string, number>();
+    if (po.receiptProgress && po.receiptProgress.length > 0) {
+      for (const row of po.receiptProgress) {
+        if (Number(row.remainingQty) > 0) remainingByProduct.set(row.productId, Number(row.remainingQty));
+      }
+    } else {
+      for (const item of po.items) remainingByProduct.set(item.productId, Number(item.orderQty));
+    }
+    if (remainingByProduct.size === 0) {
+      return { clarify: `PO ${po.poNumber} is already fully received — nothing left to receive. Tell the user.` };
+    }
+
+    const grDate = this.resolveGrDate(input.gr_date);
+    const location = await this.resolveStorageLocation(ctx.user, po.shopId, input.storage_location);
+    if ('clarify' in location) return location;
+
+    const lines: ResolvedLine[] = [];
+    for (const item of po.items) {
+      const remaining = remainingByProduct.get(item.productId);
+      if (!remaining || remaining <= 0) continue;
+      let uom = 'NOS';
+      try {
+        const product = (await this.products.get(ctx.user, item.productId)) as unknown as ProductRow;
+        if (product?.uom) uom = product.uom;
+      } catch {
+        // keep default
+      }
+      lines.push({
+        productId: item.productId,
+        label: `${item.product?.description ?? 'product'}${item.product?.productCode ? ` (${item.product.productCode})` : ''}`,
+        quantity: remaining,
+        purchaseRate: Number(item.rate),
+        uom,
+      });
+    }
+    if (lines.length === 0) {
+      return { clarify: `PO ${po.poNumber} has no receivable lines. Tell the user.` };
+    }
+
+    const total = lines.reduce((sum, line) => sum + line.quantity * line.purchaseRate, 0);
+    const shopName = await this.shopName(ctx.user, po.shopId);
+    const payload = {
+      shopId: po.shopId,
+      grDate,
+      supplierName: po.supplier,
+      purchaseOrderId: po.id,
+      ...(typeof input.remarks === 'string' && input.remarks.trim()
+        ? { remarks: input.remarks.trim() }
+        : { remarks: `Full receipt against ${po.poNumber} (via WhatsApp assistant)` }),
+      items: lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        uom: line.uom,
+        purchaseRate: line.purchaseRate,
+        storageLocationId: location.id,
+      })),
+    };
+
+    const task = await this.tasks.createDraft({
+      companyId: ctx.companyId,
+      conversationId: ctx.conversationId,
+      requestedById: ctx.user.id,
+      type: RECEIVE_PO,
+      payload,
+      summary: this.buildSummary({
+        supplierName: `${po.supplier} — receiving *${po.poNumber}* in full`,
+        shopName,
+        locationLabel: location.code ?? location.name ?? location.id,
+        grDate,
+        poLinked: true,
+        lines,
+        total,
+        remarks: payload.remarks,
+      }),
+      steps: [CREATE_GR],
+    });
+
+    return {
+      task_number: task.taskNumber,
+      status: task.status,
+      summary: task.summary,
+      note: 'Draft created. The user must reply "approve" to create the goods receipt, "cancel" to discard, or describe changes.',
+    };
+  }
+
+  private async resolvePo(
+    user: RequestUser,
+    input: Record<string, unknown>,
+  ): Promise<PoDetail | { clarify: string; candidates?: unknown[] }> {
+    if (typeof input.po_id === 'string' && input.po_id.trim()) {
+      const po = (await this.purchaseOrders.get(user, input.po_id.trim())) as unknown as PoDetail;
+      if (!po?.id) throw new Error('Purchase order could not be resolved');
+      return po;
+    }
+    const query = String(input.po_number ?? '').trim();
+    if (!query) throw new Error('po_number or po_id is required');
+    const found = await this.purchaseOrders.list(user, { search: query, take: 10 } as never);
+    const rows = (found as { data?: Array<{ id: string; poNumber?: string }> }).data ?? [];
+    const match = rows.find((row) => row.poNumber?.toLowerCase() === query.toLowerCase()) ?? (rows.length === 1 ? rows[0] : undefined);
+    if (!match) {
+      if (rows.length > 1) {
+        return {
+          clarify: `Multiple purchase orders match "${query}". Ask the user which one they mean.`,
+          candidates: rows.map((row) => ({ id: row.id, poNumber: row.poNumber })),
+        };
+      }
+      return { clarify: `No purchase order matches "${query}". Ask the user for the exact PO number.` };
+    }
+    return (await this.purchaseOrders.get(user, match.id)) as unknown as PoDetail;
   }
 
   private async draftGoodsReceipt(

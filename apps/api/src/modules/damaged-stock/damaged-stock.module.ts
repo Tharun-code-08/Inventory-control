@@ -7,5 +7,6 @@ import { DamagedStockService } from './damaged-stock.service';
   imports: [StockModule],
   controllers: [DamagedStockController],
   providers: [DamagedStockService],
+  exports: [DamagedStockService],
 })
 export class DamagedStockModule {}
