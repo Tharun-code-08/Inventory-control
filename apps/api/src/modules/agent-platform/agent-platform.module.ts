@@ -12,6 +12,7 @@ import { SalesOrdersModule } from '../sales-orders/sales-orders.module';
 import { ShopsModule } from '../shops/shops.module';
 import { StorageLocationsModule } from '../storage-locations/storage-locations.module';
 import { StockTransfersModule } from '../stock-transfers/stock-transfers.module';
+import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AiOrchestratorService } from './ai/ai-orchestrator.service';
 import type { AiProvider } from './ai/provider/ai-provider.interface';
 import { AI_PROVIDER } from './ai/provider/ai-provider.token';
@@ -76,6 +77,7 @@ import { AiSettingsService } from './settings/ai-settings.service';
     StorageLocationsModule,
     InvoicesModule,
     StockTransfersModule,
+    SuppliersModule,
   ],
   controllers: [WhatsAppWebhookController, LinkController, AiSettingsController],
   providers: [
