@@ -12,7 +12,6 @@ import { SalesOrdersModule } from '../sales-orders/sales-orders.module';
 import { ShopsModule } from '../shops/shops.module';
 import { StorageLocationsModule } from '../storage-locations/storage-locations.module';
 import { StockTransfersModule } from '../stock-transfers/stock-transfers.module';
-import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AiOrchestratorService } from './ai/ai-orchestrator.service';
 import type { AiProvider } from './ai/provider/ai-provider.interface';
 import { AI_PROVIDER } from './ai/provider/ai-provider.token';
@@ -33,7 +32,7 @@ import { TaskFlowService } from './tasks/task-flow.service';
 import { UsageLimitService } from './ai/usage/usage-limit.service';
 import { WhatsAppWebhookController } from './channels/whatsapp/whatsapp-webhook.controller';
 import { AiSettingsController } from './settings/ai-settings.controller';
-import { WhatsAppModule } from './channels/whatsapp/whatsapp.module';
+import { WhatsAppAdapter } from './channels/whatsapp/whatsapp.adapter';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ConversationProcessor } from './conversation/conversation.processor';
 import { ConversationService } from './conversation/conversation.service';
@@ -64,9 +63,8 @@ import { AiSettingsService } from './settings/ai-settings.service';
   imports: [
     BullModule.registerQueue({ name: 'whatsapp' }),
     BullModule.registerQueue({ name: 'agent-notifications' }),
-    WhatsAppModule,
-    NotificationsModule,
     CacheModule,
+    NotificationsModule,
     ReportsModule,
     ProductsModule,
     BarcodesModule,
@@ -78,10 +76,10 @@ import { AiSettingsService } from './settings/ai-settings.service';
     StorageLocationsModule,
     InvoicesModule,
     StockTransfersModule,
-    SuppliersModule,
   ],
   controllers: [WhatsAppWebhookController, LinkController, AiSettingsController],
   providers: [
+    WhatsAppAdapter,
     ConversationService,
     ConversationProcessor,
     LinkService,

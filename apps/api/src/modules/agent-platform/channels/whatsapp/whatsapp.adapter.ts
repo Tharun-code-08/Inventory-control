@@ -8,6 +8,22 @@ type MetaSendResponse = {
   error?: { message?: string; code?: number; type?: string };
 };
 
+/** A pre-approved WhatsApp template send (business-initiated, outside the 24h window). */
+export type OutboundTemplate = {
+  /** Destination E.164 digits, no "+". */
+  to: string;
+  /** Meta-approved template name. */
+  name: string;
+  /** Must match the approved template's language exactly, e.g. "en" / "en_US". */
+  languageCode: string;
+  /**
+   * Full Meta `components` array. Callers build the exact shape the approved
+   * template requires (body parameters, buttons, …); the adapter stays
+   * template-agnostic. Omit for a template with no parameters.
+   */
+  components?: unknown[];
+};
+
 /**
  * Meta WhatsApp Cloud API adapter. Credentials come from env (the shared
  * platform number for MVP); per-tenant ChannelAccount rows take over later.
@@ -25,6 +41,37 @@ export class WhatsAppAdapter implements ChannelAdapter {
   }
 
   async sendText(message: OutboundText): Promise<SendResult> {
+    return this.postMessage({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: message.to,
+      type: 'text',
+      text: { preview_url: false, body: message.body },
+    });
+  }
+
+  /**
+   * Send a pre-approved template message. Required for business-initiated
+   * sends (OTP, alerts) outside the 24h service window — Meta rejects plain
+   * text there. See docs/event-platform/provider-capability-matrix.md.
+   */
+  async sendTemplate(message: OutboundTemplate): Promise<SendResult> {
+    return this.postMessage({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: message.to,
+      type: 'template',
+      template: {
+        name: message.name,
+        language: { code: message.languageCode },
+        ...(message.components && message.components.length
+          ? { components: message.components }
+          : {}),
+      },
+    });
+  }
+
+  private async postMessage(body: Record<string, unknown>): Promise<SendResult> {
     if (!this.isConfigured()) {
       throw new Error(
         'WhatsApp adapter is not configured (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN missing)',
@@ -42,13 +89,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
           'content-type': 'application/json',
           authorization: `Bearer ${this.accessToken()}`,
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: message.to,
-          type: 'text',
-          text: { preview_url: false, body: message.body },
-        }),
+        body: JSON.stringify(body),
       });
       const payload = (await res.json().catch(() => ({}))) as MetaSendResponse;
       if (!res.ok) {
