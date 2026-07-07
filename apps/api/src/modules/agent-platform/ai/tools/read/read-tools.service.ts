@@ -243,7 +243,7 @@ export class ReadToolsService implements OnModuleInit {
       featureFlag: 'stock',
       handler: async ({ user }) => {
         const result = await this.shops.list(user, {});
-        return result.data.map((s) => pick(s, ['id', 'name', 'city', 'isActive']));
+        return result.data.map((s) => pick(s, ['id', 'shopName', 'address', 'isActive']));
       },
     });
 
