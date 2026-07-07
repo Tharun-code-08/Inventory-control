@@ -118,6 +118,13 @@ enum AuditAction {
   UPDATE
   DELETE
   POST
+
+  // WhatsApp device linking
+  LINK_TOKEN_GENERATED
+  LINK_TOKEN_USED
+  DEVICE_LINKED
+  DEVICE_REVOKED
+  DEVICE_REJECTED
 }
 
 enum AuditSeverity {
@@ -341,6 +348,8 @@ model Company {
   // Agent Platform (WhatsApp assistant)
   channelAccounts         ChannelAccount[]
   userChannelLinks        UserChannelLink[]
+  whatsAppLinkTokens      WhatsAppLinkToken[]
+  whatsAppDevices         WhatsAppDevice[]
   conversations           Conversation[]
   aiSettings              AiSettings?
   aiPromptHistory         AiPromptHistory[]
@@ -788,6 +797,9 @@ model User {
   channelLinks             UserChannelLink[]
   agentTasksRequested      AgentTask[] @relation("AgentTasksRequested")
   agentTasksApproved       AgentTask[] @relation("AgentTasksApproved")
+  whatsAppLinkTokens       WhatsAppLinkToken[]
+  whatsAppDevices          WhatsAppDevice[]
+  whatsAppDevicesRevoked   WhatsAppDevice[] @relation("WhatsAppDeviceRevoker")
 
   @@index([deletedAt])
   @@map("users")
@@ -3256,6 +3268,75 @@ model WhatsAppVerification {
   @@index([phoneNumber])
   @@index([expiresAt])
   @@map("whatsapp_verifications")
+}
+
+enum LinkTokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+}
+
+enum WhatsAppDeviceStatus {
+  ACTIVE
+  REVOKED
+  ARCHIVED
+}
+
+/// Short-lived, single-use linking token generated from an authenticated IMS
+/// session. Only the SHA-256 hash is stored; the raw token is shown once in
+/// the UI and redeemed by texting "LINK <token>" from WhatsApp. One ACTIVE
+/// token per user at a time.
+model WhatsAppLinkToken {
+  id                 String          @id @default(uuid()) @db.Uuid
+  companyId          String          @map("company_id") @db.Uuid
+  userId             String          @map("user_id") @db.Uuid
+  tokenHash          String          @unique @map("token_hash")
+  tokenVersion       String          @default("V1") @map("token_version")
+  status             LinkTokenStatus @default(ACTIVE)
+  expiresAt          DateTime        @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt             DateTime?       @map("used_at") @db.Timestamptz(6)
+  /// E.164 without "+"; set at redemption.
+  linkedPhone        String?         @map("linked_phone")
+  attemptCount       Int             @default(0) @map("attempt_count")
+  generatedIp        String?         @map("generated_ip")
+  generatedUserAgent String?         @map("generated_user_agent")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@index([companyId])
+  @@map("whatsapp_link_tokens")
+}
+
+/// Permanent trusted-device record: a WhatsApp number proven (via link token)
+/// to belong to a user. Revocation is soft (REVOKED/ARCHIVED) — history is
+/// never deleted. A phone number has exactly one owner row globally.
+model WhatsAppDevice {
+  id          String               @id @default(uuid()) @db.Uuid
+  companyId   String               @map("company_id") @db.Uuid
+  userId      String               @map("user_id") @db.Uuid
+  /// E.164 without "+", as Meta sends it.
+  phoneNumber String               @unique @map("phone_number")
+  nickname    String?
+  deviceType  String?              @map("device_type")
+  status      WhatsAppDeviceStatus @default(ACTIVE)
+  linkedAt    DateTime             @default(now()) @map("linked_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime?            @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  revokedById String?              @map("revoked_by_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedBy User?   @relation("WhatsAppDeviceRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([companyId])
+  @@map("whatsapp_devices")
 }
 
 model Conversation {

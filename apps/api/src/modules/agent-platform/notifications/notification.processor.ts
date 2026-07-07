@@ -26,17 +26,34 @@ type AnalyticsResult = {
   totalRevenue?: unknown;
   salesOrderCount?: unknown;
   lowStockCount?: unknown;
+  overdueInvoiceCount?: unknown;
 };
 
 type LowStockRow = { description?: string; product_code?: string; current_stock?: unknown; min_stock_level?: unknown };
 
-type AgingRow = { customerName?: string; overdue_amount?: unknown; overdue_invoice_count?: unknown };
+type AgingRow = { customerName?: string; overdue_amount?: unknown; overdue_invoice_count?: unknown; oldest_overdue_days?: unknown };
 
-type AgingResult = { data?: AgingRow[]; summary?: { total_overdue?: unknown; overdue_customers?: unknown } };
+type AgingResult = { data?: AgingRow[]; summary?: { total_overdue?: unknown; overdue_customers?: unknown; oldest_overdue_days?: unknown } };
 
-function money(value: unknown): string {
-  const num = Number(value ?? 0);
-  return `₹${Number.isFinite(num) ? num.toLocaleString('en-IN') : String(value)}`;
+type TemplateParam = { type: 'text'; text: string };
+type TemplateComponent = { type: string; parameters?: TemplateParam[] };
+
+type NotificationPayload =
+  | { kind: 'text'; body: string }
+  | { kind: 'template'; name: string; components: TemplateComponent[] };
+
+function p(text: string): TemplateParam {
+  return { type: 'text', text: String(text) };
+}
+
+function num(value: unknown, fallback = '0'): string {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? String(n) : fallback;
+}
+
+function amount(value: unknown): string {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n.toLocaleString('en-IN') : String(value ?? '0');
 }
 
 /**
@@ -76,17 +93,20 @@ export class NotificationProcessor extends WorkerHost {
         const user = await this.links.buildRequestUser(link);
         if (!user) continue;
 
-        let body: string | null = null;
+        const userName = await this.resolveUserName(user.id);
+        const companyName = await this.resolveCompanyName(link.companyId);
+
+        let payload: NotificationPayload | null = null;
         if (type === 'daily_summary') {
-          body = await this.buildDailySummary(job.data as DailySummaryJob, user as never);
+          payload = await this.buildDailySummary(job.data as DailySummaryJob, user as never, companyName);
         } else if (type === 'low_stock_alert') {
-          body = await this.buildLowStockAlert(job.data as LowStockAlertJob, user as never);
+          payload = await this.buildLowStockAlert(job.data as LowStockAlertJob, user as never, userName, companyName);
         } else if (type === 'overdue_payment') {
-          body = await this.buildOverduePayment(job.data as OverduePaymentJob, user as never);
+          payload = await this.buildOverduePayment(job.data as OverduePaymentJob, user as never, userName, companyName);
         }
 
-        if (body) {
-          await this.sendToLink(link, body);
+        if (payload) {
+          await this.sendToLink(link, payload);
           sent++;
         }
       } catch (err) {
@@ -101,7 +121,8 @@ export class NotificationProcessor extends WorkerHost {
   private async buildDailySummary(
     _job: DailySummaryJob,
     user: Parameters<ReportsService['analyticsOverview']>[0],
-  ): Promise<string | null> {
+    companyName: string,
+  ): Promise<NotificationPayload | null> {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yStr = yesterday.toISOString().slice(0, 10);
@@ -116,24 +137,35 @@ export class NotificationProcessor extends WorkerHost {
       return null;
     }
 
-    const revenue = money(overview.totalRevenue);
-    const orders = Number(overview.salesOrderCount ?? 0);
-    const lowStockCount = Number(overview.lowStockCount ?? 0);
-
-    return [
-      `📊 *Daily Summary — ${yStr}*`,
-      `- Sales: ${orders} order${Number(orders) === 1 ? '' : 's'} totalling ${revenue}`,
-      `- Low-stock items: ${lowStockCount}`,
-      lowStockCount > 0 ? 'Ask me "which items are low on stock?" for details.' : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    // Template: header={{1}}=companyName; body {{1}}=date, {{2}}=orders, {{3}}=revenue, {{4}}=lowStock, {{5}}=overdue
+    return {
+      kind: 'template',
+      name: 'daily_business_summary',
+      components: [
+        {
+          type: 'header',
+          parameters: [p(companyName)],
+        },
+        {
+          type: 'body',
+          parameters: [
+            p(yStr),
+            p(num(overview.salesOrderCount)),
+            p(amount(overview.totalRevenue)),
+            p(num(overview.lowStockCount)),
+            p(num(overview.overdueInvoiceCount)),
+          ],
+        },
+      ],
+    };
   }
 
   private async buildLowStockAlert(
     _job: LowStockAlertJob,
     user: Parameters<ReportsService['lowStock']>[0],
-  ): Promise<string | null> {
+    userName: string,
+    companyName: string,
+  ): Promise<NotificationPayload | null> {
     let items: LowStockRow[];
     try {
       items = (await this.reports.lowStock(user)) as LowStockRow[];
@@ -142,22 +174,34 @@ export class NotificationProcessor extends WorkerHost {
     }
     if (items.length === 0) return null;
 
-    const MAX_LINES = 8;
+    const MAX_LINES = 5;
     const shown = items.slice(0, MAX_LINES);
     const more = items.length - MAX_LINES;
     const lines = shown.map(
-      (r) =>
-        `- ${r.description ?? r.product_code ?? 'Unknown'}: ${r.current_stock ?? 0} (min ${r.min_stock_level ?? 0})`,
+      (r) => `• ${r.description ?? r.product_code ?? 'Unknown'}: ${r.current_stock ?? 0} (min ${r.min_stock_level ?? 0})`,
     );
     if (more > 0) lines.push(`…and ${more} more`);
+    const itemsList = lines.join('\n');
 
-    return [`⚠️ *Low Stock Alert* — ${items.length} item${items.length === 1 ? '' : 's'} need attention`, ...lines].join('\n');
+    // Template: body {{1}}=userName, {{2}}=companyName, {{3}}=itemsList
+    return {
+      kind: 'template',
+      name: 'low_stock_alert',
+      components: [
+        {
+          type: 'body',
+          parameters: [p(userName), p(companyName), p(itemsList)],
+        },
+      ],
+    };
   }
 
   private async buildOverduePayment(
     _job: OverduePaymentJob,
     user: Parameters<ReportsService['customerAging']>[0],
-  ): Promise<string | null> {
+    userName: string,
+    companyName: string,
+  ): Promise<NotificationPayload | null> {
     let result: AgingResult;
     try {
       result = (await this.reports.customerAging(user, {
@@ -172,18 +216,42 @@ export class NotificationProcessor extends WorkerHost {
     const customers = result.data ?? [];
     if (customers.length === 0) return null;
 
-    const totalOverdue = money(result.summary?.total_overdue);
-    const overdueCount = Number(result.summary?.overdue_customers ?? customers.length);
-    const lines = customers.map(
-      (c) =>
-        `- ${c.customerName ?? 'Customer'}: ${money(c.overdue_amount)} (${c.overdue_invoice_count ?? 0} invoice${Number(c.overdue_invoice_count ?? 0) === 1 ? '' : 's'})`,
-    );
+    const overdueCount = num(result.summary?.overdue_customers ?? customers.length);
+    const totalAmount = amount(result.summary?.total_overdue);
+    const oldestDays = num(result.summary?.oldest_overdue_days ?? customers[0]?.oldest_overdue_days ?? 0);
 
-    return [
-      `💰 *Overdue Payment Reminder* — ${overdueCount} customer${overdueCount === 1 ? '' : 's'} (${totalOverdue} total)`,
-      ...lines,
-      'Open Invoices in the ERP to follow up.',
-    ].join('\n');
+    // Template: header={{1}}=userName; body {{1}}=userName, {{2}}=count, {{3}}=company, {{4}}=amount, {{5}}=days
+    return {
+      kind: 'template',
+      name: 'overdue_payment_reminder',
+      components: [
+        {
+          type: 'header',
+          parameters: [p(userName)],
+        },
+        {
+          type: 'body',
+          parameters: [
+            p(userName),
+            p(overdueCount),
+            p(companyName),
+            p(totalAmount),
+            p(oldestDays),
+          ],
+        },
+      ],
+    };
+  }
+
+  private async resolveUserName(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    return user?.name ?? 'there';
+  }
+
+  private async resolveCompanyName(companyId: string | null): Promise<string> {
+    if (!companyId) return 'your company';
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { companyName: true } });
+    return company?.companyName ?? 'your company';
   }
 
   private async activeLinks(companyId: string): Promise<UserChannelLink[]> {
@@ -196,7 +264,8 @@ export class NotificationProcessor extends WorkerHost {
     });
   }
 
-  private async sendToLink(link: UserChannelLink, body: string): Promise<void> {
+  private async sendToLink(link: UserChannelLink, payload: NotificationPayload): Promise<void> {
+    const body = payload.kind === 'text' ? payload.body : `[${payload.name}]`;
     const conversation = await this.getOrCreateConversation(link);
     const message = await this.prisma.message.create({
       data: {
@@ -206,11 +275,19 @@ export class NotificationProcessor extends WorkerHost {
         status: ChatMessageStatus.QUEUED,
       },
     });
-    // Send directly (notifications are non-interactive; no need for a separate queue hop).
-    const result = await this.adapter.sendText({
-      to: link.phoneNumber,
-      body,
-    });
+
+    let result: { providerMessageId: string | null };
+    if (payload.kind === 'template') {
+      result = await this.adapter.sendTemplate({
+        to: link.phoneNumber,
+        name: payload.name,
+        languageCode: 'en',
+        components: payload.components,
+      });
+    } else {
+      result = await this.adapter.sendText({ to: link.phoneNumber, body: payload.body });
+    }
+
     await this.prisma.message.update({
       where: { id: message.id },
       data: {

@@ -28,8 +28,11 @@ export type InboundText = {
 export type WhatsAppSendJob = { messageId: string };
 
 const LINKED_REPLY =
-  '✅ Your WhatsApp is now linked to your ERP account. ' +
+  '✅ WhatsApp linked successfully.\n\nWelcome! ' +
   'Ask me about stock, sales, low stock, top sellers, or what to reorder — in plain language.';
+
+/** "LINK V1-ABCD2345" or "LINK ABCD2345" (prefix optional), case-insensitive. */
+const LINK_COMMAND_REGEX = /^LINK\s+((?:V1-)?[A-Z0-9]{6,12})$/i;
 
 @Injectable()
 export class ConversationService {
@@ -67,13 +70,13 @@ export class ConversationService {
 
     const conversation = await this.getOrCreateActiveConversation(link);
     const inboundMessage = await this.persistInbound(conversation, inbound);
-    await this.prisma.userChannelLink.update({
-      where: { id: link.id },
-      data: { lastSeenAt: new Date() },
-    });
-
-    const reply = await this.buildReply(link, conversation, inbound.text, inboundMessage.id);
-    await this.queueOutbound(conversation, inbound.from, reply);
+    // Fire-and-forget: return 200 to Meta immediately; AI runs in background.
+    // lastSeen is throttled inside touchLastSeen (one write per 5 min max).
+    void this.links
+      .touchLastSeen(link)
+      .then(() => this.buildReply(link, conversation, inbound.text, inboundMessage.id))
+      .then((reply) => this.queueOutbound(conversation, inbound.from, reply))
+      .catch((err: Error) => this.logger.error(`Conversation turn failed for link ${link.id}: ${err.message}`));
   }
 
   /**
@@ -117,13 +120,19 @@ export class ConversationService {
   }
 
   private async handleUnlinkedNumber(inbound: InboundText): Promise<void> {
-    const link = await this.links.verifyInboundCode(inbound.from, inbound.text);
-    if (!link) {
-      // Unknown number without a valid code: stay silent (no account enumeration, no spam loop).
+    const match = LINK_COMMAND_REGEX.exec(inbound.text.trim());
+    if (!match) {
+      // Unknown number without a LINK command: stay silent (no account enumeration, no spam loop).
       this.logger.debug(`Ignoring message from unlinked number ending ${inbound.from.slice(-4)}`);
       return;
     }
-    const conversation = await this.getOrCreateActiveConversation(link);
+    const result = await this.links.redeemLinkToken(inbound.from, match[1]);
+    if (!result) {
+      // Invalid/expired/foreign token: silent too — a rejection reply would confirm the endpoint.
+      this.logger.debug(`Rejected LINK attempt from number ending ${inbound.from.slice(-4)}`);
+      return;
+    }
+    const conversation = await this.getOrCreateActiveConversation(result.link);
     await this.persistInbound(conversation, inbound);
     await this.queueOutbound(conversation, inbound.from, LINKED_REPLY);
   }

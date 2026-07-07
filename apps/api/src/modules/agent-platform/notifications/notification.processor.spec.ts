@@ -31,6 +31,12 @@ function buildHarness() {
       create: jest.fn().mockResolvedValue({ id: 'msg-1' }),
       update: jest.fn().mockResolvedValue({}),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ name: 'Tharun' }),
+    },
+    company: {
+      findUnique: jest.fn().mockResolvedValue({ companyName: 'Test Co' }),
+    },
   };
   const reports = {
     analyticsOverview: jest.fn().mockResolvedValue(analyticsResult),
@@ -41,6 +47,7 @@ function buildHarness() {
   const adapter = {
     isConfigured: jest.fn().mockReturnValue(true),
     sendText: jest.fn().mockResolvedValue({ providerMessageId: 'wamid-1' }),
+    sendTemplate: jest.fn().mockResolvedValue({ providerMessageId: 'wamid-1' }),
   };
   const processor = new NotificationProcessor(
     prisma as never,
@@ -56,25 +63,26 @@ function makeJob(data: Record<string, unknown>) {
 }
 
 describe('NotificationProcessor', () => {
-  it('sends daily summary with yesterday date and correct figures', async () => {
+  it('sends daily summary as a template with correct figures', async () => {
     const h = buildHarness();
     const { sent } = await h.processor.process(makeJob({ type: 'daily_summary', companyId: 'c1' }));
     expect(sent).toBe(1);
-    const body: string = h.prisma.message.create.mock.calls[0][0].data.body;
-    expect(body).toContain('Daily Summary');
-    expect(body).toContain('3 orders');
-    expect(body).toContain('₹5,000');
-    expect(body).toContain('2'); // low stock count
+    const call = h.adapter.sendTemplate.mock.calls[0][0];
+    expect(call.name).toBe('daily_business_summary');
+    const params = JSON.stringify(call.components);
+    expect(params).toContain('3'); // order count
+    expect(params).toContain('5,000'); // revenue
+    expect(params).toContain('2'); // low stock count
   });
 
-  it('sends low-stock alert with item list', async () => {
+  it('sends low-stock alert as a template with item list', async () => {
     const h = buildHarness();
     const { sent } = await h.processor.process(makeJob({ type: 'low_stock_alert', companyId: 'c1' }));
     expect(sent).toBe(1);
-    const body: string = h.prisma.message.create.mock.calls[0][0].data.body;
-    expect(body).toContain('Low Stock Alert');
-    expect(body).toContain('LED Bulb');
-    expect(body).toContain('5');
+    const call = h.adapter.sendTemplate.mock.calls[0][0];
+    const params = JSON.stringify(call.components);
+    expect(params).toContain('LED Bulb');
+    expect(params).toContain('5');
   });
 
   it('returns sent=0 and no message when there are no low-stock items', async () => {
@@ -85,14 +93,15 @@ describe('NotificationProcessor', () => {
     expect(h.prisma.message.create).not.toHaveBeenCalled();
   });
 
-  it('sends overdue payment reminder with customer and total', async () => {
+  it('sends overdue payment reminder as a template with customer and total', async () => {
     const h = buildHarness();
     const { sent } = await h.processor.process(makeJob({ type: 'overdue_payment', companyId: 'c1' }));
     expect(sent).toBe(1);
-    const body: string = h.prisma.message.create.mock.calls[0][0].data.body;
-    expect(body).toContain('Overdue Payment');
-    expect(body).toContain('Acme');
-    expect(body).toContain('₹1,500');
+    const call = h.adapter.sendTemplate.mock.calls[0][0];
+    // Template params are aggregates: overdue customer count + total amount.
+    const params = JSON.stringify(call.components);
+    expect(params).toContain('"1"');
+    expect(params).toContain('1,500');
   });
 
   it('returns sent=0 when there are no overdue customers', async () => {

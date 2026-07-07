@@ -21,6 +21,7 @@ import {
   DatabaseBackup,
   SlidersHorizontal,
   Paintbrush,
+  MessageCircle,
 } from 'lucide-react';
 import { api, applyAccessToken } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +80,7 @@ import { CookiePreferencesTab } from '@/components/settings/CookiePreferencesTab
 import { SettingsMfaCard } from '@/components/settings/SettingsMfaCard';
 import { SettingsRolesTab } from '@/components/settings/SettingsRolesTab';
 import { SettingsBackupTab } from '@/components/settings/SettingsBackupTab';
+import { SettingsWhatsAppTab } from '@/components/settings/SettingsWhatsAppTab';
 import { SettingsCustomizationTab } from '@/components/settings/SettingsCustomizationTab';
 import { useSubscription } from '@/hooks/use-subscription';
 import { backupsAllowed } from '@/lib/plans';
@@ -1584,7 +1586,7 @@ export function SettingsPage() {
 
   const activeTab = useMemo(() => {
     const requested = searchParams.get('tab');
-    const allowed = new Set(['profile', 'shop', 'cookies']);
+    const allowed = new Set(['profile', 'shop', 'cookies', 'whatsapp']);
     if (isAdmin && backupEnabled) allowed.add('backups');
     if (isAdmin) {
       allowed.add('users');
@@ -1640,6 +1642,10 @@ export function SettingsPage() {
                 Backups
               </TabsTrigger>
             )}
+            <TabsTrigger value="whatsapp" className="gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp AI
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="users" className="gap-1.5">
                 <UsersIcon className="h-3.5 w-3.5" />
@@ -1689,6 +1695,10 @@ export function SettingsPage() {
               <SettingsBackupTab />
             </TabsContent>
           )}
+
+          <TabsContent value="whatsapp">
+            <SettingsWhatsAppTab />
+          </TabsContent>
 
           {isAdmin && (
             <TabsContent value="users">

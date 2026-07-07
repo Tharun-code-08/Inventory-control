@@ -6,12 +6,13 @@ import { CustomersModule } from '../customers/customers.module';
 import { GoodsReceiptsModule } from '../goods-receipts/goods-receipts.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { ProductsModule } from '../products/products.module';
-import { StockTransfersModule } from '../stock-transfers/stock-transfers.module';
 import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { ReportsModule } from '../reports/reports.module';
 import { SalesOrdersModule } from '../sales-orders/sales-orders.module';
 import { ShopsModule } from '../shops/shops.module';
 import { StorageLocationsModule } from '../storage-locations/storage-locations.module';
+import { StockTransfersModule } from '../stock-transfers/stock-transfers.module';
+import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AiOrchestratorService } from './ai/ai-orchestrator.service';
 import type { AiProvider } from './ai/provider/ai-provider.interface';
 import { AI_PROVIDER } from './ai/provider/ai-provider.token';
@@ -32,12 +33,15 @@ import { TaskFlowService } from './tasks/task-flow.service';
 import { UsageLimitService } from './ai/usage/usage-limit.service';
 import { WhatsAppWebhookController } from './channels/whatsapp/whatsapp-webhook.controller';
 import { AiSettingsController } from './settings/ai-settings.controller';
-import { WhatsAppAdapter } from './channels/whatsapp/whatsapp.adapter';
+import { WhatsAppModule } from './channels/whatsapp/whatsapp.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ConversationProcessor } from './conversation/conversation.processor';
 import { ConversationService } from './conversation/conversation.service';
 import { IntentService } from './intent/intent.service';
 import { LinkController } from './link/link.controller';
 import { LinkService } from './link/link.service';
+import { LinkTokenCleanupService } from './link/link-token-cleanup.service';
+import { CacheModule } from '@/common/cache/cache.module';
 import { AiSettingsService } from './settings/ai-settings.service';
 
 /**
@@ -60,6 +64,9 @@ import { AiSettingsService } from './settings/ai-settings.service';
   imports: [
     BullModule.registerQueue({ name: 'whatsapp' }),
     BullModule.registerQueue({ name: 'agent-notifications' }),
+    WhatsAppModule,
+    NotificationsModule,
+    CacheModule,
     ReportsModule,
     ProductsModule,
     BarcodesModule,
@@ -71,13 +78,14 @@ import { AiSettingsService } from './settings/ai-settings.service';
     StorageLocationsModule,
     InvoicesModule,
     StockTransfersModule,
+    SuppliersModule,
   ],
   controllers: [WhatsAppWebhookController, LinkController, AiSettingsController],
   providers: [
-    WhatsAppAdapter,
     ConversationService,
     ConversationProcessor,
     LinkService,
+    LinkTokenCleanupService,
     IntentService,
     ToolRegistry,
     ReadToolsService,

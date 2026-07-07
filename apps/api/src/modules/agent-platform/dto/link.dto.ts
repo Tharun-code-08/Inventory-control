@@ -1,14 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, Matches } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
-export class RequestLinkDto {
+export class RenameDeviceDto {
   @ApiProperty({
-    description: 'WhatsApp number in international format (8-15 digits, optional leading +).',
-    example: '+919876543210',
+    description: 'Friendly label for a linked WhatsApp device.',
+    example: 'Personal Phone',
   })
   @IsString()
-  @Matches(/^\+?[0-9]{8,15}$/, {
-    message: 'phoneNumber must be 8-15 digits in international format (optional leading +)',
-  })
-  phoneNumber!: string;
+  @MinLength(1)
+  @MaxLength(50)
+  nickname!: string;
 }
