@@ -105,6 +105,9 @@ export function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [waOtp, setWaOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneMasked, setPhoneMasked] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [signupChallengeToken, setSignupChallengeToken] = useState('');
   const [mfaSetup, setMfaSetup] = useState<MfaStartPayload | null>(null);
@@ -221,7 +224,7 @@ export function SignupPage() {
     setBackupCodes([]);
     setMfaSkipped(false);
     try {
-      await api.post('/auth/signup/request', {
+      const reqRes = await api.post('/auth/signup/request', {
         companyName,
         companyAddress: companyAddress || undefined,
         plantName,
@@ -235,7 +238,15 @@ export function SignupPage() {
         plan: selectedPlan,
         billing: isPaidPlan ? billing : undefined,
       });
-      setInfo(`We sent a 6-digit verification code to ${email}.`);
+      const reqData = (reqRes.data?.data ?? reqRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
+      setPhoneOtpSent(Boolean(reqData?.phoneOtpSent));
+      setPhoneMasked(reqData?.phoneMasked ?? '');
+      setWaOtp('');
+      setInfo(
+        reqData?.phoneOtpSent
+          ? `We sent two 6-digit codes: one to ${email} and one to WhatsApp ${reqData.phoneMasked ?? 'your mobile'}.`
+          : `We sent a 6-digit verification code to ${email}.`,
+      );
       setStep('verify');
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Could not start registration.'));
@@ -255,6 +266,7 @@ export function SignupPage() {
       const verifyRes = await api.post('/auth/signup/verify', {
         email,
         otp: otp.trim(),
+        ...(phoneOtpSent ? { phoneOtp: waOtp.trim() } : {}),
       });
       const verifyData = (verifyRes.data?.data ?? verifyRes.data) as SignupVerifyPayload;
 
@@ -318,8 +330,17 @@ export function SignupPage() {
     setIsSubmitting(true);
     setErr('');
     try {
-      await api.post('/auth/signup/resend', { email });
-      setInfo('A new verification code has been sent.');
+      const resendRes = await api.post('/auth/signup/resend', { email });
+      const resendData = (resendRes.data?.data ?? resendRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
+      setPhoneOtpSent(Boolean(resendData?.phoneOtpSent));
+      setPhoneMasked(resendData?.phoneMasked ?? '');
+      setOtp('');
+      setWaOtp('');
+      setInfo(
+        resendData?.phoneOtpSent
+          ? 'New codes sent to your email and WhatsApp.'
+          : 'A new verification code has been sent.',
+      );
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Could not resend code.'));
     } finally {
@@ -685,14 +706,30 @@ export function SignupPage() {
               <form className="space-y-5" onSubmit={verifyOtp}>
                 <div className="rounded-2xl border border-border bg-muted p-5">
                   <div className="mb-4 text-center">
-                    <p className="text-sm font-medium text-foreground">Verification code</p>
+                    <p className="text-sm font-medium text-foreground">Email code</p>
                     <p className="mt-1 text-xs text-muted-foreground">Enter the 6-digit code from your email.</p>
                   </div>
                   <OtpCodeInput value={otp} onChange={setOtp} autoFocus />
                 </div>
 
-                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting || paying}>
-                  {isSubmitting ? 'Verifying email...' : 'Verify email and continue'}
+                {phoneOtpSent ? (
+                  <div className="rounded-2xl border border-emerald-200/60 bg-emerald-500/10 p-5">
+                    <div className="mb-4 text-center">
+                      <p className="text-sm font-medium text-foreground">WhatsApp code</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Enter the 6-digit code sent to WhatsApp {phoneMasked || 'on your mobile'}.
+                      </p>
+                    </div>
+                    <OtpCodeInput value={waOtp} onChange={setWaOtp} />
+                  </div>
+                ) : null}
+
+                <Button
+                  className="h-12 w-full rounded-xl"
+                  type="submit"
+                  disabled={isSubmitting || paying || (phoneOtpSent && waOtp.trim().length !== 6)}
+                >
+                  {isSubmitting ? 'Verifying...' : phoneOtpSent ? 'Verify both codes and continue' : 'Verify email and continue'}
                 </Button>
 
                 <div className="flex items-center justify-between text-sm">

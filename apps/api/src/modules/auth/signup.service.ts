@@ -22,6 +22,7 @@ import {
   type PlanId,
 } from '../../common/plans/plan-config';
 import { MailService } from '../../common/mail/mail.service';
+import { WhatsAppAdapter } from '@/modules/agent-platform/channels/whatsapp/whatsapp.adapter';
 import { RazorpayService } from '../billing/razorpay.service';
 import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -85,6 +86,7 @@ export class SignupService {
     private readonly auth: AuthService,
     private readonly razorpay: RazorpayService,
     private readonly lifecycle: LifecycleOrchestratorService,
+    private readonly whatsapp: WhatsAppAdapter,
   ) {}
 
   private signupEnabled(): boolean {
@@ -341,6 +343,46 @@ export class SignupService {
     });
   }
 
+  /** E.164 digits (no "+"); bare 10-digit Indian numbers get the 91 prefix. */
+  private normalizePhone(mobile: string): string | null {
+    const digits = String(mobile ?? '').replace(/\D/g, '');
+    if (digits.length === 10) return `91${digits}`;
+    if (digits.length >= 11 && digits.length <= 15) return digits;
+    return null;
+  }
+
+  private maskPhone(phone: string): string {
+    return `+${'\u2022'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`;
+  }
+
+  /**
+   * Deliver the WhatsApp OTP via a Meta-approved authentication template.
+   * Returns false (email-only signup) when the adapter is unconfigured, the
+   * phone is unusable, or Meta rejects the send (e.g. template not yet
+   * approved) — signup must never hard-fail on the WhatsApp leg.
+   */
+  private async sendWhatsAppOtp(phone: string, otp: string): Promise<boolean> {
+    if (!this.whatsapp.isConfigured()) return false;
+    const template = this.config.get<string>('WHATSAPP_SIGNUP_OTP_TEMPLATE') ?? 'signup_otp';
+    const language = this.config.get<string>('WHATSAPP_SIGNUP_OTP_LANG') ?? 'en';
+    try {
+      await this.whatsapp.sendTemplate({
+        to: phone,
+        name: template,
+        languageCode: language,
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: otp }] },
+          // Meta authentication templates require the copy-code button param.
+          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: otp }] },
+        ],
+      });
+      return true;
+    } catch (err) {
+      this.logger.warn(`WhatsApp signup OTP send failed for ${this.maskPhone(phone)}: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
   async requestSignup(dto: SignupRequestDto) {
     this.assertSignupEnabled();
 
@@ -378,6 +420,12 @@ export class SignupService {
     const otpHash = await bcrypt.hash(otp, this.bcryptRounds());
     const expiresAt = new Date(Date.now() + this.otpTtlMs());
 
+    // Second, independent OTP for the mobile number over WhatsApp.
+    const phone = this.normalizePhone(dto.mobile);
+    const phoneOtp = this.generateOtp();
+    const phoneOtpSent = phone ? await this.sendWhatsAppOtp(phone, phoneOtp) : false;
+    const phoneOtpHash = phoneOtpSent ? await bcrypt.hash(phoneOtp, this.bcryptRounds()) : null;
+
     await this.prisma.signupVerification.deleteMany({
       where: { email, consumedAt: null },
     });
@@ -387,6 +435,7 @@ export class SignupService {
         email,
         payload,
         otpHash,
+        ...(phoneOtpSent && phone ? { phone, phoneOtpHash } : {}),
         expiresAt,
       },
     });
@@ -411,8 +460,12 @@ export class SignupService {
 
     return {
       ok: true,
-      message: 'Verification code sent to your email',
+      message: phoneOtpSent
+        ? 'Verification codes sent to your email and WhatsApp'
+        : 'Verification code sent to your email',
       email,
+      phoneOtpSent,
+      ...(phoneOtpSent && phone ? { phoneMasked: this.maskPhone(phone) } : {}),
       expiresAt: expiresAt.toISOString(),
     };
   }
@@ -443,10 +496,17 @@ export class SignupService {
     const otpHash = await bcrypt.hash(otp, this.bcryptRounds());
     const expiresAt = new Date(Date.now() + this.otpTtlMs());
 
+    const phone = this.normalizePhone(payload.mobile);
+    const phoneOtp = this.generateOtp();
+    const phoneOtpSent = phone ? await this.sendWhatsAppOtp(phone, phoneOtp) : false;
+    const phoneOtpHash = phoneOtpSent ? await bcrypt.hash(phoneOtp, this.bcryptRounds()) : null;
+
     await this.prisma.signupVerification.update({
       where: { id: pending.id },
       data: {
         otpHash,
+        phone: phoneOtpSent ? phone : null,
+        phoneOtpHash,
         attemptCount: 0,
         sessionTokenHash: null,
         totpSecretEncrypted: null,
@@ -481,8 +541,12 @@ export class SignupService {
 
     return {
       ok: true,
-      message: 'A new verification code has been sent',
+      message: phoneOtpSent
+        ? 'New verification codes sent to your email and WhatsApp'
+        : 'A new verification code has been sent',
       email,
+      phoneOtpSent,
+      ...(phoneOtpSent && phone ? { phoneMasked: this.maskPhone(phone) } : {}),
       expiresAt: expiresAt.toISOString(),
     };
   }
@@ -510,12 +574,19 @@ export class SignupService {
     }
 
     const otpOk = await bcrypt.compare(dto.otp, pending.otpHash);
-    if (!otpOk) {
+    let phoneOtpOk = true;
+    if (pending.phoneOtpHash) {
+      const phoneOtp = String(dto.phoneOtp ?? '').trim();
+      phoneOtpOk = phoneOtp.length > 0 && (await bcrypt.compare(phoneOtp, pending.phoneOtpHash));
+    }
+    if (!otpOk || !phoneOtpOk) {
       await this.prisma.signupVerification.update({
         where: { id: pending.id },
         data: { attemptCount: { increment: 1 } },
       });
-      throw new BadRequestException('Invalid or expired verification code');
+      if (!otpOk && phoneOtpOk) throw new BadRequestException('Invalid or expired email code');
+      if (otpOk && !phoneOtpOk) throw new BadRequestException('Invalid or expired WhatsApp code');
+      throw new BadRequestException('Invalid or expired verification codes');
     }
 
     await this.assertEmailAvailable(email);

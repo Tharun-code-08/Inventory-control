@@ -540,6 +540,9 @@ model SignupVerification {
   email               String
   payload             Json
   otpHash             String    @map("otp_hash")
+  /// E.164 digits (no "+") the WhatsApp OTP was sent to; null = email-only signup.
+  phone               String?
+  phoneOtpHash        String?   @map("phone_otp_hash")
   sessionTokenHash    String?   @map("session_token_hash")
   totpSecretEncrypted String?   @map("totp_secret_encrypted")
   attemptCount        Int       @default(0) @map("attempt_count")

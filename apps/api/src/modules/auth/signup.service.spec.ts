@@ -150,6 +150,7 @@ describe('SignupService staged signup flow', () => {
       auth as never,
       makeRazorpay() as never,
       makeLifecycle() as never,
+      { isConfigured: () => false, sendTemplate: jest.fn() } as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);
@@ -210,6 +211,7 @@ describe('SignupService staged signup flow', () => {
       auth as never,
       razorpay as never,
       makeLifecycle() as never,
+      { isConfigured: () => false, sendTemplate: jest.fn() } as never,
     );
 
     prisma.signupVerification.findFirst.mockResolvedValue({
@@ -287,6 +289,7 @@ describe('SignupService staged signup flow', () => {
       auth as never,
       makeRazorpay() as never,
       makeLifecycle() as never,
+      { isConfigured: () => false, sendTemplate: jest.fn() } as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);
@@ -380,6 +383,7 @@ describe('SignupService staged signup flow', () => {
       auth as never,
       makeRazorpay() as never,
       makeLifecycle() as never,
+      { isConfigured: () => false, sendTemplate: jest.fn() } as never,
     );
 
     prisma.user.findUnique.mockResolvedValue(null);

@@ -20,6 +20,13 @@ export class SignupVerifyDto {
   @Matches(/^\d{6}$/, { message: 'Enter the 6-digit code from your email' })
   otp!: string;
 
+  @ApiPropertyOptional({ example: '193842', description: 'WhatsApp OTP — required when one was sent to the mobile number' })
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/, { message: 'Enter the 6-digit code from WhatsApp' })
+  phoneOtp?: string;
+
   @ApiPropertyOptional({ description: 'Verified Razorpay order id when signing up after payment' })
   @IsOptional()
   @IsString()
