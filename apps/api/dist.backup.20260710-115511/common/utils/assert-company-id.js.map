@@ -1,0 +1,1 @@
+{"version":3,"file":"assert-company-id.js","sourceRoot":"","sources":["../../../src/common/utils/assert-company-id.ts"],"names":[],"mappings":";;AAMA,0CAKC;AALD,SAAgB,eAAe,CAAC,IAAiB;IAC/C,IAAI,CAAC,IAAI,CAAC,SAAS,EAAE,CAAC;QACpB,MAAM,IAAI,KAAK,CAAC,iDAAiD,IAAI,CAAC,EAAE,EAAE,CAAC,CAAC;IAC9E,CAAC;IACD,OAAO,IAAI,CAAC,SAAS,CAAC;AACxB,CAAC"}

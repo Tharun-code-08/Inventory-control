@@ -1,0 +1,32 @@
+export declare const SUBSCRIPTION_LIFECYCLE_QUEUE = "subscription-lifecycle";
+export declare const PLATFORM_TEMPLATE_PREFIX = "platform_";
+export declare const TRIAL_FEATURE_CHECKLIST: readonly ["login", "product_created", "gr_posted", "gi_posted", "report_viewed", "user_invited", "dashboard_viewed"];
+export type TrialFeatureKey = (typeof TRIAL_FEATURE_CHECKLIST)[number];
+export type LifecycleCampaignKind = 'welcome' | 'paid_engagement' | 'renewal' | 'dunning' | 'trial_nurture' | 'trial_inactive' | 'trial_edu' | 'trial_expiry' | 'trial_expired';
+export type LifecycleCampaignDefinition = {
+    key: string;
+    kind: LifecycleCampaignKind;
+    dayOffset?: number;
+    daysBeforeExpiry?: number;
+    daysAfterFailure?: number;
+    daysAfterTrialExpiry?: number;
+    monthlyOnFirst?: boolean;
+    paidOnly?: boolean;
+    trialOnly?: boolean;
+    marketing?: boolean;
+    transactional?: boolean;
+    title: string;
+    subtitle?: string;
+    paragraphs: string[];
+    bullets?: string[];
+    ctaPath?: string;
+    ctaLabel?: string;
+};
+export declare const LIFECYCLE_CAMPAIGNS: LifecycleCampaignDefinition[];
+export declare const LIFECYCLE_CAMPAIGN_MAP: Map<string, LifecycleCampaignDefinition>;
+export declare const RENEWAL_OFFSETS: {
+    readonly MONTHLY: readonly [3, 1, 0];
+    readonly YEARLY: readonly [7, 3, 1, 0];
+};
+export declare const DUNNING_OFFSETS_DAYS: readonly [0, 1, 3, 7, 14];
+export declare const DUNNING_CAMPAIGN_KEYS: readonly ["dunning_immediate", "dunning_1d", "dunning_3d", "dunning_7d", "dunning_14d"];

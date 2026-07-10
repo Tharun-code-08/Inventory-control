@@ -1,0 +1,97 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CreateStockTransferDto = void 0;
+const swagger_1 = require("@nestjs/swagger");
+const class_transformer_1 = require("class-transformer");
+const class_validator_1 = require("class-validator");
+class StockTransferLineDto {
+    productId;
+    quantity;
+    uom;
+}
+__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], StockTransferLineDto.prototype, "productId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.Min)(0.0001),
+    __metadata("design:type", Number)
+], StockTransferLineDto.prototype, "quantity", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], StockTransferLineDto.prototype, "uom", void 0);
+class CreateStockTransferDto {
+    fromShopId;
+    toShopId;
+    fromStorageLocationId;
+    toStorageLocationId;
+    transferDate;
+    notes;
+    idempotencyKey;
+    items;
+}
+exports.CreateStockTransferDto = CreateStockTransferDto;
+__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "fromShopId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "toShopId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "fromStorageLocationId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "toStorageLocationId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: '2026-05-26' }),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "transferDate", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "notes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Client-supplied idempotency key (same contract as PO/SO/GR/Invoice create)',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateStockTransferDto.prototype, "idempotencyKey", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ type: [StockTransferLineDto] }),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => StockTransferLineDto),
+    __metadata("design:type", Array)
+], CreateStockTransferDto.prototype, "items", void 0);
+//# sourceMappingURL=create-stock-transfer.dto.js.map

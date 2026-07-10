@@ -1,0 +1,152 @@
+import type { RequestUser } from '../../common/types/request-user';
+import { CreateCustomerDto } from './dto/create-customer.dto';
+import { ListCustomersDto } from './dto/list-customers.dto';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CustomersService } from './customers.service';
+export declare class CustomersController {
+    private readonly customers;
+    constructor(customers: CustomersService);
+    list(user: RequestUser, query: ListCustomersDto): Promise<{
+        data: {
+            shopId: string;
+            id: string;
+            isActive: boolean;
+            email: string | null;
+            phone: string | null;
+            taxId: string | null;
+            street: string | null;
+            city: string | null;
+            state: string | null;
+            postalCode: string | null;
+            country: string | null;
+            customerCode: string;
+            customerName: string;
+            pan: string | null;
+        }[];
+        meta: {
+            nextCursor: string | null;
+            limit: number;
+            hasMore: boolean;
+        };
+    }>;
+    create(user: RequestUser, dto: CreateCustomerDto): Promise<{
+        shop: {
+            id: string;
+            address: string;
+            brandingProfileId: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
+            createdById: string | null;
+            updatedById: string | null;
+            email: string;
+            companyId: string | null;
+            shopNumber: string;
+            shopName: string;
+            taxId: string | null;
+            contactPerson: string;
+            mobile: string;
+            costingMethod: import(".prisma/client").$Enums.CostingMethod;
+            functionalCurrency: string;
+        };
+    } & {
+        shopId: string;
+        id: string;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        createdById: string | null;
+        updatedById: string | null;
+        email: string | null;
+        phone: string | null;
+        taxId: string | null;
+        street: string | null;
+        city: string | null;
+        state: string | null;
+        postalCode: string | null;
+        country: string | null;
+        customerCode: string;
+        customerName: string;
+        pan: string | null;
+    }>;
+    get(user: RequestUser, id: string): Promise<{
+        shop: {
+            id: string;
+            address: string;
+            brandingProfileId: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
+            createdById: string | null;
+            updatedById: string | null;
+            email: string;
+            companyId: string | null;
+            shopNumber: string;
+            shopName: string;
+            taxId: string | null;
+            contactPerson: string;
+            mobile: string;
+            costingMethod: import(".prisma/client").$Enums.CostingMethod;
+            functionalCurrency: string;
+        };
+    } & {
+        shopId: string;
+        id: string;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        createdById: string | null;
+        updatedById: string | null;
+        email: string | null;
+        phone: string | null;
+        taxId: string | null;
+        street: string | null;
+        city: string | null;
+        state: string | null;
+        postalCode: string | null;
+        country: string | null;
+        customerCode: string;
+        customerName: string;
+        pan: string | null;
+    }>;
+    update(user: RequestUser, id: string, dto: UpdateCustomerDto): Promise<{
+        shop: {
+            id: string;
+            address: string;
+            brandingProfileId: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
+            createdById: string | null;
+            updatedById: string | null;
+            email: string;
+            companyId: string | null;
+            shopNumber: string;
+            shopName: string;
+            taxId: string | null;
+            contactPerson: string;
+            mobile: string;
+            costingMethod: import(".prisma/client").$Enums.CostingMethod;
+            functionalCurrency: string;
+        };
+    } & {
+        shopId: string;
+        id: string;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        createdById: string | null;
+        updatedById: string | null;
+        email: string | null;
+        phone: string | null;
+        taxId: string | null;
+        street: string | null;
+        city: string | null;
+        state: string | null;
+        postalCode: string | null;
+        country: string | null;
+        customerCode: string;
+        customerName: string;
+        pan: string | null;
+    }>;
+}
