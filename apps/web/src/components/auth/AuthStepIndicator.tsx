@@ -22,7 +22,7 @@ export function AuthStepIndicator({ steps, current }: AuthStepIndicatorProps) {
                   ? 'bg-slate-900 text-white'
                   : active
                     ? 'bg-primary text-white'
-                    : 'bg-slate-200 text-slate-500'
+                    : 'bg-slate-200 text-muted-foreground'
               }`}
             >
               {completed ? '✓' : index + 1}

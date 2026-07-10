@@ -9,14 +9,14 @@ function DateBadge() {
 
   return (
     <div
-      className="hidden items-center gap-2 rounded-lg border border-slate-200/90 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-sm sm:flex"
+      className="hidden items-center gap-2 rounded-lg border border-border/90 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-sm sm:flex"
       title={now.toLocaleDateString(undefined, { dateStyle: 'full' })}
     >
       <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-primary text-white leading-none">
         <span className="text-[9px] font-semibold uppercase tracking-wide opacity-90">{weekday}</span>
         <span className="text-sm font-bold tabular-nums">{day}</span>
       </div>
-      <p className="text-xs font-semibold text-slate-700">{month}</p>
+      <p className="text-xs font-semibold text-foreground">{month}</p>
     </div>
   );
 }
@@ -70,7 +70,7 @@ export function AppShellControls({ onOpenSpotlight }: AppShellControlsProps) {
       >
         <Compass className="h-4 w-4 shrink-0 text-primary transition group-hover:rotate-12" />
         <span className="hidden max-w-[120px] truncate sm:inline">Jump to…</span>
-        <kbd className="ml-1 hidden rounded border border-input bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-primary lg:inline">
+        <kbd className="ml-1 hidden rounded border border-input bg-card/90 px-1.5 py-0.5 text-[10px] font-medium text-primary lg:inline">
           {isMac ? '⌘' : 'Ctrl'}+K
         </kbd>
       </button>
@@ -78,7 +78,7 @@ export function AppShellControls({ onOpenSpotlight }: AppShellControlsProps) {
       <button
         type="button"
         onClick={toggleFullscreen}
-        className="rounded-xl border border-slate-200/90 bg-white/80 p-2 text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-900"
+        className="rounded-xl border border-border/90 bg-card/80 p-2 text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
         aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
       >

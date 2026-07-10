@@ -38,7 +38,7 @@ function PlanStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 bg-white p-4 dark:bg-slate-950">
+    <div className="flex flex-col gap-1 bg-card p-4 dark:bg-slate-950">
       <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {icon}
         {label}
@@ -116,7 +116,7 @@ export function UpgradePage() {
         </PageHeader>
 
         {/* Current plan hero */}
-        <Card className="overflow-hidden border-slate-200/80">
+        <Card className="overflow-hidden border-border/80">
           {isLoading ? (
             <CardContent className="p-6 text-sm text-muted-foreground">Loading plan details…</CardContent>
           ) : data ? (
@@ -142,7 +142,7 @@ export function UpgradePage() {
                       {data.status}
                     </span>
                     {stageLabel ? (
-                      <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-slate-200">
+                      <span className="rounded-full bg-card/10 px-2.5 py-0.5 text-xs text-slate-200">
                         {stageLabel}
                       </span>
                     ) : null}
@@ -154,7 +154,7 @@ export function UpgradePage() {
                       <span>Trial setup progress</span>
                       <span>{data.trialProgressPct}%</span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                    <div className="h-2 overflow-hidden rounded-full bg-card/15">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-primary to-cyan-300 transition-all"
                         style={{ width: `${data.trialProgressPct}%` }}
@@ -164,7 +164,7 @@ export function UpgradePage() {
                 ) : null}
               </div>
 
-              <div className="grid grid-cols-2 gap-px bg-slate-100 dark:bg-slate-800">
+              <div className="grid grid-cols-2 gap-px bg-muted dark:bg-slate-800">
                 {data.plan === 'TRIAL' ? (
                   <PlanStat
                     icon={<CalendarClock className="h-4 w-4" />}
@@ -213,14 +213,14 @@ export function UpgradePage() {
             </CardHeader>
             <CardContent className="overflow-x-auto">
               {invoices.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   No invoices yet. Refresh this page — invoices for your current plan are generated
                   automatically.
                 </p>
               ) : (
                 <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-slate-500">
+                  <tr className="border-b text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Invoice</th>
                     <th className="pb-2 pr-4 font-medium">Plan</th>
                     <th className="pb-2 pr-4 font-medium">Amount</th>
@@ -231,7 +231,7 @@ export function UpgradePage() {
                 <tbody>
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="border-b border-slate-50">
-                      <td className="py-2 pr-4 font-medium text-slate-900">{inv.invoiceNumber}</td>
+                      <td className="py-2 pr-4 font-medium text-foreground">{inv.invoiceNumber}</td>
                       <td className="py-2 pr-4">{inv.plan}</td>
                       <td className="py-2 pr-4">{formatInr(inv.totalPaise / 100)}</td>
                       <td className="py-2 pr-4">{new Date(inv.issuedAt).toLocaleDateString()}</td>
@@ -256,12 +256,12 @@ export function UpgradePage() {
         ) : null}
 
         {data?.isTrialExpired ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
             Your trial has ended. Upgrade to Pro or Plus to restore full access.
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <PricingSection
             variant="upgrade"
             currentPlan={data?.plan}

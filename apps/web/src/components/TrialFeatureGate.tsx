@@ -34,12 +34,12 @@ export function TrialFeatureGate({ subscription, feature, children }: Props) {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
-      <div className="max-w-lg rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <div className="max-w-lg rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-primary">
           <Lock className="h-6 w-6" />
         </div>
-        <h2 className="text-lg font-semibold text-slate-900">Upgrade to access this feature</h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <h2 className="text-lg font-semibold text-foreground">Upgrade to access this feature</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           This feature is not available on the trial. Subscribe to unlock it and keep all your existing data.
         </p>
         <Link

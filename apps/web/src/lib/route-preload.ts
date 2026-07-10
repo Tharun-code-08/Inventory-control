@@ -13,6 +13,13 @@
  */
 
 const importers: Record<string, () => Promise<unknown>> = {
+  // Auth + public pages
+  '/':                  () => import('@/pages/HomePage'),
+  '/login':             () => import('@/pages/LoginPage'),
+  '/signup':            () => import('@/pages/SignupPage'),
+  '/forgot-password':   () => import('@/pages/ForgotPasswordPage'),
+  '/reset-password':    () => import('@/pages/ResetPasswordPage'),
+  // ERP pages
   '/dashboard': () => import('@/pages/DashboardPage'),
   '/companies': () => import('@/pages/CompaniesPage'),
   '/plants': () => import('@/pages/PlantsPage'),
@@ -68,6 +75,24 @@ function onIdle(cb: () => void): void {
   } else {
     window.setTimeout(cb, 1);
   }
+}
+
+const NEXT_ROUTES: Record<string, string[]> = {
+  '/':               ['/login'],          // marketing visitors typically click Login / Get Started
+  '/login':          ['/signup', '/forgot-password'],
+  '/signup':         ['/login'],
+  '/forgot-password': ['/login', '/reset-password'],
+  '/reset-password': ['/login'],
+};
+
+/**
+ * Warm the chunk for the current pathname + idle-preload likely next pages.
+ * Called on every route change from AppRoutes. Safe to call repeatedly (deduped).
+ */
+export function preloadForCurrentRoute(pathname: string): void {
+  preloadRoute(pathname);
+  const next = NEXT_ROUTES[pathname] ?? [];
+  for (const p of next) onIdle(() => preloadRoute(p));
 }
 
 /**

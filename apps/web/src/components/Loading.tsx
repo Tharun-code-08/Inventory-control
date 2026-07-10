@@ -11,7 +11,7 @@ type LoadingProps = {
 export default function Loading({ message = 'Loading…', className }: LoadingProps) {
   return (
     <div
-      className={cn('flex w-full flex-col items-center justify-center gap-3 py-12 text-slate-500', className)}
+      className={cn('flex w-full flex-col items-center justify-center gap-3 py-12 text-muted-foreground', className)}
       role="status"
       aria-live="polite"
       aria-busy="true"

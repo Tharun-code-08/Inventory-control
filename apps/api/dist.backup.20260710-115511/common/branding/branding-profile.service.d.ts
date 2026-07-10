@@ -1,0 +1,67 @@
+import type { RequestUser } from '../types/request-user';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../modules/audit/audit.service';
+import { BrandingEventsService } from './branding-events.service';
+import { MediaAssetStorageService } from './media-asset-storage.service';
+import type { BrandingProfileFields } from './branding.types';
+export type BrandingUpdateInput = BrandingProfileFields & {
+    removeLogo?: boolean;
+};
+export declare class BrandingProfileService {
+    private readonly prisma;
+    private readonly audit;
+    private readonly events;
+    private readonly storage;
+    constructor(prisma: PrismaService, audit: AuditService, events: BrandingEventsService, storage: MediaAssetStorageService);
+    private getOrCreateCompanyProfile;
+    private getOrCreateShopProfile;
+    updateCompanyBranding(user: RequestUser, companyId: string, input: BrandingUpdateInput, logo?: Express.Multer.File): Promise<{
+        id: string;
+        companyName: string | null;
+        address: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        createdById: string | null;
+        updatedById: string | null;
+        brandingVersion: number;
+        logoAssetId: string | null;
+        watermarkAssetId: string | null;
+        sealAssetId: string | null;
+        signatureAssetId: string | null;
+        letterheadAssetId: string | null;
+        gstNumber: string | null;
+        footerText: string | null;
+        email: string | null;
+        phone: string | null;
+        website: string | null;
+        primaryColor: string | null;
+        secondaryColor: string | null;
+        accentColor: string | null;
+    }>;
+    updateShopBranding(user: RequestUser, shopId: string, input: BrandingUpdateInput, logo?: Express.Multer.File): Promise<{
+        id: string;
+        companyName: string | null;
+        address: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        createdById: string | null;
+        updatedById: string | null;
+        brandingVersion: number;
+        logoAssetId: string | null;
+        watermarkAssetId: string | null;
+        sealAssetId: string | null;
+        signatureAssetId: string | null;
+        letterheadAssetId: string | null;
+        gstNumber: string | null;
+        footerText: string | null;
+        email: string | null;
+        phone: string | null;
+        website: string | null;
+        primaryColor: string | null;
+        secondaryColor: string | null;
+        accentColor: string | null;
+    }>;
+    private nextAssetVersion;
+    bumpBrandingVersionForCompany(companyId: string, user: RequestUser): Promise<void>;
+    bumpBrandingVersionForShop(shopId: string, user: RequestUser): Promise<void>;
+}

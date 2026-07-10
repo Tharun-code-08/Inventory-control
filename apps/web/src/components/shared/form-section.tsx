@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
  * Renders a thin top hairline, an 11px uppercase title, optional hint,
  * and a content area with consistent vertical rhythm (space-y-3).
  *
- * Replaces the per-page ad-hoc `<div className="rounded-lg border bg-slate-50 p-3">...`
+ * Replaces the per-page ad-hoc `<div className="rounded-lg border bg-muted p-3">...`
  * pattern so density and alignment match across PO, GR, Invoice, etc.
  */
 export function FormSection({

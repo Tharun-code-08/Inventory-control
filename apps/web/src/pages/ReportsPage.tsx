@@ -8,6 +8,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
 import {
   AlertTriangle,
@@ -74,6 +78,11 @@ import { ReportsBreadcrumb } from '@/components/reports/ReportsBreadcrumb';
 import { ReportsGlobalKpiStrip, type ReportsKpiItem } from '@/components/reports/ReportsGlobalKpiStrip';
 import { ReportsSavedFiltersBar } from '@/components/reports/ReportsSavedFiltersBar';
 import { computePeriodTrend } from '@/lib/kpi-trend';
+import ActionCenterReport from '@/components/reports/ActionCenterReport';
+import DeadStockReport from '@/components/reports/DeadStockReport';
+import ReorderIntelligenceReport from '@/components/reports/ReorderIntelligenceReport';
+import CustomerAgingReport from '@/components/reports/CustomerAgingReport';
+import ProductProfitabilityReport from '@/components/reports/ProductProfitabilityReport';
 
 const ALL = '_all';
 
@@ -88,6 +97,11 @@ const REPORT_TABS = [
   'shop-summary',
   'inventory-aging',
   'rfq-analytics',
+  'action-center',
+  'dead-stock',
+  'reorder-intelligence',
+  'customer-aging',
+  'product-profitability',
 ] as const;
 
 type ReportTab = (typeof REPORT_TABS)[number];
@@ -107,6 +121,11 @@ const REPORT_LABELS: Record<ReportTab, string> = {
   'shop-summary': 'Shop Summary',
   'inventory-aging': 'Inventory Aging',
   'rfq-analytics': 'RFQ Analytics',
+  'action-center': 'Action Center',
+  'dead-stock': 'Dead Stock',
+  'reorder-intelligence': 'Reorder Intelligence',
+  'customer-aging': 'Customer Aging',
+  'product-profitability': 'Product Profitability',
 };
 
 function formatDateInput(date: Date): string {
@@ -258,18 +277,39 @@ function ExecutiveSummaryTab({ filters }: Pick<TabShellProps, 'filters'>) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="surface-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-foreground">Top Suppliers</CardTitle>
+            <CardTitle className="text-sm font-semibold text-foreground">Top Suppliers by PO Value</CardTitle>
           </CardHeader>
           <CardContent>
             {data?.rankings?.topSuppliers?.length ? (
-              <div className="space-y-2 text-sm">
-                {data.rankings.topSuppliers.map((row: any) => (
-                  <div key={row.label} className="flex items-center justify-between">
-                    <span>{row.label}</span>
-                    <span className="font-medium">₹{Number(row.value ?? 0).toLocaleString('en-IN')}</span>
-                  </div>
-                ))}
-              </div>
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart
+                  layout="vertical"
+                  data={data.rankings.topSuppliers}
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                >
+                  <XAxis
+                    type="number"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`}
+                  />
+                  <YAxis
+                    dataKey="label"
+                    type="category"
+                    width={110}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: string) => (v.length > 14 ? `${v.slice(0, 13)}…` : v)}
+                  />
+                  <Tooltip
+                    formatter={(v: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, 'PO Value']}
+                    contentStyle={{ fontSize: 12 }}
+                  />
+                  <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <p className="text-sm text-muted-foreground">No supplier data yet.</p>
             )}
@@ -277,18 +317,39 @@ function ExecutiveSummaryTab({ filters }: Pick<TabShellProps, 'filters'>) {
         </Card>
         <Card className="surface-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-foreground">Top Customers</CardTitle>
+            <CardTitle className="text-sm font-semibold text-foreground">Top Customers by Sales Value</CardTitle>
           </CardHeader>
           <CardContent>
             {data?.rankings?.topCustomers?.length ? (
-              <div className="space-y-2 text-sm">
-                {data.rankings.topCustomers.map((row: any) => (
-                  <div key={row.label} className="flex items-center justify-between">
-                    <span>{row.label}</span>
-                    <span className="font-medium">₹{Number(row.value ?? 0).toLocaleString('en-IN')}</span>
-                  </div>
-                ))}
-              </div>
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart
+                  layout="vertical"
+                  data={data.rankings.topCustomers}
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                >
+                  <XAxis
+                    type="number"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`}
+                  />
+                  <YAxis
+                    dataKey="label"
+                    type="category"
+                    width={110}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: string) => (v.length > 14 ? `${v.slice(0, 13)}…` : v)}
+                  />
+                  <Tooltip
+                    formatter={(v: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Sales Value']}
+                    contentStyle={{ fontSize: 12 }}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <p className="text-sm text-muted-foreground">No customer data yet.</p>
             )}
@@ -298,6 +359,8 @@ function ExecutiveSummaryTab({ filters }: Pick<TabShellProps, 'filters'>) {
     </div>
   );
 }
+
+const PO_STATUS_COLORS = ['#94a3b8', '#22c55e', '#ef4444'];
 
 function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = usePoSummary(filters);
@@ -310,6 +373,27 @@ function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
   }>;
   const kpis = data?.kpis ?? {};
   const statusValue = filters.poStatus ?? ALL;
+
+  const statusData = useMemo(() => {
+    const confirmed = Number(kpis.confirmedCount ?? 0);
+    const cancelled = Number(kpis.cancelledCount ?? 0);
+    const total = Number(kpis.totalCount ?? 0);
+    const draft = Math.max(0, total - confirmed - cancelled);
+    return [
+      { name: 'Draft', value: draft },
+      { name: 'Confirmed', value: confirmed },
+      { name: 'Cancelled', value: cancelled },
+    ].filter((d) => d.value > 0);
+  }, [kpis]);
+
+  const monthlyPo = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const row of rows) {
+      const month = new Date(row.poDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      acc[month] = (acc[month] ?? 0) + Number(row.totalValue ?? 0);
+    }
+    return Object.entries(acc).map(([month, value]) => ({ month, value }));
+  }, [rows]);
 
   const handleExport = () => {
     const ok = exportReportCsv('po-report.csv', rows, [
@@ -331,6 +415,55 @@ function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
         <TabKpiCard label="Confirmed" value={Number(kpis.confirmedCount ?? 0).toLocaleString('en-IN')} />
         <TabKpiCard label="Cancelled" value={Number(kpis.cancelledCount ?? 0).toLocaleString('en-IN')} />
       </div>
+
+      {!isLoading && rows.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-foreground">Status Distribution</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={48}
+                    outerRadius={72}
+                    dataKey="value"
+                    paddingAngle={2}
+                  >
+                    {statusData.map((_, i) => (
+                      <Cell key={i} fill={PO_STATUS_COLORS[i % PO_STATUS_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          {monthlyPo.length > 1 && (
+            <Card className="surface-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-foreground">Monthly PO Value</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyPo}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`} />
+                    <Tooltip formatter={(v: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, 'PO Value']} contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="value" name="PO Value" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -397,6 +530,8 @@ function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
   );
 }
 
+const SALES_STATUS_COLORS = ['#94a3b8', '#22c55e', '#6366f1', '#0ea5e9', '#ef4444'];
+
 function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = useSalesSummary(filters);
   const rows = (Array.isArray(data?.rows) ? data.rows : []) as Array<{
@@ -408,6 +543,27 @@ function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | '
   }>;
   const kpis = data?.kpis ?? {};
   const statusValue = filters.salesStatus ?? ALL;
+
+  const monthlyRevenue = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const row of rows) {
+      const month = new Date(row.orderDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      acc[month] = (acc[month] ?? 0) + Number(row.totalValue ?? 0);
+    }
+    return Object.entries(acc).map(([month, value]) => ({ month, value }));
+  }, [rows]);
+
+  const statusData = useMemo(() => {
+    const confirmed = Number(kpis.confirmedCount ?? 0);
+    const fulfilled = Number(kpis.fulfilledCount ?? 0);
+    const total = Number(kpis.totalCount ?? 0);
+    const other = Math.max(0, total - confirmed - fulfilled);
+    return [
+      { name: 'Other', value: other },
+      { name: 'Confirmed', value: confirmed },
+      { name: 'Fulfilled', value: fulfilled },
+    ].filter((d) => d.value > 0);
+  }, [kpis]);
 
   const handleExport = () => {
     const ok = exportReportCsv('sales-report.csv', rows, [
@@ -429,6 +585,47 @@ function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | '
         <TabKpiCard label="Confirmed" value={Number(kpis.confirmedCount ?? 0).toLocaleString('en-IN')} />
         <TabKpiCard label="Fulfilled" value={Number(kpis.fulfilledCount ?? 0).toLocaleString('en-IN')} />
       </div>
+
+      {!isLoading && rows.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {monthlyRevenue.length > 1 && (
+            <Card className="surface-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-foreground">Monthly Revenue</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyRevenue}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`} />
+                    <Tooltip formatter={(v: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Revenue']} contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="value" name="Revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          <Card className="surface-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-foreground">Order Status Mix</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} dataKey="value" paddingAngle={2}>
+                    {statusData.map((_, i) => (
+                      <Cell key={i} fill={SALES_STATUS_COLORS[i % SALES_STATUS_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -497,6 +694,8 @@ function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | '
   );
 }
 
+const AGING_BUCKET_COLORS = ['#22c55e', '#f59e0b', '#f97316', '#ef4444'];
+
 function InventoryAgingTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = useInventoryAging(filters);
   const buckets = Array.isArray(data?.buckets) ? data.buckets : [];
@@ -529,6 +728,29 @@ function InventoryAgingTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
           />
         ))}
       </div>
+
+      {!isLoading && buckets.length > 0 && (
+        <Card className="surface-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-foreground">Stock Value by Age Bucket</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={buckets} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="bucket" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v: string) => `${v}d`} />
+                <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`} />
+                <Tooltip formatter={(v: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Stock Value']} contentStyle={{ fontSize: 12 }} />
+                <Bar dataKey="totalValue" name="Stock Value" radius={[4, 4, 0, 0]}>
+                  {buckets.map((_: any, i: number) => (
+                    <Cell key={i} fill={AGING_BUCKET_COLORS[i % AGING_BUCKET_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <TableSkeleton />
@@ -569,22 +791,61 @@ function InventoryAgingTab({ filters, onChange }: Pick<TabShellProps, 'filters' 
 
 function RfqAnalyticsTab({ filters }: Pick<TabShellProps, 'filters'>) {
   const { data, isLoading } = useRfqSummary(filters);
+
+  const funnelData = useMemo(() => [
+    { stage: 'Created', count: Number(data?.createdCount ?? 0), fill: '#6366f1' },
+    { stage: 'Posted', count: Number(data?.postedCount ?? 0), fill: '#0ea5e9' },
+    { stage: 'Awarded', count: Number(data?.awardedCount ?? 0), fill: '#22c55e' },
+  ], [data]);
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {isLoading ? (
-        Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
-      ) : (
-        <>
-          <TabKpiCard label="RFQ Created" value={Number(data?.createdCount ?? 0).toLocaleString('en-IN')} />
-          <TabKpiCard label="RFQ Posted" value={Number(data?.postedCount ?? 0).toLocaleString('en-IN')} />
-          <TabKpiCard label="RFQ Awarded" value={Number(data?.awardedCount ?? 0).toLocaleString('en-IN')} />
-          <TabKpiCard label="Conversion %" value={`${Number(data?.conversionPct ?? 0).toFixed(1)}%`} />
-          <TabKpiCard label="Avg Cycle (Days)" value={Number(data?.avgCycleDays ?? 0).toFixed(1)} />
-        </>
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
+        ) : (
+          <>
+            <TabKpiCard label="RFQ Created" value={Number(data?.createdCount ?? 0).toLocaleString('en-IN')} />
+            <TabKpiCard label="RFQ Posted" value={Number(data?.postedCount ?? 0).toLocaleString('en-IN')} />
+            <TabKpiCard label="RFQ Awarded" value={Number(data?.awardedCount ?? 0).toLocaleString('en-IN')} />
+            <TabKpiCard label="Conversion %" value={`${Number(data?.conversionPct ?? 0).toFixed(1)}%`} />
+            <TabKpiCard label="Avg Cycle (Days)" value={Number(data?.avgCycleDays ?? 0).toFixed(1)} />
+          </>
+        )}
+      </div>
+
+      {!isLoading && funnelData[0].count > 0 && (
+        <Card className="surface-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-foreground">RFQ Conversion Funnel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={funnelData} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="stage" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 12 }} />
+                <Bar dataKey="count" name="RFQs" radius={[4, 4, 0, 0]}>
+                  {funnelData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
 }
+
+const SEVERITY_COLORS: Record<string, string> = {
+  'Out of Stock': '#ef4444',
+  'Critical': '#f97316',
+  'Very Low': '#f59e0b',
+  'Low': '#eab308',
+};
 
 function LowStockTab({
   filters,
@@ -598,6 +859,16 @@ function LowStockTab({
 
   const categoryValue = filters.category ?? ALL;
   const shopValue = filters.shopId ?? ALL;
+
+  const severityData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of rows) {
+      const ratio = item.minStockLevel > 0 ? item.currentStock / item.minStockLevel : 0;
+      const sev = ratio === 0 ? 'Out of Stock' : ratio < 0.25 ? 'Critical' : ratio < 0.5 ? 'Very Low' : 'Low';
+      counts[sev] = (counts[sev] ?? 0) + 1;
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [rows]);
 
   const handleExport = () => {
     const ok = exportReportCsv('low-stock-report.csv', rows, [
@@ -634,6 +905,28 @@ function LowStockTab({
         </div>
         <ReportExportButton onExport={handleExport} disabled={isLoading} />
       </div>
+
+      {!isLoading && severityData.length > 0 && (
+        <Card className="surface-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-foreground">Severity Breakdown — {rows.length} items</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={190}>
+              <PieChart>
+                <Pie data={severityData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={2}>
+                  {severityData.map((entry) => (
+                    <Cell key={entry.name} fill={SEVERITY_COLORS[entry.name] ?? '#94a3b8'} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ fontSize: 12 }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <TableSkeleton />
       ) : (
@@ -790,10 +1083,10 @@ function StockLedgerTab({
                   <TableCell>
                     <StatusBadge status={row.type} />
                   </TableCell>
-                  <TableCell className="text-right font-medium text-emerald-600">
+                  <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-400">
                     {row.inQty > 0 ? `+${row.inQty}` : '—'}
                   </TableCell>
-                  <TableCell className="text-right font-medium text-red-600">
+                  <TableCell className="text-right font-medium text-red-600 dark:text-red-400">
                     {row.outQty > 0 ? `-${row.outQty}` : '—'}
                   </TableCell>
                   <TableCell className="text-right font-medium">{row.balance}</TableCell>
@@ -1102,6 +1395,29 @@ function ShopSummaryTab({
           <ReportExportButton onExport={handleExport} disabled={isLoading} />
         </div>
       )}
+      {!isLoading && rows.length > 1 && (
+        <Card className="surface-1 mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-foreground">Stock Value by Shop</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={rows} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="shopName" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.length > 10 ? `${v.slice(0, 9)}…` : v} />
+                <YAxis fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}K`} />
+                <Tooltip
+                  formatter={(v: unknown, name: unknown) => [`₹${Number(v).toLocaleString('en-IN')}`, String(name)]}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Bar dataKey="totalStockValue" name="Stock Value" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="salesValue" name="Sales Value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -1142,7 +1458,7 @@ function ShopSummaryTab({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Low Stock</span>
-                  <span className="font-medium text-amber-600">{shop.lowStockCount}</span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">{shop.lowStockCount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Goods Receipts</span>
@@ -1358,8 +1674,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.stockValue ?? 0),
         format: formatCurrency,
         icon: DollarSign,
-        iconClassName: 'text-emerald-600',
-        iconWrapClassName: 'bg-emerald-500/15 border border-emerald-400/20',
+        accent: 'emerald' as const,
         ariaLabel: `Stock value ${formatCurrency(Number(overview?.stockValue ?? 0))}`,
         onClick: () => handleTabChange('shop-summary'),
       },
@@ -1368,8 +1683,7 @@ export function ReportsPage() {
         label: 'Low Stock',
         numericValue: Number(overview?.lowStockCount ?? 0),
         icon: AlertTriangle,
-        iconClassName: 'text-amber-600',
-        iconWrapClassName: 'bg-amber-500/15 border border-amber-400/20',
+        accent: 'amber' as const,
         ariaLabel: `Low stock count ${Number(overview?.lowStockCount ?? 0)}`,
         onClick: () => handleTabChange('low-stock'),
       },
@@ -1379,8 +1693,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.poValue ?? 0),
         format: formatCurrency,
         icon: FileText,
-        iconClassName: 'text-blue-600',
-        iconWrapClassName: 'bg-blue-500/15 border border-blue-400/20',
+        accent: 'sky' as const,
         ariaLabel: `PO value ${formatCurrency(Number(overview?.poValue ?? 0))}`,
         onClick: () => handleTabChange('purchase-orders'),
       },
@@ -1390,8 +1703,7 @@ export function ReportsPage() {
         numericValue: Number(overview?.salesValue ?? 0),
         format: formatCurrency,
         icon: ShoppingCart,
-        iconClassName: 'text-violet-600',
-        iconWrapClassName: 'bg-violet-500/15 border border-violet-400/20',
+        accent: 'violet' as const,
         ariaLabel: `Sales value ${formatCurrency(Number(overview?.salesValue ?? 0))}`,
         onClick: () => handleTabChange('sales-orders'),
       },
@@ -1400,8 +1712,7 @@ export function ReportsPage() {
         label: 'GR Count',
         numericValue: Number(overview?.grCount ?? 0),
         icon: Package,
-        iconClassName: 'text-primary',
-        iconWrapClassName: 'bg-primary/15 border border-primary/20',
+        accent: 'indigo' as const,
         ariaLabel: `GR count ${Number(overview?.grCount ?? 0)}`,
         onClick: () => handleTabChange('gr-register'),
       },
@@ -1410,8 +1721,7 @@ export function ReportsPage() {
         label: 'Sales Orders',
         numericValue: Number(overview?.salesOrderCount ?? 0),
         icon: ClipboardList,
-        iconClassName: 'text-slate-600',
-        iconWrapClassName: 'bg-slate-500/15 border border-slate-400/20',
+        accent: 'rose' as const,
         ariaLabel: `Sales orders ${Number(overview?.salesOrderCount ?? 0)}`,
         onClick: () => handleTabChange('sales-orders'),
       },
@@ -1452,17 +1762,23 @@ export function ReportsPage() {
         />
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="flex h-auto w-full flex-wrap gap-1 overflow-x-auto">
-            <TabsTrigger value="executive-summary">Executive Summary</TabsTrigger>
-            <TabsTrigger value="purchase-orders">PO Reports</TabsTrigger>
-            <TabsTrigger value="sales-orders">Sales Reports</TabsTrigger>
-            <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
-            <TabsTrigger value="stock-ledger">Stock Ledger</TabsTrigger>
-            <TabsTrigger value="gr-register">GR Register</TabsTrigger>
-            <TabsTrigger value="gi-register">GI Register</TabsTrigger>
-            <TabsTrigger value="shop-summary">Shop Summary</TabsTrigger>
-            <TabsTrigger value="inventory-aging">Inventory Aging</TabsTrigger>
-            <TabsTrigger value="rfq-analytics">RFQ Analytics</TabsTrigger>
+          <TabsList className="flex h-auto w-full gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsTrigger value="executive-summary" className="shrink-0">Executive Summary</TabsTrigger>
+            <TabsTrigger value="purchase-orders" className="shrink-0">PO Reports</TabsTrigger>
+            <TabsTrigger value="sales-orders" className="shrink-0">Sales Reports</TabsTrigger>
+            <TabsTrigger value="low-stock" className="shrink-0">Low Stock</TabsTrigger>
+            <TabsTrigger value="stock-ledger" className="shrink-0">Stock Ledger</TabsTrigger>
+            <TabsTrigger value="gr-register" className="shrink-0">GR Register</TabsTrigger>
+            <TabsTrigger value="gi-register" className="shrink-0">GI Register</TabsTrigger>
+            <TabsTrigger value="shop-summary" className="shrink-0">Shop Summary</TabsTrigger>
+            <TabsTrigger value="inventory-aging" className="shrink-0">Inventory Aging</TabsTrigger>
+            <TabsTrigger value="rfq-analytics" className="shrink-0">RFQ Analytics</TabsTrigger>
+            <div className="mx-1 h-5 w-px self-center bg-border/60" />
+            <TabsTrigger value="action-center" className="shrink-0">⚡ Action Center</TabsTrigger>
+            <TabsTrigger value="dead-stock" className="shrink-0">Dead Stock</TabsTrigger>
+            <TabsTrigger value="reorder-intelligence" className="shrink-0">Reorder Intelligence</TabsTrigger>
+            <TabsTrigger value="customer-aging" className="shrink-0">Customer Aging</TabsTrigger>
+            <TabsTrigger value="product-profitability" className="shrink-0">Profitability</TabsTrigger>
           </TabsList>
 
           <TabsContent value="executive-summary">
@@ -1539,6 +1855,35 @@ export function ReportsPage() {
                 <RfqAnalyticsTab filters={filters} />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="action-center">
+            <ActionCenterReport shopId={filters.shopId} />
+          </TabsContent>
+
+          <TabsContent value="dead-stock">
+            <DeadStockReport shopId={filters.shopId} />
+          </TabsContent>
+
+          <TabsContent value="reorder-intelligence">
+            {filters.shopId ? (
+              <ReorderIntelligenceReport shopId={filters.shopId} />
+            ) : (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Package className="mx-auto mb-3 h-10 w-10 opacity-40 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Select a shop from the filter above to view reorder intelligence.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="customer-aging">
+            <CustomerAgingReport shopId={filters.shopId} />
+          </TabsContent>
+
+          <TabsContent value="product-profitability">
+            <ProductProfitabilityReport shopId={filters.shopId} />
           </TabsContent>
         </Tabs>
       </div>

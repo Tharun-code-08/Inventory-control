@@ -140,7 +140,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
     return (
       <div className="p-4">
         <div className="text-center">
-          <p className="text-lg text-red-600 font-medium mb-2">Error: {error}</p>
+          <p className="text-lg text-red-600 dark:text-red-400 font-medium mb-2">Error: {error}</p>
           <button
             onClick={handleRefresh}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -157,7 +157,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -202,7 +202,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
       </div>
 
       {/* Footer Tip */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
         <p className="text-sm text-blue-900">
           💡 <strong>Tip:</strong> Check Attention first to identify urgent issues, then review
           Financial and act on Recommendations

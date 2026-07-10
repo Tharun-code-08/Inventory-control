@@ -13,30 +13,30 @@ export function SalesOrderGstSummary({ lines, supplyType, formatAmount }: Props)
   const interState = isInterStateSupply(supplyType);
 
   return (
-    <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-      <p className="text-xs font-medium text-slate-500">{supplyTypeLabel(supplyType)}</p>
-      <div className="flex items-center justify-between text-slate-600">
+    <div className="space-y-1 rounded-lg bg-muted px-3 py-2 text-sm">
+      <p className="text-xs font-medium text-muted-foreground">{supplyTypeLabel(supplyType)}</p>
+      <div className="flex items-center justify-between text-muted-foreground">
         <span>Subtotal (taxable)</span>
         <span className="tabular-nums">{formatAmount(totals.subtotalBeforeTax)}</span>
       </div>
       {interState ? (
-        <div className="flex items-center justify-between text-slate-600">
+        <div className="flex items-center justify-between text-muted-foreground">
           <span>IGST</span>
           <span className="tabular-nums">{formatAmount(totals.totalIgst)}</span>
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between text-slate-600">
+          <div className="flex items-center justify-between text-muted-foreground">
             <span>CGST</span>
             <span className="tabular-nums">{formatAmount(totals.totalCgst)}</span>
           </div>
-          <div className="flex items-center justify-between text-slate-600">
+          <div className="flex items-center justify-between text-muted-foreground">
             <span>SGST</span>
             <span className="tabular-nums">{formatAmount(totals.totalSgst)}</span>
           </div>
         </>
       )}
-      <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-slate-900">
+      <div className="flex items-center justify-between border-t border-border pt-2 font-semibold text-foreground">
         <span>Grand total</span>
         <span className="tabular-nums text-foreground">{formatAmount(totals.grandTotal)}</span>
       </div>

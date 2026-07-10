@@ -1,0 +1,32 @@
+export type PurchaseOrderPdfLine = {
+    code: string;
+    description: string;
+    qty: string;
+    unitPrice: string;
+    taxPercent: string;
+    taxAmount: string;
+    total: string;
+};
+export type PurchaseOrderPdfViewModel = {
+    poNumber: string;
+    poDate: string;
+    buyerName: string;
+    buyerLines: string[];
+    brandingLogoUrl?: string | null;
+    brandingInitials?: string | null;
+    supplierTitle: string;
+    supplierLines: string[];
+    deliveryLines: string[];
+    deliveryDate: string;
+    paymentTerms: string;
+    requestedBy: string;
+    department: string;
+    lines: PurchaseOrderPdfLine[];
+    padRowCount: number;
+    specialInstructions: string;
+    totalNet: string;
+    delivery: string;
+    taxTotal: string;
+    grandTotal: string;
+};
+export declare function buildPurchaseOrderHtml(data: PurchaseOrderPdfViewModel): string;

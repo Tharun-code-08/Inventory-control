@@ -2,6 +2,7 @@ import type { ElementType } from 'react';
 import {
   DashboardKpiCard,
   DashboardKpiCardSkeleton,
+  type KpiAccent,
 } from '@/components/dashboard/DashboardKpiCard';
 
 export type ReportsKpiItem = {
@@ -10,8 +11,7 @@ export type ReportsKpiItem = {
   numericValue: number;
   format?: (value: number) => string;
   icon: ElementType;
-  iconClassName?: string;
-  iconWrapClassName?: string;
+  accent?: KpiAccent;
   ariaLabel: string;
   onClick: () => void;
 };
@@ -33,8 +33,7 @@ export function ReportsGlobalKpiStrip({ isLoading, items }: ReportsGlobalKpiStri
               numericValue={item.numericValue}
               format={item.format}
               icon={item.icon}
-              iconClassName={item.iconClassName}
-              iconWrapClassName={item.iconWrapClassName}
+              accent={item.accent}
               ariaLabel={item.ariaLabel}
               onClick={item.onClick}
             />

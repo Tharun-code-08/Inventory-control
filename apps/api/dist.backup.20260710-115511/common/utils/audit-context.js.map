@@ -1,0 +1,1 @@
+{"version":3,"file":"audit-context.js","sourceRoot":"","sources":["../../../src/common/utils/audit-context.ts"],"names":[],"mappings":";;AAGA,oDAOC;AAVD,gEAAiE;AAGjE,SAAgB,oBAAoB;IAClC,MAAM,GAAG,GAAG,qCAAmB,CAAC,GAAG,EAAE,CAAC;IACtC,OAAO;QACL,SAAS,EAAE,GAAG,EAAE,SAAS,IAAI,IAAI;QACjC,SAAS,EAAE,GAAG,EAAE,SAAS,IAAI,IAAI;QACjC,SAAS,EAAE,GAAG,EAAE,SAAS,IAAI,IAAI;KAClC,CAAC;AACJ,CAAC"}

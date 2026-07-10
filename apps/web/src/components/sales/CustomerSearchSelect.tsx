@@ -71,21 +71,21 @@ export function CustomerSearchSelect({
             }
           }}
         />
-        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       </div>
       {open && !disabled ? (
-        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card py-1 shadow-lg">
           {isFetching ? (
-            <p className="px-3 py-2 text-sm text-slate-500">Searching…</p>
+            <p className="px-3 py-2 text-sm text-muted-foreground">Searching…</p>
           ) : options.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-500">No customers found</p>
+            <p className="px-3 py-2 text-sm text-muted-foreground">No customers found</p>
           ) : (
             options.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 className={cn(
-                  'flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-slate-50',
+                  'flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-muted',
                   c.id === value && 'bg-muted',
                 )}
                 onClick={() => {
@@ -94,8 +94,8 @@ export function CustomerSearchSelect({
                   setOpen(false);
                 }}
               >
-                <span className="font-medium text-slate-900">{c.customerName}</span>
-                <span className="text-xs text-slate-500">{c.customerCode}</span>
+                <span className="font-medium text-foreground">{c.customerName}</span>
+                <span className="text-xs text-muted-foreground">{c.customerCode}</span>
               </button>
             ))
           )}

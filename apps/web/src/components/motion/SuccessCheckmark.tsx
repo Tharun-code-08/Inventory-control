@@ -10,7 +10,7 @@ export function SuccessCheckmark({ className, size = 'sm' }: SuccessCheckmarkPro
 
   return (
     <span
-      className={cn('inline-flex shrink-0 items-center justify-center text-emerald-600', dim, className)}
+      className={cn('inline-flex shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400', dim, className)}
       aria-hidden="true"
     >
       <svg viewBox="0 0 24 24" className={cn('motion-success-checkmark', dim)} fill="none">

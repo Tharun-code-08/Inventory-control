@@ -1,12 +1,15 @@
-import { AuditAction, RoleName } from '@prisma/client';
+import { AuditAction, ChannelLinkStatus, ChatChannel, RoleName } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../common/cache/redis.provider';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
@@ -34,7 +37,26 @@ export class UsersService {
     private readonly mail: MailService,
     private readonly subscriptions: SubscriptionService,
     private readonly emailNotifications: EmailNotificationsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /**
+   * WhatsApp-agent auth is cached per phone number (wa:auth:*, 5-min TTL).
+   * Any change to role/active state must drop those keys so the very next
+   * message re-loads permissions instead of riding out the TTL.
+   */
+  private async invalidateWhatsAppAuthCache(userId: string): Promise<void> {
+    try {
+      const links = await this.prisma.userChannelLink.findMany({
+        where: { userId, channel: ChatChannel.WHATSAPP, status: ChannelLinkStatus.ACTIVE },
+        select: { phoneNumber: true },
+      });
+      if (links.length === 0) return;
+      await this.redis.del(...links.map((l) => `wa:auth:${l.phoneNumber}`));
+    } catch {
+      // Cache invalidation is best-effort; the 5-min TTL bounds staleness.
+    }
+  }
 
   private bcryptRounds() {
     const value = Number(this.config.get('BCRYPT_ROUNDS') ?? 12);
@@ -398,6 +420,10 @@ export class UsersService {
       return nextUser;
     });
 
+    if (updated.roleId !== existing.roleId || updated.isActive !== existing.isActive) {
+      await this.invalidateWhatsAppAuthCache(id);
+    }
+
     await this.audit.log({
       userId: actor.id,
       companyId: assertCompanyId(actor),
@@ -437,6 +463,8 @@ export class UsersService {
       where: { id },
       data: { isActive: false, deletedAt: new Date() },
     });
+
+    await this.invalidateWhatsAppAuthCache(id);
 
     await this.audit.log({
       userId: actor.id,

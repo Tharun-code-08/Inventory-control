@@ -14,8 +14,8 @@ export function TrialUpgradeBanner({ subscription }: Props) {
       : 'Trial active';
 
   return (
-    <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
       <div className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="font-semibold text-amber-900">Trial mode</div>

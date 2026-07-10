@@ -1,5 +1,5 @@
-import { Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Suspense, useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { isOrgAdminUser, isPlatformAdminUser } from '@/lib/roles';
 import { PageFallback } from '@/components/shared/page-fallback';
@@ -7,6 +7,7 @@ import { lazyPage } from '@/lib/lazy-page';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { useSubscription } from '@/hooks/use-subscription';
 import { TrialFeatureGate } from '@/components/TrialFeatureGate';
+import { preloadForCurrentRoute } from '@/lib/route-preload';
 const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
 const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
 const SignupPage = lazyPage(() => import('@/pages/SignupPage'), 'SignupPage');
@@ -120,9 +121,26 @@ function PageFallbackRoute() {
   return <PageFallback />;
 }
 
+function AuthPageFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
+function AuthRoute({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<AuthPageFallback />}>{children}</Suspense>;
+}
+
 export function AppRoutes() {
   const user = useAuthStore((s) => s.user);
   const { data: subscription } = useSubscription(Boolean(user));
+  const location = useLocation();
+
+  useEffect(() => {
+    preloadForCurrentRoute(location.pathname);
+  }, [location.pathname]);
 
   // Detect which domain is being accessed
   const isMarketing = typeof window !== 'undefined' && (
@@ -152,15 +170,15 @@ export function AppRoutes() {
         <Routes>
           {/* Root redirects to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/supplier-portal/submit" element={<SupplierPortalSubmitPage />} />
-          <Route path="/quotation-portal/review" element={<QuotationPortalPage />} />
-          <Route path="/returns/acknowledge" element={<ReturnAcknowledgementPage />} />
-          <Route path="/supplier-delete/confirm" element={<SupplierDeleteConfirmPage />} />
-          <Route path="/invite/accept" element={<InviteAcceptPage />} />
+          <Route path="/login"          element={<AuthRoute><LoginPage /></AuthRoute>} />
+          <Route path="/signup"         element={<AuthRoute><SignupPage /></AuthRoute>} />
+          <Route path="/forgot-password" element={<AuthRoute><ForgotPasswordPage /></AuthRoute>} />
+          <Route path="/reset-password"  element={<AuthRoute><ResetPasswordPage /></AuthRoute>} />
+          <Route path="/supplier-portal/submit"  element={<AuthRoute><SupplierPortalSubmitPage /></AuthRoute>} />
+          <Route path="/quotation-portal/review" element={<AuthRoute><QuotationPortalPage /></AuthRoute>} />
+          <Route path="/returns/acknowledge"     element={<AuthRoute><ReturnAcknowledgementPage /></AuthRoute>} />
+          <Route path="/supplier-delete/confirm" element={<AuthRoute><SupplierDeleteConfirmPage /></AuthRoute>} />
+          <Route path="/invite/accept"           element={<AuthRoute><InviteAcceptPage /></AuthRoute>} />
           <Route
             path="/dashboard"
             element={

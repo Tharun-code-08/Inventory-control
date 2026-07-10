@@ -1,0 +1,17 @@
+{
+  "name": "Softdigit Consulting — SoftdigitIMS",
+  "short_name": "SoftdigitIMS",
+  "description": "Inventory operations for multi-store retail",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

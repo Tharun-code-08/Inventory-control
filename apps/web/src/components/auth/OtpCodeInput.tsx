@@ -67,12 +67,12 @@ export function OtpCodeInput({
           autoFocus={autoFocus && index === 0}
           maxLength={1}
           inputMode="numeric"
-          className={`h-14 w-11 rounded-xl border-2 bg-white text-center text-xl font-bold text-slate-900 outline-none transition sm:w-12 ${
+          className={`h-14 w-11 rounded-xl border-2 bg-card text-center text-xl font-bold text-foreground outline-none transition sm:w-12 ${
             hasError
               ? 'border-red-500'
               : digit
-                ? 'border-slate-800 bg-slate-50'
-                : 'border-slate-300 focus:border-primary'
+                ? 'border-slate-800 bg-muted'
+                : 'border-border focus:border-primary'
           }`}
         />
       ))}

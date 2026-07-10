@@ -167,7 +167,7 @@ export function QuotationPortalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2.5">
@@ -179,36 +179,36 @@ export function QuotationPortalPage() {
 
       <main className="mx-auto max-w-3xl px-4 py-8 pb-16">
         {!token && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900">
             Invalid link. Please open the quotation from the email we sent you.
           </div>
         )}
 
         {token && loading && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground shadow-sm">
             Loading quotation…
           </div>
         )}
 
         {token && !loading && !quote && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
+          <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-6 text-red-800 dark:text-red-300">
             This quotation link is invalid or has expired.
           </div>
         )}
 
         {quote && (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-xl font-semibold text-slate-900">{quote.quoteNumber}</h1>
-                  <p className="text-sm text-slate-600">
+                  <h1 className="text-xl font-semibold text-foreground">{quote.quoteNumber}</h1>
+                  <p className="text-sm text-muted-foreground">
                     Prepared for <strong>{quote.customer.customerName}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {quote.shop.shopName} · Quote date {formatDate(quote.quoteDate)}
                     {quote.validUntil ? ` · Valid until ${formatDate(quote.validUntil)}` : ''}
                   </p>
@@ -220,8 +220,8 @@ export function QuotationPortalPage() {
                   className={cn(
                     'rounded-lg border px-4 py-3 text-sm',
                     quote.status === 'ACCEPTED'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                      : 'border-slate-200 bg-slate-50 text-slate-700',
+                      ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900'
+                      : 'border-border bg-muted text-foreground',
                   )}
                 >
                   {statusMessage(quote.status)}
@@ -229,20 +229,20 @@ export function QuotationPortalPage() {
               )}
 
               {quote.status === 'USER_REQUESTED' && quote.customerRequestedTotal && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
                   Your requested total:{' '}
                   <strong>{formatAmount(quote.customerRequestedTotal)}</strong>
                   {quote.customerRequestNote ? (
-                    <p className="mt-1 text-amber-800">{quote.customerRequestNote}</p>
+                    <p className="mt-1 text-amber-800 dark:text-amber-300">{quote.customerRequestNote}</p>
                   ) : null}
                 </div>
               )}
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
+                  <TableRow className="bg-muted">
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead>UoM</TableHead>
@@ -254,11 +254,11 @@ export function QuotationPortalPage() {
                   {quote.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <span className="font-medium text-slate-900">{item.productCode}</span>
-                        <p className="text-xs text-slate-500">{item.description}</p>
+                        <span className="font-medium text-foreground">{item.productCode}</span>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
-                      <TableCell className="text-slate-600">{item.uom}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.uom}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatAmount(item.unitPrice)}
                       </TableCell>
@@ -269,8 +269,8 @@ export function QuotationPortalPage() {
                   ))}
                 </TableBody>
               </Table>
-              <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-3">
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <div className="flex items-center justify-between border-t bg-muted px-4 py-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <IndianRupee className="h-4 w-4" />
                   Grand total
                 </span>
@@ -281,8 +281,8 @@ export function QuotationPortalPage() {
             </div>
 
             {quote.remarks && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-                <p className="mb-1 font-medium text-slate-800">Notes</p>
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+                <p className="mb-1 font-medium text-foreground">Notes</p>
                 <p className="whitespace-pre-wrap">{quote.remarks}</p>
               </div>
             )}
@@ -299,7 +299,7 @@ export function QuotationPortalPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="flex-1 border-slate-300"
+                  className="flex-1 border-border"
                   disabled={acting}
                   onClick={() => setRevisionOpen(true)}
                 >
@@ -323,9 +323,9 @@ export function QuotationPortalPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground">
               Current quoted total:{' '}
-              <strong className="text-slate-900">{formatAmount(quotedTotal)}</strong>
+              <strong className="text-foreground">{formatAmount(quotedTotal)}</strong>
             </p>
             <div className="space-y-2">
               <Label htmlFor="requested-total">Your target total (INR)</Label>

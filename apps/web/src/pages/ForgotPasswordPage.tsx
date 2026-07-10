@@ -85,7 +85,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-slate-900 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
@@ -108,14 +108,14 @@ export function ForgotPasswordPage() {
             requests stop working automatically, and all sessions are revoked after reset.
           </p>
           <div className="mt-8 grid gap-3 text-sm">
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Email OTP with 5-attempt protection</div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Magic link stored as a hashed token only</div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Automatic sign-in after successful password reset</div>
+            <div className="rounded-2xl border border-white/15 bg-card/10 p-4">Email OTP with 5-attempt protection</div>
+            <div className="rounded-2xl border border-white/15 bg-card/10 p-4">Magic link stored as a hashed token only</div>
+            <div className="rounded-2xl border border-white/15 bg-card/10 p-4">Automatic sign-in after successful password reset</div>
           </div>
         </section>
 
         <Reveal>
-        <Card className="border-slate-200 shadow-xl">
+        <Card className="border-border shadow-xl">
           <CardHeader>
             <CardTitle>Forgot password</CardTitle>
           </CardHeader>
@@ -123,7 +123,7 @@ export function ForgotPasswordPage() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
@@ -134,7 +134,7 @@ export function ForgotPasswordPage() {
                   placeholder="you@example.com"
                 />
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 We always show the same response, even if the email is not registered.
               </p>
             </div>
@@ -163,19 +163,19 @@ export function ForgotPasswordPage() {
             </div>
 
             {message ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <div className="rounded-md border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
                 {message}
               </div>
             ) : null}
 
             {error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                 {error}
               </div>
             ) : null}
 
             {requestedMethod === 'otp' ? (
-              <form className="space-y-4 border-t border-slate-200 pt-5" onSubmit={submitOtpReset}>
+              <form className="space-y-4 border-t border-border pt-5" onSubmit={submitOtpReset}>
                 <div className="space-y-2">
                   <Label htmlFor="otp">Reset code</Label>
                   <Input
@@ -217,7 +217,7 @@ export function ForgotPasswordPage() {
               </form>
             ) : null}
 
-            <p className="text-center text-sm text-slate-500">
+            <p className="text-center text-sm text-muted-foreground">
               Remembered it?{' '}
               <Link to="/login" className="font-medium text-primary hover:underline">
                 Back to sign in

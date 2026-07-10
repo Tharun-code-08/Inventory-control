@@ -677,8 +677,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
         {/* Page Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{createOnly ? 'Create Goods Receipt' : 'Goods Receipts'}</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{createOnly ? 'Create Goods Receipt' : 'Goods Receipts'}</h1>
+            <p className="text-sm text-muted-foreground">
               {createOnly ? 'Fill in details to create a new goods receipt' : 'Record incoming stock from suppliers'}
             </p>
           </div>
@@ -790,7 +790,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
             <>
               <Table className="text-[13px]">
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableRow className="bg-muted hover:bg-muted">
                     <TableHead className="font-semibold">GR Number</TableHead>
                     <TableHead className="font-semibold">PO Number</TableHead>
                     <TableHead className="font-semibold">Receipt Type</TableHead>
@@ -865,7 +865,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50"
                                 onClick={() => setPostTarget(gr)}
                                 title="Post"
                               >
@@ -1128,7 +1128,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
             onSubmit={form.handleSubmit((values) => onSubmit(values, false))}
             className="mt-6 space-y-5"
           >
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            <p className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-950">
               Draft receipts do not update warehouse stock. Use <strong>Save &amp; Post</strong> to
               increase on-hand quantity at the receiving plant.
             </p>

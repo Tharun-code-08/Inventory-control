@@ -1168,10 +1168,17 @@ COALESCE(
         LEFT JOIN (
           SELECT product_id, MAX(created_at) as last_sale_date
           FROM stock_ledger
-          WHERE transaction_type = 'OUT'
+          WHERE transaction_type = 'GOODS_ISSUE'
           GROUP BY product_id
         ) sl ON sl.product_id = p.id
-        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        LEFT JOIN LATERAL (
+          SELECT grh.supplier_name AS name
+          FROM goods_receipt_items gri
+          JOIN goods_receipt_header grh ON grh.id = gri.gr_header_id
+          WHERE gri.product_id = p.id
+          ORDER BY grh.gr_date DESC NULLS LAST
+          LIMIT 1
+        ) s ON TRUE
         WHERE ${whereClause}
       `),
       this.prisma.$queryRaw<
@@ -1205,10 +1212,17 @@ COALESCE(
         LEFT JOIN (
           SELECT product_id, MAX(created_at) as last_sale_date
           FROM stock_ledger
-          WHERE transaction_type = 'OUT'
+          WHERE transaction_type = 'GOODS_ISSUE'
           GROUP BY product_id
         ) sl ON sl.product_id = p.id
-        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        LEFT JOIN LATERAL (
+          SELECT grh.supplier_name AS name
+          FROM goods_receipt_items gri
+          JOIN goods_receipt_header grh ON grh.id = gri.gr_header_id
+          WHERE gri.product_id = p.id
+          ORDER BY grh.gr_date DESC NULLS LAST
+          LIMIT 1
+        ) s ON TRUE
         WHERE ${whereClause}
         ORDER BY ${sortBy === 'daysUnsold' ? Prisma.sql`days_unsold DESC` : Prisma.sql`stock_value DESC`}
         OFFSET ${(page - 1) * limit}
@@ -1284,7 +1298,7 @@ COALESCE(
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-        WHERE pp.shop_id = ${filters.shop_id}
+        WHERE pp.shop_id = ${filters.shop_id}::uuid
         AND pp.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
       `),
@@ -1308,11 +1322,11 @@ COALESCE(
         WITH sales_data AS (
           SELECT
             pp.product_id,
-            COUNT(CASE WHEN sl.transaction_type = 'OUT' AND sl.created_at >= ${dateFrom} AND sl.created_at <= ${dateTo} THEN 1 END)::int as sales_qty
+            COALESCE(SUM(CASE WHEN sl.transaction_type = 'GOODS_ISSUE' AND sl.transaction_date >= ${dateFrom} AND sl.transaction_date <= ${dateTo} THEN sl.out_qty ELSE 0 END), 0)::int as sales_qty
           FROM product_plants pp
           JOIN products p ON p.id = pp.product_id AND p.is_active = true
           LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
-          WHERE pp.shop_id = ${filters.shop_id}
+          WHERE pp.shop_id = ${filters.shop_id}::uuid
           AND pp.is_active = true
           ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
           GROUP BY pp.product_id
@@ -1341,13 +1355,13 @@ COALESCE(
               COALESCE(pp.min_stock_level, 0)::int - COALESCE(ss.current_stock, 0)::int
             )
           END as suggested_order_qty,
-          COALESCE(p.lead_time_days, 7)::int as lead_time_days,
-          (SELECT MAX(created_at) FROM stock_ledger WHERE product_id = p.id AND transaction_type = 'IN') as last_restock_date
+          7::int as lead_time_days,
+          (SELECT MAX(transaction_date) FROM stock_ledger WHERE product_id = p.id AND shop_id = pp.shop_id AND transaction_type = 'GOODS_RECEIPT') as last_restock_date
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
         LEFT JOIN sales_data sd ON sd.product_id = p.id
-        WHERE pp.shop_id = ${filters.shop_id}
+        WHERE pp.shop_id = ${filters.shop_id}::uuid
         AND pp.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
         ORDER BY ${
@@ -1355,14 +1369,12 @@ COALESCE(
             ? Prisma.sql`days_remaining ASC`
             : sortBy === 'avgSalesPerDay'
               ? Prisma.sql`avg_sales_per_day DESC`
-              : Prisma.sql`
-                  CASE
-                    WHEN days_remaining < 7 THEN 1
-                    WHEN days_remaining < 14 THEN 2
-                    ELSE 3
-                  END ASC,
-                  days_remaining ASC
-                `
+              : // urgency: fewest days of stock remaining first. Postgres does not
+                // permit an output-column alias inside a CASE expression in ORDER BY,
+                // and ordering by days_remaining ASC is equivalent to the urgency
+                // buckets (CRITICAL <7 < WARNING <14 < NORMAL) since they are
+                // monotonic in days_remaining.
+                Prisma.sql`days_remaining ASC`
         }
         OFFSET ${(page - 1) * limit}
         LIMIT ${limit}
@@ -1457,14 +1469,15 @@ COALESCE(
 
     const [totalRows, rows, summaryRows] = await Promise.all([
       this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
-        SELECT COUNT(DISTINCT c.id)::bigint as count
-        FROM customers c
-        LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED')
-        WHERE c.is_active = true
-        AND soh.shop_id = ANY(${shopArray})
-        ${filters.customer_name ? Prisma.sql`AND c.customer_name ILIKE ${'%' + filters.customer_name + '%'}` : Prisma.empty}
-        GROUP BY c.id
-        HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+        SELECT COUNT(*)::bigint as count FROM (
+          SELECT c.id
+          FROM customers c
+          JOIN invoice_header ih ON ih.customer_id = c.id AND ih.shop_id = ANY(${shopArray}) AND ih.status::text <> 'CANCELLED'
+          WHERE c.is_active = true
+          ${filters.customer_name ? Prisma.sql`AND c.customer_name ILIKE ${'%' + filters.customer_name + '%'}` : Prisma.empty}
+          GROUP BY c.id
+          HAVING SUM(ih.total_value - COALESCE(ih.paid_value, 0)) > 0
+        ) x
       `),
       this.prisma.$queryRaw<
         Array<{
@@ -1485,44 +1498,21 @@ COALESCE(
           SELECT
             c.id as customer_id,
             c.customer_name,
-            MAX(soh.order_date) as last_transaction_date,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) <= 30
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as current_0_30,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) BETWEEN 31 AND 60
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as watch_31_60,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) BETWEEN 61 AND 90
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as high_risk_61_90,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 90
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as critical_90plus,
-            SUM(COALESCE(soh.outstanding_amount, 0)) as total_outstanding,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as overdue_amount,
-            COUNT(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
-              THEN 1
-            END)::int as overdue_invoice_count,
-            COALESCE(AVG(EXTRACT(DAY FROM NOW() - soh.order_date)), 0)::int as avg_payment_days
+            MAX(ih.invoice_date) as last_transaction_date,
+            SUM(CASE WHEN EXTRACT(DAY FROM NOW() - ih.invoice_date) <= 30 THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as current_0_30,
+            SUM(CASE WHEN EXTRACT(DAY FROM NOW() - ih.invoice_date) BETWEEN 31 AND 60 THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as watch_31_60,
+            SUM(CASE WHEN EXTRACT(DAY FROM NOW() - ih.invoice_date) BETWEEN 61 AND 90 THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as high_risk_61_90,
+            SUM(CASE WHEN EXTRACT(DAY FROM NOW() - ih.invoice_date) > 90 THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as critical_90plus,
+            SUM(ih.total_value - COALESCE(ih.paid_value, 0)) as total_outstanding,
+            SUM(CASE WHEN ih.due_date IS NOT NULL AND ih.due_date < NOW() THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as overdue_amount,
+            COUNT(CASE WHEN ih.due_date IS NOT NULL AND ih.due_date < NOW() AND (ih.total_value - COALESCE(ih.paid_value, 0)) > 0 THEN 1 END)::int as overdue_invoice_count,
+            COALESCE(AVG(EXTRACT(DAY FROM NOW() - ih.invoice_date)), 0)::int as avg_payment_days
           FROM customers c
-          LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED') AND soh.shop_id = ANY(${shopArray})
+          JOIN invoice_header ih ON ih.customer_id = c.id AND ih.shop_id = ANY(${shopArray}) AND ih.status::text <> 'CANCELLED'
           WHERE c.is_active = true
           ${filters.customer_name ? Prisma.sql`AND c.customer_name ILIKE ${'%' + filters.customer_name + '%'}` : Prisma.empty}
           GROUP BY c.id, c.customer_name
-          HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+          HAVING SUM(ih.total_value - COALESCE(ih.paid_value, 0)) > 0
         )
         SELECT *
         FROM customer_invoices
@@ -1549,18 +1539,14 @@ COALESCE(
         WITH customer_invoices AS (
           SELECT
             c.id as customer_id,
-            SUM(COALESCE(soh.outstanding_amount, 0)) as total_outstanding,
-            SUM(CASE
-              WHEN EXTRACT(DAY FROM NOW() - soh.order_date) > 30
-              THEN COALESCE(soh.outstanding_amount, 0)
-              ELSE 0
-            END) as overdue_amount,
-            COALESCE(AVG(EXTRACT(DAY FROM NOW() - soh.order_date)), 0)::int as avg_payment_days
+            SUM(ih.total_value - COALESCE(ih.paid_value, 0)) as total_outstanding,
+            SUM(CASE WHEN ih.due_date IS NOT NULL AND ih.due_date < NOW() THEN (ih.total_value - COALESCE(ih.paid_value, 0)) ELSE 0 END) as overdue_amount,
+            COALESCE(AVG(EXTRACT(DAY FROM NOW() - ih.invoice_date)), 0)::int as avg_payment_days
           FROM customers c
-          LEFT JOIN sales_order_headers soh ON soh.customer_id = c.id AND soh.status IN ('CONFIRMED', 'FULFILLED') AND soh.shop_id = ANY(${shopArray})
+          JOIN invoice_header ih ON ih.customer_id = c.id AND ih.shop_id = ANY(${shopArray}) AND ih.status::text <> 'CANCELLED'
           WHERE c.is_active = true
           GROUP BY c.id
-          HAVING SUM(COALESCE(soh.outstanding_amount, 0)) > 0
+          HAVING SUM(ih.total_value - COALESCE(ih.paid_value, 0)) > 0
         )
         SELECT
           COUNT(*)::int as total_customers,
@@ -1666,14 +1652,16 @@ COALESCE(
 
     const [totalRows, rows, summaryRows] = await Promise.all([
       this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
-        SELECT COUNT(DISTINCT p.id)::bigint as count
-        FROM products p
-        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
-        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
-        WHERE p.is_active = true
-        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
-        GROUP BY p.id
-        HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+        SELECT COUNT(*)::bigint as count FROM (
+          SELECT p.id
+          FROM products p
+          JOIN sales_order_items soi ON soi.product_id = p.id
+          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+          WHERE p.is_active = true
+          ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+          GROUP BY p.id
+          HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+        ) x
       `),
       this.prisma.$queryRaw<
         Array<{
@@ -1695,7 +1683,7 @@ COALESCE(
           p.product_code,
           p.description,
           p.category,
-          COUNT(soi.id)::int as units_sold,
+          COALESCE(SUM(soi.quantity), 0)::int as units_sold,
           SUM(soi.quantity * soi.unit_price)::numeric as revenue,
           COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as avg_cost_per_unit,
           (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))::numeric as cogs,
@@ -1709,9 +1697,9 @@ COALESCE(
             ELSE (SUM(soi.quantity * soi.unit_price) / SUM(soi.quantity))::numeric
           END as avg_selling_price
         FROM products p
-        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
-        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
-        LEFT JOIN stock_summary ss ON ss.product_id = p.id
+        JOIN sales_order_items soi ON soi.product_id = p.id
+        JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+        LEFT JOIN (SELECT product_id, AVG(avg_cost) AS avg_cost FROM stock_summary WHERE shop_id = ANY(${shopArray}) GROUP BY product_id) ss ON ss.product_id = p.id
         WHERE p.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
         GROUP BY p.id, p.product_code, p.description, p.category, ss.avg_cost, p.purchase_price
@@ -1738,23 +1726,26 @@ COALESCE(
         }>
       >(Prisma.sql`
         SELECT
-          SUM(soi.quantity * soi.unit_price)::text as total_revenue,
-          (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))::text as total_cogs,
-          (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0)))::text as total_profit,
-          CASE
-            WHEN SUM(soi.quantity * soi.unit_price) = 0 THEN 0
-            ELSE ((SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) / SUM(soi.quantity * soi.unit_price) * 100)::int
-          END as avg_margin,
-          COUNT(CASE WHEN (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) < 0 THEN 1 END)::int as loss_making_products,
-          SUM(CASE WHEN (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) < 0 THEN ABS(SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) ELSE 0 END)::text as unprofitable_value
-        FROM products p
-        LEFT JOIN sales_order_items soi ON soi.product_id = p.id
-        LEFT JOIN sales_order_headers soh ON soh.id = soi.sales_order_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
-        LEFT JOIN stock_summary ss ON ss.product_id = p.id
-        WHERE p.is_active = true
-        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
-        GROUP BY p.id, ss.avg_cost, p.purchase_price
-        HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+          COALESCE(SUM(revenue), 0)::text as total_revenue,
+          COALESCE(SUM(cogs), 0)::text as total_cogs,
+          COALESCE(SUM(profit), 0)::text as total_profit,
+          CASE WHEN COALESCE(SUM(revenue), 0) = 0 THEN 0 ELSE (SUM(profit) / SUM(revenue) * 100)::int END as avg_margin,
+          COUNT(CASE WHEN profit < 0 THEN 1 END)::int as loss_making_products,
+          COALESCE(SUM(CASE WHEN profit < 0 THEN ABS(profit) ELSE 0 END), 0)::text as unprofitable_value
+        FROM (
+          SELECT
+            SUM(soi.quantity * soi.unit_price) as revenue,
+            (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0)) as cogs,
+            (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) as profit
+          FROM products p
+          JOIN sales_order_items soi ON soi.product_id = p.id
+          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+          LEFT JOIN (SELECT product_id, AVG(avg_cost) AS avg_cost FROM stock_summary WHERE shop_id = ANY(${shopArray}) GROUP BY product_id) ss ON ss.product_id = p.id
+          WHERE p.is_active = true
+          ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+          GROUP BY p.id, ss.avg_cost, p.purchase_price
+          HAVING SUM(COALESCE(soi.quantity, 0)) > 0
+        ) per_product
       `),
     ]);
 

@@ -17,10 +17,10 @@ function KpiCard({ label, value }: { label: string; value: string | number }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-slate-500">{label}</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold text-slate-900">{value}</p>
+        <p className="text-2xl font-bold tabular-nums tracking-tight text-foreground">{value}</p>
       </CardContent>
     </Card>
   );
@@ -43,7 +43,7 @@ export function PlatformSubscriptionsPage() {
   if (isLoading) {
     return (
       <AppLayout active="/platform/subscriptions">
-        <p className="text-sm text-slate-500">Loading platform dashboard...</p>
+        <p className="text-sm text-muted-foreground">Loading platform dashboard...</p>
       </AppLayout>
     );
   }
@@ -51,7 +51,7 @@ export function PlatformSubscriptionsPage() {
   if (isError || !data) {
     return (
       <AppLayout active="/platform/subscriptions">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-800 dark:text-red-300">
           Platform admin access required. Set PLATFORM_ADMIN_EMAILS on the server and sign in with an
           allowlisted account.
         </div>
@@ -65,8 +65,8 @@ export function PlatformSubscriptionsPage() {
     <AppLayout active="/platform/subscriptions">
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Platform subscriptions</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-semibold text-foreground">Platform subscriptions</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Trial conversion, paid subscribers, renewals, revenue alerts, and infrastructure health.
           </p>
           {(unreadQuery.data ?? 0) > 0 ? (
@@ -83,29 +83,29 @@ export function PlatformSubscriptionsPage() {
             </CardHeader>
             <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <p className="text-slate-500">Database</p>
-                <p className={cn('font-semibold', healthQuery.data.database.usagePct >= 80 && 'text-amber-700')}>
+                <p className="text-muted-foreground">Database</p>
+                <p className={cn('font-semibold', healthQuery.data.database.usagePct >= 80 && 'text-amber-700 dark:text-amber-300')}>
                   {healthQuery.data.database.usagePct}% used
                 </p>
               </div>
               <div>
-                <p className="text-slate-500">CPU load</p>
+                <p className="text-muted-foreground">CPU load</p>
                 <p className="font-semibold">{healthQuery.data.cpuLoadPct}%</p>
               </div>
               <div>
-                <p className="text-slate-500">Memory</p>
+                <p className="text-muted-foreground">Memory</p>
                 <p className="font-semibold">{healthQuery.data.memoryUsagePct}%</p>
               </div>
               <div>
-                <p className="text-slate-500">API errors (since last check)</p>
+                <p className="text-muted-foreground">API errors (since last check)</p>
                 <p className="font-semibold">{healthQuery.data.httpErrorsDelta5m}</p>
               </div>
               {healthQuery.data.disk.map((disk) => (
                 <div key={disk.path}>
-                  <p className="truncate text-slate-500" title={disk.path}>
+                  <p className="truncate text-muted-foreground" title={disk.path}>
                     Disk free
                   </p>
-                  <p className={cn('font-semibold', disk.freePct >= 0 && disk.freePct < 15 && 'text-red-700')}>
+                  <p className={cn('font-semibold', disk.freePct >= 0 && disk.freePct < 15 && 'text-red-700 dark:text-red-300')}>
                     {disk.freePct < 0 ? 'n/a' : `${disk.freePct}%`}
                   </p>
                 </div>
@@ -128,7 +128,7 @@ export function PlatformSubscriptionsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {(notificationsQuery.data ?? []).length === 0 ? (
-              <p className="text-slate-500">No platform alerts yet.</p>
+              <p className="text-muted-foreground">No platform alerts yet.</p>
             ) : (
               (notificationsQuery.data ?? []).slice(0, 20).map((item) => (
                 <button
@@ -139,7 +139,7 @@ export function PlatformSubscriptionsPage() {
                   }}
                   className={cn(
                     'w-full rounded-lg border px-3 py-2 text-left',
-                    !item.isRead ? 'border-border bg-muted' : 'border-slate-100',
+                    !item.isRead ? 'border-border bg-muted' : 'border-border',
                   )}
                 >
                   <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -147,9 +147,9 @@ export function PlatformSubscriptionsPage() {
                     <Badge variant="outline">{item.category}</Badge>
                     {!item.isRead ? <Badge>New</Badge> : null}
                   </div>
-                  <p className="font-medium text-slate-900">{item.title}</p>
-                  <p className="text-slate-600">{item.message}</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="font-medium text-foreground">{item.title}</p>
+                  <p className="text-muted-foreground">{item.message}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(item.createdAt).toLocaleString()}
                   </p>
                 </button>
@@ -176,13 +176,13 @@ export function PlatformSubscriptionsPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {data.upcomingRenewals.length === 0 ? (
-                <p className="text-slate-500">No renewals in the next 30 days.</p>
+                <p className="text-muted-foreground">No renewals in the next 30 days.</p>
               ) : (
                 data.upcomingRenewals.map((row) => (
                   <div key={row.companyId} className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-slate-900">{row.companyName}</span>
+                    <span className="font-medium text-foreground">{row.companyName}</span>
                     <Badge variant="secondary">{row.plan}</Badge>
-                    <span className="text-slate-500">
+                    <span className="text-muted-foreground">
                       {row.renewsAt ? new Date(row.renewsAt).toLocaleDateString() : '—'}
                     </span>
                   </div>
@@ -197,16 +197,16 @@ export function PlatformSubscriptionsPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {data.failedPayments.length === 0 ? (
-                <p className="text-slate-500">No failed payments.</p>
+                <p className="text-muted-foreground">No failed payments.</p>
               ) : (
                 data.failedPayments.map((row) => (
-                  <div key={row.id} className="rounded-lg border border-slate-100 px-3 py-2">
-                    <p className="font-medium text-slate-900">{row.companyName}</p>
-                    <p className="text-slate-500">
+                  <div key={row.id} className="rounded-lg border border-border px-3 py-2">
+                    <p className="font-medium text-foreground">{row.companyName}</p>
+                    <p className="text-muted-foreground">
                       {row.plan} · {formatInr(row.amountPaise / 100)} · attempt {row.renewalAttempt}
                     </p>
                     {row.failureReason ? (
-                      <p className="text-xs text-red-600">{row.failureReason}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">{row.failureReason}</p>
                     ) : null}
                   </div>
                 ))
@@ -222,7 +222,7 @@ export function PlatformSubscriptionsPage() {
           <CardContent className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-slate-500">
+                <tr className="border-b text-left text-muted-foreground">
                   <th className="pb-2 pr-4 font-medium">Template</th>
                   <th className="pb-2 pr-4 font-medium">Sent</th>
                   <th className="pb-2 pr-4 font-medium">Clicks</th>
@@ -250,12 +250,12 @@ export function PlatformSubscriptionsPage() {
           <CardContent className="space-y-2 text-sm">
             {data.lifecycleStages.map((row, idx) => (
               <div key={`${row.companyName}-${idx}`} className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-slate-900">{row.companyName}</span>
+                <span className="font-medium text-foreground">{row.companyName}</span>
                 <Badge variant="outline">{row.stage}</Badge>
                 {row.trialProgressPct > 0 ? (
-                  <span className="text-slate-500">Trial progress {row.trialProgressPct}%</span>
+                  <span className="text-muted-foreground">Trial progress {row.trialProgressPct}%</span>
                 ) : null}
-                <span className="text-slate-400">{row.snapshotDate}</span>
+                <span className="text-muted-foreground">{row.snapshotDate}</span>
               </div>
             ))}
           </CardContent>

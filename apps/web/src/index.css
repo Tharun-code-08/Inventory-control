@@ -4,39 +4,50 @@
 
 @layer base {
   :root {
-    --background: 220 25% 98%;
-    --foreground: 222 25% 18%;
+    /* ── Light theme — clean, airy, modern SaaS ──────────────────────────
+       Primary = indigo-600 (#4F46E5). Neutrals = cool slate. Accents pop
+       against near-white surfaces; everything is token-driven so the whole
+       app re-skins from here. */
+    --background: 220 33% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 25% 18%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 25% 18%;
-    /* Primary = slate-500 (#64748B). Hover = slate-600 (#475569). Ring = slate-400 (#94A3B8). */
-    --primary: 215 19% 47%;
-    --primary-hover: 215 25% 32%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 244 75% 58%;
+    --primary-hover: 245 58% 51%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 96%;
-    --secondary-foreground: 220 22% 24%;
-    --muted: 220 18% 96%;
-    --muted-foreground: 220 10% 46%;
-    --accent: 215 25% 95%;
-    --accent-foreground: 215 25% 28%;
+    --secondary: 220 23% 96%;
+    --secondary-foreground: 222 33% 24%;
+    --muted: 220 23% 96%;
+    --muted-foreground: 220 12% 47%;
+    --accent: 243 70% 97%;
+    --accent-foreground: 245 58% 45%;
     --destructive: 0 78% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 215 16% 92%;
-    --input: 215 16% 90%;
-    --ring: 215 20% 65%;
-    --radius: 0.625rem;
+    --border: 220 18% 91%;
+    --input: 220 18% 88%;
+    --ring: 244 75% 66%;
+    --radius: 0.85rem;
 
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 220 16% 28%;
-    --sidebar-accent: 215 25% 95%;
+    --sidebar-foreground: 222 20% 30%;
+    --sidebar-accent: 243 70% 97%;
 
-    /* Status tokens stay distinct from the slate-blue brand to preserve hierarchy
+    /* Status tokens stay distinct from the indigo brand to preserve hierarchy
        in PO -> GR -> Invoice -> Payment workflows. */
-    --status-success: 151 55% 40%;
+    --status-success: 158 64% 40%;
     --status-warning: 38 92% 50%;
     --status-danger: 0 84% 60%;
-    --status-info: 215 20% 55%;
+    --status-info: 244 75% 60%;
+
+    /* KPI accent tokens (used by the redesigned metric cards). */
+    --kpi-indigo: 244 75% 58%;
+    --kpi-sky: 199 89% 48%;
+    --kpi-emerald: 158 64% 40%;
+    --kpi-amber: 38 92% 50%;
+    --kpi-rose: 347 77% 55%;
+    --kpi-violet: 262 70% 58%;
 
     /* Motion tokens */
     --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -49,29 +60,43 @@
   }
 
   .dark {
-    --background: 222 26% 9%;
-    --foreground: 210 25% 96%;
-    --card: 222 22% 12%;
-    --card-foreground: 210 22% 96%;
-    --popover: 222 22% 11%;
-    --popover-foreground: 210 22% 96%;
-    --primary: 215 22% 62%;
-    --primary-hover: 215 22% 72%;
-    --primary-foreground: 222 30% 10%;
-    --secondary: 222 18% 17%;
-    --secondary-foreground: 210 20% 92%;
-    --muted: 222 16% 16%;
-    --muted-foreground: 215 14% 72%;
-    --accent: 215 22% 22%;
-    --accent-foreground: 210 22% 96%;
-    --destructive: 0 72% 58%;
+    /* ── Dark theme — deep slate-navy (not pure black), elevated cards,
+       vivid-but-comfortable indigo. Tuned for AA contrast. ─────────────── */
+    --background: 222 32% 7%;
+    --foreground: 210 30% 96%;
+    --card: 222 26% 11%;
+    --card-foreground: 210 30% 96%;
+    --popover: 222 28% 12%;
+    --popover-foreground: 210 30% 96%;
+    --primary: 243 80% 71%;
+    --primary-hover: 243 85% 78%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 222 20% 17%;
+    --secondary-foreground: 210 25% 93%;
+    --muted: 222 19% 15%;
+    --muted-foreground: 217 17% 68%;
+    --accent: 243 38% 22%;
+    --accent-foreground: 243 90% 88%;
+    --destructive: 0 72% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 222 14% 22%;
-    --input: 222 14% 20%;
-    --ring: 215 22% 62%;
-    --sidebar: 222 24% 10%;
-    --sidebar-foreground: 210 20% 92%;
-    --sidebar-accent: 215 20% 20%;
+    --border: 222 18% 20%;
+    --input: 222 18% 22%;
+    --ring: 243 80% 71%;
+    --sidebar: 222 30% 9%;
+    --sidebar-foreground: 210 25% 90%;
+    --sidebar-accent: 243 38% 22%;
+
+    --status-success: 158 64% 52%;
+    --status-warning: 38 95% 58%;
+    --status-danger: 0 75% 64%;
+    --status-info: 243 80% 72%;
+
+    --kpi-indigo: 243 80% 72%;
+    --kpi-sky: 199 90% 60%;
+    --kpi-emerald: 158 64% 52%;
+    --kpi-amber: 38 95% 60%;
+    --kpi-rose: 347 82% 66%;
+    --kpi-violet: 262 80% 72%;
   }
 }
 
@@ -84,15 +109,19 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     margin: 0;
     min-height: 100vh;
-    transition: background-color 0.2s ease, color 0.15s ease;
+    transition: background-color 0.25s ease, color 0.2s ease;
     background:
-      radial-gradient(circle at 18% -10%, rgb(148 163 184 / 0.06), transparent 40%),
-      #f7f9fc;
+      radial-gradient(58% 42% at 12% -8%, hsl(244 75% 58% / 0.06), transparent 60%),
+      radial-gradient(46% 38% at 96% 0%, hsl(199 89% 52% / 0.05), transparent 58%),
+      hsl(var(--background));
+    background-attachment: fixed;
   }
   .dark body {
     background:
-      radial-gradient(circle at 8% -10%, rgb(148 163 184 / 0.08), transparent 42%),
+      radial-gradient(60% 44% at 10% -10%, hsl(243 80% 60% / 0.16), transparent 60%),
+      radial-gradient(48% 40% at 98% 0%, hsl(199 90% 55% / 0.10), transparent 58%),
       hsl(var(--background));
+    background-attachment: fixed;
   }
   html.dark {
     color-scheme: dark;
@@ -104,14 +133,18 @@
 
 @layer components {
   .glass-panel {
-    background: #ffffff;
+    background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.04);
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.04),
+      0 8px 24px -12px rgb(15 23 42 / 0.10);
   }
   .dark .glass-panel {
-    background: hsl(var(--card) / 0.96);
+    background: hsl(var(--card) / 0.94);
     border: 1px solid hsl(var(--border));
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 16px rgb(0 0 0 / 0.25);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 12px 32px -14px rgb(0 0 0 / 0.6);
   }
   .sidebar {
     background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);

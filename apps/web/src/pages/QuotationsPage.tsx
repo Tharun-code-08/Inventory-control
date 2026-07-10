@@ -160,16 +160,16 @@ function StatusPill({ status }: { status: string }) {
   const label = statusLabel(status);
   const styles =
     status === 'SENT'
-      ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200'
+      ? 'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-300 dark:bg-sky-950/60 dark:text-sky-200'
       : status === 'USER_REQUESTED'
-        ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200'
+        ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200'
         : status === 'ACCEPTED'
-          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200'
+          ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200'
           : status === 'CONVERTED'
             ? 'bg-muted text-primary'
             : status === 'CANCELLED'
-              ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-              : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200';
+              ? 'bg-muted text-muted-foreground dark:bg-slate-800 dark:text-muted-foreground'
+              : 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40 dark:text-amber-200';
 
   return (
     <span
@@ -197,15 +197,15 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className={cn('overflow-hidden', uiSurfaces.pageCard)}>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+    <Card interactive className={cn('group overflow-hidden transition-shadow duration-300 hover:shadow-lg', uiSurfaces.pageCard)}>
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        </span>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -638,7 +638,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
       </div>
 
       {selectedCustomer && !selectedCustomer.email?.trim() && (
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-amber-700 dark:text-amber-300">
           This customer has no email — add one under Customers before using Send.
         </p>
       )}
@@ -715,8 +715,8 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
         ))}
       </div>
 
-      <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-        <span className="font-medium text-slate-700">Estimated total</span>
+      <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
+        <span className="font-medium text-foreground">Estimated total</span>
         <span className="font-semibold tabular-nums text-primary">
           {formatAmount(createGrandTotal)}
         </span>
@@ -794,19 +794,19 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
             label="Sent"
             value={stats.sent}
             accent="bg-orange-400"
-            icon={<Send className="h-5 w-5 text-orange-600" />}
+            icon={<Send className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
           />
           <KpiCard
             label="Accepted"
             value={stats.accepted}
             accent="bg-emerald-500"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
           />
           <KpiCard
             label="Converted"
             value={stats.converted}
             accent="bg-sky-500"
-            icon={<Repeat2 className="h-5 w-5 text-sky-600" />}
+            icon={<Repeat2 className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
           />
         </div>
 
@@ -853,7 +853,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </TabsTrigger>
                   <TabsTrigger
                     value="cancelled"
-                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-slate-100 data-[state=active]:text-slate-700"
+                    className="rounded-lg px-3 py-1.5 data-[state=active]:bg-muted data-[state=active]:text-foreground"
                   >
                     Cancelled ({stats.cancelled})
                   </TabsTrigger>
@@ -909,7 +909,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                     <TableBody>
                       {filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="py-10 text-center text-slate-500">
+                          <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                             No quotations in this view.
                           </TableCell>
                         </TableRow>
@@ -929,15 +929,15 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                 </button>
                               </TableCell>
                               <TableCell>{q.customer?.customerName ?? '—'}</TableCell>
-                              <TableCell className="tabular-nums text-slate-800">
+                              <TableCell className="tabular-nums text-foreground">
                                 <div>{formatAmount(q.totalValue)}</div>
                                 {q.status === 'USER_REQUESTED' && q.customerRequestedTotal != null && (
-                                  <p className="text-xs font-medium text-amber-800">
+                                  <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
                                     Requested: {formatAmount(q.customerRequestedTotal)}
                                   </p>
                                 )}
                               </TableCell>
-                              <TableCell className="text-sm text-slate-600">
+                              <TableCell className="text-sm text-muted-foreground">
                                 {formatQuoteDate(q.validUntil)}
                               </TableCell>
                               <TableCell>
@@ -957,7 +957,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="text-sky-700 hover:bg-sky-50"
+                                      className="text-sky-700 dark:text-sky-300 hover:bg-sky-50"
                                       title="Send quote"
                                       disabled={sendQuote.isPending}
                                       onClick={() => onSend(q)}
@@ -974,7 +974,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                         disabled={acceptQuote.isPending}
                                         onClick={() => onAccept(q)}
                                       >
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                       </Button>
                                       <Button
                                         size="sm"
@@ -983,7 +983,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                         disabled={cancelQuote.isPending}
                                         onClick={() => onCancelQuote(q)}
                                       >
-                                        <XCircle className="h-4 w-4 text-slate-500" />
+                                        <XCircle className="h-4 w-4 text-muted-foreground" />
                                       </Button>
                                     </>
                                   )}
@@ -1005,7 +1005,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                         disabled={cancelQuote.isPending}
                                         onClick={() => onCancelQuote(q)}
                                       >
-                                        <XCircle className="h-4 w-4 text-slate-500" />
+                                        <XCircle className="h-4 w-4 text-muted-foreground" />
                                       </Button>
                                     </>
                                   )}
@@ -1013,7 +1013,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="text-emerald-700 hover:bg-emerald-50"
+                                      className="text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50"
                                       title="Convert to sales order"
                                       disabled={convertQuote.isPending}
                                       onClick={() => onConvert(q)}
@@ -1076,24 +1076,24 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
               <div className="mt-6 space-y-5">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-slate-500">Customer</p>
-                    <p className="font-medium text-slate-900">
+                    <p className="text-xs text-muted-foreground">Customer</p>
+                    <p className="font-medium text-foreground">
                       {viewQuote.customer?.customerName ?? '—'}
                     </p>
                     {viewQuote.customer?.email ? (
-                      <p className="text-xs text-slate-500">{viewQuote.customer.email}</p>
+                      <p className="text-xs text-muted-foreground">{viewQuote.customer.email}</p>
                     ) : null}
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Quote date</p>
+                    <p className="text-xs text-muted-foreground">Quote date</p>
                     <p className="font-medium">{formatQuoteDate(viewQuote.quoteDate)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Valid until</p>
+                    <p className="text-xs text-muted-foreground">Valid until</p>
                     <p className="font-medium">{formatQuoteDate(viewQuote.validUntil)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Grand total</p>
+                    <p className="text-xs text-muted-foreground">Grand total</p>
                     <p className="text-lg font-semibold tabular-nums text-primary">
                       {formatAmount(viewQuote.totalValue)}
                     </p>
@@ -1101,14 +1101,14 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                 </div>
 
                 {viewQuote.status === 'USER_REQUESTED' && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
                     <p className="font-medium">Customer pricing request</p>
                     <p>
                       Target amount:{' '}
                       <strong>{formatAmount(viewQuote.customerRequestedTotal)}</strong>
                     </p>
                     {viewQuote.customerRequestNote ? (
-                      <p className="mt-1 text-amber-800">{viewQuote.customerRequestNote}</p>
+                      <p className="mt-1 text-amber-800 dark:text-amber-300">{viewQuote.customerRequestNote}</p>
                     ) : null}
                   </div>
                 )}
@@ -1132,7 +1132,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                 <div className="overflow-hidden rounded-lg border">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50">
+                      <TableRow className="bg-muted">
                         <TableHead>Product</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
                         <TableHead>UoM</TableHead>
@@ -1143,7 +1143,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                     <TableBody>
                       {(viewQuote.items ?? []).length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="py-6 text-center text-slate-500">
+                          <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                             No line items
                           </TableCell>
                         </TableRow>
@@ -1151,17 +1151,17 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                         (viewQuote.items ?? []).map((item) => (
                           <TableRow key={item.id}>
                             <TableCell>
-                              <p className="font-medium text-slate-900">
+                              <p className="font-medium text-foreground">
                                 {item.product?.productCode ?? '—'}
                               </p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-muted-foreground">
                                 {item.product?.description ?? ''}
                               </p>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {item.quantity}
                             </TableCell>
-                            <TableCell className="text-slate-600">{item.uom}</TableCell>
+                            <TableCell className="text-muted-foreground">{item.uom}</TableCell>
                             <TableCell className="text-right tabular-nums">
                               {formatAmount(item.unitPrice)}
                             </TableCell>
@@ -1175,7 +1175,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </Table>
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                   {viewQuote.status === 'DRAFT' && (
                     <Button
                       className="bg-sky-600 hover:bg-sky-700"
@@ -1197,7 +1197,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                           void onAccept(viewQuote).then(() => setViewQuote(null));
                         }}
                       >
-                        <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+                        <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         Mark accepted
                       </Button>
                       <Button
@@ -1272,24 +1272,24 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
           </SheetHeader>
           {reviseTarget && (
             <div className="mt-6 space-y-4">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
                 <p className="font-medium">{reviseTarget.quoteNumber}</p>
                 <p>
                   Customer target:{' '}
                   <strong>{formatAmount(reviseTarget.customerRequestedTotal)}</strong>
                 </p>
                 {reviseTarget.customerRequestNote ? (
-                  <p className="mt-1 text-amber-800">{reviseTarget.customerRequestNote}</p>
+                  <p className="mt-1 text-amber-800 dark:text-amber-300">{reviseTarget.customerRequestNote}</p>
                 ) : null}
               </div>
               <div className="space-y-3">
                 {reviseLines.map((line, idx) => (
                   <div
                     key={`${line.productId}-${idx}`}
-                    className="rounded-lg border border-slate-200 p-3"
+                    className="rounded-lg border border-border p-3"
                   >
-                    <p className="text-sm font-medium text-slate-900">{line.label}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-medium text-foreground">{line.label}</p>
+                    <p className="text-xs text-muted-foreground">
                       Qty {line.quantity} {line.uom}
                     </p>
                     <div className="mt-2 space-y-1">
@@ -1311,8 +1311,8 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                <span className="font-medium text-slate-700">Revised total</span>
+              <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
+                <span className="font-medium text-foreground">Revised total</span>
                 <span className="font-semibold tabular-nums text-primary">
                   {formatAmount(reviseGrandTotal)}
                 </span>

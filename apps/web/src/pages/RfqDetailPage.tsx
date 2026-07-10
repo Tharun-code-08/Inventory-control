@@ -108,8 +108,8 @@ function DetailField({
 }) {
   return (
     <div className={cn('min-w-0', className)}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-      <div className="mt-1.5 text-sm leading-snug text-slate-900">{children}</div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <div className="mt-1.5 text-sm leading-snug text-foreground">{children}</div>
     </div>
   );
 }
@@ -134,11 +134,11 @@ function ResponseRow({
 
   return (
     <>
-      <TableRow className="hover:bg-slate-50/60">
+      <TableRow className="hover:bg-muted/60">
         <TableCell className="w-10">
           <button
             type="button"
-            className="rounded p-1 text-slate-500 hover:bg-slate-100"
+            className="rounded p-1 text-muted-foreground hover:bg-muted"
             onClick={onToggle}
             aria-expanded={expanded}
           >
@@ -150,13 +150,13 @@ function ResponseRow({
           </button>
         </TableCell>
         <TableCell>
-          <p className="font-semibold text-slate-900">{quote.supplier?.supplierName ?? '—'}</p>
+          <p className="font-semibold text-foreground">{quote.supplier?.supplierName ?? '—'}</p>
           {quote.supplier?.email && (
-            <p className="text-xs text-slate-500">{quote.supplier.email}</p>
+            <p className="text-xs text-muted-foreground">{quote.supplier.email}</p>
           )}
         </TableCell>
         <TableCell className="font-medium tabular-nums">{formatInr(total)}</TableCell>
-        <TableCell className="text-sm text-slate-600">
+        <TableCell className="text-sm text-muted-foreground">
           {leadDays != null ? `${leadDays} days` : '—'}
         </TableCell>
         <TableCell>
@@ -168,7 +168,7 @@ function ResponseRow({
             <StatusBadge status={quote.status === 'POSTED' ? 'Submitted' : quote.status} />
           )}
         </TableCell>
-        <TableCell className="max-w-[180px] truncate text-sm text-slate-600">
+        <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
           {quote.notes?.split('\n')[0] ?? '—'}
         </TableCell>
         <TableCell className="text-right">
@@ -180,7 +180,7 @@ function ResponseRow({
         </TableCell>
       </TableRow>
       {expanded && (
-        <TableRow className="bg-slate-50/40">
+        <TableRow className="bg-muted/40">
           <TableCell colSpan={7} className="p-4">
             <Table>
               <TableHeader>
@@ -197,7 +197,7 @@ function ResponseRow({
                     <TableCell className="text-sm">
                       {line.product?.productCode ?? line.description ?? '—'}
                       {line.product?.description && (
-                        <span className="block text-xs text-slate-500">
+                        <span className="block text-xs text-muted-foreground">
                           {line.product.description}
                         </span>
                       )}
@@ -439,7 +439,7 @@ export function RfqDetailPage() {
     return (
       <AppLayout active="RFQs">
         <div className="py-12 text-center">
-          <p className="text-slate-600">RFQ not found.</p>
+          <p className="text-muted-foreground">RFQ not found.</p>
           <Button variant="link" className="mt-2" onClick={() => navigate('/rfqs')}>
             Back to RFQs
           </Button>
@@ -456,7 +456,7 @@ export function RfqDetailPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="-ml-2 text-slate-600"
+              className="-ml-2 text-muted-foreground"
               onClick={() => navigate('/rfqs')}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
@@ -552,7 +552,7 @@ export function RfqDetailPage() {
                   <p>{formatDate(rfq.rfqDate)}</p>
                 </DetailField>
                 <DetailField label="Notes" className="sm:col-span-2">
-                  <p className="whitespace-pre-wrap text-slate-700">
+                  <p className="whitespace-pre-wrap text-foreground">
                     {formatDisplayNotes(rfq.notes)}
                   </p>
                 </DetailField>
@@ -560,7 +560,7 @@ export function RfqDetailPage() {
 
               <div className="mt-6 flex flex-1 flex-col justify-end">
                 <div className="rounded-xl border border-border bg-muted p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Supplier portal access code
                   </p>
                   <p className="mt-2 font-mono text-2xl font-bold tracking-[0.2em] text-primary">
@@ -570,7 +570,7 @@ export function RfqDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-9 w-full justify-center bg-white"
+                      className="h-9 w-full justify-center bg-card"
                       onClick={copyAccessCode}
                     >
                       <Copy className="mr-1.5 h-3.5 w-3.5 shrink-0" />
@@ -579,7 +579,7 @@ export function RfqDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-9 w-full justify-center bg-white"
+                      className="h-9 w-full justify-center bg-card"
                       onClick={copyPortalLink}
                     >
                       <Copy className="mr-1.5 h-3.5 w-3.5 shrink-0" />
@@ -588,7 +588,7 @@ export function RfqDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-9 w-full justify-center bg-white"
+                      className="h-9 w-full justify-center bg-card"
                       asChild
                     >
                       <a href={portalUrl} target="_blank" rel="noopener noreferrer">
@@ -612,14 +612,14 @@ export function RfqDetailPage() {
                   {rfq.suppliers.map((s) => (
                     <li
                       key={s.supplierId}
-                      className="flex min-h-[2.75rem] items-center rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm font-medium text-slate-800"
+                      className="flex min-h-[2.75rem] items-center rounded-lg border border-border bg-muted/80 px-4 py-2.5 text-sm font-medium text-foreground"
                     >
                       {formatSupplierReference(s.supplier)}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                <p className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
                   No suppliers linked.
                 </p>
               )}
@@ -634,7 +634,7 @@ export function RfqDetailPage() {
           <CardContent className="p-0 sm:p-0">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/80">
+                <TableRow className="bg-muted/80">
                   <TableHead className="text-xs uppercase">Product</TableHead>
                   <TableHead className="text-xs uppercase">Qty</TableHead>
                   <TableHead className="text-xs uppercase">Unit</TableHead>
@@ -649,12 +649,12 @@ export function RfqDetailPage() {
                         {item.product?.productCode ?? item.description ?? '—'}
                       </p>
                       {item.product?.productCode && item.description && (
-                        <p className="text-xs text-slate-500">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
                       )}
                     </TableCell>
                     <TableCell>{Number(item.quantity)}</TableCell>
                     <TableCell>{item.uom}</TableCell>
-                    <TableCell className="text-slate-600">{item.specifications ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.specifications ?? '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -684,7 +684,7 @@ export function RfqDetailPage() {
           </CardHeader>
           <CardContent className="p-0">
             {quotations.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-slate-500">
+              <p className="px-6 py-8 text-center text-sm text-muted-foreground">
                 {suppliersWithoutResponses.length > 0
                   ? 'No responses yet. Add a quote manually or share the portal link with suppliers.'
                   : 'No quotes yet. Share the portal link after you send this RFQ.'}
@@ -692,7 +692,7 @@ export function RfqDetailPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/80">
+                  <TableRow className="bg-muted/80">
                     <TableHead className="w-10" />
                     <TableHead className="text-xs uppercase">Supplier</TableHead>
                     <TableHead className="text-xs uppercase">Total price</TableHead>
@@ -729,11 +729,11 @@ export function RfqDetailPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-500">No attachments yet.</p>
+            <p className="text-sm text-muted-foreground">No attachments yet.</p>
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-muted-foreground">
           <Link to="/rfqs" className="text-primary hover:underline">
             Back to RFQ list
           </Link>
@@ -777,7 +777,7 @@ export function RfqDetailPage() {
 
           <div className="space-y-3">
             {!allocationValidation.valid ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                 {allocationValidation.errors[0]}
               </div>
             ) : null}
@@ -785,11 +785,11 @@ export function RfqDetailPage() {
             {allocationPlans.map((plan) => (
               <div
                 key={plan.quoteId}
-                className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-xl border border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="space-y-1">
-                  <p className="font-semibold text-slate-900">{plan.supplierName}</p>
-                  <p className="text-sm text-slate-600">
+                  <p className="font-semibold text-foreground">{plan.supplierName}</p>
+                  <p className="text-sm text-muted-foreground">
                     {formatInr(plan.totalValue)} · Lead:{' '}
                     {plan.leadTimeDays != null ? `${plan.leadTimeDays} days` : '—'} ·{' '}
                     {plan.itemCount} item{plan.itemCount === 1 ? '' : 's'} allocated

@@ -47,12 +47,12 @@ function StatusBadge({ status }: { status: string }) {
   const label = statusLabel(status);
   const styles =
     status === 'CONFIRMED'
-      ? 'bg-sky-100 text-sky-800'
+      ? 'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-300'
       : status === 'FULFILLED'
-        ? 'bg-slate-100 text-slate-700'
+        ? 'bg-muted text-foreground'
         : status === 'DRAFT'
-          ? 'bg-amber-50 text-amber-800'
-          : 'bg-slate-100 text-slate-600';
+          ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300'
+          : 'bg-muted text-muted-foreground';
 
   return (
     <span
@@ -68,10 +68,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border-slate-200/90 shadow-sm">
+    <Card className="border-border/90 shadow-sm">
       <CardContent className="p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="mt-1 text-base font-semibold text-slate-900">{value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-1 text-base font-semibold text-foreground">{value}</p>
       </CardContent>
     </Card>
   );
@@ -196,8 +196,8 @@ export function SalesOrderDetailPage() {
   if (isError || !order) {
     return (
       <AppLayout active="Sales">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="font-medium text-red-800">Sales order not found</p>
+        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-6 text-center">
+          <p className="font-medium text-red-800 dark:text-red-300">Sales order not found</p>
           <Button variant="outline" className="mt-4" asChild>
             <Link to="/sales">Back to Sales Orders</Link>
           </Button>
@@ -283,7 +283,7 @@ export function SalesOrderDetailPage() {
           />
         )}
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Line Items</CardTitle>
           </CardHeader>
@@ -291,7 +291,7 @@ export function SalesOrderDetailPage() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                  <TableRow className="bg-muted/80 hover:bg-muted/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">
                       Product
                     </TableHead>
@@ -321,7 +321,7 @@ export function SalesOrderDetailPage() {
                 <TableBody>
                   {(order.items ?? []).length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                         No line items
                       </TableCell>
                     </TableRow>
@@ -329,18 +329,18 @@ export function SalesOrderDetailPage() {
                     (order.items ?? []).map((line) => (
                       <TableRow key={line.id}>
                         <TableCell>
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-foreground">
                             {line.product?.description ?? '—'}
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-muted-foreground">
                             {line.product?.productCode ?? '—'}
                           </p>
                         </TableCell>
-                        <TableCell className="text-sm text-slate-700">
+                        <TableCell className="text-sm text-foreground">
                           {line.product?.description ?? '—'}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-600">{plantName}</TableCell>
-                        <TableCell className="text-sm text-slate-500">—</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{plantName}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">—</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {Number(line.quantity)}
                         </TableCell>
@@ -350,7 +350,7 @@ export function SalesOrderDetailPage() {
                         <TableCell className="text-right tabular-nums">
                           {formatOrderAmount(line.unitPrice)}
                         </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums text-slate-900">
+                        <TableCell className="text-right font-medium tabular-nums text-foreground">
                           {formatOrderAmount(line.lineValue)}
                         </TableCell>
                       </TableRow>
@@ -359,9 +359,9 @@ export function SalesOrderDetailPage() {
                 </TableBody>
               </Table>
             </div>
-            <div className="flex justify-end border-t border-slate-100 px-4 py-3">
+            <div className="flex justify-end border-t border-border px-4 py-3">
               <div className="text-right">
-                <span className="mr-4 text-sm font-semibold text-slate-900">Grand Total</span>
+                <span className="mr-4 text-sm font-semibold text-foreground">Grand Total</span>
                 <span className="text-lg font-semibold text-primary">
                   {formatOrderAmount(grandTotal)}
                 </span>
@@ -371,12 +371,12 @@ export function SalesOrderDetailPage() {
         </Card>
 
         {notesDisplay ? (
-          <Card className="border-slate-200/90 shadow-sm">
+          <Card className="border-border/90 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Notes</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-slate-700">{notesDisplay}</p>
+              <p className="whitespace-pre-wrap text-sm text-foreground">{notesDisplay}</p>
             </CardContent>
           </Card>
         ) : null}

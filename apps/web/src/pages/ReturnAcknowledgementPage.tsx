@@ -41,9 +41,9 @@ function formatDate(value?: string | null) {
 }
 
 function statusTone(status: string) {
-  if (status === 'DONE') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
-  if (status === 'SUBMITTED') return 'border-sky-200 bg-sky-50 text-sky-800';
-  return 'border-slate-200 bg-slate-100 text-slate-700';
+  if (status === 'DONE') return 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300';
+  if (status === 'SUBMITTED') return 'border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300';
+  return 'border-border bg-muted text-foreground';
 }
 
 function formatStatus(status: string) {
@@ -101,7 +101,7 @@ export function ReturnAcknowledgementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center gap-2.5">
@@ -113,67 +113,67 @@ export function ReturnAcknowledgementPage() {
 
       <main className="mx-auto max-w-4xl px-4 py-8 pb-16">
         {!token ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900">
             Invalid link. Please open the acknowledgement link from your return notice email.
           </div>
         ) : null}
 
         {token && loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground shadow-sm">
             Loading return notice...
           </div>
         ) : null}
 
         {token && !loading && !order ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
+          <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-6 text-red-800 dark:text-red-300">
             This return acknowledgement link is invalid or has expired.
           </div>
         ) : null}
 
         {order ? (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
                   <PackageSearch className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl font-semibold text-slate-900">{order.returnNumber}</h1>
+                    <h1 className="text-xl font-semibold text-foreground">{order.returnNumber}</h1>
                     <span className={cn('inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium', statusTone(order.status))}>
                       {formatStatus(order.status)}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Supplier <strong>{order.supplierName}</strong> · GRN <strong>{order.grNumber}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {order.shopName} · Return date {formatDate(order.returnDate)}
                   </p>
                 </div>
               </div>
 
               {order.remarks ? (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
                   {order.remarks}
                 </div>
               ) : null}
 
               {order.canAcknowledge ? (
-                <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                <div className="mt-4 rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900">
                   Please review the returned items and acknowledge the notice. Stock will be reduced only after you confirm this return.
                 </div>
               ) : (
-                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                <div className="mt-4 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
                   This return notice was acknowledged on {formatDate(order.acknowledgedAt)} and stock has already been adjusted.
                 </div>
               )}
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
+                  <TableRow className="bg-muted">
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">GRN Qty</TableHead>
                     <TableHead className="text-right">Return Qty</TableHead>
@@ -185,8 +185,8 @@ export function ReturnAcknowledgementPage() {
                   {order.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <span className="font-medium text-slate-900">{item.productCode}</span>
-                        <span className="block text-xs text-slate-500">{item.description}</span>
+                        <span className="font-medium text-foreground">{item.productCode}</span>
+                        <span className="block text-xs text-muted-foreground">{item.description}</span>
                       </TableCell>
                       <TableCell className="text-right">{item.grnQuantity}</TableCell>
                       <TableCell className="text-right">{item.returnQuantity}</TableCell>
@@ -194,7 +194,7 @@ export function ReturnAcknowledgementPage() {
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
                           {item.images.length === 0 ? (
-                            <span className="text-xs text-slate-500">No images</span>
+                            <span className="text-xs text-muted-foreground">No images</span>
                           ) : (
                             item.images.map((image) => (
                               <a
@@ -231,7 +231,7 @@ export function ReturnAcknowledgementPage() {
                   {acting ? 'Acknowledging...' : 'Acknowledge And Process Return'}
                 </Button>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2 text-sm text-emerald-900">
                   <CheckCircle2 className="h-4 w-4" />
                   Acknowledgement recorded
                 </div>

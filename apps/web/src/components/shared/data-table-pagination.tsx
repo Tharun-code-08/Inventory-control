@@ -34,17 +34,17 @@ export function DataTablePagination({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 border-t border-slate-100 px-2 py-3 sm:flex-row sm:items-center sm:justify-between',
+        'flex flex-col gap-2 border-t border-border px-2 py-3 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
     >
-      <div className="text-sm text-slate-500">
+      <div className="text-sm text-muted-foreground">
         Showing {start}-{end} of {total}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Rows per page</span>
+          <span className="text-sm text-muted-foreground">Rows per page</span>
           <Select
             value={String(limit)}
             onValueChange={(v) => onLimitChange(Number(v))}
@@ -81,7 +81,7 @@ export function DataTablePagination({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="px-2 text-sm text-slate-500">
+          <span className="px-2 text-sm text-muted-foreground">
             Page {page} of {totalPages}
           </span>
           <Button

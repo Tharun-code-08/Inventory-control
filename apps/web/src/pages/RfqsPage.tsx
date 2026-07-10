@@ -104,18 +104,15 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div
-          className={cn('w-1 self-stretch rounded-full', accent)}
-          aria-hidden
-        />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        </span>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -481,7 +478,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
         <div className="space-y-2 sm:col-span-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs">Suppliers *</Label>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-muted-foreground">
               {form.supplierIds.length} selected
             </span>
           </div>
@@ -514,7 +511,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
               Add
             </Button>
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-muted-foreground">
             Select a supplier, then click Add. Each supplier will receive a separate RFQ email.
           </p>
           {selectedSuppliers.length > 0 ? (
@@ -522,7 +519,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
               {selectedSuppliers.map((supplier) => (
                 <div
                   key={supplier.id}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground"
                 >
                   <span className="font-medium">
                     {supplier.supplierName} ({supplier.supplierCode})
@@ -542,7 +539,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                   </span>
                   <button
                     type="button"
-                    className="rounded-full text-slate-500 transition hover:text-slate-800"
+                    className="rounded-full text-muted-foreground transition hover:text-foreground"
                     onClick={() => toggleSupplierSelection(supplier.id)}
                     aria-label={`Remove ${supplier.supplierName}`}
                   >
@@ -703,23 +700,23 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             label="Sent"
             value={stats.sent}
             accent="bg-sky-500"
-            icon={<Send className="h-5 w-5 text-sky-600" />}
+            icon={<Send className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
           />
           <KpiCard
             label="Responses"
             value={stats.responses}
             accent="bg-violet-500"
-            icon={<Monitor className="h-5 w-5 text-violet-600" />}
+            icon={<Monitor className="h-5 w-5 text-violet-600 dark:text-violet-400" />}
           />
           <KpiCard
             label="With quotes"
             value={stats.completed}
             accent="bg-emerald-500"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
           />
         </div>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardContent className="p-4 pt-4">
             <Tabs value={tab} onValueChange={(v) => setTab(v as RfqTab)}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -792,7 +789,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                   ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50/80">
+                      <TableRow className="bg-muted/80">
                         <TableHead className="text-xs font-semibold uppercase tracking-wide">
                           RFQ Number
                         </TableHead>
@@ -829,7 +826,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                           const supplierCount = r.suppliers?.length ?? 0;
                           const fulfillment = r.fulfillment;
                           return (
-                            <TableRow key={r.id} className="hover:bg-slate-50/50">
+                            <TableRow key={r.id} className="hover:bg-muted/50">
                               <TableCell>
                                 <button
                                   type="button"
@@ -841,7 +838,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                               </TableCell>
                               <TableCell className="max-w-[200px] truncate">{r.title}</TableCell>
                               <TableCell className="text-center">
-                                <span className="inline-flex min-w-[2rem] justify-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums">
+                                <span className="inline-flex min-w-[2rem] justify-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
                                   {supplierCount}
                                 </span>
                               </TableCell>
@@ -851,7 +848,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                                     'inline-flex min-w-[2rem] justify-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums',
                                     responseCount > 0
                                       ? 'bg-muted text-primary'
-                                      : 'bg-slate-100 text-slate-500',
+                                      : 'bg-muted text-muted-foreground',
                                   )}
                                 >
                                   {responseCount}
@@ -860,15 +857,15 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                               <TableCell>
                                 <StatusBadge status={rfqStatusLabel(r.status)} />
                               </TableCell>
-                              <TableCell className="text-sm text-slate-600">
+                              <TableCell className="text-sm text-muted-foreground">
                                 {fulfillment
                                   ? `${fulfillment.linesFullyOrdered}/${fulfillment.totalLines} lines · ${fulfillment.posCreated}/${fulfillment.maxPos} POs`
                                   : '—'}
                               </TableCell>
-                              <TableCell className="text-sm text-slate-600">
+                              <TableCell className="text-sm text-muted-foreground">
                                 {formatRfqDate(r.deadline)}
                               </TableCell>
-                              <TableCell className="text-sm text-slate-600">
+                              <TableCell className="text-sm text-muted-foreground">
                                 {formatRfqDate(r.rfqDate)}
                               </TableCell>
                               <TableCell className="text-right">

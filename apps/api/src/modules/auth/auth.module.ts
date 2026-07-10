@@ -5,6 +5,7 @@ import { SubscriptionLifecycleModule } from '../subscription-lifecycle/subscript
 import { LoginRateLimitGuard } from '@/common/guards/login-rate-limit.guard';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { WhatsAppAdapter } from '../agent-platform/channels/whatsapp/whatsapp.adapter';
 import { InviteService } from './invite.service';
 import { MfaService } from './mfa.service';
 import { PasswordResetService } from './password-reset.service';
@@ -14,7 +15,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 @Module({
   imports: [PassportModule, BillingModule, SubscriptionLifecycleModule],
   controllers: [AuthController],
-  providers: [AuthService, SignupService, InviteService, MfaService, PasswordResetService, JwtStrategy, LoginRateLimitGuard],
+  providers: [AuthService, SignupService, InviteService, MfaService, PasswordResetService, JwtStrategy, LoginRateLimitGuard, WhatsAppAdapter],
   exports: [AuthService, SignupService, InviteService, MfaService, PasswordResetService],
 })
 export class AuthModule {}

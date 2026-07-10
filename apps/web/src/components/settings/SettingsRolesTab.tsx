@@ -29,11 +29,11 @@ import {
 
 function CapabilityIndicator({ level }: { level: AccessLevel }) {
   if (level === 'full') {
-    return <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-label="Full access" />;
+    return <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-label="Full access" />;
   }
   if (level === 'partial') {
     return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/15 text-[10px] font-bold text-amber-800 dark:text-amber-300">
         P
       </span>
     );
@@ -135,7 +135,7 @@ export function SettingsRolesTab() {
             <Card
               key={role.name}
               className={cn(
-                'overflow-hidden border-slate-200/80',
+                'overflow-hidden border-border/80',
                 role.name === 'OWNER' && 'ring-2 ring-emerald-200',
               )}
             >
@@ -238,8 +238,8 @@ export function SettingsRolesTab() {
                   const currentPermissions =
                     draftByRole[editingRole] ?? backendByName.get(editingRole) ?? [];
                   return (
-                    <div key={groupName} className="rounded-xl border border-slate-200 bg-white p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div key={groupName} className="rounded-xl border border-border bg-card p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {groupName.replace(/_/g, ' ')}
                       </p>
                       <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -252,7 +252,7 @@ export function SettingsRolesTab() {
                             >
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 rounded border-slate-300"
+                                className="h-4 w-4 rounded border-border"
                                 checked={checked}
                                 onChange={(e) => {
                                   const next = e.target.checked

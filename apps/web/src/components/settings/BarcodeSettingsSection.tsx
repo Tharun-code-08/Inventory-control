@@ -143,7 +143,7 @@ export function BarcodeSettingsSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoadingSettings ? (
-            <div className="text-slate-500 text-sm">Loading policy settings...</div>
+            <div className="text-muted-foreground text-sm">Loading policy settings...</div>
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -158,14 +158,14 @@ export function BarcodeSettingsSection() {
                         "flex flex-col text-left p-4 rounded-xl border transition-all relative overflow-hidden",
                         active
                           ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "border-slate-200 bg-white hover:border-slate-300"
+                          : "border-border bg-card hover:border-border"
                       )}
                     >
-                      <span className="font-semibold text-sm text-slate-900 flex items-center justify-between">
+                      <span className="font-semibold text-sm text-foreground flex items-center justify-between">
                         {p.label}
                         {active && <Check className="h-4 w-4 text-primary" />}
                       </span>
-                      <span className="mt-1 text-xs text-slate-500 leading-normal">{p.description}</span>
+                      <span className="mt-1 text-xs text-muted-foreground leading-normal">{p.description}</span>
                     </button>
                   );
                 })}
@@ -192,7 +192,7 @@ export function BarcodeSettingsSection() {
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-9"
                 placeholder="Search barcode or product..."
@@ -235,7 +235,7 @@ export function BarcodeSettingsSection() {
           </div>
 
           {/* Table */}
-          <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+          <div className="rounded-lg border border-border overflow-hidden bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -251,13 +251,13 @@ export function BarcodeSettingsSection() {
               <TableBody>
                 {isLoadingRegistry ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Loading registry items...
                     </TableCell>
                   </TableRow>
                 ) : !registry || registry.items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No barcodes found matching the filters.
                     </TableCell>
                   </TableRow>
@@ -265,21 +265,21 @@ export function BarcodeSettingsSection() {
                   registry.items.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-mono text-sm font-semibold">{row.barcode}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500">{row.product.productCode}</TableCell>
-                      <TableCell className="font-medium text-slate-900">{row.product.description}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{row.product.productCode}</TableCell>
+                      <TableCell className="font-medium text-foreground">{row.product.description}</TableCell>
                       <TableCell>
                         <Badge variant={row.barcodeType === 'INTERNAL' ? 'secondary' : 'outline'}>
                           {row.barcodeType}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-slate-600 text-sm">
-                        {row.supplier?.supplierName || <span className="text-slate-400">—</span>}
+                      <TableCell className="text-muted-foreground text-sm">
+                        {row.supplier?.supplierName || <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         {row.isPrimary ? (
                           <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -303,7 +303,7 @@ export function BarcodeSettingsSection() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                             onClick={() => setDeletingBarcode(row)}
                             title="Delete mapping"
                           >
@@ -321,7 +321,7 @@ export function BarcodeSettingsSection() {
           {/* Pagination */}
           {registry && registry.total > limit && (
             <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, registry.total)} of {registry.total} mappings
               </span>
               <div className="flex items-center gap-1.5">
@@ -334,7 +334,7 @@ export function BarcodeSettingsSection() {
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
                 </Button>
-                <span className="text-xs text-slate-700 font-medium px-2">
+                <span className="text-xs text-foreground font-medium px-2">
                   Page {page} of {totalPages}
                 </span>
                 <Button
@@ -363,8 +363,8 @@ export function BarcodeSettingsSection() {
           </DialogHeader>
           <div className="space-y-4 py-3">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-slate-400">Barcode Value</Label>
-              <div className="font-mono font-semibold text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+              <Label className="text-xs text-muted-foreground">Barcode Value</Label>
+              <div className="font-mono font-semibold text-foreground bg-muted p-2.5 rounded-lg border border-border">
                 {editingBarcode?.barcode}
               </div>
             </div>
@@ -401,10 +401,10 @@ export function BarcodeSettingsSection() {
               </Select>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-slate-150 p-3 bg-slate-50">
+            <div className="flex items-center justify-between rounded-lg border border-slate-150 p-3 bg-muted">
               <div className="space-y-0.5">
                 <Label htmlFor="edit-barcode-primary" className="text-sm font-semibold">Primary Barcode</Label>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Make this the default barcode scanned for this product.
                 </p>
               </div>
@@ -430,7 +430,7 @@ export function BarcodeSettingsSection() {
       <Dialog open={deletingBarcode !== null} onOpenChange={(open) => !open && setDeletingBarcode(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <AlertTriangle className="h-5 w-5" />
               Delete Barcode Mapping
             </DialogTitle>
@@ -438,11 +438,11 @@ export function BarcodeSettingsSection() {
               Are you sure you want to delete this mapping? The barcode will no longer resolve to this product.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-3 bg-red-50 rounded-lg border border-red-100 space-y-1">
-            <div className="text-sm font-semibold text-slate-800">
+          <div className="p-3 bg-red-50 dark:bg-red-500/10 rounded-lg border border-red-100 dark:border-red-500/20 space-y-1">
+            <div className="text-sm font-semibold text-foreground">
               {deletingBarcode?.barcode}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted-foreground">
               Mapped to: {deletingBarcode?.product?.description} ({deletingBarcode?.product?.productCode})
             </div>
           </div>

@@ -1,135 +1,140 @@
 /**
- * Centralized Icon Map - Ensures every sidebar item has a unique icon
+ * Centralized Icon Map — every sidebar entry has a unique, semantically
+ * appropriate icon. No two modules share the same component.
  *
- * STRICT RULE: Every key must have a unique icon component.
- * No duplicates allowed. New modules must verify their icon is not already used.
+ * STRICT RULE: No duplicate icon components.
+ * New modules must verify their icon is not already used below.
  */
 
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ArrowLeftRight,
-  BarChart3,
-  Building2,
-  ClipboardList,
-  Factory,
-  FileSearch,
-  FileSignature,
+  // Overview
   LayoutDashboard,
-  Bell,
-  Package,
-  Settings,
-  ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Barcode,
-  TrendingUp,
-  Undo2,
-  Users,
-  Warehouse,
-  Wallet,
-  Globe,
-  Receipt,
-  CheckCircle2,
-  PieChart,
+
+  // Master Data
+  Building2,       // Companies     — legal entity / HQ building
+  Factory,         // Plants        — manufacturing / shop floor
+  Boxes,           // Storage Locs  — bins, zones, shelf slots
+  Package,         // Products      — SKU / inventory item
+  Handshake,       // Suppliers     — vendor relationship / partnership
+  Users,           // Customers     — people / client master
+
+  // Procurement
+  FileSearch,      // RFQs          — document with search / discovery
+  FileSignature,   // Contracts     — signed agreement
+  ClipboardCheck,  // Purchase Orders — approved procurement list
+  ArrowDownToLine, // Goods Receipt — inbound stock arrow
+  PackageOpen,     // Goods Returns — returned / opened package
+  Store,           // Supplier Portal — vendor storefront / external portal
+  Receipt,         // Supplier Bills — billing document
+  HandCoins,       // Supplier Payments — hand-off of cash to vendor
+
+  // Sales & Finance
+  ScrollText,      // Sales Quotations — quote / estimate scroll
+  ShoppingCart,    // Sales          — sales order / cart
+  ArrowUpFromLine, // Goods Issue    — outbound stock arrow
+  FileCheck,       // Invoices       — verified billing document
+  Route,           // E-Way Bills    — goods transit routing
+  Banknote,        // Payments       — cash / settlement
+
+  // Operations
+  ArrowLeftRight,  // Stock Transfers — lateral movement between locations
+  Warehouse,       // Warehouse Ops  — warehouse overview / stock view
+  BarChart3,       // Reports        — analytics / register charts
+  Bell,            // Notifications  — alerts inbox
+  BadgeCheck,      // Approvals      — stamped approval badge
+  Sparkles,        // Upgrade        — premium / upgrade prompt
+
+  // Admin
+  Monitor,         // Platform Admin — SaaS platform monitoring dashboard
+  Printer,         // Print Labels   — label / barcode printer
+  Settings,        // Settings       — configuration / preferences
 } from 'lucide-react';
 
 /**
- * Menu icon registry - Each module has exactly one unique icon
+ * Menu icon registry
  *
  * Validation checklist:
- * - ✓ No duplicates
- * - ✓ Each icon visually represents the module
- * - ✓ Icons are distinct at 20px size
- * - ✓ Consistent design language (Lucide React)
- * - ✓ All from same icon family
+ * - ✓ No duplicates (enforced at runtime in dev)
+ * - ✓ Each icon is semantically meaningful for its module
+ * - ✓ Icons are visually distinct at 20px
+ * - ✓ Consistent Lucide React design language
  */
 export const menuIcons = {
-  // Dashboard
+  // Overview
   dashboard: LayoutDashboard,
 
   // Master Data
   companies: Building2,
   plants: Factory,
-  storageLocations: Warehouse,
+  storageLocations: Boxes,
   products: Package,
-  suppliers: TrendingUp, // Different from delivery/truck icons
+  suppliers: Handshake,
   customers: Users,
 
   // Procurement
-  rfqs: FileSearch, // Document with search icon - unique
+  rfqs: FileSearch,
   contracts: FileSignature,
-  purchaseOrders: ClipboardList,
-  goodsReceipt: ArrowDownToLine, // Downward arrow
-  goodsReturns: Undo2, // Return/undo
-  supplierPortal: Globe, // Portal/external access
-  supplierBills: Receipt, // Invoice/receipt
-  supplierPayments: Wallet, // Wallet/payment
+  purchaseOrders: ClipboardCheck,
+  goodsReceipt: ArrowDownToLine,
+  goodsReturns: PackageOpen,
+  supplierPortal: Store,
+  supplierBills: Receipt,
+  supplierPayments: HandCoins,
 
   // Sales & Finance
-  salesQuotations: PieChart, // Different from payment-related icons
+  salesQuotations: ScrollText,
   sales: ShoppingCart,
-  goodsIssue: ArrowUpFromLine, // Upward arrow (opposite of receipt)
-  invoices: CheckCircle2, // Verified/approved invoice
-  ewayBills: Barcode, // Barcode/tracking
-  payments: TrendingUp, // Upward trend for money flow
+  goodsIssue: ArrowUpFromLine,
+  invoices: FileCheck,
+  ewayBills: Route,
+  payments: Banknote,
 
   // Operations & Warehouse
-  stockTransfers: ArrowLeftRight, // Left-right arrows
-  warehouseOps: Warehouse, // Warehouse operations (distinct from storage locations)
-  reports: BarChart3, // Bar chart
+  stockTransfers: ArrowLeftRight,
+  warehouseOps: Warehouse,
+  reports: BarChart3,
   notifications: Bell,
-  approvals: ShieldCheck, // Shield/approval
-  upgrade: Sparkles, // Upgrade/premium
+  approvals: BadgeCheck,
+  upgrade: Sparkles,
 
   // Admin
-  platformAdmin: PieChart, // Different from general reports
-  printLabels: Barcode,
+  platformAdmin: Monitor,
+  printLabels: Printer,
   settings: Settings,
 } as const;
 
-/**
- * Type-safe icon getter
- */
 export type MenuIconKey = keyof typeof menuIcons;
 
 export function getIcon(key: MenuIconKey) {
   return menuIcons[key];
 }
 
-/**
- * Validation: Check for duplicate icons at runtime (dev mode only)
- */
+// Runtime duplicate guard (dev only)
 if (import.meta.env.DEV) {
   const icons = Object.values(menuIcons);
-  const iconNames = icons.map((icon) => icon.displayName || icon.name);
+  const iconNames = icons.map((icon) => (icon as { displayName?: string; name: string }).displayName ?? icon.name);
   const duplicates = iconNames.filter((name, idx) => iconNames.indexOf(name) !== idx);
-
   if (duplicates.length > 0) {
     console.error(
-      '❌ ICON MAP ERROR: Duplicate icons detected. This violates the strict uniqueness requirement.',
+      '❌ ICON MAP ERROR: Duplicate icons detected.',
       'Duplicates:',
       [...new Set(duplicates)],
     );
   }
 }
 
-/**
- * Icon Color Map - Optional: Use if you want specific colors per icon
- * (Currently all use default text color, but this is here for future use)
- */
 export const iconColors = {
-  dashboard: 'text-blue-600',
-  companies: 'text-purple-600',
+  dashboard: 'text-indigo-600',
+  companies: 'text-violet-600',
   plants: 'text-orange-600',
   storageLocations: 'text-amber-600',
   products: 'text-cyan-600',
-  suppliers: 'text-green-600',
+  suppliers: 'text-emerald-600',
   customers: 'text-pink-600',
-  rfqs: 'text-indigo-600',
+  rfqs: 'text-blue-600',
   contracts: 'text-red-600',
   purchaseOrders: 'text-teal-600',
-  goodsReceipt: 'text-emerald-600',
+  goodsReceipt: 'text-green-600',
   goodsReturns: 'text-rose-600',
   supplierPortal: 'text-sky-600',
   supplierBills: 'text-lime-600',
@@ -139,14 +144,14 @@ export const iconColors = {
   goodsIssue: 'text-red-600',
   invoices: 'text-blue-600',
   ewayBills: 'text-purple-600',
-  payments: 'text-orange-600',
-  stockTransfers: 'text-amber-600',
+  payments: 'text-amber-600',
+  stockTransfers: 'text-slate-600',
   warehouseOps: 'text-cyan-600',
   reports: 'text-indigo-600',
   notifications: 'text-red-600',
-  approvals: 'text-green-600',
+  approvals: 'text-emerald-600',
   upgrade: 'text-yellow-600',
   platformAdmin: 'text-pink-600',
   printLabels: 'text-teal-600',
-  settings: 'text-slate-600',
+  settings: 'text-muted-foreground',
 } as const;

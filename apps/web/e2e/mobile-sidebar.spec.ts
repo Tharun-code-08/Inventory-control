@@ -21,7 +21,7 @@ test.describe('mobile sidebar (Phase 8)', () => {
       await expect(sidebar.getByText(section, { exact: true }).first()).toBeVisible();
     }
 
-    await sidebar.getByRole('button', { name: 'Purchase Orders' }).click();
+    await sidebar.getByRole('treeitem', { name: 'Purchase Orders' }).click();
     await expect(page).toHaveURL(/\/purchase-orders/);
     await expect(page.locator('header h2')).toHaveText('Purchase Orders');
 

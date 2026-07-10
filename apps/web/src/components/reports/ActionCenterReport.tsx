@@ -50,35 +50,35 @@ export default function ActionCenterReport({ shopId }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Action Center</h1>
-          <p className="text-sm text-gray-600 mt-1">Your daily action list - prioritized by impact</p>
+          <h1 className="text-3xl font-bold text-foreground">Action Center</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your daily action list - prioritized by impact</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-gray-600">Last updated</p>
-          <p className="text-sm font-medium text-gray-900">{new Date(data.generatedAt).toLocaleTimeString()}</p>
+          <p className="text-sm text-muted-foreground">Last updated</p>
+          <p className="text-sm font-medium text-foreground">{new Date(data.generatedAt).toLocaleTimeString()}</p>
         </div>
       </div>
 
       {/* Summary Badges */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-red-50 rounded-lg shadow p-4 border-l-4 border-red-500">
-          <p className="text-sm font-medium text-red-600">🔴 Critical</p>
-          <p className="text-3xl font-bold text-red-600">{data.actionsSummary.critical}</p>
+        <div className="bg-red-50 dark:bg-red-500/10 rounded-lg shadow p-4 border-l-4 border-red-500">
+          <p className="text-sm font-medium text-red-600 dark:text-red-400">🔴 Critical</p>
+          <p className="text-3xl font-bold text-red-600 dark:text-red-400">{data.actionsSummary.critical}</p>
           <p className="text-xs text-red-500 mt-1">Needs immediate action</p>
         </div>
-        <div className="bg-orange-50 rounded-lg shadow p-4 border-l-4 border-orange-500">
-          <p className="text-sm font-medium text-orange-600">🟠 High</p>
-          <p className="text-3xl font-bold text-orange-600">{data.actionsSummary.high}</p>
+        <div className="bg-orange-50 dark:bg-orange-500/10 rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">🟠 High</p>
+          <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{data.actionsSummary.high}</p>
           <p className="text-xs text-orange-500 mt-1">This week</p>
         </div>
-        <div className="bg-yellow-50 rounded-lg shadow p-4 border-l-4 border-yellow-500">
-          <p className="text-sm font-medium text-yellow-600">🟡 Medium</p>
-          <p className="text-3xl font-bold text-yellow-600">{data.actionsSummary.medium}</p>
+        <div className="bg-yellow-50 dark:bg-yellow-500/10 rounded-lg shadow p-4 border-l-4 border-yellow-500">
+          <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">🟡 Medium</p>
+          <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{data.actionsSummary.medium}</p>
           <p className="text-xs text-yellow-500 mt-1">Next week</p>
         </div>
-        <div className="bg-blue-50 rounded-lg shadow p-4 border-l-4 border-blue-500">
-          <p className="text-sm font-medium text-blue-600">📋 Total</p>
-          <p className="text-3xl font-bold text-blue-600">{totalActions}</p>
+        <div className="bg-blue-50 dark:bg-blue-500/10 rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <p className="text-sm font-medium text-blue-600 dark:text-blue-400">📋 Total</p>
+          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{totalActions}</p>
           <p className="text-xs text-blue-500 mt-1">Actions to handle</p>
         </div>
       </div>
@@ -86,10 +86,10 @@ export default function ActionCenterReport({ shopId }: Props) {
       {/* Actions List */}
       <div className="space-y-3">
         {data.actions.length === 0 ? (
-          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-8 text-center">
+          <div className="bg-green-50 dark:bg-green-500/10 border-2 border-green-300 rounded-lg p-8 text-center">
             <p className="text-2xl font-bold text-green-900">✅ All Clear!</p>
-            <p className="text-sm text-green-700 mt-2">No urgent actions needed right now.</p>
-            <p className="text-xs text-green-600 mt-1">Keep monitoring your reports regularly.</p>
+            <p className="text-sm text-green-700 dark:text-green-300 mt-2">No urgent actions needed right now.</p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Keep monitoring your reports regularly.</p>
           </div>
         ) : (
           data.actions.map((action) => (
@@ -97,10 +97,10 @@ export default function ActionCenterReport({ shopId }: Props) {
               key={action.id}
               className={`rounded-lg shadow border-l-4 overflow-hidden transition-all ${
                 action.priority === 'CRITICAL'
-                  ? 'bg-red-50 border-red-500 hover:shadow-lg'
+                  ? 'bg-red-50 dark:bg-red-500/10 border-red-500 hover:shadow-lg'
                   : action.priority === 'HIGH'
-                    ? 'bg-orange-50 border-orange-500 hover:shadow-lg'
-                    : 'bg-yellow-50 border-yellow-500 hover:shadow-lg'
+                    ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-500 hover:shadow-lg'
+                    : 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-500 hover:shadow-lg'
               }`}
             >
               {/* Action Header */}
@@ -112,16 +112,16 @@ export default function ActionCenterReport({ shopId }: Props) {
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-2xl">{getPriorityIcon(action.priority)}</span>
                     <div>
-                      <p className="font-semibold text-gray-900">{action.title}</p>
-                      <p className="text-sm text-gray-600">{action.description}</p>
+                      <p className="font-semibold text-foreground">{action.title}</p>
+                      <p className="text-sm text-muted-foreground">{action.description}</p>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 ml-4">
-                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-white">
+                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-card">
                     {getCategoryIcon(action.category)} {getCategoryLabel(action.category)}
                   </span>
-                  <button className="text-gray-400 hover:text-gray-600 text-lg">
+                  <button className="text-muted-foreground hover:text-muted-foreground text-lg">
                     {expandedAction === action.id ? '▼' : '▶'}
                   </button>
                 </div>
@@ -129,25 +129,25 @@ export default function ActionCenterReport({ shopId }: Props) {
 
               {/* Action Details (Expandable) */}
               {expandedAction === action.id && (
-                <div className="px-6 py-4 border-t border-opacity-20 bg-white space-y-4">
+                <div className="px-6 py-4 border-t border-opacity-20 bg-card space-y-4">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900 mb-2">Suggested Action</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded font-medium">{action.suggestedAction}</p>
+                    <p className="text-sm font-semibold text-foreground mb-2">Suggested Action</p>
+                    <p className="text-sm text-foreground bg-muted p-3 rounded font-medium">{action.suggestedAction}</p>
                   </div>
 
                   <div>
-                    <p className="text-sm font-semibold text-gray-900 mb-2">Estimated Impact</p>
-                    <p className="text-sm text-gray-700 bg-green-50 p-3 rounded text-green-900">✓ {action.estimatedImpact}</p>
+                    <p className="text-sm font-semibold text-foreground mb-2">Estimated Impact</p>
+                    <p className="text-sm text-foreground bg-green-50 dark:bg-green-500/10 p-3 rounded text-green-900">✓ {action.estimatedImpact}</p>
                   </div>
 
                   {Object.keys(action.details).length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-gray-900 mb-2">Details</p>
+                      <p className="text-sm font-semibold text-foreground mb-2">Details</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {Object.entries(action.details).map(([key, value]) => (
-                          <div key={key} className="bg-gray-50 p-2 rounded text-xs">
-                            <p className="text-gray-600 font-medium capitalize">{key.replace(/_/g, ' ')}</p>
-                            <p className="text-gray-900 font-bold">
+                          <div key={key} className="bg-muted p-2 rounded text-xs">
+                            <p className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</p>
+                            <p className="text-foreground font-bold">
                               {typeof value === 'number' ? (key.includes('amount') ? `₹${(value / 100000).toFixed(2)}L` : value.toLocaleString()) : value}
                             </p>
                           </div>
@@ -157,8 +157,8 @@ export default function ActionCenterReport({ shopId }: Props) {
                   )}
 
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <p className="text-xs text-gray-500">From: {action.reportSource}</p>
-                    <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                    <p className="text-xs text-muted-foreground">From: {action.reportSource}</p>
+                    <button className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700">
                       View in {action.reportSource} →
                     </button>
                   </div>
@@ -185,8 +185,8 @@ export default function ActionCenterReport({ shopId }: Props) {
 
       {/* Key Metrics */}
       {data.actions.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">By Category</h3>
+        <div className="bg-card rounded-lg shadow p-6">
+          <h3 className="font-semibold text-foreground mb-4">By Category</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
               { cat: 'cash-flow' as const, count: data.actions.filter((a) => a.category === 'cash-flow').length },
@@ -196,10 +196,10 @@ export default function ActionCenterReport({ shopId }: Props) {
               { cat: 'opportunity' as const, count: data.actions.filter((a) => a.category === 'opportunity').length },
             ].map((item) =>
               item.count > 0 ? (
-                <div key={item.cat} className="text-center p-3 rounded-lg bg-gray-50">
+                <div key={item.cat} className="text-center p-3 rounded-lg bg-muted">
                   <p className="text-xl">{getCategoryIcon(item.cat)}</p>
-                  <p className="text-xs font-medium text-gray-600 mt-1">{getCategoryLabel(item.cat)}</p>
-                  <p className="text-lg font-bold text-gray-900">{item.count}</p>
+                  <p className="text-xs font-medium text-muted-foreground mt-1">{getCategoryLabel(item.cat)}</p>
+                  <p className="text-lg font-bold text-foreground">{item.count}</p>
                 </div>
               ) : null,
             )}

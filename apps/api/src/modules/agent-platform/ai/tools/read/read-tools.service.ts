@@ -1,9 +1,15 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import type { RequestUser } from '@/common/types/request-user';
+import { PrismaService } from '@/prisma/prisma.service';
 import { BarcodesService } from '@/modules/barcodes/barcodes.service';
+import { CustomersService } from '@/modules/customers/customers.service';
+import { InvoicesService } from '@/modules/invoices/invoices.service';
 import { ProductsService } from '@/modules/products/products.service';
+import { PurchaseOrdersService } from '@/modules/purchase-orders/purchase-orders.service';
 import { ReportsService } from '@/modules/reports/reports.service';
+import { SalesOrdersService } from '@/modules/sales-orders/sales-orders.service';
 import { ShopsService } from '@/modules/shops/shops.service';
+import { SuppliersService } from '@/modules/suppliers/suppliers.service';
 import { ToolRegistry } from '../tool-registry';
 
 /** Pick only known keys, tolerating absent ones — keeps tool output compact. */
@@ -52,10 +58,16 @@ function lastDaysRange(days: number): { date_from: string; date_to: string } {
 export class ReadToolsService implements OnModuleInit {
   constructor(
     private readonly registry: ToolRegistry,
+    private readonly prisma: PrismaService,
     private readonly reports: ReportsService,
     private readonly products: ProductsService,
     private readonly barcodes: BarcodesService,
     private readonly shops: ShopsService,
+    private readonly suppliers: SuppliersService,
+    private readonly customers: CustomersService,
+    private readonly purchaseOrders: PurchaseOrdersService,
+    private readonly salesOrders: SalesOrdersService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   onModuleInit(): void {
@@ -231,7 +243,133 @@ export class ReadToolsService implements OnModuleInit {
       featureFlag: 'stock',
       handler: async ({ user }) => {
         const result = await this.shops.list(user, {});
-        return result.data.map((s) => pick(s, ['id', 'name', 'city', 'isActive']));
+        return result.data.map((s) => pick(s, ['id', 'shopName', 'address', 'isActive']));
+      },
+    });
+
+    this.registry.register({
+      name: 'list_suppliers',
+      description: 'List suppliers. Use when the user asks "who are my suppliers?", "show suppliers", "list vendors" etc. Optionally filter by name.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: { type: 'string', description: 'Optional name/code search' },
+        },
+      },
+      requiredPermission: 'supplier:read',
+      featureFlag: 'purchase',
+      handler: async ({ user }, input) => {
+        const result = await this.suppliers.list(user, { search: input.search as string | undefined, take: 20 });
+        return result.data.map((s) => pick(s, ['id', 'supplierCode', 'supplierName', 'contactPerson', 'phone', 'email', 'isActive']));
+      },
+    });
+
+    this.registry.register({
+      name: 'list_customers',
+      description: 'List customers. Use when the user asks "who are my customers?", "show customers" etc. Optionally filter by name.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: { type: 'string', description: 'Optional name/code search' },
+        },
+      },
+      requiredPermission: 'shop:read',
+      featureFlag: 'sales',
+      handler: async ({ user }, input) => {
+        const result = await this.customers.list(user, { search: input.search as string | undefined, take: 20 });
+        return result.data.map((c) => pick(c, ['id', 'customerCode', 'customerName', 'phone', 'email', 'isActive']));
+      },
+    });
+
+    this.registry.register({
+      name: 'list_purchase_orders',
+      description: 'List recent purchase orders. Use when the user asks "show my POs", "recent purchase orders", "pending POs" etc.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, RECEIVED, CANCELLED' },
+          take: { type: 'number', description: 'How many to return (default 10, max 20)' },
+        },
+      },
+      requiredPermission: 'purchase_order:read',
+      featureFlag: 'purchase',
+      handler: async ({ user }, input) => {
+        const take = Math.min(Number(input.take ?? 10), 20);
+        const result = await this.purchaseOrders.list(user, { status: input.status as string | undefined, take } as never);
+        return result.data.map((po) => pick(po, ['id', 'poNumber', 'status', 'supplierName', 'totalAmount', 'orderDate', 'expectedDate']));
+      },
+    });
+
+    this.registry.register({
+      name: 'list_sales_orders',
+      description: 'List recent sales orders. Use when the user asks "show my SOs", "recent sales orders", "pending orders" etc.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, DELIVERED, CANCELLED' },
+          take: { type: 'number', description: 'How many to return (default 10, max 20)' },
+        },
+      },
+      requiredPermission: 'shop:read',
+      featureFlag: 'sales',
+      handler: async ({ user }, input) => {
+        const take = Math.min(Number(input.take ?? 10), 20);
+        const result = await this.salesOrders.list(user, { take } as never);
+        return result.data.map((so) => pick(so, ['id', 'soNumber', 'status', 'customerName', 'totalAmount', 'orderDate']));
+      },
+    });
+
+    this.registry.register({
+      name: 'list_invoices',
+      description: 'List recent invoices. Use when the user asks "show invoices", "recent invoices", "unpaid invoices" etc.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', description: 'Filter by status: DRAFT, ISSUED, PAID, CANCELLED' },
+          take: { type: 'number', description: 'How many to return (default 10, max 20)' },
+        },
+      },
+      requiredPermission: 'shop:read',
+      featureFlag: 'sales',
+      handler: async ({ user }, input) => {
+        const take = Math.min(Number(input.take ?? 10), 20);
+        const result = await this.invoices.list(user, { take } as never);
+        return result.data.map((inv) => pick(inv, ['id', 'invoiceNumber', 'status', 'customerName', 'totalValue', 'invoiceDate']));
+      },
+    });
+
+    this.registry.register({
+      name: 'get_business_profile',
+      description:
+        'Get the current business/account context: company name, the user\'s own name and role, and their shops/warehouses. Use for "what is my company name?", "who am I?", "what shops do I have?", "tell me about my business" and similar account questions.',
+      inputSchema: { type: 'object', properties: {} },
+      featureFlag: 'stock',
+      handler: async ({ user }) => {
+        const [company, me, shops] = await Promise.all([
+          user.companyId
+            ? this.prisma.company.findUnique({
+                where: { id: user.companyId },
+                select: { companyName: true, companyCode: true, address: true },
+              })
+            : null,
+          this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { name: true, email: true, role: { select: { name: true } } },
+          }),
+          this.prisma.shop.findMany({
+            where: { id: { in: user.tenantShopIds } },
+            select: { shopName: true, address: true, isActive: true },
+          }),
+        ]);
+        return {
+          companyName: company?.companyName ?? 'Unknown',
+          companyCode: company?.companyCode ?? undefined,
+          companyAddress: company?.address ?? undefined,
+          yourName: me?.name ?? undefined,
+          yourEmail: me?.email ?? undefined,
+          yourRole: me?.role?.name ?? user.role,
+          shops: shops.map((s) => pick(s, ['shopName', 'address', 'isActive'])),
+        };
       },
     });
   }

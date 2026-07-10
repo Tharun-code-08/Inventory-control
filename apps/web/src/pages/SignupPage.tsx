@@ -105,6 +105,9 @@ export function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [waOtp, setWaOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneMasked, setPhoneMasked] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [signupChallengeToken, setSignupChallengeToken] = useState('');
   const [mfaSetup, setMfaSetup] = useState<MfaStartPayload | null>(null);
@@ -221,7 +224,7 @@ export function SignupPage() {
     setBackupCodes([]);
     setMfaSkipped(false);
     try {
-      await api.post('/auth/signup/request', {
+      const reqRes = await api.post('/auth/signup/request', {
         companyName,
         companyAddress: companyAddress || undefined,
         plantName,
@@ -235,7 +238,15 @@ export function SignupPage() {
         plan: selectedPlan,
         billing: isPaidPlan ? billing : undefined,
       });
-      setInfo(`We sent a 6-digit verification code to ${email}.`);
+      const reqData = (reqRes.data?.data ?? reqRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
+      setPhoneOtpSent(Boolean(reqData?.phoneOtpSent));
+      setPhoneMasked(reqData?.phoneMasked ?? '');
+      setWaOtp('');
+      setInfo(
+        reqData?.phoneOtpSent
+          ? `We sent two 6-digit codes: one to ${email} and one to WhatsApp ${reqData.phoneMasked ?? 'your mobile'}.`
+          : `We sent a 6-digit verification code to ${email}.`,
+      );
       setStep('verify');
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Could not start registration.'));
@@ -255,6 +266,7 @@ export function SignupPage() {
       const verifyRes = await api.post('/auth/signup/verify', {
         email,
         otp: otp.trim(),
+        ...(phoneOtpSent ? { phoneOtp: waOtp.trim() } : {}),
       });
       const verifyData = (verifyRes.data?.data ?? verifyRes.data) as SignupVerifyPayload;
 
@@ -318,8 +330,17 @@ export function SignupPage() {
     setIsSubmitting(true);
     setErr('');
     try {
-      await api.post('/auth/signup/resend', { email });
-      setInfo('A new verification code has been sent.');
+      const resendRes = await api.post('/auth/signup/resend', { email });
+      const resendData = (resendRes.data?.data ?? resendRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
+      setPhoneOtpSent(Boolean(resendData?.phoneOtpSent));
+      setPhoneMasked(resendData?.phoneMasked ?? '');
+      setOtp('');
+      setWaOtp('');
+      setInfo(
+        resendData?.phoneOtpSent
+          ? 'New codes sent to your email and WhatsApp.'
+          : 'A new verification code has been sent.',
+      );
     } catch (error) {
       setErr(getApiErrorMessage(error, 'Could not resend code.'));
     } finally {
@@ -400,10 +421,10 @@ export function SignupPage() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <a
         href={`https://${DOMAINS.MARKETING}`}
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-muted hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
-        <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:text-slate-900" />
+        <ArrowLeft className="h-4 w-4 text-muted-foreground transition group-hover:text-foreground" />
         Back to home
       </a>
 
@@ -418,43 +439,43 @@ export function SignupPage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
+          <section className="relative hidden overflow-hidden rounded-[2rem] border border-border/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
             <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-card/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
               <Sparkles className="h-3.5 w-3.5" />
               SoftdigitIMS
             </p>
             <h1 className="mt-7 text-4xl font-semibold leading-tight">{heroTitle}</h1>
             <p className="mt-4 max-w-md text-sm text-white/80">{heroDescription}</p>
             <div className="mt-10 grid max-w-md gap-3 text-sm">
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 Verified admin email before access
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 {mfaSkipped ? 'MFA can be enabled later in settings' : 'Authenticator app required for sign-in'}
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
                 {mfaSkipped ? 'Workspace can be entered without MFA for now' : 'Backup codes generated and stored securely'}
               </div>
             </div>
           </section>
 
-          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
+          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-border/90 bg-card/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
             <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
-            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 dark:bg-cyan-500/15 blur-2xl" aria-hidden="true" />
 
             <AuthStepIndicator steps={steps} current={step} />
 
             <div className="mb-6">
               {paidPlanLabel ? (
-                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                <div className="mb-4 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
                   You selected the <strong>{paidPlanLabel}</strong>{' '}
                   {billing === 'yearly' ? '(Yearly)' : '(Monthly)'} plan. Payment will run after
                   email verification and before MFA setup.
                 </div>
               ) : (
-                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-900">
                   You are starting a <strong>7-day free trial</strong>. MFA setup is still required.
                 </div>
               )}
@@ -472,7 +493,7 @@ export function SignupPage() {
                         ? 'Recovery codes'
                         : 'Ready to enter'}
               </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
                 {step === 'details'
                   ? 'Create your account'
                   : step === 'verify'
@@ -485,7 +506,7 @@ export function SignupPage() {
                         ? 'Save your backup codes'
                         : 'Everything is secure'}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {step === 'details'
                   ? 'Enter your organisation details and create the admin account.'
                   : step === 'verify'
@@ -506,7 +527,7 @@ export function SignupPage() {
               </div>
             ) : null}
             {err ? (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <div className="mb-4 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-800 dark:text-red-300">
                 {err}
               </div>
             ) : null}
@@ -517,12 +538,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="companyName">Company name</Label>
                     <div className="relative">
-                      <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="companyName"
                         value={companyName}
                         onChange={(event) => setCompanyName(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="Acme Retail Pvt Ltd"
                       />
                     </div>
@@ -530,12 +551,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="plantName">Plant name</Label>
                     <div className="relative">
-                      <Factory className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Factory className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="plantName"
                         value={plantName}
                         onChange={(event) => setPlantName(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="Head Office"
                       />
                     </div>
@@ -545,12 +566,12 @@ export function SignupPage() {
                 <div className="space-y-2">
                   <Label htmlFor="companyAddress">Company address</Label>
                   <div className="relative">
-                    <MapPin className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <MapPin className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <textarea
                       id="companyAddress"
                       value={companyAddress}
                       onChange={(event) => setCompanyAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/20"
+                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
                       placeholder="12 Industrial Estate, Mumbai"
                     />
                   </div>
@@ -559,12 +580,12 @@ export function SignupPage() {
                 <div className="space-y-2">
                   <Label htmlFor="plantAddress">Plant address</Label>
                   <div className="relative">
-                    <MapPin className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <MapPin className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <textarea
                       id="plantAddress"
                       value={plantAddress}
                       onChange={(event) => setPlantAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-10 py-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/20"
+                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
                       placeholder="Main warehouse or head office address"
                     />
                   </div>
@@ -574,12 +595,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="contactPerson">Contact person</Label>
                     <div className="relative">
-                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="contactPerson"
                         value={contactPerson}
                         onChange={(event) => setContactPerson(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="Priya Sharma"
                       />
                     </div>
@@ -587,12 +608,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="mobile">Mobile</Label>
                     <div className="relative">
-                      <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="mobile"
                         value={mobile}
                         onChange={(event) => setMobile(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="+91 9876543210"
                       />
                     </div>
@@ -603,12 +624,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="adminName">Admin name</Label>
                     <div className="relative">
-                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="adminName"
                         value={adminName}
                         onChange={(event) => setAdminName(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="Alex Johnson"
                       />
                     </div>
@@ -616,12 +637,12 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="email">Work email</Label>
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="email"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="alex@company.com"
                       />
                     </div>
@@ -632,19 +653,19 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
                     <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10 pr-10"
+                        className="h-12 rounded-xl bg-muted pl-10 pr-10"
                         placeholder="SecurePass123!"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((visible) => !visible)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -655,24 +676,24 @@ export function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm password</Label>
                     <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="confirmPassword"
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(event) => setConfirmPassword(event.target.value)}
-                        className="h-12 rounded-xl bg-slate-50 pl-10"
+                        className="h-12 rounded-xl bg-muted pl-10"
                         placeholder="Repeat password"
                       />
                     </div>
                   </div>
                 </div>
 
-                <Button className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-950" type="submit" disabled={isSubmitting || paying}>
+                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || paying}>
                   {isSubmitting ? 'Sending verification code...' : 'Create account and verify email'}
                 </Button>
 
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-muted-foreground">
                   Already registered?{' '}
                   <Link to="/login" className="font-medium text-primary hover:underline">
                     Sign in
@@ -683,20 +704,36 @@ export function SignupPage() {
 
             {step === 'verify' ? (
               <form className="space-y-5" onSubmit={verifyOtp}>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted p-5">
                   <div className="mb-4 text-center">
-                    <p className="text-sm font-medium text-slate-700">Verification code</p>
-                    <p className="mt-1 text-xs text-slate-500">Enter the 6-digit code from your email.</p>
+                    <p className="text-sm font-medium text-foreground">Email code</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Enter the 6-digit code from your email.</p>
                   </div>
                   <OtpCodeInput value={otp} onChange={setOtp} autoFocus />
                 </div>
 
-                <Button className="h-12 w-full rounded-xl" type="submit" disabled={isSubmitting || paying}>
-                  {isSubmitting ? 'Verifying email...' : 'Verify email and continue'}
+                {phoneOtpSent ? (
+                  <div className="rounded-2xl border border-emerald-200/60 bg-emerald-500/10 p-5">
+                    <div className="mb-4 text-center">
+                      <p className="text-sm font-medium text-foreground">WhatsApp code</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Enter the 6-digit code sent to WhatsApp {phoneMasked || 'on your mobile'}.
+                      </p>
+                    </div>
+                    <OtpCodeInput value={waOtp} onChange={setWaOtp} />
+                  </div>
+                ) : null}
+
+                <Button
+                  className="h-12 w-full rounded-xl"
+                  type="submit"
+                  disabled={isSubmitting || paying || (phoneOtpSent && waOtp.trim().length !== 6)}
+                >
+                  {isSubmitting ? 'Verifying...' : phoneOtpSent ? 'Verify both codes and continue' : 'Verify email and continue'}
                 </Button>
 
                 <div className="flex items-center justify-between text-sm">
-                  <button type="button" onClick={() => setStep('details')} className="font-medium text-slate-500 hover:text-slate-700">
+                  <button type="button" onClick={() => setStep('details')} className="font-medium text-muted-foreground hover:text-foreground">
                     Back
                   </button>
                   <button type="button" onClick={resendOtp} className="font-medium text-primary hover:text-primary" disabled={isSubmitting}>
@@ -720,11 +757,11 @@ export function SignupPage() {
                         <ShieldCheck className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">Authenticator app</p>
-                        <p className="text-xs text-slate-600">Recommended for this release</p>
+                        <p className="text-sm font-semibold text-foreground">Authenticator app</p>
+                        <p className="text-xs text-muted-foreground">Recommended for this release</p>
                       </div>
                     </div>
-                    <p className="mt-4 text-sm text-slate-600">
+                    <p className="mt-4 text-sm text-muted-foreground">
                       Scan a QR code with Google Authenticator, Authy, 1Password, or another TOTP app.
                     </p>
                     <p className="mt-4 text-xs font-medium text-primary">
@@ -735,18 +772,18 @@ export function SignupPage() {
                   <button
                     type="button"
                     disabled
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left opacity-70"
+                    className="rounded-2xl border border-border bg-muted p-5 text-left opacity-70"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-300 text-slate-700">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-300 text-foreground">
                         <Phone className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">SMS</p>
-                        <p className="text-xs text-slate-600">Coming soon</p>
+                        <p className="text-sm font-semibold text-foreground">SMS</p>
+                        <p className="text-xs text-muted-foreground">Coming soon</p>
                       </div>
                     </div>
-                    <p className="mt-4 text-sm text-slate-500">
+                    <p className="mt-4 text-sm text-muted-foreground">
                       SMS selection is shown here to match the planned experience, but it is not active in v1.
                     </p>
                   </button>
@@ -755,7 +792,7 @@ export function SignupPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-full rounded-xl border-slate-300"
+                  className="h-12 w-full rounded-xl border-border"
                   onClick={() => void completeSignup(true)}
                   disabled={isSubmitting}
                 >
@@ -765,7 +802,7 @@ export function SignupPage() {
                 <button
                   type="button"
                   onClick={() => setStep('verify')}
-                  className="text-sm font-medium text-slate-500 hover:text-slate-700"
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
                   Back to email verification
                 </button>
@@ -774,44 +811,44 @@ export function SignupPage() {
 
             {step === 'mfa' && mfaSetup ? (
               <form className="space-y-5" onSubmit={verifyTotp}>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted p-5">
                   <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
                     {mfaSetup.qrCodeDataUrl ? (
-                      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
                         <img src={mfaSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-36 w-36 rounded-lg" />
                       </div>
                     ) : (
-                      <div className="flex h-42 w-42 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center text-xs text-slate-500 shadow-sm">
+                      <div className="flex h-42 w-42 items-center justify-center rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground shadow-sm">
                         QR preview is unavailable right now. Enter the manual code below in your authenticator app.
                       </div>
                     )}
                     <div className="space-y-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                           {mfaSetup.qrCodeDataUrl ? 'Scan this QR code' : 'Set up with the manual code'}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Use Google Authenticator, Authy, 1Password, or another TOTP app.
                         </p>
                       </div>
                       <div className="rounded-xl bg-slate-900 p-3 text-slate-100">
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Manual code</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Manual code</p>
                         <code className="mt-1 block break-all text-sm tracking-[0.18em]">{mfaSetup.manualCode}</code>
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         Enrollment challenge expires at {new Date(mfaSetup.expiresAt).toLocaleTimeString()}.
                       </p>
-                      <p className="text-xs font-medium text-slate-600">
+                      <p className="text-xs font-medium text-muted-foreground">
                         {mfaSetup.attemptsRemaining} verification attempt(s) remaining.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted p-5">
                   <div className="mb-4 text-center">
-                    <p className="text-sm font-medium text-slate-700">Authenticator code</p>
-                    <p className="mt-1 text-xs text-slate-500">Enter the live 6-digit code from your app.</p>
+                    <p className="text-sm font-medium text-foreground">Authenticator code</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Enter the live 6-digit code from your app.</p>
                   </div>
                   <OtpCodeInput value={totpCode} onChange={setTotpCode} autoFocus />
                 </div>
@@ -834,7 +871,7 @@ export function SignupPage() {
                   <button
                     type="button"
                     onClick={() => void restartMfaSetup()}
-                    className="font-medium text-slate-500 hover:text-slate-700"
+                    className="font-medium text-muted-foreground hover:text-foreground"
                     disabled={isSubmitting}
                   >
                     Restart setup
@@ -843,7 +880,7 @@ export function SignupPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-full rounded-xl border-slate-300"
+                  className="h-12 w-full rounded-xl border-border"
                   onClick={() => void completeSignup(true)}
                   disabled={isSubmitting}
                 >
@@ -868,32 +905,32 @@ export function SignupPage() {
 
             {step === 'complete' ? (
               <div className="space-y-6 text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50">
-                  <ShieldCheck className="h-10 w-10 text-emerald-600" />
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10">
+                  <ShieldCheck className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-3xl font-semibold text-slate-900">You are all set</h3>
-                  <p className="mt-2 text-sm text-slate-500">
+                  <h3 className="text-3xl font-semibold text-foreground">You are all set</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {mfaSkipped
                       ? 'Your account is created with email verification, and you can enable authenticator MFA later.'
                       : 'Your account has email verification, authenticator MFA, and backup recovery codes.'}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300">
                     Email verified
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300">
                     {mfaSkipped ? 'MFA skipped for now' : 'Authenticator enabled'}
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300">
                     {mfaSkipped ? 'Enable MFA later in settings' : 'Backup codes created'}
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300">
                     Workspace secured
                   </div>
                 </div>
-                <Button className="h-12 w-full rounded-xl bg-slate-900 text-white hover:bg-slate-950" type="button" onClick={() => finalizeSignIn(pendingAuthPayload)} disabled={!pendingAuthPayload}>
+                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="button" onClick={() => finalizeSignIn(pendingAuthPayload)} disabled={!pendingAuthPayload}>
                   Sign in to SoftdigitIMS
                 </Button>
               </div>

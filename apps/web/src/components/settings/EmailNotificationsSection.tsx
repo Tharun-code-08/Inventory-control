@@ -254,7 +254,7 @@ export function EmailNotificationsSection() {
       </PageHeader>
 
       {draft.isOverride ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-950">
           <p className="font-medium">Plant override active</p>
           <p className="mt-1 text-amber-900">
             You are editing plant-specific email settings. Unset values inherit company defaults.
@@ -515,7 +515,7 @@ export function EmailNotificationsSection() {
                         title="Email HTML preview"
                         sandbox=""
                         srcDoc={preview.html}
-                        className="mt-2 h-[420px] w-full rounded-md border bg-white"
+                        className="mt-2 h-[420px] w-full rounded-md border bg-card"
                       />
                     </div>
                     <div>

@@ -66,8 +66,8 @@ function Stepper({ current }: { current: Step }) {
                 className={cn(
                   'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition',
                   done && 'border-primary bg-primary text-white',
-                  active && !done && 'border-primary bg-white text-primary',
-                  !done && !active && 'border-slate-200 bg-white text-slate-400',
+                  active && !done && 'border-primary bg-card text-primary',
+                  !done && !active && 'border-border bg-card text-muted-foreground',
                 )}
               >
                 {done ? <Check className="h-4 w-4" /> : s.n}
@@ -75,7 +75,7 @@ function Stepper({ current }: { current: Step }) {
               <span
                 className={cn(
                   'hidden text-[10px] font-medium uppercase tracking-wide sm:block',
-                  active ? 'text-primary' : 'text-slate-400',
+                  active ? 'text-primary' : 'text-muted-foreground',
                 )}
               >
                 {s.label}
@@ -193,7 +193,7 @@ export function SupplierPortalSubmitPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-muted">
       <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2.5">
@@ -207,13 +207,13 @@ export function SupplierPortalSubmitPage() {
 
       <main className="mx-auto max-w-2xl px-4 pb-12">
         {step === 1 && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="mb-6 flex flex-col items-center text-center">
               <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary">
                 <ShieldCheck className="h-7 w-7" />
               </div>
-              <h1 className="text-xl font-semibold text-slate-900">Verify your identity</h1>
-              <p className="mt-1 text-sm text-slate-500">Enter your details to access the RFQ</p>
+              <h1 className="text-xl font-semibold text-foreground">Verify your identity</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Enter your details to access the RFQ</p>
             </div>
             <div className="space-y-4">
               <div className="space-y-1">
@@ -241,26 +241,26 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 2 && rfq && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="mb-4 flex flex-col items-center text-center">
               <FileText className="mb-2 h-10 w-10 text-primary" />
               <h1 className="text-xl font-semibold">Review RFQ details</h1>
-              <p className="text-sm text-slate-500">Confirm items before pricing your quote</p>
+              <p className="text-sm text-muted-foreground">Confirm items before pricing your quote</p>
             </div>
-            <div className="mb-4 rounded-xl bg-slate-50 px-4 py-3 text-center">
-              <p className="font-semibold text-slate-900">
+            <div className="mb-4 rounded-xl bg-muted px-4 py-3 text-center">
+              <p className="font-semibold text-foreground">
                 {rfq.rfqNumber} — {rfq.title}
               </p>
               {verifyResult?.supplier && (
-                <p className="text-sm text-slate-500">{verifyResult.supplier.supplierName}</p>
+                <p className="text-sm text-muted-foreground">{verifyResult.supplier.supplierName}</p>
               )}
             </div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Requested items
             </p>
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2 text-right">Qty</th>
@@ -272,7 +272,7 @@ export function SupplierPortalSubmitPage() {
                     <tr key={line.rfqItemId} className="border-t">
                       <td className="px-3 py-2 font-medium">{line.label}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{line.qty}</td>
-                      <td className="px-3 py-2 text-slate-600">{line.uom}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{line.uom}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -288,15 +288,15 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 3 && rfq && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="mb-4 flex flex-col items-center text-center">
               <Send className="mb-2 h-10 w-10 text-primary" />
               <h1 className="text-xl font-semibold">Submit your quote</h1>
-              <p className="text-sm text-slate-500">Enter unit pricing for each line</p>
+              <p className="text-sm text-muted-foreground">Enter unit pricing for each line</p>
             </div>
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <thead className="bg-muted text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left">Item</th>
                     <th className="px-3 py-2 text-right">Qty</th>
@@ -335,7 +335,7 @@ export function SupplierPortalSubmitPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t bg-slate-50 font-semibold">
+                  <tr className="border-t bg-muted font-semibold">
                     <td colSpan={3} className="px-3 py-2 text-right">
                       Grand total
                     </td>
@@ -374,28 +374,28 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 4 && confirmation && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <Check className="h-8 w-8" />
             </div>
-            <h1 className="text-2xl font-semibold text-slate-900">Quote submitted!</h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <h1 className="text-2xl font-semibold text-foreground">Quote submitted!</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
               Your quote has been submitted successfully.
             </p>
-            <div className="mx-auto mt-6 max-w-sm rounded-xl bg-slate-50 px-4 py-4 text-left">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mx-auto mt-6 max-w-sm rounded-xl bg-muted px-4 py-4 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Reference number
               </p>
-              <p className="text-lg font-bold text-slate-900">{confirmation.referenceCode}</p>
-              <hr className="my-3 border-slate-200" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <p className="text-lg font-bold text-foreground">{confirmation.referenceCode}</p>
+              <hr className="my-3 border-border" />
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Total quote value
               </p>
               <p className="text-lg font-bold text-primary">
                 ₹{confirmation.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
-            <p className="mx-auto mt-6 max-w-md text-xs text-slate-500">
+            <p className="mx-auto mt-6 max-w-md text-xs text-muted-foreground">
               The procurement team will review your submission. Save your reference number for
               follow-up.
             </p>
@@ -403,7 +403,7 @@ export function SupplierPortalSubmitPage() {
         )}
       </main>
 
-      <footer className="pb-8 text-center text-xs text-slate-400">
+      <footer className="pb-8 text-center text-xs text-muted-foreground">
         Powered by SoftdigitIMS · Supplier Portal
       </footer>
     </div>

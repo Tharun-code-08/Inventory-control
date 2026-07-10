@@ -161,12 +161,12 @@ function StatusPill({ status }: { status: string }) {
   const label = statusLabel(status);
   const styles =
     status === 'CONFIRMED'
-      ? 'bg-sky-100 text-sky-800'
+      ? 'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-300'
       : status === 'FULFILLED'
-        ? 'bg-slate-100 text-slate-700'
+        ? 'bg-muted text-foreground'
         : status === 'DRAFT'
-          ? 'bg-amber-50 text-amber-800'
-          : 'bg-slate-100 text-slate-600';
+          ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300'
+          : 'bg-muted text-muted-foreground';
 
   return (
     <span
@@ -190,16 +190,16 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/90 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+      <CardContent className="flex items-center gap-3.5 p-4">
+        <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-2xl font-bold tabular-nums leading-tight tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
           {icon}
-        </div>
+        </span>
       </CardContent>
     </Card>
   );
@@ -588,8 +588,8 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
 
   const salesOrderForm = (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Order Details</h3>
+      <section className="space-y-4 rounded-xl border border-border p-4">
+        <h3 className="text-sm font-semibold text-foreground">Order Details</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Customer *</Label>
@@ -663,7 +663,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
         onUseMasterAddressChange={setUseMasterAddress}
       />
 
-      <p className="text-xs font-medium text-slate-600">{supplyTypeLabel(gstSupplyType)}</p>
+      <p className="text-xs font-medium text-muted-foreground">{supplyTypeLabel(gstSupplyType)}</p>
 
       <SalesOrderLineItemsEditor
         items={form.items}
@@ -735,17 +735,17 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
             label="Confirmed"
             value={stats.confirmed}
             accent="bg-emerald-500"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
           />
           <KpiCard
             label="Revenue"
             value={formatAmount(stats.revenue)}
             accent="bg-sky-500"
-            icon={<IndianRupee className="h-5 w-5 text-sky-600" />}
+            icon={<IndianRupee className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
           />
         </div>
 
-        <Card className="border-slate-200/90 shadow-sm">
+        <Card className="border-border/90 shadow-sm">
           <CardContent className="p-4 pt-4">
             <Tabs value={tab} onValueChange={(v) => setTab(v as SoTab)}>
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -833,7 +833,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                   ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50/80">
+                      <TableRow className="bg-muted/80">
                         <TableHead className="text-xs font-semibold uppercase tracking-wide">
                           SO Number
                         </TableHead>
@@ -859,7 +859,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                     </TableHeader>
                     <TableBody>
                       {filtered.map((so) => (
-                          <TableRow key={so.id} className="hover:bg-slate-50/50">
+                          <TableRow key={so.id} className="hover:bg-muted/50">
                             <TableCell>
                               <button
                                 type="button"
@@ -870,16 +870,16 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                               </button>
                             </TableCell>
                             <TableCell>{so.customer?.customerName ?? '—'}</TableCell>
-                            <TableCell className="text-sm text-slate-600">
+                            <TableCell className="text-sm text-muted-foreground">
                               {so.shop?.shopName ?? '—'}
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-slate-800">
+                            <TableCell className="text-right tabular-nums text-foreground">
                               {formatAmount(so.totalValue)}
                             </TableCell>
                             <TableCell>
                               <StatusPill status={so.status} />
                             </TableCell>
-                            <TableCell className="text-sm text-slate-600">
+                            <TableCell className="text-sm text-muted-foreground">
                               {formatOrderDate(so.orderDate)}
                             </TableCell>
                             <TableCell className="text-right">
@@ -887,7 +887,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-8 w-8 text-slate-500"
+                                  className="h-8 w-8 text-muted-foreground"
                                   aria-label="View"
                                   onClick={() => openView(so)}
                                 >
@@ -898,7 +898,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                                     <Button
                                       size="icon"
                                       variant="ghost"
-                                      className="h-8 w-8 text-slate-500"
+                                      className="h-8 w-8 text-muted-foreground"
                                       aria-label="Edit"
                                       onClick={() => openEdit(so)}
                                     >
@@ -907,7 +907,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
                                     <Button
                                       size="icon"
                                       variant="ghost"
-                                      className="h-8 w-8 text-red-600 hover:bg-red-50"
+                                      className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50"
                                       aria-label="Delete"
                                       onClick={() => setDeleteTarget(so)}
                                     >
@@ -945,8 +945,8 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
             <SheetDescription>Update order details and line items</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-6">
-            <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Order Details</h3>
+            <section className="space-y-4 rounded-xl border border-border p-4">
+              <h3 className="text-sm font-semibold text-foreground">Order Details</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Customer *</Label>
@@ -1018,7 +1018,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
               onUseMasterAddressChange={setUseMasterAddress}
             />
 
-            <p className="text-xs font-medium text-slate-600">{supplyTypeLabel(gstSupplyType)}</p>
+            <p className="text-xs font-medium text-muted-foreground">{supplyTypeLabel(gstSupplyType)}</p>
 
             <SalesOrderLineItemsEditor
               items={form.items}

@@ -5,6 +5,8 @@ import { RfqAction } from './document-actions';
 export const RFQ_TRANSITIONS: Record<DocumentStatus, DocumentStatus[]> = {
   [DocumentStatus.DRAFT]: [DocumentStatus.POSTED],
   [DocumentStatus.POSTED]: [],
+  // DISPATCHED is a stock-transfer-only status; never valid here.
+  [DocumentStatus.DISPATCHED]: [],
 };
 
 /** Statuses in which each business action is permitted. */

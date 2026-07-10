@@ -23,6 +23,7 @@ enum RoleName {
 enum DocumentStatus {
   DRAFT
   POSTED
+  DISPATCHED
 }
 
 enum PurchaseOrderStatus {
@@ -39,6 +40,26 @@ enum TransactionType {
   ADJUSTMENT
   STOCK_TRANSFER_OUT
   STOCK_TRANSFER_IN
+}
+
+enum ExpiryTracking {
+  NONE
+  OPTIONAL
+  MANDATORY
+}
+
+enum InventoryLotStatus {
+  ACTIVE
+  BLOCKED
+  CONSUMED
+  SCRAPPED
+}
+
+enum StockTransferCreatedVia {
+  MANUAL
+  DRAG_DROP
+  BULK
+  API
 }
 
 enum ReceiptType {
@@ -118,6 +139,13 @@ enum AuditAction {
   UPDATE
   DELETE
   POST
+
+  // WhatsApp device linking (agent platform)
+  LINK_TOKEN_GENERATED
+  LINK_TOKEN_USED
+  DEVICE_LINKED
+  DEVICE_REVOKED
+  DEVICE_REJECTED
 }
 
 enum AuditSeverity {
@@ -280,6 +308,39 @@ enum MediaAssetType {
   WATERMARK
 }
 
+enum ExceptionType {
+  EXPIRY
+  LOW_STOCK
+  TRANSFER
+  BLOCKED_LOT
+  INVENTORY_INTEGRITY
+}
+
+enum EntityType {
+  LOT
+  PRODUCT
+  TRANSFER
+  STORAGE_LOCATION
+}
+
+enum ExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum ExceptionSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ResolutionType {
+  AUTOMATIC
+  MANUAL
+}
+
 model Company {
   id                      String             @id @default(uuid()) @db.Uuid
   companyCode             String             @unique @map("company_code")
@@ -341,6 +402,8 @@ model Company {
   // Agent Platform (WhatsApp assistant)
   channelAccounts         ChannelAccount[]
   userChannelLinks        UserChannelLink[]
+  whatsAppLinkTokens      WhatsAppLinkToken[]
+  whatsAppDevices         WhatsAppDevice[]
   conversations           Conversation[]
   aiSettings              AiSettings?
   aiPromptHistory         AiPromptHistory[]
@@ -499,6 +562,7 @@ model Shop {
   mediaAssets           MediaAsset[]
   lowStockAlerts        LowStockAlert[]
   ewayBills             EwayBill[]
+  inventoryLots         InventoryLot[]
 
   @@map("shops")
 }
@@ -520,6 +584,7 @@ model StorageLocation {
   goodsReceiptItems  GoodsReceiptItem[]
   stockTransfersFrom StockTransferHeader[] @relation("StockTransferFromLocation")
   stockTransfersTo   StockTransferHeader[] @relation("StockTransferToLocation")
+  inventoryLots      InventoryLot[]
 
   @@unique([shopId, code])
   @@index([shopId, code])
@@ -531,6 +596,9 @@ model SignupVerification {
   email               String
   payload             Json
   otpHash             String    @map("otp_hash")
+  /// E.164 digits (no "+") the WhatsApp OTP was sent to; null = email-only signup.
+  phone               String?
+  phoneOtpHash        String?   @map("phone_otp_hash")
   sessionTokenHash    String?   @map("session_token_hash")
   totpSecretEncrypted String?   @map("totp_secret_encrypted")
   attemptCount        Int       @default(0) @map("attempt_count")
@@ -788,6 +856,9 @@ model User {
   channelLinks             UserChannelLink[]
   agentTasksRequested      AgentTask[] @relation("AgentTasksRequested")
   agentTasksApproved       AgentTask[] @relation("AgentTasksApproved")
+  whatsAppLinkTokens       WhatsAppLinkToken[]
+  whatsAppDevices          WhatsAppDevice[]
+  whatsAppDevicesRevoked   WhatsAppDevice[] @relation("WhatsAppDeviceRevoker")
 
   @@index([deletedAt])
   @@map("users")
@@ -842,6 +913,8 @@ model Product {
   sellingPrice     Decimal       @map("selling_price") @db.Decimal(12, 2)
   imageUrl         String?       @map("image_url")
   thumbnailUrl     String?       @map("thumbnail_url")
+  shelfLifeDays    Int?          @map("shelf_life_days")
+  expiryTracking   ExpiryTracking @default(OPTIONAL) @map("expiry_tracking")
   isActive         Boolean       @default(true) @map("is_active")
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -868,6 +941,7 @@ model Product {
   stockTransferItems     StockTransferItem[]
   barcodes               ProductBarcode[]
   scanLogs               ScanLog[]
+  inventoryLots          InventoryLot[]
 
   stockCountItems StockCountItem[] @relation("ProductStockCountItems")
   lowStockAlerts  LowStockAlert[]
@@ -1352,6 +1426,7 @@ model GoodsReceiptItem {
   product         Product              @relation(fields: [productId], references: [id])
   storageLocation StorageLocation?     @relation(fields: [storageLocationId], references: [id])
   returnItems     SupplierReturnItem[]
+  lots            InventoryLot[]
 
   @@index([grHeaderId])
   @@index([productId])
@@ -1398,8 +1473,9 @@ model GoodsIssueItem {
   createdById            String?  @map("created_by") @db.Uuid
   updatedById            String?  @map("updated_by") @db.Uuid
 
-  header  GoodsIssueHeader @relation(fields: [giHeaderId], references: [id], onDelete: Cascade)
-  product Product          @relation(fields: [productId], references: [id])
+  header GoodsIssueHeader    @relation(fields: [giHeaderId], references: [id], onDelete: Cascade)
+  product Product            @relation(fields: [productId], references: [id])
+  lots    GoodsIssueItemLot[]
 
   @@index([giHeaderId])
   @@index([productId])
@@ -1884,6 +1960,8 @@ enum AlertType {
   NEGATIVE_STOCK_PREVENTION
   INVENTORY_ADJUSTMENT_COMPLETED
   WAREHOUSE_CAPACITY_ALERT
+  STOCK_EXPIRING
+  STOCK_EXPIRED
 
   // Security Notifications
   NEW_DEVICE_LOGIN
@@ -2565,17 +2643,23 @@ model StockTransferHeader {
   toStorageLocationId   String?        @map("to_storage_location_id") @db.Uuid
   status                DocumentStatus @default(DRAFT)
   notes                 String?
+  createdVia            StockTransferCreatedVia @default(MANUAL) @map("created_via")
+  dispatchedAt          DateTime?      @map("dispatched_at") @db.Timestamptz(6)
+  receivedAt            DateTime?      @map("received_at") @db.Timestamptz(6)
+  dispatchedById        String?        @map("dispatched_by") @db.Uuid
+  receivedById          String?        @map("received_by") @db.Uuid
   postedAt              DateTime?      @map("posted_at") @db.Timestamptz(6)
   createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById           String?        @map("created_by") @db.Uuid
   updatedById           String?        @map("updated_by") @db.Uuid
 
-  fromShop            Shop                @relation("StockTransferFromShop", fields: [fromShopId], references: [id])
-  toShop              Shop                @relation("StockTransferToShop", fields: [toShopId], references: [id])
-  fromStorageLocation StorageLocation?    @relation("StockTransferFromLocation", fields: [fromStorageLocationId], references: [id])
-  toStorageLocation   StorageLocation?    @relation("StockTransferToLocation", fields: [toStorageLocationId], references: [id])
+  fromShop            Shop                        @relation("StockTransferFromShop", fields: [fromShopId], references: [id])
+  toShop              Shop                        @relation("StockTransferToShop", fields: [toShopId], references: [id])
+  fromStorageLocation StorageLocation?            @relation("StockTransferFromLocation", fields: [fromStorageLocationId], references: [id])
+  toStorageLocation   StorageLocation?            @relation("StockTransferToLocation", fields: [toStorageLocationId], references: [id])
   items               StockTransferItem[]
+  statusHistory       StockTransferStatusHistory[]
 
   @@index([fromShopId, transferDate])
   @@index([toShopId, transferDate])
@@ -2590,11 +2674,103 @@ model StockTransferItem {
   quantity   Decimal @db.Decimal(12, 3)
   uom        String
 
-  header  StockTransferHeader @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  product Product             @relation(fields: [productId], references: [id])
+  header StockTransferHeader     @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product Product                @relation(fields: [productId], references: [id])
+  lots    StockTransferItemLot[]
 
   @@index([transferId])
   @@map("stock_transfer_items")
+}
+
+model InventoryLot {
+  id                String             @id @default(uuid()) @db.Uuid
+  companyId         String             @map("company_id") @db.Uuid
+  shopId            String             @map("shop_id") @db.Uuid
+  productId         String             @map("product_id") @db.Uuid
+  lotNumber         String             @map("lot_number")
+  expiryDate        DateTime?          @map("expiry_date") @db.Date
+  qtyReceived       Decimal            @default(0) @map("qty_received") @db.Decimal(12, 3)
+  qtyOnHand         Decimal            @default(0) @map("qty_on_hand") @db.Decimal(12, 3)
+  unitCost          Decimal?           @map("unit_cost") @db.Decimal(14, 4)
+  status            InventoryLotStatus @default(ACTIVE)
+  storageLocationId String?            @map("storage_location_id") @db.Uuid
+  grItemId          String?            @map("gr_item_id") @db.Uuid
+  blockedAt         DateTime?          @map("blocked_at") @db.Timestamptz(6)
+  blockedReason     String?            @map("blocked_reason")
+  scrappedAt        DateTime?          @map("scrapped_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById       String?            @map("created_by") @db.Uuid
+  updatedById       String?            @map("updated_by") @db.Uuid
+
+  shop            Shop                 @relation(fields: [shopId], references: [id])
+  product         Product              @relation(fields: [productId], references: [id])
+  storageLocation StorageLocation?     @relation(fields: [storageLocationId], references: [id])
+  grItem          GoodsReceiptItem?    @relation(fields: [grItemId], references: [id])
+  issueAllocations    GoodsIssueItemLot[]
+  transferAllocations StockTransferItemLot[]
+  alerts              InventoryLotAlert[]
+
+  @@unique([shopId, productId, lotNumber])
+  @@index([shopId, productId, status, expiryDate])
+  @@index([companyId, status, expiryDate])
+  @@map("inventory_lots")
+}
+
+model GoodsIssueItemLot {
+  id       String  @id @default(uuid()) @db.Uuid
+  giItemId String  @map("gi_item_id") @db.Uuid
+  lotId    String  @map("lot_id") @db.Uuid
+  quantity Decimal @db.Decimal(12, 3)
+
+  item GoodsIssueItem @relation(fields: [giItemId], references: [id], onDelete: Cascade)
+  lot  InventoryLot   @relation(fields: [lotId], references: [id])
+
+  @@unique([giItemId, lotId])
+  @@index([lotId])
+  @@map("goods_issue_item_lots")
+}
+
+model StockTransferItemLot {
+  id             String  @id @default(uuid()) @db.Uuid
+  transferItemId String  @map("transfer_item_id") @db.Uuid
+  lotId          String  @map("lot_id") @db.Uuid
+  quantity       Decimal @db.Decimal(12, 3)
+
+  item StockTransferItem @relation(fields: [transferItemId], references: [id], onDelete: Cascade)
+  lot  InventoryLot      @relation(fields: [lotId], references: [id])
+
+  @@unique([transferItemId, lotId])
+  @@index([lotId])
+  @@map("stock_transfer_item_lots")
+}
+
+model StockTransferStatusHistory {
+  id         String         @id @default(uuid()) @db.Uuid
+  transferId String         @map("transfer_id") @db.Uuid
+  fromStatus DocumentStatus? @map("from_status")
+  toStatus   DocumentStatus  @map("to_status")
+  changedById String?        @map("changed_by") @db.Uuid
+  changedAt  DateTime       @default(now()) @map("changed_at") @db.Timestamptz(6)
+  remarks    String?
+
+  header StockTransferHeader @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@index([transferId, changedAt])
+  @@map("stock_transfer_status_history")
+}
+
+model InventoryLotAlert {
+  id        String   @id @default(uuid()) @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  threshold Int
+  eventId   String   @map("event_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lot InventoryLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@unique([lotId, threshold])
+  @@map("inventory_lot_alerts")
 }
 
 enum BackupProvider {
@@ -2871,6 +3047,7 @@ model NotificationPreference {
   deviceAlert         Boolean   @default(true) @map("device_alert")
   pushEnabled         Boolean   @default(true) @map("push_enabled")
   emailEnabled        Boolean   @default(false) @map("email_enabled")
+  whatsappEnabled     Boolean   @default(false) @map("whatsapp_enabled")
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3258,6 +3435,75 @@ model WhatsAppVerification {
   @@map("whatsapp_verifications")
 }
 
+enum LinkTokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+}
+
+enum WhatsAppDeviceStatus {
+  ACTIVE
+  REVOKED
+  ARCHIVED
+}
+
+/// Short-lived, single-use linking token generated from an authenticated IMS
+/// session. Only the SHA-256 hash is stored; the raw token is shown once in
+/// the UI and redeemed by texting "LINK <token>" from WhatsApp. One ACTIVE
+/// token per user at a time.
+model WhatsAppLinkToken {
+  id                 String          @id @default(uuid()) @db.Uuid
+  companyId          String          @map("company_id") @db.Uuid
+  userId             String          @map("user_id") @db.Uuid
+  tokenHash          String          @unique @map("token_hash")
+  tokenVersion       String          @default("V1") @map("token_version")
+  status             LinkTokenStatus @default(ACTIVE)
+  expiresAt          DateTime        @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt             DateTime?       @map("used_at") @db.Timestamptz(6)
+  /// E.164 without "+"; set at redemption.
+  linkedPhone        String?         @map("linked_phone")
+  attemptCount       Int             @default(0) @map("attempt_count")
+  generatedIp        String?         @map("generated_ip")
+  generatedUserAgent String?         @map("generated_user_agent")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@index([companyId])
+  @@map("whatsapp_link_tokens")
+}
+
+/// Permanent trusted-device record: a WhatsApp number proven (via link token)
+/// to belong to a user. Revocation is soft (REVOKED/ARCHIVED) — history is
+/// never deleted. A phone number has exactly one owner row globally.
+model WhatsAppDevice {
+  id          String               @id @default(uuid()) @db.Uuid
+  companyId   String               @map("company_id") @db.Uuid
+  userId      String               @map("user_id") @db.Uuid
+  /// E.164 without "+", as Meta sends it.
+  phoneNumber String               @unique @map("phone_number")
+  nickname    String?
+  deviceType  String?              @map("device_type")
+  status      WhatsAppDeviceStatus @default(ACTIVE)
+  linkedAt    DateTime             @default(now()) @map("linked_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime?            @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  revokedById String?              @map("revoked_by_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedBy User?   @relation("WhatsAppDeviceRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([companyId])
+  @@map("whatsapp_devices")
+}
+
 model Conversation {
   id                String             @id @default(uuid()) @db.Uuid
   companyId         String             @map("company_id") @db.Uuid
@@ -3444,4 +3690,207 @@ model AgentTaskStep {
 
   @@unique([taskId, order])
   @@map("agent_task_steps")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enterprise Event Platform — transactional outbox (Phase 1, Step 1)
+// See docs/event-platform/. Producers emit domain events into this table INSIDE
+// their business transaction; the relay publishes them to the in-process bus.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum EventClassification {
+  AUTHENTICATION
+  SECURITY
+  FINANCIAL
+  COMPLIANCE
+  OPERATIONAL
+  SYSTEM
+  AI
+  MARKETING
+}
+
+enum OutboxStatus {
+  CREATED
+  VALIDATED
+  PENDING
+  PUBLISHED
+  ACKNOWLEDGED
+  FAILED
+  DEAD
+  REPLAYED
+}
+
+model OutboxEvent {
+  id             String              @id @default(uuid()) @db.Uuid
+  /// Globally-unique idempotency key; consumers dedup on this.
+  eventId        String              @unique @map("event_id") @db.Uuid
+  eventType      String              @map("event_type")
+  eventVersion   Int                 @map("event_version")
+  aggregateType  String              @map("aggregate_type")
+  aggregateId    String              @map("aggregate_id")
+  companyId      String              @map("company_id") @db.Uuid
+  classification EventClassification
+  payload        Json
+  correlationId  String              @map("correlation_id") @db.Uuid
+  causationId    String?             @map("causation_id") @db.Uuid
+  traceId        String?             @map("trace_id")
+  spanId         String?             @map("span_id")
+  actorId        String?             @map("actor_id") @db.Uuid
+  status         OutboxStatus        @default(PENDING)
+  retryCount     Int                 @default(0) @map("retry_count")
+  lastError      String?             @map("last_error")
+  nextAttemptAt  DateTime?           @map("next_attempt_at") @db.Timestamptz(6)
+  publishedAt    DateTime?           @map("published_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@index([companyId])
+  @@index([eventType, eventVersion])
+  @@map("outbox_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification Engine — append-only delivery ledger (Phase 1, Step 2)
+// See docs/event-platform/state-machines.md. One row per (event, recipient,
+// channel, attempt); state advances forward only. Retries/fallbacks are new
+// attempt rows. The unique key also provides send idempotency (at-least-once).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DeliveryChannel {
+  IN_APP
+  WHATSAPP
+  EMAIL
+}
+
+enum DeliveryState {
+  CREATED
+  QUEUED
+  DISPATCHING
+  SENT
+  DELIVERED
+  READ
+  ACKNOWLEDGED
+  FAILED
+}
+
+model NotificationDelivery {
+  id                String              @id @default(uuid()) @db.Uuid
+  /// Envelope eventId — idempotency + trace back to the source event.
+  eventId           String              @map("event_id") @db.Uuid
+  /// The in-app Notification row when channel = IN_APP (null for other channels).
+  notificationId    String?             @map("notification_id") @db.Uuid
+  companyId         String              @map("company_id") @db.Uuid
+  recipientUserId   String              @map("recipient_user_id") @db.Uuid
+  channel           DeliveryChannel
+  attempt           Int                 @default(1)
+  state             DeliveryState       @default(CREATED)
+  classification    EventClassification
+  providerMessageId String?             @map("provider_message_id")
+  latencyMs         Int?                @map("latency_ms")
+  slaSeconds        Int?                @map("sla_seconds")
+  correlationId     String              @map("correlation_id") @db.Uuid
+  error             String?
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([eventId, recipientUserId, channel, attempt])
+  @@index([eventId])
+  @@index([companyId, channel, state])
+  @@index([recipientUserId, createdAt])
+  @@map("notification_deliveries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification Engine — per-company overrides (Phase 1, Step 4)
+// Rules/templates override the code defaults in notification-rules.ts. Absence
+// of a row means "use the code default", so the engine always has a fallback.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model NotificationRule {
+  id             String              @id @default(uuid()) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  eventType      String              @map("event_type")
+  /// RoleName values (e.g. "OWNER"). Empty = fall back to the code default.
+  recipientRoles String[]            @map("recipient_roles")
+  channels       DeliveryChannel[]
+  priority       NotificationPriority @default(NORMAL)
+  slaSeconds     Int                 @map("sla_seconds")
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([companyId, eventType])
+  @@index([companyId])
+  @@map("notification_rules")
+}
+
+model NotificationTemplate {
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  eventType      String          @map("event_type")
+  channel        DeliveryChannel
+  // In-app overrides
+  title          String?
+  body           String?
+  // Email overrides
+  emailSubject   String?         @map("email_subject")
+  emailBody      String?         @map("email_body")
+  // WhatsApp overrides (per-tenant approved template + language)
+  waTemplateName String?         @map("wa_template_name")
+  waLanguage     String?         @map("wa_language")
+  enabled        Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([companyId, eventType, channel])
+  @@index([companyId])
+  @@map("notification_templates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inventory Health — Exception Engine + Health Score (Phase 2.5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InventoryException {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  type             ExceptionType
+  severity         ExceptionSeverity
+  entityType       EntityType        @map("entity_type")
+  entityId         String            @map("entity_id") @db.Uuid
+  title            String
+  description      String?
+  status           ExceptionStatus   @default(OPEN)
+  metadata         Json              @default("{}")
+
+  firstDetectedAt  DateTime          @default(now()) @map("first_detected_at") @db.Timestamptz(6)
+  lastDetectedAt   DateTime          @default(now()) @updatedAt @map("last_detected_at") @db.Timestamptz(6)
+
+  acknowledgedAt   DateTime?         @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedBy   String?           @map("acknowledged_by") @db.Uuid
+
+  resolvedAt       DateTime?         @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy       String?           @map("resolved_by") @db.Uuid
+  resolutionType   ResolutionType?   @map("resolution_type")
+  resolutionNotes  String?           @map("resolution_notes")
+
+  @@unique([companyId, type, entityType, entityId, status])
+  @@index([companyId, status, type])
+  @@index([companyId, severity, status])
+  @@index([companyId, lastDetectedAt])
+  @@map("inventory_exceptions")
+}
+
+model CompanyHealthScoreConfig {
+  id        String @id @default(uuid()) @db.Uuid
+  companyId String @unique @map("company_id") @db.Uuid
+
+  /// JSON structure with schemaVersion and weight configuration
+  config    Json   @default("{\"schemaVersion\": 1, \"weights\": {}}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("company_health_score_configs")
 }

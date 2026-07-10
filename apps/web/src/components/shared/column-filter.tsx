@@ -88,7 +88,7 @@ function FilterPopoverPanel({
       id={panelId}
       role="dialog"
       style={style}
-      className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+      className="rounded-xl border border-border bg-card p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
     >
       {children}
     </div>,
@@ -116,7 +116,7 @@ function FilterTriggerButton({
       ref={buttonRef}
       type="button"
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 transition hover:bg-accent hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
+        'inline-flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground transition hover:bg-accent hover:text-foreground dark:text-muted-foreground dark:hover:bg-slate-800/50 dark:hover:text-slate-200',
         (open || isActive) && 'selection-active',
       )}
       aria-expanded={open}
@@ -181,14 +181,14 @@ export function ColumnFilter({
         onClose={() => setOpen(false)}
         panelId={panelId}
       >
-        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mb-2 text-xs text-muted-foreground dark:text-muted-foreground">
           {filterLabel ?? `Filter by ${label.charAt(0) + label.slice(1).toLowerCase()}`}
         </p>
         <div className="max-h-60 space-y-0.5 overflow-y-auto">
           <button
             type="button"
             className={cn(
-              'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800',
+              'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-muted dark:hover:bg-slate-800',
               value === allValue && 'bg-accent font-medium text-foreground dark:bg-accent dark:text-accent-foreground',
             )}
             onClick={() => pick(allValue)}
@@ -200,7 +200,7 @@ export function ColumnFilter({
               key={opt.value}
               type="button"
               className={cn(
-                'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800',
+                'flex w-full rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-muted dark:hover:bg-slate-800',
                 value === opt.value &&
                   'bg-accent font-medium text-foreground dark:bg-accent dark:text-accent-foreground',
               )}
@@ -251,22 +251,22 @@ export function DateRangeColumnFilter({
         onClose={() => setOpen(false)}
         panelId={panelId}
       >
-        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Filter by date range</p>
+        <p className="mb-2 text-xs text-muted-foreground dark:text-muted-foreground">Filter by date range</p>
         <div className="space-y-2">
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+          <label className="block text-[11px] font-medium text-muted-foreground dark:text-slate-300">
             From
             <input
               type="date"
-              className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950"
+              className="mt-1 h-9 w-full rounded-lg border border-border bg-card px-2 text-sm dark:border-slate-600 dark:bg-slate-950"
               value={dateFrom ?? ''}
               onChange={(e) => onChange(e.target.value || undefined, dateTo)}
             />
           </label>
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+          <label className="block text-[11px] font-medium text-muted-foreground dark:text-slate-300">
             To
             <input
               type="date"
-              className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950"
+              className="mt-1 h-9 w-full rounded-lg border border-border bg-card px-2 text-sm dark:border-slate-600 dark:bg-slate-950"
               value={dateTo ?? ''}
               onChange={(e) => onChange(dateFrom, e.target.value || undefined)}
             />

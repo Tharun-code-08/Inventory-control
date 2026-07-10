@@ -1,0 +1,31 @@
+import { OnModuleInit } from '@nestjs/common';
+import { GoodsReceiptsService } from "../../../../goods-receipts/goods-receipts.service";
+import { ProductsService } from "../../../../products/products.service";
+import { PurchaseOrdersService } from "../../../../purchase-orders/purchase-orders.service";
+import { ShopsService } from "../../../../shops/shops.service";
+import { StorageLocationsService } from "../../../../storage-locations/storage-locations.service";
+import { AgentTaskService } from '../../../tasks/agent-task.service';
+import { TaskExecutorService } from '../../../tasks/task-executor.service';
+import { ToolRegistry } from '../tool-registry';
+export declare class GoodsReceiptWriteToolsService implements OnModuleInit {
+    private readonly registry;
+    private readonly executor;
+    private readonly tasks;
+    private readonly products;
+    private readonly storageLocations;
+    private readonly shops;
+    private readonly goodsReceipts;
+    private readonly purchaseOrders;
+    constructor(registry: ToolRegistry, executor: TaskExecutorService, tasks: AgentTaskService, products: ProductsService, storageLocations: StorageLocationsService, shops: ShopsService, goodsReceipts: GoodsReceiptsService, purchaseOrders: PurchaseOrdersService);
+    onModuleInit(): void;
+    private draftReceivePo;
+    private resolvePo;
+    private draftGoodsReceipt;
+    private buildSummary;
+    private resolveStorageLocation;
+    private resolveLine;
+    private resolveShopId;
+    private resolveGrDate;
+    private resolveExpiryDate;
+    private shopName;
+}
