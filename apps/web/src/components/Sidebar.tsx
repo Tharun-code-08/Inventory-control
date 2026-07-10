@@ -391,7 +391,9 @@ export function Sidebar({
           {effectivelyExpanded
             ? /* ── Expanded: sections with collapsible headers ── */
               visibleSections.map((section) => {
-                const isSectionCollapsed = collapsedSections[section.id] === true;
+                // On the mobile overlay every section stays expanded so all
+                // nav items are reachable in one tap; desktop keeps collapse.
+                const isSectionCollapsed = !isMobile && collapsedSections[section.id] === true;
                 const panelId = `sidebar-section-${section.id}`;
                 return (
                   <div key={section.id} className="mb-1">
