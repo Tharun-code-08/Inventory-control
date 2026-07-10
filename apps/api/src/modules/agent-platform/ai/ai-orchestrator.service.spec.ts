@@ -52,7 +52,7 @@ function buildHarness(options?: { providerResult?: Partial<AiConversationResult>
     name: 'deepseek',
     isConfigured: jest.fn().mockReturnValue(true),
     runConversation: jest.fn(
-      async (req: AiConversationRequest): Promise<AiConversationResult> => ({
+      async (_req: AiConversationRequest): Promise<AiConversationResult> => ({
         text: 'There are 42 pens in stock.',
         usage: { inputTokens: 1000, outputTokens: 200 },
         toolCallCount: 1,

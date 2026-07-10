@@ -266,7 +266,7 @@ export class InventoryLotsController {
     assertCompanyId(user);
     assertShopScope(user, shopId);
 
-    let where: Prisma.InventoryLotWhereInput = { shopId };
+    const where: Prisma.InventoryLotWhereInput = { shopId };
 
     if (productId) {
       where.productId = productId;
@@ -395,6 +395,7 @@ export class InventoryLotsController {
         sourceId: lot.id,
         idempotencyKey: `lot-scrap:${lot.id}`,
         userId: user.id,
+        remarks: body?.reason,
       });
 
       return { success: true, scrappedQuantity: lot.qtyOnHand.toString() };

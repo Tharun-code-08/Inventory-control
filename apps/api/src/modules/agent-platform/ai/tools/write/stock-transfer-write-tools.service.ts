@@ -27,11 +27,6 @@ type ResolvedLine = {
   uom: string;
 };
 
-function money(value: unknown): string {
-  const num = Number(value ?? 0);
-  return `₹${Number.isFinite(num) ? num.toLocaleString('en-IN') : String(value)}`;
-}
-
 /**
  * Phase 3 write tools for stock transfers. The tool NEVER creates the transfer:
  * it validates + resolves the request into a service-layer payload, stores it as

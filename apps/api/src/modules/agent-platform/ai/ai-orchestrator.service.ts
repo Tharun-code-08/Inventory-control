@@ -7,7 +7,6 @@ import {
   type Conversation,
   type UserChannelLink,
 } from '@prisma/client';
-import type { RequestUser } from '@/common/types/request-user';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LinkService } from '../link/link.service';
 import { AiSettingsService } from '../settings/ai-settings.service';

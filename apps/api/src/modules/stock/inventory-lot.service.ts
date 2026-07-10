@@ -201,15 +201,20 @@ export class InventoryLotService {
       ? opts.product
       : await tx.product.findUnique({ where: { id: productId } });
 
-    if (!product || product.expiryTracking === 'NONE') {
-      // Check if any lots exist for this product-shop
-      const lotCount = await tx.inventoryLot.count({
-        where: { shopId, productId },
-      });
-      if (lotCount === 0) {
-        // No-op: legacy path
+    // When no lots exist for this product-shop, fall back to the legacy
+    // ledger-only path (no-op) unless the product mandates lot tracking.
+    // Goods receipts do not yet create lots, so OPTIONAL/NONE products carry
+    // no lot coverage and must not block issuing on the ledger balance.
+    const lotCount = await tx.inventoryLot.count({
+      where: { shopId, productId },
+    });
+    if (lotCount === 0) {
+      if (!product || product.expiryTracking !== 'MANDATORY') {
         return;
       }
+      throw new BadRequestException(
+        `Lot tracking is mandatory for this product but no active lots exist (shop: ${shopId}, product: ${productId})`,
+      );
     }
 
     // Allocate and consume
