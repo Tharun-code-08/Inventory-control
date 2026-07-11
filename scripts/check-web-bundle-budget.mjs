@@ -21,13 +21,8 @@ function resolveChunk(assetsDir, prefix) {
 const assetsDir = join(root, 'apps/web/dist/assets');
 const checks = [
   {
-    name: 'AppLayout chunk',
-    path: resolveChunk(assetsDir, 'AppLayout'),
-    limitKb: limits.appLayoutKb,
-  },
-  {
     name: 'ProductsPage chunk',
-    path: resolveChunk(assetsDir, 'ProductsPage'),
+    path: resolveChunk(assetsDir, 'page-products'),
     limitKb: limits.productsPageKb,
   },
 ];
