@@ -15,7 +15,6 @@ import {
   planAllowsFeature,
   PLAN_LIMITS,
   subscriptionEndDate,
-  subscriptionPlanTier,
   trialEndDate,
 } from '../../common/plans/plan-config';
 import { PrismaService } from '../../prisma/prisma.service';
