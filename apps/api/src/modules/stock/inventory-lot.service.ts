@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
  */
 @Injectable()
 export class InventoryLotService {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async consumeFifo(
     _tx: Prisma.TransactionClient,
     _shopId: string,

@@ -21,8 +21,7 @@ export class CompaniesService {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async create(user: RequestUser, dto: CreateCompanyDto) {
+  async create(user: RequestUser, _dto: CreateCompanyDto) {
     if (companyIdForUser(user)) {
       throw new BadRequestException(
         'Your organisation already exists. Update your company profile instead of creating another.',
