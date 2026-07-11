@@ -4,6 +4,7 @@ import request = require('supertest');
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
 import { authed, login, uniqueCode, unwrap } from '../helpers/e2e-http';
+import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
  * Phase 5 — Security: authentication boundaries and role-based API protection.
@@ -37,14 +38,18 @@ describe('Phase 5 — Security workflows (e2e)', () => {
 
     const session = await login(app);
     expect(session.accessToken).toBeTruthy();
-    expect(session.user.role).toBe('ADMIN');
+    // The seeded bootstrap user owns the workspace (OWNER role).
+    expect(session.user.role).toBe('OWNER');
   });
 
   it('denies company write for shop-scoped users (API authorization)', async () => {
     if (!E2E_DB_ENABLED) return;
     const prisma = app.get(PrismaService);
-    const shopRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.SHOP_USER } });
-    const shop = await prisma.shop.findFirstOrThrow();
+    // VIEWER is the limited system role provisioned by migrations (SHOP_USER
+    // exists only in the enum — no role row is ever seeded for it). The user
+    // must belong to a real tenant shop, so reuse the workflow fixture tenant.
+    const ctx = await seedWorkflowMasterData(app);
+    const shopRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.VIEWER } });
     const email = `e2e-shop-${uniqueCode('U').toLowerCase()}@e2e.local`;
 
     const bcrypt = await import('bcrypt');
@@ -52,9 +57,9 @@ describe('Phase 5 — Security workflows (e2e)', () => {
       data: {
         name: 'E2E Shop User',
         email,
-        passwordHash: await bcrypt.hash('TestPass@1234', 12),
+        passwordHash: await bcrypt.hash('TestPass@1234', 4),
         roleId: shopRole.id,
-        shopId: shop.id,
+        shopId: ctx.shopId,
         isActive: true,
       },
     });

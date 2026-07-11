@@ -1,35 +1,13 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import request = require('supertest');
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response-envelope.interceptor';
-import { Reflector } from '@nestjs/core';
+import { createE2eApp, E2E_DB_ENABLED } from './helpers/e2e-bootstrap';
 
 describe('Retail IMS (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    if (!process.env.DATABASE_URL) {
-      return;
-    }
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    );
-    app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(new ResponseEnvelopeInterceptor(app.get(Reflector)));
-    await app.init();
+    if (!E2E_DB_ENABLED) return;
+    app = await createE2eApp();
   });
 
   afterAll(async () => {

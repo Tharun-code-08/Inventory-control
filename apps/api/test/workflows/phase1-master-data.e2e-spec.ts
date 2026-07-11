@@ -20,29 +20,24 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
     if (app) await app.close();
   });
 
-  it('creates, edits, and soft-deletes a company', async () => {
+  it('rejects direct company creation (sign-up only) and edits the tenant company', async () => {
     if (!E2E_DB_ENABLED) return;
-    const { accessToken: token } = await login(app);
-    const api = authed(app, token);
+    const ctx = await seedWorkflowMasterData(app);
+    const api = authed(app, ctx.token);
     const code = uniqueCode('COMP');
 
+    // Companies are provisioned during sign-up; the create endpoint must refuse.
     const created = await api.post('/api/v1/companies').send({
       companyCode: code,
       companyName: 'Workflow Test Co',
     });
-    expect(created.status).toBe(201);
-    const company = unwrap<{ id: string; companyName: string }>(created.body);
+    expect(created.status).toBe(400);
 
-    const updated = await api.patch(`/api/v1/companies/${company.id}`).send({
+    const updated = await api.patch(`/api/v1/companies/${ctx.companyId}`).send({
       companyName: 'Workflow Test Co (Updated)',
     });
     expect(updated.status).toBe(200);
     expect(unwrap<{ companyName: string }>(updated.body).companyName).toContain('Updated');
-
-    const removed = await api.delete(`/api/v1/companies/${company.id}`);
-    expect(removed.status).toBe(200);
-    const inactive = unwrap<{ isActive: boolean }>(removed.body);
-    expect(inactive.isActive).toBe(false);
   });
 
   it('rejects invalid company payloads', async () => {

@@ -36,6 +36,10 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     expect(rfqRes.status).toBe(201);
     const rfq = unwrap<{ id: string; items: Array<{ id: string }> }>(rfqRes.body);
 
+    // RFQ must be sent (POSTED) before quotations can be accepted into POs.
+    const sentRes = await api.post(`/api/v1/rfqs/${rfq.id}/send`);
+    expect([200, 201]).toContain(sentRes.status);
+
     const quoteRes = await api.post('/api/v1/quotations').send({
       rfqId: rfq.id,
       supplierId: ctx.supplierId,

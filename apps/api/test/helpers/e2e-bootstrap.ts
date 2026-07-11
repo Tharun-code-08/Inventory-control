@@ -1,3 +1,4 @@
+import { HAS_EXPLICIT_DATABASE_URL, restoreExplicitEnv } from './e2e-env';
 import '../../src/load-env';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -7,9 +8,10 @@ import { AppModule } from '../../src/app.module';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/response-envelope.interceptor';
 
-export const E2E_DB_ENABLED = Boolean(process.env.DATABASE_URL);
+export const E2E_DB_ENABLED = HAS_EXPLICIT_DATABASE_URL;
 
 export async function createE2eApp(): Promise<INestApplication> {
+  restoreExplicitEnv();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
   app.use(cookieParser(process.env.COOKIE_SECRET ?? 'test-secret-key-for-e2e-only'));
