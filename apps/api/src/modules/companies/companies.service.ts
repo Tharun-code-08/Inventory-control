@@ -21,6 +21,7 @@ export class CompaniesService {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async create(user: RequestUser, dto: CreateCompanyDto) {
     if (companyIdForUser(user)) {
       throw new BadRequestException(
