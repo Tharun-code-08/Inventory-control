@@ -33,18 +33,12 @@ async function main() {
   const durationMs = Date.now() - startTime;
   const durationS = (durationMs / 1000).toFixed(2);
 
-  // Count unique shops in the checked data
-  const shopsChecked = new Set(
-    result.discrepancies.map((d) => d.shopId).concat(
-      Array.from({ length: result.checked }, (_, i) => `shop-${i}`).slice(0, 1),
-    ),
-  ).size;
-
   console.log('═════════════════════════════════════════════════════');
   console.log('RECONCILIATION REPORT');
   console.log('═════════════════════════════════════════════════════\n');
   console.log(`✓ Products checked:        ${result.checked.toLocaleString()}`);
-  console.log(`✓ Shops involved:          ${shopsChecked || 'N/A'}`);
+  console.log(`✓ Shops involved:          ${result.shopsChecked}`);
+  console.log(`✓ Ledger entries scanned:  ${result.ledgerEntriesScanned.toLocaleString()}`);
   console.log(`✓ Duration:                ${durationS}s\n`);
 
   if (result.discrepanciesCount === 0) {
@@ -116,8 +110,12 @@ async function verifyStockIntegrity(shopId?: string) {
     }
   }
 
+  const shopsInData = new Set(rows.map((r) => r.shopId)).size;
+
   return {
     checked: rows.length,
+    shopsChecked: shopsInData,
+    ledgerEntriesScanned: ledgerSums.length,
     discrepanciesCount: discrepancies.length,
     discrepancies,
   };

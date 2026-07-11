@@ -100,6 +100,32 @@ npm run verify:inventory
 
 ---
 
+## Section 2: CI/CD Pipeline Gates (Recommended)
+
+To reduce manual process and enforce consistency, add these gates to your CI/CD pipeline:
+
+```yaml
+# .github/workflows/release.yml (GitHub Actions example)
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm ci
+      - run: npm run build                 # Must succeed
+      - run: npm test                      # Must pass
+      - run: npx tsc --noEmit              # Must pass
+      - run: npx prisma validate           # Must succeed
+      - run: npm run verify:inventory      # Exit code 0 required
+      - name: Block if reconciliation fails
+        if: failure()
+        run: exit 1
+```
+
+This ensures every build is automatically validated before human review.
+
+---
+
 ## Section 2: Deployment to Production
 
 ### 2.1 Pre-Deployment Backup

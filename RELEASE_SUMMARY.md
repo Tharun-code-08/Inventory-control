@@ -1,6 +1,8 @@
 # Release Summary: Prisma Migration & Stock System Refactor
 
-**Status**: ✅ **READY FOR PRODUCTION DEPLOYMENT**
+**Status**: ✅ **READY FOR STAGING VALIDATION**
+
+> Once staging smoke tests and reconciliation pass successfully, promotion to production is approved.
 
 ---
 
@@ -41,7 +43,8 @@ This release modernizes the inventory control system's data layer:
 | Stock isolation        | **Low**    | 9.5/10     |
 | Ledger integrity       | **Low**    | 9.5/10     |
 | API compatibility      | **Low**    | 9/10       |
-| Overall deployment     | **LOW**    | **9.5/10** |
+| Overall (pre-staging)  | **LOW**    | **9/10**   |
+| Overall (post-staging) | **MINIMAL**| **9.5/10** |
 
 ---
 
@@ -258,9 +261,15 @@ This release **strengthens the core inventory system** by:
 3. Validating data consistency through automated reconciliation
 4. Providing measurable deployment gates instead of assumptions
 
-**Risk**: LOW  
-**Confidence**: 9.5/10  
-**Recommendation**: ✅ **DEPLOY**
+**Risk** (pre-staging): LOW  
+**Confidence** (pre-staging): 9/10  
+**Recommendation**: ✅ **PROCEED TO STAGING VALIDATION**
+
+Once staging smoke tests and reconciliation both return zero discrepancies:
+
+**Risk** (post-staging): MINIMAL  
+**Confidence** (post-staging): 9.5/10  
+**Recommendation**: ✅ **DEPLOY TO PRODUCTION**
 
 ---
 

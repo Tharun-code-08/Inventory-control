@@ -144,8 +144,13 @@ export class StockService {
       }
     }
 
+    // Count unique shops in the reconciliation dataset
+    const shopsInData = new Set(rows.map((r) => r.shopId)).size;
+
     return {
       checked: rows.length,
+      shopsChecked: shopsInData,
+      ledgerEntriesScanned: ledgerSums.length,
       discrepanciesCount: discrepancies.length,
       discrepancies,
     };
