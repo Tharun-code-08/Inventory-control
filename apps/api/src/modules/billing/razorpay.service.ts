@@ -14,7 +14,6 @@ type RazorpayClient = {
 
 type RazorpayCtor = new (config: { key_id: string; key_secret: string }) => RazorpayClient;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Razorpay = require('razorpay') as RazorpayCtor;
 
 @Injectable()
