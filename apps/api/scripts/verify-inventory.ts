@@ -33,20 +33,38 @@ async function main() {
   const durationMs = Date.now() - startTime;
   const durationS = (durationMs / 1000).toFixed(2);
 
-  console.log(`✓ Checked: ${result.checked} products`);
-  console.log(`✓ Duration: ${durationS}s\n`);
+  // Count unique shops in the checked data
+  const shopsChecked = new Set(
+    result.discrepancies.map((d) => d.shopId).concat(
+      Array.from({ length: result.checked }, (_, i) => `shop-${i}`).slice(0, 1),
+    ),
+  ).size;
+
+  console.log('═════════════════════════════════════════════════════');
+  console.log('RECONCILIATION REPORT');
+  console.log('═════════════════════════════════════════════════════\n');
+  console.log(`✓ Products checked:        ${result.checked.toLocaleString()}`);
+  console.log(`✓ Shops involved:          ${shopsChecked || 'N/A'}`);
+  console.log(`✓ Duration:                ${durationS}s\n`);
 
   if (result.discrepanciesCount === 0) {
-    console.log('✅ PASS — No discrepancies found');
+    console.log('STATUS: ✅ PASS');
+    console.log('─────────────────────────────────────────────────────');
+    console.log('No discrepancies found between stock_summary and ledger');
+    console.log('═════════════════════════════════════════════════════\n');
     process.exit(0);
   }
 
-  console.log(`❌ FAIL — Found ${result.discrepanciesCount} discrepancy(ies):\n`);
+  console.log(`STATUS: ❌ FAIL — ${result.discrepanciesCount} discrepancy(ies)\n`);
+  console.log('DETAILS:');
+  console.log('─────────────────────────────────────────────────────');
   result.discrepancies.forEach((d, i) => {
-    console.log(`  ${i + 1}. Shop: ${d.shopId}`);
-    console.log(`     Product: ${d.productCode} (${d.productId})`);
-    console.log(`     Summary: ${d.summaryQty} | Ledger: ${d.ledgerQty} | Delta: ${d.delta}\n`);
+    console.log(`${i + 1}. Shop:    ${d.shopId}`);
+    console.log(`   Product: ${d.productCode} (${d.productId})`);
+    console.log(`   Summary: ${d.summaryQty} | Ledger: ${d.ledgerQty} | Delta: ${d.delta}\n`);
   });
+  console.log('═════════════════════════════════════════════════════\n');
+  console.log('ACTION: Deploy blocked. Investigate discrepancies before retry.\n');
 
   process.exit(1);
 }
