@@ -6,6 +6,39 @@
 
 ---
 
+## Gate Decision Matrix
+
+Use this to determine action for each validation gate:
+
+| Gate                     | Result | Action                                                                                        |
+| ------------------------ | ------ | --------------------------------------------------------------------------------------------- |
+| CI                       | ❌ Fail | Fix the issue and rerun CI. Do not merge.                                                     |
+| Baseline reconciliation  | ❌ Fail | Investigate existing data inconsistency before deploying. Don't assume the release caused it. |
+| Smoke test               | ❌ Fail | Treat as a release blocker. Debug and repeat the scenario after the fix.                      |
+| Post-test reconciliation | ❌ Fail | Block promotion. Determine whether the discrepancy came from the new code or the test itself. |
+| All gates                | ✅ Pass | Approve production deployment.                                                                |
+
+**Important**: Make the production decision based on gate results, not confidence ratings.
+
+---
+
+## Recording Test Identifiers
+
+When you create test data during smoke tests, record these identifiers:
+
+```
+Shop IDs: _________________________
+Product IDs: _______________________
+PO Numbers: _________________________
+GR Numbers: _________________________
+SO Numbers: _________________________
+Test timestamps: _____________________
+```
+
+These make it much faster to investigate any discrepancies reported by reconciliation.
+
+---
+
 ## Step 1: Push Feature Branch to Origin
 
 ```bash
