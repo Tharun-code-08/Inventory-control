@@ -27,7 +27,8 @@ jobs:
       - name: Bundle budget
         run: npm run check:bundle-budget
       - name: Web smoke tests
-        run: npm run test --workspace=web -- --runInBand
+        # vitest — jest's --runInBand is not a valid flag here
+        run: npm run test --workspace=web
       - name: API unit tests with coverage gate
         run: npm run test:cov --workspace=api -- --runInBand
       - name: OpenAPI smoke validation

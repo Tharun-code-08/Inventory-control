@@ -97,8 +97,13 @@ export class MailService implements OnModuleInit {
     return this.env('SMTP_HOST');
   }
 
+  /** e2e/CI sink: MAIL_TRANSPORT=json accepts every message without network I/O. */
+  private useJsonTransport(): boolean {
+    return this.env('MAIL_TRANSPORT') === 'json';
+  }
+
   isConfigured(): boolean {
-    return Boolean(this.smtpHost());
+    return this.useJsonTransport() || Boolean(this.smtpHost());
   }
 
   private smtpUser(): string | undefined {
@@ -141,6 +146,15 @@ export class MailService implements OnModuleInit {
   }
 
   private async getTransporter(): Promise<Transporter> {
+    if (this.useJsonTransport()) {
+      if (!this.transporter || this.transporterKey !== 'json') {
+        this.transporter = nodemailer.createTransport({ jsonTransport: true });
+        this.transporterKey = 'json';
+        this.logger.log('SMTP sink active (MAIL_TRANSPORT=json): messages are accepted, not delivered');
+      }
+      return this.transporter;
+    }
+
     const host = this.smtpHost();
     if (!host) {
       throw new Error(

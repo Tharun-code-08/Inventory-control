@@ -43,6 +43,7 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       EXPORT_STORAGE_DIR: ./storage/exports
+      MAIL_TRANSPORT: json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -91,6 +92,7 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       EXPORT_STORAGE_DIR: ./storage/exports
+      MAIL_TRANSPORT: json
       CI: true
       PLAYWRIGHT_SKIP_WEBSERVER: '1'
     steps:

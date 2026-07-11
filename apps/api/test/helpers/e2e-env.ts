@@ -21,6 +21,7 @@ const SNAPSHOT_KEYS = [
   'SMTP_PORT',
   'SMTP_USER',
   'SMTP_PASS',
+  'MAIL_TRANSPORT',
   'RAZORPAY_KEY_ID',
   'RAZORPAY_KEY_SECRET',
 ] as const;
