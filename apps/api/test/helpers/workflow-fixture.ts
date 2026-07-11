@@ -1,4 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
+import { BillingCycle, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { PrismaService } from '../../src/prisma/prisma.service';
 import { authed, login, uniqueCode, unwrap, type AuthSession } from './e2e-http';
 
 export type WorkflowContext = {
@@ -6,79 +9,76 @@ export type WorkflowContext = {
   user: AuthSession['user'];
   companyId: string;
   shopId: string;
-  storageLocationId: string;
   productId: string;
   supplierId: string;
   customerId: string;
 };
 
-/** Tenant company from seed/sign-up (POST /companies is signup-only). */
-export async function resolveWorkflowCompanyId(
-  app: INestApplication,
-  token: string,
-): Promise<string> {
-  const list = unwrap<Array<{ id: string }>>(
-    (await authed(app, token).get('/api/v1/companies')).body,
-  );
-  if (list.length === 0) {
-    throw new Error(
-      'No tenant company found. Run prisma db seed so HQ-CO and HQ-001 are linked.',
-    );
-  }
-  return list[0].id;
-}
-
-/** Reuse the seeded HQ plant — trial plan allows only one warehouse per company. */
-export async function resolveWorkflowShopId(
-  app: INestApplication,
-  token: string,
-): Promise<string> {
-  const shops = unwrap<Array<{ id: string; shopNumber: string }>>(
-    (await authed(app, token).get('/api/v1/shops')).body,
-  );
-  if (shops.length === 0) {
-    throw new Error('No plant found. Run prisma db seed so HQ-001 exists.');
-  }
-  const hq = shops.find((s) => s.shopNumber === 'HQ-001');
-  return (hq ?? shops[0]).id;
-}
-
-/** Default MAIN bin from seed, or first location for the plant. */
-export async function resolveWorkflowStorageLocationId(
-  app: INestApplication,
-  token: string,
-  shopId: string,
-): Promise<string> {
-  const locations = unwrap<Array<{ id: string; code: string }>>(
-    (await authed(app, token).get('/api/v1/storage-locations').query({ shop_id: shopId })).body,
-  );
-  const main = locations.find((row) => row.code === 'MAIN');
-  if (main) return main.id;
-  if (locations.length > 0) return locations[0].id;
-
-  const created = unwrap<{ id: string }>(
-    (
-      await authed(app, token).post('/api/v1/storage-locations').send({
-        shopId,
-        code: 'MAIN',
-        name: 'Main storage',
-      })
-    ).body,
-  );
-  return created.id;
-}
+const WORKFLOW_OWNER_PASSWORD = 'E2eOwner@123';
 
 /**
  * Creates an isolated master-data slice for one workflow test run:
- * tenant company → HQ plant → product → supplier → customer.
+ * company → plant (shop) → owner user → product → supplier → customer.
+ *
+ * The tenant workspace (company/shop/owner) is created directly through
+ * Prisma, mirroring SignupService.createWorkspaceFromPending — companies
+ * are only created during sign-up, so POST /companies intentionally
+ * rejects. Business master data is then created through the real API.
  */
 export async function seedWorkflowMasterData(app: INestApplication): Promise<WorkflowContext> {
-  const { accessToken: token, user } = await login(app);
-  const api = authed(app, token);
+  const prisma = app.get(PrismaService);
   const suffix = uniqueCode('E2E');
-  const companyId = await resolveWorkflowCompanyId(app, token);
-  const shopId = await resolveWorkflowShopId(app, token);
-  const storageLocationId = await resolveWorkflowStorageLocationId(app, token, shopId);
+
+  const ownerRole = await prisma.role.findFirst({ where: { name: RoleName.OWNER } });
+  if (!ownerRole) {
+    throw new Error('OWNER role missing — run migrations/seed before e2e tests.');
+  }
+
+  const ownerEmail = `owner-${suffix.toLowerCase()}@e2e.local`;
+  const passwordHash = await bcrypt.hash(WORKFLOW_OWNER_PASSWORD, 4);
+
+  const { company, shop } = await prisma.$transaction(async (tx) => {
+    // PLUS plan: workflow suites exercise gated features (RFQ, PO, sales,
+    // invoices), all of which are blocked on TRIAL by planAllowsFeature().
+    const company = await tx.company.create({
+      data: {
+        companyCode: `CO-${suffix}`,
+        companyName: `E2E Company ${suffix}`,
+        address: '1 Test Lane',
+        isActive: true,
+        subscriptionPlan: SubscriptionPlan.PLUS,
+        subscriptionStatus: SubscriptionStatus.ACTIVE,
+        billingCycle: BillingCycle.YEARLY,
+        subscriptionEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+    const shop = await tx.shop.create({
+      data: {
+        shopNumber: `PL-${suffix}`.slice(0, 20),
+        shopName: `E2E Plant ${suffix}`,
+        address: '2 Warehouse Road',
+        contactPerson: 'Ops Lead',
+        mobile: '+94771234567',
+        email: `plant-${suffix.toLowerCase()}@e2e.local`,
+        companyId: company.id,
+        isActive: true,
+      },
+    });
+    await tx.user.create({
+      data: {
+        name: `E2E Owner ${suffix}`,
+        email: ownerEmail,
+        passwordHash,
+        roleId: ownerRole.id,
+        shopId: shop.id,
+        isActive: true,
+      },
+    });
+    return { company, shop };
+  });
+
+  const { accessToken: token, user } = await login(app, ownerEmail, WORKFLOW_OWNER_PASSWORD);
+  const api = authed(app, token);
 
   const productRes = await api.post('/api/v1/products').send({
     productCode: `SKU-${suffix}`.slice(0, 40),
@@ -87,7 +87,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     category: 'e2e',
     purchasePrice: 10,
     sellingPrice: 19.99,
-    plants: [{ shopId, openingStock: 0, minStockLevel: 5 }],
+    plants: [{ shopId: shop.id, openingStock: 0, minStockLevel: 5 }],
   });
   expect(productRes.status).toBe(201);
   const product = unwrap<{ id: string }>(productRes.body);
@@ -97,7 +97,6 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     supplierName: `E2E Supplier ${suffix}`,
     email: `supplier-${suffix.toLowerCase()}@e2e.local`,
     phone: '+94771234568',
-    companyId,
   });
   expect(supplierRes.status).toBe(201);
   const supplier = unwrap<{ id: string }>(supplierRes.body);
@@ -107,7 +106,7 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     customerName: `E2E Customer ${suffix}`,
     email: `customer-${suffix.toLowerCase()}@e2e.local`,
     phone: '+94771234569',
-    shopId,
+    shopId: shop.id,
   });
   expect(customerRes.status).toBe(201);
   const customer = unwrap<{ id: string }>(customerRes.body);
@@ -115,9 +114,8 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
   return {
     token,
     user,
-    companyId,
-    shopId,
-    storageLocationId,
+    companyId: company.id,
+    shopId: shop.id,
     productId: product.id,
     supplierId: supplier.id,
     customerId: customer.id,

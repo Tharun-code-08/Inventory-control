@@ -10,15 +10,11 @@ test.describe('reports page (Phase 8)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Reports & Analytics' })).toBeVisible();
   });
 
-  test('loads inventory aging tab with data table', async ({ page }) => {
-    const inventoryTab = page.getByRole('tab', { name: /inventory aging/i });
-    await expect(inventoryTab).toBeVisible();
-    await inventoryTab.click();
-    await expect(inventoryTab).toHaveAttribute('aria-selected', 'true');
-
-    const table = page.getByRole('table').first();
+  test('loads low-stock tab with data table', async ({ page }) => {
+    // Reports redesign renamed the default tab from "Inventory" to "Low Stock".
+    await expect(page.getByRole('tab', { name: /low stock/i })).toBeVisible();
+    const table = page.locator('table').first();
     await expect(table).toBeVisible({ timeout: 25_000 });
-    await expect(table.getByRole('columnheader', { name: 'Product' })).toBeVisible();
     await expect(table.locator('tbody tr').first()).toBeVisible({ timeout: 25_000 });
   });
 

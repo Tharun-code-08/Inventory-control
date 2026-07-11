@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
+import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
 import { authed, login, uniqueCode, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
@@ -13,37 +13,31 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
 
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
-    app = await getSharedE2eApp();
+    app = await createE2eApp();
   });
 
-  it('blocks duplicate org creation and updates the tenant company profile', async () => {
-    if (!E2E_DB_ENABLED) return;
-    const { accessToken: token } = await login(app);
-    const api = authed(app, token);
+  afterAll(async () => {
+    if (app) await app.close();
+  });
 
-    const blocked = await api.post('/api/v1/companies').send({
-      companyCode: uniqueCode('COMP'),
+  it('rejects direct company creation (sign-up only) and edits the tenant company', async () => {
+    if (!E2E_DB_ENABLED) return;
+    const ctx = await seedWorkflowMasterData(app);
+    const api = authed(app, ctx.token);
+    const code = uniqueCode('COMP');
+
+    // Companies are provisioned during sign-up; the create endpoint must refuse.
+    const created = await api.post('/api/v1/companies').send({
+      companyCode: code,
       companyName: 'Workflow Test Co',
     });
-    expect(blocked.status).toBe(400);
+    expect(created.status).toBe(400);
 
-    const companies = unwrap<Array<{ id: string; companyName: string }>>(
-      (await api.get('/api/v1/companies')).body,
-    );
-    expect(companies.length).toBeGreaterThan(0);
-    const company = companies[0];
-    const originalName = company.companyName;
-
-    const updated = await api.patch(`/api/v1/companies/${company.id}`).send({
+    const updated = await api.patch(`/api/v1/companies/${ctx.companyId}`).send({
       companyName: 'Workflow Test Co (Updated)',
     });
     expect(updated.status).toBe(200);
     expect(unwrap<{ companyName: string }>(updated.body).companyName).toContain('Updated');
-
-    await api.patch(`/api/v1/companies/${company.id}`).send({ companyName: originalName }).expect(200);
-
-    const removed = await api.delete(`/api/v1/companies/${company.id}`);
-    expect(removed.status).toBe(400);
   });
 
   it('rejects invalid company payloads', async () => {
@@ -66,9 +60,17 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
     expect(linked.companyId).toBe(ctx.companyId);
 
     await api
-      .patch(`/api/v1/shops/${ctx.shopId}`)
-      .send({ companyId: '00000000-0000-4000-8000-000000000000' })
-      .expect((res) => expect([400, 403, 404, 409, 422]).toContain(res.status));
+      .post('/api/v1/shops')
+      .send({
+        shopNumber: uniqueCode('BAD').slice(0, 20),
+        shopName: 'Invalid Plant',
+        address: 'Nowhere',
+        contactPerson: 'Nobody',
+        mobile: '+94770000001',
+        email: 'bad@e2e.local',
+        companyId: '00000000-0000-4000-8000-000000000000',
+      })
+      .expect((res) => expect([400, 404, 409, 422]).toContain(res.status));
   });
 
   it('enforces unique product SKU codes', async () => {

@@ -43,6 +43,7 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       EXPORT_STORAGE_DIR: ./storage/exports
+      MAIL_TRANSPORT: json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,12 +52,8 @@ jobs:
           cache: npm
       - run: npm install
       - run: npm run prisma:generate --workspace=api
-      # CI uses an ephemeral DB: push the current schema directly instead of
-      # replaying the (production-baselined, non-linear) migration history.
-      - run: npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate --accept-data-loss
-      # db push omits hand-written PL/pgSQL triggers; reapply the stock-ledger ones.
-      - run: npx prisma db execute --schema apps/api/prisma/schema.prisma --file apps/api/prisma/ci-runtime-objects.sql
-      - run: npm run db:seed --workspace=api
+      - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+      - run: npx prisma db seed --schema apps/api/prisma/schema.prisma
       - run: npm run test:e2e:workflows --workspace=api -- --runInBand
 
   playwright-mobile:
@@ -95,6 +92,7 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       EXPORT_STORAGE_DIR: ./storage/exports
+      MAIL_TRANSPORT: json
       CI: true
       PLAYWRIGHT_SKIP_WEBSERVER: '1'
     steps:
@@ -106,9 +104,8 @@ jobs:
       - run: npm install
       - run: npm run prisma:generate --workspace=api
       - run: |
-          npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate --accept-data-loss
-          npx prisma db execute --schema apps/api/prisma/schema.prisma --file apps/api/prisma/ci-runtime-objects.sql
-          npm run db:seed --workspace=api
+          npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+          npx prisma db seed --schema apps/api/prisma/schema.prisma
       - run: npm run build
       - run: npx playwright install chromium --with-deps
         working-directory: apps/web

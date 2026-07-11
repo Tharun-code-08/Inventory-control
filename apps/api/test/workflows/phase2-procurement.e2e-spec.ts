@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
-import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
-import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
+import { createE2eApp, E2E_DB_ENABLED } from '../helpers/e2e-bootstrap';
+import { authed, tomorrowDateString, todayDateString, unwrap } from '../helpers/e2e-http';
 import { seedWorkflowMasterData } from '../helpers/workflow-fixture';
 
 /**
@@ -13,7 +13,11 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
 
   beforeAll(async () => {
     if (!E2E_DB_ENABLED) return;
-    app = await getSharedE2eApp();
+    app = await createE2eApp();
+  });
+
+  afterAll(async () => {
+    if (app) await app.close();
   });
 
   it('runs RFQ → quotation → accept-auto-link (contract + confirmed PO + GR draft)', async () => {
@@ -32,6 +36,10 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     expect(rfqRes.status).toBe(201);
     const rfq = unwrap<{ id: string; items: Array<{ id: string }> }>(rfqRes.body);
 
+    // RFQ must be sent (POSTED) before quotations can be accepted into POs.
+    const sentRes = await api.post(`/api/v1/rfqs/${rfq.id}/send`);
+    expect([200, 201]).toContain(sentRes.status);
+
     const quoteRes = await api.post('/api/v1/quotations').send({
       rfqId: rfq.id,
       supplierId: ctx.supplierId,
@@ -47,9 +55,6 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     });
     expect(quoteRes.status).toBe(201);
     const quoteId = unwrap<{ id: string }>(quoteRes.body).id;
-
-    const sent = await api.post(`/api/v1/rfqs/${rfq.id}/send`);
-    expect([200, 201]).toContain(sent.status);
 
     await api
       .post('/api/v1/quotations')
@@ -77,9 +82,10 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     const ctx = await seedWorkflowMasterData(app);
     const api = authed(app, ctx.token);
     const today = todayDateString();
+    const poDate = tomorrowDateString();
 
     const poRes = await api.post('/api/v1/purchase-orders').send({
-      poDate: today,
+      poDate,
       shopId: ctx.shopId,
       supplier: 'E2E Supplier',
       items: [{ productId: ctx.productId, orderQty: 10, rate: 5 }],
@@ -95,14 +101,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [
-        grLineItem({
-          productId: ctx.productId,
-          storageLocationId: ctx.storageLocationId,
-          quantity: 4,
-          purchaseRate: 5,
-        }),
-      ],
+      items: [{ productId: ctx.productId, quantity: 4, uom: 'PCS', purchaseRate: 5 }],
     });
     expect(gr1Res.status).toBe(201);
     const gr1 = unwrap<{ id: string }>(gr1Res.body);
@@ -116,14 +115,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [
-        grLineItem({
-          productId: ctx.productId,
-          storageLocationId: ctx.storageLocationId,
-          quantity: 6,
-          purchaseRate: 5,
-        }),
-      ],
+      items: [{ productId: ctx.productId, quantity: 6, uom: 'PCS', purchaseRate: 5 }],
     });
     expect(gr2Res.status).toBe(201);
     const gr2 = unwrap<{ id: string }>(gr2Res.body);
@@ -144,14 +136,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
         shopId: ctx.shopId,
         purchaseOrderId: po.id,
         supplierName: 'E2E Supplier',
-        items: [
-          grLineItem({
-            productId: ctx.productId,
-            storageLocationId: ctx.storageLocationId,
-            quantity: 1,
-            purchaseRate: 5,
-          }),
-        ],
+        items: [{ productId: ctx.productId, quantity: 1, uom: 'PCS', purchaseRate: 5 }],
       })
       .expect((res) => expect([400, 422]).toContain(res.status));
   });

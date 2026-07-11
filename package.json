@@ -1,23 +1,26 @@
 {
   "name": "retail-ims",
   "private": true,
-  "main": "scripts/expo-root-guard.js",
   "packageManager": "pnpm@9.15.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "devDependencies": {
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.1.2",
     "openapi-typescript": "^7.13.0"
   },
   "scripts": {
     "setup:credentials": "node scripts/setup-credentials.cjs",
     "setup:new-machine": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1",
+    "postinstall": "node apps/mobile/scripts/link-hoisted-deps.cjs",
     "docker:deps": "docker compose -f docker/docker-compose.yml up -d postgres redis",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "node scripts/run-api-dev.cjs",
     "dev:web": "npm run dev --workspace=web",
+    "dev:mobile": "npm run start --workspace=mobile",
+    "dev:mobile:clear": "npm run start:clear --workspace=mobile",
+    "mobile:link-deps": "node apps/mobile/scripts/link-hoisted-deps.cjs",
     "build": "npm run build --workspace=@retail-ims/shared-types && npm run build --workspace=api && npm run build --workspace=web",
     "test": "npm run test --workspace=api && npm run test --workspace=web",
     "db:purge-test-data": "npm run db:purge-test-data --workspace=api",
@@ -28,14 +31,7 @@
     "check:bundle-budget": "node scripts/check-web-bundle-budget.mjs",
     "check:api-slo": "node scripts/check-api-slo.mjs"
   },
-  "dependencies": {
-    "@nestjs/bullmq": "^11.0.4",
-    "@nestjs/throttler": "^6.5.0",
-    "bullmq": "^5.78.1",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.15.1",
-    "helmet": "^8.2.0",
-    "joi": "^18.2.1",
-    "otplib": "^13.4.1"
+  "prisma": {
+    "seed": "ts-node --transpile-only apps/api/prisma/seed.ts"
   }
 }

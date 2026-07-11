@@ -1,11 +1,6 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Test } from '@nestjs/testing';
-import cookieParser = require('cookie-parser');
+import { INestApplication } from '@nestjs/common';
 import request = require('supertest');
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response-envelope.interceptor';
+import { createE2eApp, E2E_DB_ENABLED } from './helpers/e2e-bootstrap';
 
 /**
  * Login → refresh → logout including the double-submit CSRF check.
@@ -14,25 +9,11 @@ import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response
  */
 describe('Auth + CSRF (e2e)', () => {
   let app: INestApplication;
-  const enabled = Boolean(process.env.DATABASE_URL);
+  const enabled = E2E_DB_ENABLED;
 
   beforeAll(async () => {
     if (!enabled) return;
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.use(cookieParser());
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    );
-    app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(new ResponseEnvelopeInterceptor(app.get(Reflector)));
-    await app.init();
+    app = await createE2eApp();
   });
 
   afterAll(async () => {
