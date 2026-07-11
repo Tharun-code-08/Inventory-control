@@ -4,655 +4,1135 @@
 
 -- ========== TYPES/ENUMS (Safe: no duplicates) ==========
 
-CREATE TYPE public."AgentTaskStatus" AS ENUM (
-    'DRAFT',
-    'WAITING_APPROVAL',
-    'RUNNING',
-    'COMPLETED',
-    'FAILED',
-    'CANCELLED'
-);
-
-CREATE TYPE public."AgentTaskStepStatus" AS ENUM (
-    'PENDING',
-    'RUNNING',
-    'COMPLETED',
-    'FAILED',
-    'SKIPPED'
-);
-
-CREATE TYPE public."AiModelRole" AS ENUM (
-    'INTENT',
-    'REASONING',
-    'ESCALATION'
-);
-
-CREATE TYPE public."AlertType" AS ENUM (
-    'LOW_STOCK',
-    'STOCK_EXPIRING',
-    'STOCK_EXPIRED',
-    'CONTRACT_EXPIRY',
-    'RFQ_DEADLINE',
-    'PO_OVERDUE',
-    'GOODS_RECEIPT_CREATED',
-    'GOODS_RECEIPT_APPROVED',
-    'GOODS_RECEIPT_REJECTED',
-    'PURCHASE_ORDER_CREATED',
-    'PURCHASE_ORDER_APPROVED',
-    'PURCHASE_ORDER_REJECTED',
-    'RFQ_CREATED',
-    'RFQ_RESPONSE_RECEIVED',
-    'RFQ_APPROVED',
-    'RFQ_REJECTED',
-    'SALES_QUOTATION_CREATED',
-    'SALES_QUOTATION_APPROVED',
-    'SALES_QUOTATION_REJECTED',
-    'WAREHOUSE_TRANSFER_COMPLETED',
-    'CRITICAL_STOCK',
-    'NEGATIVE_STOCK_PREVENTION',
-    'INVENTORY_ADJUSTMENT_COMPLETED',
-    'WAREHOUSE_CAPACITY_ALERT',
-    'NEW_DEVICE_LOGIN',
-    'PASSWORD_CHANGED',
-    'SESSION_REVOKED',
-    'BIOMETRIC_LOGIN_ENABLED',
-    'LOGIN_ATTEMPT_LOCKOUT',
-    'SYSTEM_MAINTENANCE',
-    'VERSION_UPDATE',
-    'COMPANY_ANNOUNCEMENT',
-    'FEATURE_RELEASE'
-);
-
-CREATE TYPE public."ApprovalStatus" AS ENUM (
-    'PENDING',
-    'APPROVED',
-    'REJECTED'
-);
-
-CREATE TYPE public."ApprovalType" AS ENUM (
-    'GOODS_RECEIPT',
-    'PURCHASE_ORDER',
-    'RFQ',
-    'SALES_QUOTATION',
-    'WAREHOUSE_TRANSFER',
-    'INVENTORY_ADJUSTMENT'
-);
-
-CREATE TYPE public."AuditAction" AS ENUM (
-    'CREATE',
-    'UPDATE',
-    'DELETE',
-    'POST',
-    'EXPORT',
-    'EMAIL',
-    'DASHBOARD_EXIT',
-    'ATTENTION_ITEM_RESOLVED',
-    'STOCK_ADJUSTMENT',
-    'APPROVE',
-    'APPROVE_PO',
-    'BULK_UPDATE',
-    'CANCEL_PO',
-    'CONFIRM_PO',
-    'CREATE_GR',
-    'CREATE_ISSUE',
-    'CREATE_PO',
-    'CREATE_PRODUCT',
-    'CREATE_USER',
-    'DASHBOARD_ACTION_TAKEN',
-    'DASHBOARD_CARD_CLICKED',
-    'DELETE_DATA',
-    'DELETE_PRODUCT',
-    'DELETE_USER',
-    'ESCALATE',
-    'EXPORT_AUDIT',
-    'EXPORT_REPORT',
-    'LOGIN',
-    'LOGIN_FAILED',
-    'LOGOUT',
-    'MFA_DISABLED',
-    'MFA_ENABLED',
-    'PASSWORD_CHANGED',
-    'RECEIVE_GOODS',
-    'REJECT',
-    'REJECT_PO',
-    'REVOKE_SESSION',
-    'TRANSFER_STOCK',
-    'UPDATE_GR',
-    'UPDATE_PO',
-    'UPDATE_PRODUCT',
-    'UPDATE_ROLE',
-    'UPDATE_USER',
-    'VIEW_DASHBOARD',
-    'LINK_TOKEN_GENERATED',
-    'LINK_TOKEN_USED',
-    'DEVICE_LINKED',
-    'DEVICE_REVOKED',
-    'DEVICE_REJECTED'
-);
-
-CREATE TYPE public."AuditSeverity" AS ENUM (
-    'LOW',
-    'MEDIUM',
-    'HIGH',
-    'CRITICAL'
-);
-
-CREATE TYPE public."AuthChallengePurpose" AS ENUM (
-    'SIGNUP_MFA_ENROLL',
-    'LOGIN_MFA_VERIFY'
-);
-
-CREATE TYPE public."BackupJobStatus" AS ENUM (
-    'PENDING',
-    'RUNNING',
-    'COMPLETED',
-    'FAILED'
-);
-
-CREATE TYPE public."BackupProvider" AS ENUM (
-    'MANUAL',
-    'GOOGLE_DRIVE',
-    'EMAIL'
-);
-
-CREATE TYPE public."BarcodeType" AS ENUM (
-    'EAN13',
-    'UPC_A',
-    'CODE128',
-    'CODE39',
-    'QR',
-    'INTERNAL'
-);
-
-CREATE TYPE public."BillingCycle" AS ENUM (
-    'MONTHLY',
-    'YEARLY'
-);
-
-CREATE TYPE public."BrandingMode" AS ENUM (
-    'LIVE',
-    'SNAPSHOT'
-);
-
-CREATE TYPE public."ChannelAccountStatus" AS ENUM (
-    'ACTIVE',
-    'DISABLED'
-);
-
-CREATE TYPE public."ChannelLinkStatus" AS ENUM (
-    'PENDING',
-    'ACTIVE',
-    'REVOKED'
-);
-
-CREATE TYPE public."ChatChannel" AS ENUM (
-    'WHATSAPP'
-);
-
-CREATE TYPE public."ChatMessageStatus" AS ENUM (
-    'RECEIVED',
-    'QUEUED',
-    'SENT',
-    'DELIVERED',
-    'READ',
-    'FAILED'
-);
-
-CREATE TYPE public."ConversationStatus" AS ENUM (
-    'ACTIVE',
-    'AWAITING_CONFIRMATION',
-    'AWAITING_APPROVAL',
-    'HANDOFF',
-    'CLOSED'
-);
-
-CREATE TYPE public."CostingMethod" AS ENUM (
-    'AVERAGE',
-    'FIFO'
-);
-
-CREATE TYPE public."CreditNoteStatus" AS ENUM (
-    'DRAFT',
-    'ISSUED',
-    'APPLIED',
-    'VOID'
-);
-
-CREATE TYPE public."DeliveryChannel" AS ENUM (
-    'IN_APP',
-    'WHATSAPP',
-    'EMAIL'
-);
-
-CREATE TYPE public."DeliveryState" AS ENUM (
-    'CREATED',
-    'QUEUED',
-    'DISPATCHING',
-    'SENT',
-    'DELIVERED',
-    'READ',
-    'ACKNOWLEDGED',
-    'FAILED'
-);
-
-CREATE TYPE public."DevicePlatform" AS ENUM (
-    'ANDROID',
-    'IOS',
-    'WEB'
-);
-
-CREATE TYPE public."DocumentEmailStatus" AS ENUM (
-    'PENDING_PDF',
-    'PENDING_SEND',
-    'SENT',
-    'DELIVERED',
-    'FAILED'
-);
-
-CREATE TYPE public."DocumentEmailTrigger" AS ENUM (
-    'AUTO',
-    'MANUAL',
-    'RESEND'
-);
-
-CREATE TYPE public."DocumentSeriesRestart" AS ENUM (
-    'NONE',
-    'MONTHLY',
-    'YEARLY'
-);
-
-CREATE TYPE public."DocumentStatus" AS ENUM (
-    'DRAFT',
-    'POSTED',
-    'DISPATCHED'
-);
-
-CREATE TYPE public."EmailSenderStatus" AS ENUM (
-    'PENDING',
-    'VERIFIED',
-    'FAILED'
-);
-
-CREATE TYPE public."EmailSenderType" AS ENUM (
-    'CUSTOM_DOMAIN',
-    'PUBLIC_DOMAIN'
-);
-
-CREATE TYPE public."EventClassification" AS ENUM (
-    'AUTHENTICATION',
-    'SECURITY',
-    'FINANCIAL',
-    'COMPLIANCE',
-    'OPERATIONAL',
-    'SYSTEM',
-    'AI',
-    'MARKETING'
-);
-
-CREATE TYPE public."EwayBillStatus" AS ENUM (
-    'DRAFT',
-    'GENERATED',
-    'CANCELLED',
-    'EXPIRED'
-);
-
-CREATE TYPE public."EwayDocumentType" AS ENUM (
-    'TAX_INVOICE',
-    'BILL_OF_SUPPLY',
-    'DELIVERY_CHALLAN',
-    'CREDIT_NOTE',
-    'BILL_OF_ENTRY',
-    'OTHERS'
-);
-
-CREATE TYPE public."EwaySubType" AS ENUM (
-    'SUPPLY',
-    'EXPORT',
-    'IMPORT',
-    'JOB_WORK',
-    'SKD_CKD',
-    'RECIPIENT_NOT_KNOWN',
-    'LINE_SALES',
-    'SALES_RETURN',
-    'EXHIBITION',
-    'OTHERS'
-);
-
-CREATE TYPE public."EwaySupplyType" AS ENUM (
-    'OUTWARD',
-    'INWARD'
-);
-
-CREATE TYPE public."EwayTransactionType" AS ENUM (
-    'REGULAR',
-    'BILL_TO_SHIP_TO',
-    'BILL_FROM_DISPATCH_FROM',
-    'COMBINATION'
-);
-
-CREATE TYPE public."EwayTransportMode" AS ENUM (
-    'ROAD',
-    'RAIL',
-    'AIR',
-    'SHIP'
-);
-
-CREATE TYPE public."EwayVehicleType" AS ENUM (
-    'REGULAR',
-    'ODC'
-);
-
-CREATE TYPE public."ExpiryTracking" AS ENUM (
-    'NONE',
-    'OPTIONAL',
-    'MANDATORY'
-);
-
-CREATE TYPE public."FulfillmentStatus" AS ENUM (
-    'NONE',
-    'PARTIAL',
-    'FULL'
-);
-
-CREATE TYPE public."GstSupplyType" AS ENUM (
-    'INTRA_STATE',
-    'INTER_STATE'
-);
-
-CREATE TYPE public."InventoryLotStatus" AS ENUM (
-    'ACTIVE',
-    'BLOCKED',
-    'CONSUMED',
-    'SCRAPPED'
-);
-
-CREATE TYPE public."InvoiceStatus" AS ENUM (
-    'DRAFT',
-    'ISSUED',
-    'PARTIALLY_PAID',
-    'PAID',
-    'VOID'
-);
-
-CREATE TYPE public."InwardShift" AS ENUM (
-    'DAY_SHIFT',
-    'NIGHT_SHIFT'
-);
-
-CREATE TYPE public."LifecycleCampaignStatus" AS ENUM (
-    'SCHEDULED',
-    'SENT',
-    'SKIPPED',
-    'FAILED'
-);
-
-CREATE TYPE public."LifecycleStage" AS ENUM (
-    'NEW',
-    'ACTIVE',
-    'ENGAGED',
-    'AT_RISK',
-    'RENEWAL_DUE',
-    'EXPIRED',
-    'TRIAL',
-    'TRIAL_EXPIRED'
-);
-
-CREATE TYPE public."LifecycleStatus" AS ENUM (
-    'ACTIVE',
-    'INACTIVE',
-    'OBSOLETE',
-    'REPLACED'
-);
-
-CREATE TYPE public."LinkTokenStatus" AS ENUM (
-    'ACTIVE',
-    'USED',
-    'EXPIRED'
-);
-
-CREATE TYPE public."MediaAssetType" AS ENUM (
-    'LOGO',
-    'STAMP',
-    'SIGNATURE',
-    'LETTERHEAD',
-    'WATERMARK'
-);
-
-CREATE TYPE public."MessageDirection" AS ENUM (
-    'IN',
-    'OUT'
-);
-
-CREATE TYPE public."MfaMethod" AS ENUM (
-    'TOTP'
-);
-
-CREATE TYPE public."NotificationModule" AS ENUM (
-    'GOODS_RECEIPT',
-    'PURCHASE_ORDER',
-    'RFQ',
-    'SALES_QUOTATION',
-    'WAREHOUSE_TRANSFER',
-    'INVENTORY',
-    'SECURITY',
-    'SYSTEM',
-    'APPROVAL'
-);
-
-CREATE TYPE public."NotificationPriority" AS ENUM (
-    'CRITICAL',
-    'HIGH',
-    'NORMAL',
-    'LOW'
-);
-
-CREATE TYPE public."NotificationStatus" AS ENUM (
-    'UNREAD',
-    'READ',
-    'DELETED'
-);
-
-CREATE TYPE public."OutboxStatus" AS ENUM (
-    'CREATED',
-    'VALIDATED',
-    'PENDING',
-    'PUBLISHED',
-    'ACKNOWLEDGED',
-    'FAILED',
-    'DEAD',
-    'REPLAYED'
-);
-
-CREATE TYPE public."PasswordResetMethod" AS ENUM (
-    'OTP',
-    'MAGIC_LINK'
-);
-
-CREATE TYPE public."PlatformNotificationCategory" AS ENUM (
-    'REVENUE',
-    'HEALTH',
-    'SYSTEM'
-);
-
-CREATE TYPE public."PlatformNotificationSeverity" AS ENUM (
-    'CRITICAL',
-    'HIGH',
-    'WARNING',
-    'INFO'
-);
-
-CREATE TYPE public."PurchaseOrderStatus" AS ENUM (
-    'DRAFT',
-    'CONFIRMED',
-    'CANCELLED'
-);
-
-CREATE TYPE public."ReceiptSource" AS ENUM (
-    'PURCHASE_ORDER',
-    'OUTSIDE'
-);
-
-CREATE TYPE public."ReceiptType" AS ENUM (
-    'FULL',
-    'PARTIAL'
-);
-
-CREATE TYPE public."RestoreJobStatus" AS ENUM (
-    'PENDING',
-    'DRY_RUN_COMPLETED',
-    'RUNNING',
-    'COMPLETED',
-    'FAILED'
-);
-
-CREATE TYPE public."RestoreMode" AS ENUM (
-    'TENANT_REPLACE',
-    'FULL_DB'
-);
-
-CREATE TYPE public."ReturnStatus" AS ENUM (
-    'DRAFT',
-    'POSTED',
-    'CANCELLED',
-    'SUBMITTED',
-    'ACKNOWLEDGED',
-    'DONE'
-);
-
-CREATE TYPE public."RoleName" AS ENUM (
-    'ADMIN',
-    'SHOP_USER',
-    'INVENTORY_MANAGER',
-    'OWNER',
-    'WAREHOUSE_STAFF',
-    'VIEWER',
-    'VENDOR',
-    'PURCHASE_MANAGER',
-    'SALES',
-    'EMPLOYEE'
-);
-
-CREATE TYPE public."SalesOrderStatus" AS ENUM (
-    'DRAFT',
-    'CONFIRMED',
-    'FULFILLED',
-    'CLOSED',
-    'CANCELLED'
-);
-
-CREATE TYPE public."SalesQuotationStatus" AS ENUM (
-    'DRAFT',
-    'SENT',
-    'ACCEPTED',
-    'USER_REQUESTED',
-    'CANCELLED',
-    'CONVERTED'
-);
-
-CREATE TYPE public."ScanAction" AS ENUM (
-    'LOOKUP',
-    'GOODS_RECEIPT',
-    'GOODS_ISSUE',
-    'STOCK_COUNT',
-    'SALES_ORDER',
-    'PURCHASE_ORDER',
-    'STOCK_TRANSFER'
-);
-
-CREATE TYPE public."ScanResult" AS ENUM (
-    'FOUND',
-    'NOT_FOUND',
-    'INVALID'
-);
-
-CREATE TYPE public."ScanSource" AS ENUM (
-    'WEB',
-    'MOBILE',
-    'USB_SCANNER',
-    'CAMERA',
-    'API'
-);
-
-CREATE TYPE public."StockCountStatus" AS ENUM (
-    'OPEN',
-    'REVIEW',
-    'APPROVED',
-    'CANCELLED'
-);
-
-CREATE TYPE public."StockTransferCreatedVia" AS ENUM (
-    'MANUAL',
-    'DRAG_DROP',
-    'BULK',
-    'API'
-);
-
-CREATE TYPE public."SubscriptionPlan" AS ENUM (
-    'TRIAL',
-    'PRO',
-    'PLUS'
-);
-
-CREATE TYPE public."SubscriptionStatus" AS ENUM (
-    'ACTIVE',
-    'EXPIRED',
-    'CANCELLED',
-    'SUSPENDED'
-);
-
-CREATE TYPE public."SupplierBillStatus" AS ENUM (
-    'DRAFT',
-    'ISSUED',
-    'PARTIALLY_PAID',
-    'PAID',
-    'VOID'
-);
-
-CREATE TYPE public."SupplierReturnReasonCode" AS ENUM (
-    'DAMAGED',
-    'WRONG_ITEM',
-    'EXPIRED',
-    'EXCESS'
-);
-
-CREATE TYPE public."TaxPreference" AS ENUM (
-    'TAXABLE',
-    'NON_TAXABLE'
-);
-
-CREATE TYPE public."TransactionType" AS ENUM (
-    'OPENING',
-    'GOODS_RECEIPT',
-    'GOODS_ISSUE',
-    'DAMAGE',
-    'ADJUSTMENT',
-    'STOCK_TRANSFER_OUT',
-    'STOCK_TRANSFER_IN'
-);
-
-CREATE TYPE public."WhatsAppDeviceStatus" AS ENUM (
-    'ACTIVE',
-    'REVOKED',
-    'ARCHIVED'
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AgentTaskStatus') THEN
+    CREATE TYPE public."AgentTaskStatus" AS ENUM (
+        'DRAFT',
+        'WAITING_APPROVAL',
+        'RUNNING',
+        'COMPLETED',
+        'FAILED',
+        'CANCELLED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AgentTaskStepStatus') THEN
+    CREATE TYPE public."AgentTaskStepStatus" AS ENUM (
+        'PENDING',
+        'RUNNING',
+        'COMPLETED',
+        'FAILED',
+        'SKIPPED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AiModelRole') THEN
+    CREATE TYPE public."AiModelRole" AS ENUM (
+        'INTENT',
+        'REASONING',
+        'ESCALATION'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AlertType') THEN
+    CREATE TYPE public."AlertType" AS ENUM (
+        'LOW_STOCK',
+        'STOCK_EXPIRING',
+        'STOCK_EXPIRED',
+        'CONTRACT_EXPIRY',
+        'RFQ_DEADLINE',
+        'PO_OVERDUE',
+        'GOODS_RECEIPT_CREATED',
+        'GOODS_RECEIPT_APPROVED',
+        'GOODS_RECEIPT_REJECTED',
+        'PURCHASE_ORDER_CREATED',
+        'PURCHASE_ORDER_APPROVED',
+        'PURCHASE_ORDER_REJECTED',
+        'RFQ_CREATED',
+        'RFQ_RESPONSE_RECEIVED',
+        'RFQ_APPROVED',
+        'RFQ_REJECTED',
+        'SALES_QUOTATION_CREATED',
+        'SALES_QUOTATION_APPROVED',
+        'SALES_QUOTATION_REJECTED',
+        'WAREHOUSE_TRANSFER_COMPLETED',
+        'CRITICAL_STOCK',
+        'NEGATIVE_STOCK_PREVENTION',
+        'INVENTORY_ADJUSTMENT_COMPLETED',
+        'WAREHOUSE_CAPACITY_ALERT',
+        'NEW_DEVICE_LOGIN',
+        'PASSWORD_CHANGED',
+        'SESSION_REVOKED',
+        'BIOMETRIC_LOGIN_ENABLED',
+        'LOGIN_ATTEMPT_LOCKOUT',
+        'SYSTEM_MAINTENANCE',
+        'VERSION_UPDATE',
+        'COMPANY_ANNOUNCEMENT',
+        'FEATURE_RELEASE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ApprovalStatus') THEN
+    CREATE TYPE public."ApprovalStatus" AS ENUM (
+        'PENDING',
+        'APPROVED',
+        'REJECTED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ApprovalType') THEN
+    CREATE TYPE public."ApprovalType" AS ENUM (
+        'GOODS_RECEIPT',
+        'PURCHASE_ORDER',
+        'RFQ',
+        'SALES_QUOTATION',
+        'WAREHOUSE_TRANSFER',
+        'INVENTORY_ADJUSTMENT'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AuditAction') THEN
+    CREATE TYPE public."AuditAction" AS ENUM (
+        'CREATE',
+        'UPDATE',
+        'DELETE',
+        'POST',
+        'EXPORT',
+        'EMAIL',
+        'DASHBOARD_EXIT',
+        'ATTENTION_ITEM_RESOLVED',
+        'STOCK_ADJUSTMENT',
+        'APPROVE',
+        'APPROVE_PO',
+        'BULK_UPDATE',
+        'CANCEL_PO',
+        'CONFIRM_PO',
+        'CREATE_GR',
+        'CREATE_ISSUE',
+        'CREATE_PO',
+        'CREATE_PRODUCT',
+        'CREATE_USER',
+        'DASHBOARD_ACTION_TAKEN',
+        'DASHBOARD_CARD_CLICKED',
+        'DELETE_DATA',
+        'DELETE_PRODUCT',
+        'DELETE_USER',
+        'ESCALATE',
+        'EXPORT_AUDIT',
+        'EXPORT_REPORT',
+        'LOGIN',
+        'LOGIN_FAILED',
+        'LOGOUT',
+        'MFA_DISABLED',
+        'MFA_ENABLED',
+        'PASSWORD_CHANGED',
+        'RECEIVE_GOODS',
+        'REJECT',
+        'REJECT_PO',
+        'REVOKE_SESSION',
+        'TRANSFER_STOCK',
+        'UPDATE_GR',
+        'UPDATE_PO',
+        'UPDATE_PRODUCT',
+        'UPDATE_ROLE',
+        'UPDATE_USER',
+        'VIEW_DASHBOARD',
+        'LINK_TOKEN_GENERATED',
+        'LINK_TOKEN_USED',
+        'DEVICE_LINKED',
+        'DEVICE_REVOKED',
+        'DEVICE_REJECTED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AuditSeverity') THEN
+    CREATE TYPE public."AuditSeverity" AS ENUM (
+        'LOW',
+        'MEDIUM',
+        'HIGH',
+        'CRITICAL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AuthChallengePurpose') THEN
+    CREATE TYPE public."AuthChallengePurpose" AS ENUM (
+        'SIGNUP_MFA_ENROLL',
+        'LOGIN_MFA_VERIFY'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BackupJobStatus') THEN
+    CREATE TYPE public."BackupJobStatus" AS ENUM (
+        'PENDING',
+        'RUNNING',
+        'COMPLETED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BackupProvider') THEN
+    CREATE TYPE public."BackupProvider" AS ENUM (
+        'MANUAL',
+        'GOOGLE_DRIVE',
+        'EMAIL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BarcodeType') THEN
+    CREATE TYPE public."BarcodeType" AS ENUM (
+        'EAN13',
+        'UPC_A',
+        'CODE128',
+        'CODE39',
+        'QR',
+        'INTERNAL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BillingCycle') THEN
+    CREATE TYPE public."BillingCycle" AS ENUM (
+        'MONTHLY',
+        'YEARLY'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BrandingMode') THEN
+    CREATE TYPE public."BrandingMode" AS ENUM (
+        'LIVE',
+        'SNAPSHOT'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ChannelAccountStatus') THEN
+    CREATE TYPE public."ChannelAccountStatus" AS ENUM (
+        'ACTIVE',
+        'DISABLED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ChannelLinkStatus') THEN
+    CREATE TYPE public."ChannelLinkStatus" AS ENUM (
+        'PENDING',
+        'ACTIVE',
+        'REVOKED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ChatChannel') THEN
+    CREATE TYPE public."ChatChannel" AS ENUM (
+        'WHATSAPP'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ChatMessageStatus') THEN
+    CREATE TYPE public."ChatMessageStatus" AS ENUM (
+        'RECEIVED',
+        'QUEUED',
+        'SENT',
+        'DELIVERED',
+        'READ',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ConversationStatus') THEN
+    CREATE TYPE public."ConversationStatus" AS ENUM (
+        'ACTIVE',
+        'AWAITING_CONFIRMATION',
+        'AWAITING_APPROVAL',
+        'HANDOFF',
+        'CLOSED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'CostingMethod') THEN
+    CREATE TYPE public."CostingMethod" AS ENUM (
+        'AVERAGE',
+        'FIFO'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'CreditNoteStatus') THEN
+    CREATE TYPE public."CreditNoteStatus" AS ENUM (
+        'DRAFT',
+        'ISSUED',
+        'APPLIED',
+        'VOID'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DeliveryChannel') THEN
+    CREATE TYPE public."DeliveryChannel" AS ENUM (
+        'IN_APP',
+        'WHATSAPP',
+        'EMAIL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DeliveryState') THEN
+    CREATE TYPE public."DeliveryState" AS ENUM (
+        'CREATED',
+        'QUEUED',
+        'DISPATCHING',
+        'SENT',
+        'DELIVERED',
+        'READ',
+        'ACKNOWLEDGED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DevicePlatform') THEN
+    CREATE TYPE public."DevicePlatform" AS ENUM (
+        'ANDROID',
+        'IOS',
+        'WEB'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DocumentEmailStatus') THEN
+    CREATE TYPE public."DocumentEmailStatus" AS ENUM (
+        'PENDING_PDF',
+        'PENDING_SEND',
+        'SENT',
+        'DELIVERED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DocumentEmailTrigger') THEN
+    CREATE TYPE public."DocumentEmailTrigger" AS ENUM (
+        'AUTO',
+        'MANUAL',
+        'RESEND'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DocumentSeriesRestart') THEN
+    CREATE TYPE public."DocumentSeriesRestart" AS ENUM (
+        'NONE',
+        'MONTHLY',
+        'YEARLY'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DocumentStatus') THEN
+    CREATE TYPE public."DocumentStatus" AS ENUM (
+        'DRAFT',
+        'POSTED',
+        'DISPATCHED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EmailSenderStatus') THEN
+    CREATE TYPE public."EmailSenderStatus" AS ENUM (
+        'PENDING',
+        'VERIFIED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EmailSenderType') THEN
+    CREATE TYPE public."EmailSenderType" AS ENUM (
+        'CUSTOM_DOMAIN',
+        'PUBLIC_DOMAIN'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EventClassification') THEN
+    CREATE TYPE public."EventClassification" AS ENUM (
+        'AUTHENTICATION',
+        'SECURITY',
+        'FINANCIAL',
+        'COMPLIANCE',
+        'OPERATIONAL',
+        'SYSTEM',
+        'AI',
+        'MARKETING'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayBillStatus') THEN
+    CREATE TYPE public."EwayBillStatus" AS ENUM (
+        'DRAFT',
+        'GENERATED',
+        'CANCELLED',
+        'EXPIRED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayDocumentType') THEN
+    CREATE TYPE public."EwayDocumentType" AS ENUM (
+        'TAX_INVOICE',
+        'BILL_OF_SUPPLY',
+        'DELIVERY_CHALLAN',
+        'CREDIT_NOTE',
+        'BILL_OF_ENTRY',
+        'OTHERS'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwaySubType') THEN
+    CREATE TYPE public."EwaySubType" AS ENUM (
+        'SUPPLY',
+        'EXPORT',
+        'IMPORT',
+        'JOB_WORK',
+        'SKD_CKD',
+        'RECIPIENT_NOT_KNOWN',
+        'LINE_SALES',
+        'SALES_RETURN',
+        'EXHIBITION',
+        'OTHERS'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwaySupplyType') THEN
+    CREATE TYPE public."EwaySupplyType" AS ENUM (
+        'OUTWARD',
+        'INWARD'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayTransactionType') THEN
+    CREATE TYPE public."EwayTransactionType" AS ENUM (
+        'REGULAR',
+        'BILL_TO_SHIP_TO',
+        'BILL_FROM_DISPATCH_FROM',
+        'COMBINATION'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayTransportMode') THEN
+    CREATE TYPE public."EwayTransportMode" AS ENUM (
+        'ROAD',
+        'RAIL',
+        'AIR',
+        'SHIP'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayVehicleType') THEN
+    CREATE TYPE public."EwayVehicleType" AS ENUM (
+        'REGULAR',
+        'ODC'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ExpiryTracking') THEN
+    CREATE TYPE public."ExpiryTracking" AS ENUM (
+        'NONE',
+        'OPTIONAL',
+        'MANDATORY'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'FulfillmentStatus') THEN
+    CREATE TYPE public."FulfillmentStatus" AS ENUM (
+        'NONE',
+        'PARTIAL',
+        'FULL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'GstSupplyType') THEN
+    CREATE TYPE public."GstSupplyType" AS ENUM (
+        'INTRA_STATE',
+        'INTER_STATE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'InventoryLotStatus') THEN
+    CREATE TYPE public."InventoryLotStatus" AS ENUM (
+        'ACTIVE',
+        'BLOCKED',
+        'CONSUMED',
+        'SCRAPPED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'InvoiceStatus') THEN
+    CREATE TYPE public."InvoiceStatus" AS ENUM (
+        'DRAFT',
+        'ISSUED',
+        'PARTIALLY_PAID',
+        'PAID',
+        'VOID'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'InwardShift') THEN
+    CREATE TYPE public."InwardShift" AS ENUM (
+        'DAY_SHIFT',
+        'NIGHT_SHIFT'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LifecycleCampaignStatus') THEN
+    CREATE TYPE public."LifecycleCampaignStatus" AS ENUM (
+        'SCHEDULED',
+        'SENT',
+        'SKIPPED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LifecycleStage') THEN
+    CREATE TYPE public."LifecycleStage" AS ENUM (
+        'NEW',
+        'ACTIVE',
+        'ENGAGED',
+        'AT_RISK',
+        'RENEWAL_DUE',
+        'EXPIRED',
+        'TRIAL',
+        'TRIAL_EXPIRED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LifecycleStatus') THEN
+    CREATE TYPE public."LifecycleStatus" AS ENUM (
+        'ACTIVE',
+        'INACTIVE',
+        'OBSOLETE',
+        'REPLACED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LinkTokenStatus') THEN
+    CREATE TYPE public."LinkTokenStatus" AS ENUM (
+        'ACTIVE',
+        'USED',
+        'EXPIRED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'MediaAssetType') THEN
+    CREATE TYPE public."MediaAssetType" AS ENUM (
+        'LOGO',
+        'STAMP',
+        'SIGNATURE',
+        'LETTERHEAD',
+        'WATERMARK'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'MessageDirection') THEN
+    CREATE TYPE public."MessageDirection" AS ENUM (
+        'IN',
+        'OUT'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'MfaMethod') THEN
+    CREATE TYPE public."MfaMethod" AS ENUM (
+        'TOTP'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'NotificationModule') THEN
+    CREATE TYPE public."NotificationModule" AS ENUM (
+        'GOODS_RECEIPT',
+        'PURCHASE_ORDER',
+        'RFQ',
+        'SALES_QUOTATION',
+        'WAREHOUSE_TRANSFER',
+        'INVENTORY',
+        'SECURITY',
+        'SYSTEM',
+        'APPROVAL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'NotificationPriority') THEN
+    CREATE TYPE public."NotificationPriority" AS ENUM (
+        'CRITICAL',
+        'HIGH',
+        'NORMAL',
+        'LOW'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'NotificationStatus') THEN
+    CREATE TYPE public."NotificationStatus" AS ENUM (
+        'UNREAD',
+        'READ',
+        'DELETED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OutboxStatus') THEN
+    CREATE TYPE public."OutboxStatus" AS ENUM (
+        'CREATED',
+        'VALIDATED',
+        'PENDING',
+        'PUBLISHED',
+        'ACKNOWLEDGED',
+        'FAILED',
+        'DEAD',
+        'REPLAYED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PasswordResetMethod') THEN
+    CREATE TYPE public."PasswordResetMethod" AS ENUM (
+        'OTP',
+        'MAGIC_LINK'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PlatformNotificationCategory') THEN
+    CREATE TYPE public."PlatformNotificationCategory" AS ENUM (
+        'REVENUE',
+        'HEALTH',
+        'SYSTEM'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PlatformNotificationSeverity') THEN
+    CREATE TYPE public."PlatformNotificationSeverity" AS ENUM (
+        'CRITICAL',
+        'HIGH',
+        'WARNING',
+        'INFO'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PurchaseOrderStatus') THEN
+    CREATE TYPE public."PurchaseOrderStatus" AS ENUM (
+        'DRAFT',
+        'CONFIRMED',
+        'CANCELLED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ReceiptSource') THEN
+    CREATE TYPE public."ReceiptSource" AS ENUM (
+        'PURCHASE_ORDER',
+        'OUTSIDE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ReceiptType') THEN
+    CREATE TYPE public."ReceiptType" AS ENUM (
+        'FULL',
+        'PARTIAL'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RestoreJobStatus') THEN
+    CREATE TYPE public."RestoreJobStatus" AS ENUM (
+        'PENDING',
+        'DRY_RUN_COMPLETED',
+        'RUNNING',
+        'COMPLETED',
+        'FAILED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RestoreMode') THEN
+    CREATE TYPE public."RestoreMode" AS ENUM (
+        'TENANT_REPLACE',
+        'FULL_DB'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ReturnStatus') THEN
+    CREATE TYPE public."ReturnStatus" AS ENUM (
+        'DRAFT',
+        'POSTED',
+        'CANCELLED',
+        'SUBMITTED',
+        'ACKNOWLEDGED',
+        'DONE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RoleName') THEN
+    CREATE TYPE public."RoleName" AS ENUM (
+        'ADMIN',
+        'SHOP_USER',
+        'INVENTORY_MANAGER',
+        'OWNER',
+        'WAREHOUSE_STAFF',
+        'VIEWER',
+        'VENDOR',
+        'PURCHASE_MANAGER',
+        'SALES',
+        'EMPLOYEE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SalesOrderStatus') THEN
+    CREATE TYPE public."SalesOrderStatus" AS ENUM (
+        'DRAFT',
+        'CONFIRMED',
+        'FULFILLED',
+        'CLOSED',
+        'CANCELLED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SalesQuotationStatus') THEN
+    CREATE TYPE public."SalesQuotationStatus" AS ENUM (
+        'DRAFT',
+        'SENT',
+        'ACCEPTED',
+        'USER_REQUESTED',
+        'CANCELLED',
+        'CONVERTED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ScanAction') THEN
+    CREATE TYPE public."ScanAction" AS ENUM (
+        'LOOKUP',
+        'GOODS_RECEIPT',
+        'GOODS_ISSUE',
+        'STOCK_COUNT',
+        'SALES_ORDER',
+        'PURCHASE_ORDER',
+        'STOCK_TRANSFER'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ScanResult') THEN
+    CREATE TYPE public."ScanResult" AS ENUM (
+        'FOUND',
+        'NOT_FOUND',
+        'INVALID'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ScanSource') THEN
+    CREATE TYPE public."ScanSource" AS ENUM (
+        'WEB',
+        'MOBILE',
+        'USB_SCANNER',
+        'CAMERA',
+        'API'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StockCountStatus') THEN
+    CREATE TYPE public."StockCountStatus" AS ENUM (
+        'OPEN',
+        'REVIEW',
+        'APPROVED',
+        'CANCELLED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StockTransferCreatedVia') THEN
+    CREATE TYPE public."StockTransferCreatedVia" AS ENUM (
+        'MANUAL',
+        'DRAG_DROP',
+        'BULK',
+        'API'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SubscriptionPlan') THEN
+    CREATE TYPE public."SubscriptionPlan" AS ENUM (
+        'TRIAL',
+        'PRO',
+        'PLUS'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SubscriptionStatus') THEN
+    CREATE TYPE public."SubscriptionStatus" AS ENUM (
+        'ACTIVE',
+        'EXPIRED',
+        'CANCELLED',
+        'SUSPENDED'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SupplierBillStatus') THEN
+    CREATE TYPE public."SupplierBillStatus" AS ENUM (
+        'DRAFT',
+        'ISSUED',
+        'PARTIALLY_PAID',
+        'PAID',
+        'VOID'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SupplierReturnReasonCode') THEN
+    CREATE TYPE public."SupplierReturnReasonCode" AS ENUM (
+        'DAMAGED',
+        'WRONG_ITEM',
+        'EXPIRED',
+        'EXCESS'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TaxPreference') THEN
+    CREATE TYPE public."TaxPreference" AS ENUM (
+        'TAXABLE',
+        'NON_TAXABLE'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TransactionType') THEN
+    CREATE TYPE public."TransactionType" AS ENUM (
+        'OPENING',
+        'GOODS_RECEIPT',
+        'GOODS_ISSUE',
+        'DAMAGE',
+        'ADJUSTMENT',
+        'STOCK_TRANSFER_OUT',
+        'STOCK_TRANSFER_IN'
+    );
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'WhatsAppDeviceStatus') THEN
+    CREATE TYPE public."WhatsAppDeviceStatus" AS ENUM (
+        'ACTIVE',
+        'REVOKED',
+        'ARCHIVED'
+    );
+  END IF;
+END $$;
+
 
 
 -- ========== NEW TABLES (Not in earlier migrations) ==========
 
-CREATE TABLE public.agent_task_steps (
-    id uuid NOT NULL,
-    task_id uuid NOT NULL,
-    "order" integer NOT NULL,
-    name text NOT NULL,
-    status public."AgentTaskStepStatus" DEFAULT 'PENDING'::public."AgentTaskStepStatus" NOT NULL,
-    attempts integer DEFAULT 0 NOT NULL,
-    result jsonb,
-    error text,
-    started_at timestamp(6) with time zone,
-    completed_at timestamp(6) with time zone,
-    created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'agent_task_steps') THEN
+    CREATE TABLE public.agent_task_steps (
+        id uuid NOT NULL,
+        task_id uuid NOT NULL,
+        "order" integer NOT NULL,
+        name text NOT NULL,
+        status public."AgentTaskStepStatus" DEFAULT 'PENDING'::public."AgentTaskStepStatus" NOT NULL,
+        attempts integer DEFAULT 0 NOT NULL,
+        result jsonb,
+        error text,
+        started_at timestamp(6) with time zone,
+        completed_at timestamp(6) with time zone,
+        created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at timestamp(6) with time zone NOT NULL
+    );
+  END IF;
+END $$;
+
 
 CREATE TABLE public.agent_tasks (
     id uuid NOT NULL,
