@@ -102,7 +102,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [{ productId: ctx.productId, quantity: 4, uom: 'PCS', purchaseRate: 5 }],
+      items: [{ productId: ctx.productId, storageLocationId: ctx.storageLocationId, quantity: 4, uom: 'PCS', purchaseRate: 5 }],
     });
     expect(gr1Res.status).toBe(201);
     const gr1 = unwrap<{ id: string }>(gr1Res.body);
@@ -116,7 +116,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       shopId: ctx.shopId,
       purchaseOrderId: po.id,
       supplierName: 'E2E Supplier',
-      items: [{ productId: ctx.productId, quantity: 6, uom: 'PCS', purchaseRate: 5 }],
+      items: [{ productId: ctx.productId, storageLocationId: ctx.storageLocationId, quantity: 6, uom: 'PCS', purchaseRate: 5 }],
     });
     expect(gr2Res.status).toBe(201);
     const gr2 = unwrap<{ id: string }>(gr2Res.body);
@@ -137,7 +137,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
         shopId: ctx.shopId,
         purchaseOrderId: po.id,
         supplierName: 'E2E Supplier',
-        items: [{ productId: ctx.productId, quantity: 1, uom: 'PCS', purchaseRate: 5 }],
+        items: [{ productId: ctx.productId, storageLocationId: ctx.storageLocationId, quantity: 1, uom: 'PCS', purchaseRate: 5 }],
       })
       .expect((res) => expect([400, 422]).toContain(res.status));
   });
