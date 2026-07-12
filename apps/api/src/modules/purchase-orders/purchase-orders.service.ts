@@ -582,6 +582,15 @@ export class PurchaseOrdersService {
         throw buildErr;
       }
       const { lines, total } = _linesResult;
+      // TX health check after buildPoLineCreates
+      try {
+        await tx.$executeRaw`SELECT 1`;
+        console.error('[PO-DEBUG] TX health OK after buildPoLineCreates');
+      } catch (healthErr: unknown) {
+        const msg = healthErr instanceof Error ? healthErr.message : String(healthErr);
+        console.error('[PO-DEBUG] TX health FAILED after buildPoLineCreates:', msg);
+        throw healthErr;
+      }
       let created: any = null;
       const maxAttempts = manualNumber ? 1 : 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
