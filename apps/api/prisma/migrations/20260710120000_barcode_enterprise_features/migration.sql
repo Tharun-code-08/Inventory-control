@@ -127,6 +127,9 @@ DROP COLUMN "work_phone";
 -- DropEnum
 DROP TYPE IF EXISTS "GstTreatment";
 
+-- Drop supplier_addresses table before dropping the enum it depends on (table removed from schema)
+DROP TABLE IF EXISTS "supplier_addresses";
+
 -- DropEnum
 DROP TYPE IF EXISTS "SupplierAddressType";
 
