@@ -42,6 +42,12 @@ export function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function tomorrowDateString() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Future expiry date (GR post requires expiry on every line). */
 export function futureExpiryDateString(yearsAhead = 1) {
   const d = new Date();

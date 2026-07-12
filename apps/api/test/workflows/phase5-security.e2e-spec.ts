@@ -72,6 +72,8 @@ describe('Phase 5 — Security workflows (e2e)', () => {
 
     await authed(app, shopSession.accessToken).get('/api/v1/products').expect(200);
 
+    const u = await prisma.user.findUnique({ where: { email } });
+    if (u) await prisma.auditLog.deleteMany({ where: { userId: u.id } });
     await prisma.user.delete({ where: { email } });
   });
 

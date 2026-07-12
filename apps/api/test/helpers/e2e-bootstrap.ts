@@ -10,6 +10,15 @@ import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/respo
 
 export const E2E_DB_ENABLED = HAS_EXPLICIT_DATABASE_URL;
 
+let _sharedApp: INestApplication | null = null;
+
+export async function getSharedE2eApp(): Promise<INestApplication> {
+  if (!_sharedApp) {
+    _sharedApp = await createE2eApp();
+  }
+  return _sharedApp;
+}
+
 export async function createE2eApp(): Promise<INestApplication> {
   restoreExplicitEnv();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
