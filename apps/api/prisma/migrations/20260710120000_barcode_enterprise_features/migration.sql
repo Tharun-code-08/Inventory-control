@@ -28,28 +28,27 @@ DROP INDEX IF EXISTS "suppliers_display_name_idx";
 -- DropIndex
 DROP INDEX IF EXISTS "suppliers_gstin_idx";
 
--- AlterTable (Add company_id as nullable, populate, then set to NOT NULL)
-ALTER TABLE "audit_log" ADD COLUMN "company_id" UUID;
-
--- Update existing audit log rows with company_id from users and shops
-UPDATE "audit_log" al
-SET "company_id" = s."company_id"
-FROM "users" u
-JOIN "shops" s ON u."shop_id" = s."id"
-WHERE al."user_id" = u."id" AND s."company_id" IS NOT NULL;
-
--- Fallback for any audit log rows that still don't have a company_id
-UPDATE "audit_log"
-SET "company_id" = (SELECT "id" FROM "companies" LIMIT 1)
-WHERE "company_id" IS NULL;
-
--- If there are no companies at all, fallback to a uuid block just to satisfy NOT NULL constraint
-UPDATE "audit_log"
-SET "company_id" = '00000000-0000-0000-0000-000000000000'
-WHERE "company_id" IS NULL;
-
--- Now set company_id to NOT NULL
-ALTER TABLE "audit_log" ALTER COLUMN "company_id" SET NOT NULL;
+-- AlterTable (Add company_id; guarded for old name audit_log and new audit_logs)
+DO $$ BEGIN
+  -- legacy table name (pre-rename environments)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='audit_log') THEN
+    ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "company_id" UUID;
+    UPDATE "audit_log" al SET "company_id" = s."company_id"
+      FROM "users" u JOIN "shops" s ON u."shop_id" = s."id"
+      WHERE al."user_id" = u."id" AND s."company_id" IS NOT NULL AND al."company_id" IS NULL;
+    UPDATE "audit_log" SET "company_id" = (SELECT "id" FROM "companies" LIMIT 1)
+      WHERE "company_id" IS NULL;
+    UPDATE "audit_log" SET "company_id" = '00000000-0000-0000-0000-000000000000'
+      WHERE "company_id" IS NULL;
+  END IF;
+  -- renamed table (post-rename environments; company_id already added by drift-repair migration)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='audit_logs') THEN
+    ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "company_id" UUID;
+    UPDATE "audit_logs" al SET "company_id" = s."company_id"
+      FROM "users" u JOIN "shops" s ON u."shop_id" = s."id"
+      WHERE al."user_id" = u."id" AND s."company_id" IS NOT NULL AND al."company_id" IS NULL;
+  END IF;
+END $$;
 
 -- AlterTable backup_jobs
 ALTER TABLE "backup_jobs" ADD COLUMN     "deleted_at" TIMESTAMPTZ(6),

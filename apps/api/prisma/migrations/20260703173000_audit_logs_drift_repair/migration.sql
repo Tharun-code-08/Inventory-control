@@ -5,12 +5,13 @@
 -- CreateEnum (model references it; missing in this database)
 CREATE TYPE "AuditSeverity" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
--- AlterTable: add the columns the model writes
-ALTER TABLE "audit_logs" ADD COLUMN "device_id" TEXT;
-ALTER TABLE "audit_logs" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "audit_logs" ADD COLUMN "reason" TEXT;
-ALTER TABLE "audit_logs" ADD COLUMN "severity" "AuditSeverity";
-ALTER TABLE "audit_logs" ADD COLUMN "request_id" TEXT;
+-- AlterTable: add the columns the model writes (IF NOT EXISTS = idempotent)
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "company_id" UUID;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "device_id" TEXT;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "reason" TEXT;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "severity" "AuditSeverity";
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_id" TEXT;
 
 -- AlterTable: model declares entity_id as TEXT (no @db.Uuid); align the type
 -- so non-UUID entity ids (e.g. emails on auth events) can be recorded.
