@@ -268,7 +268,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         success: false,
         error: {
           code: 'DATABASE_ERROR',
-          message: 'Database operation failed. Please retry or contact support.',
+          message: process.env['NODE_ENV'] === 'test'
+            ? `Database operation failed: ${exception.message}`
+            : 'Database operation failed. Please retry or contact support.',
           requestId,
         },
       });
@@ -279,7 +281,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Invalid request payload for the database layer',
+          message: process.env['NODE_ENV'] === 'test'
+            ? `Invalid request payload: ${exception.message}`
+            : 'Invalid request payload for the database layer',
           requestId,
         },
       });
