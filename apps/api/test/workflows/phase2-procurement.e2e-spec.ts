@@ -90,6 +90,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
       supplier: 'E2E Supplier',
       items: [{ productId: ctx.productId, orderQty: 10, rate: 5 }],
     });
+    if (poRes.status !== 201) console.error('PO creation failed:', JSON.stringify(poRes.body));
     expect(poRes.status).toBe(201);
     const po = unwrap<{ id: string }>(poRes.body);
 
