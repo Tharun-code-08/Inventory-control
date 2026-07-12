@@ -361,7 +361,10 @@ CREATE INDEX IF NOT EXISTS "credit_notes_shop_id_credit_date_idx" ON "credit_not
 CREATE INDEX IF NOT EXISTS "credit_notes_customer_id_idx" ON "credit_notes"("customer_id");
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "product_plants" ADD CONSTRAINT "product_plants_storage_location_id_fkey" FOREIGN KEY ("storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "cost_layers" ADD CONSTRAINT "cost_layers_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -526,7 +529,10 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "supplier_bill_header" ADD CONSTRAINT "supplier_bill_header_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- RenameIndex
 ALTER INDEX "cost_layers_shop_product_created_idx" RENAME TO "cost_layers_shop_id_product_id_created_at_idx";
