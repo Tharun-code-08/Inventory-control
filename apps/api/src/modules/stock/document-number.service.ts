@@ -34,6 +34,13 @@ export class DocumentNumberService {
     tx: Prisma.TransactionClient,
     params: { shopId: string; docType: string; date: Date },
   ) {
+    try {
+      await tx.$executeRaw`SELECT 1`;
+      console.error('[PO-DEBUG] TX health OK inside nextConfiguredShopScopedNumber');
+    } catch (e: unknown) {
+      console.error('[PO-DEBUG] TX health FAILED inside nextConfiguredShopScopedNumber:', (e as Error).message);
+      throw e;
+    }
     const shop = await tx.shop.findUnique({
       where: { id: params.shopId },
       select: { shopNumber: true, companyId: true },
