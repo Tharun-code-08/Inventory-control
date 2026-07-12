@@ -1,5 +1,16 @@
 -- Notification Engine — per-company rules/templates + whatsapp preference (Step 4)
 
+-- CreateEnum (guarded: type may be created later in 20260712090000)
+DO $$ BEGIN
+  CREATE TYPE "NotificationPriority" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'LOW');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "NotificationStatus" AS ENUM ('UNREAD', 'READ', 'DELETED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- AlterTable (guarded: table created later in 20260712090000)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='notification_preferences') THEN

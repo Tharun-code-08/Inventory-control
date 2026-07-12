@@ -1,8 +1,13 @@
--- CreateEnum
-CREATE TYPE "NotificationPriority" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'LOW');
+-- CreateEnum (guarded: may be pre-created by 20260705140000)
+DO $$ BEGIN
+  CREATE TYPE "NotificationPriority" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'LOW');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "NotificationStatus" AS ENUM ('UNREAD', 'READ', 'DELETED');
+DO $$ BEGIN
+  CREATE TYPE "NotificationStatus" AS ENUM ('UNREAD', 'READ', 'DELETED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
 CREATE TYPE "NotificationModule" AS ENUM ('GOODS_RECEIPT', 'PURCHASE_ORDER', 'RFQ', 'SALES_QUOTATION', 'WAREHOUSE_TRANSFER', 'INVENTORY', 'SECURITY', 'SYSTEM', 'APPROVAL');
