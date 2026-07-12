@@ -133,6 +133,14 @@ echo -e "\n${GREEN}Installing dependencies...${NC}"
 # npm ci's clean step. Remove its node_modules before running npm ci.
 rm -rf apps/mobile/node_modules 2>/dev/null || true
 npm ci --quiet
+# NestJS's PackageLoader (in root node_modules/@nestjs) resolves packages
+# relative to its own install path. If class-validator was de-hoisted into
+# apps/api/node_modules by npm's workspace algorithm, it becomes invisible to
+# NestJS. Copy it to the root to make it discoverable.
+if [ -d "apps/api/node_modules/class-validator" ] && [ ! -d "node_modules/class-validator" ]; then
+  cp -rp apps/api/node_modules/class-validator node_modules/class-validator
+  echo "✓ class-validator copied to root node_modules"
+fi
 echo "✓ Dependencies installed"
 
 # Snapshot the current dist BEFORE overwriting it with a new build.
