@@ -1,3 +1,28 @@
+-- CreateEnum (guarded)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwaySubType') THEN
+    CREATE TYPE "EwaySubType" AS ENUM ('SUPPLY', 'IMPORT', 'EXPORT');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayTransactionType') THEN
+    CREATE TYPE "EwayTransactionType" AS ENUM ('REGULAR', 'AMENDMENT', 'REVERSAL');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayDocumentType') THEN
+    CREATE TYPE "EwayDocumentType" AS ENUM ('TAX_INVOICE', 'BILL_OF_SUPPLY', 'DEBIT_NOTE', 'CREDIT_NOTE', 'DELIVERY_CHALLAN');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EwayVehicleType') THEN
+    CREATE TYPE "EwayVehicleType" AS ENUM ('REGULAR', 'ODD_EVEN', 'EXEMPTED');
+  END IF;
+END $$;
+
 -- Add missing columns to eway_bills table
 ALTER TABLE "eway_bills" 
   ADD COLUMN IF NOT EXISTS "sales_order_id" UUID,

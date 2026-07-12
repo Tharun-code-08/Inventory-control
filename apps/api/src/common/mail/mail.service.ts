@@ -1,8 +1,15 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { buildSupplierDeleteConfirmUrl, buildSupplierPortalSubmitUrl } from './portal-url';
+import { EmailSenderService } from '../../modules/email-senders/email-sender.service';
+import { NO_VERIFIED_SENDER_MESSAGE } from '../../modules/email-senders/email-sender.constants';
+import type { SenderSmtpConfig } from '../../modules/email-senders/email-sender.constants';
+import {
+  buildPasswordResetUrl,
+  buildSupplierDeleteConfirmUrl,
+  buildSupplierPortalSubmitUrl,
+} from './portal-url';
 import {
   supplierDeletionHtml,
   supplierDeletionSubject,
@@ -18,6 +25,8 @@ import {
   salesQuotationHtml,
   salesQuotationSubject,
   salesQuotationText,
+  ensureSalesQuotationPortalCta,
+  ensureSalesQuotationPortalText,
   type SalesQuotationEmailContent,
 } from './sales-quotation.template';
 import {
@@ -32,6 +41,24 @@ import {
   signupOtpText,
   type SignupOtpEmailContent,
 } from './signup-otp.template';
+import {
+  returnNoticeHtml,
+  returnNoticeSubject,
+  returnNoticeText,
+  type ReturnNoticeEmailContent,
+} from './return-notice.template';
+import {
+  passwordResetLinkHtml,
+  passwordResetLinkSubject,
+  passwordResetLinkText,
+  type PasswordResetLinkEmailContent,
+} from './password-reset-link.template';
+import {
+  passwordResetOtpHtml,
+  passwordResetOtpSubject,
+  passwordResetOtpText,
+  type PasswordResetOtpEmailContent,
+} from './password-reset-otp.template';
 
 export type RfqInviteRecipient = {
   supplierId: string;
@@ -69,8 +96,15 @@ export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter | null = null;
   private transporterKey = '';
+  private readonly senderTransports = new Map<string, Transporter>();
+  private readonly senderTransportKeys = new Map<string, string>();
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional()
+    @Inject(forwardRef(() => EmailSenderService))
+    private readonly emailSenders: EmailSenderService | null = null,
+  ) {}
 
   onModuleInit(): void {
     const host = this.smtpHost();
@@ -97,7 +131,6 @@ export class MailService implements OnModuleInit {
     return this.env('SMTP_HOST');
   }
 
-  /** e2e/CI sink: MAIL_TRANSPORT=json accepts every message without network I/O. */
   private useJsonTransport(): boolean {
     return this.env('MAIL_TRANSPORT') === 'json';
   }
@@ -135,24 +168,52 @@ export class MailService implements OnModuleInit {
     return this.env('MAIL_BCC');
   }
 
-  private smtpSettingsKey(): string {
-    return [
-      this.smtpHost(),
-      this.env('SMTP_PORT'),
-      this.env('SMTP_SECURE'),
-      this.env('SMTP_USER'),
-      this.env('SMTP_PASS'),
-    ].join('|');
+  private smtpSettingsKey(settings: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user?: string;
+    pass?: string;
+  }): string {
+    return [settings.host, settings.port, settings.secure, settings.user, settings.pass].join('|');
+  }
+
+  private async getSenderTransport(senderId: string, smtp: SenderSmtpConfig): Promise<Transporter> {
+    const key = this.smtpSettingsKey({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      user: smtp.user,
+      pass: smtp.password,
+    });
+    const cachedKey = this.senderTransportKeys.get(senderId);
+    const cached = this.senderTransports.get(senderId);
+    if (cached && cachedKey === key) {
+      return cached;
+    }
+
+    const transport = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      requireTLS: !smtp.secure && smtp.port === 587,
+      auth: { user: smtp.user, pass: smtp.password },
+      tls: { minVersion: 'TLSv1.2', servername: smtp.host },
+    });
+    await transport.verify();
+    this.senderTransports.set(senderId, transport);
+    this.senderTransportKeys.set(senderId, key);
+    this.logger.log(`Sender SMTP ready (${smtp.host}:${smtp.port}, sender=${senderId})`);
+    return transport;
   }
 
   private async getTransporter(): Promise<Transporter> {
     if (this.useJsonTransport()) {
-      if (!this.transporter || this.transporterKey !== 'json') {
-        this.transporter = nodemailer.createTransport({ jsonTransport: true });
-        this.transporterKey = 'json';
-        this.logger.log('SMTP sink active (MAIL_TRANSPORT=json): messages are accepted, not delivered');
-      }
-      return this.transporter;
+      const cached = this.senderTransports.get('json');
+      if (cached) return cached;
+      const t = nodemailer.createTransport({ jsonTransport: true });
+      this.senderTransports.set('json', t);
+      return t;
     }
 
     const host = this.smtpHost();
@@ -162,11 +223,6 @@ export class MailService implements OnModuleInit {
       );
     }
 
-    const key = this.smtpSettingsKey();
-    if (this.transporter && this.transporterKey === key) {
-      return this.transporter;
-    }
-
     const zoho = this.isZohoHost(host);
     const port = Number(this.env('SMTP_PORT') ?? (zoho ? 465 : 587));
     const secureExplicit = this.env('SMTP_SECURE');
@@ -174,6 +230,17 @@ export class MailService implements OnModuleInit {
       secureExplicit === 'true' || (secureExplicit !== 'false' && port === 465);
     const user = this.env('SMTP_USER');
     const pass = this.env('SMTP_PASS');
+
+    const key = this.smtpSettingsKey({
+      host,
+      port,
+      secure,
+      user,
+      pass,
+    });
+    if (this.transporter && this.transporterKey === key) {
+      return this.transporter;
+    }
 
     if (zoho && user && !user.includes('@')) {
       this.logger.warn('Zoho SMTP_USER should be the full email address (e.g. office@softdigitconsulting.com)');
@@ -197,17 +264,23 @@ export class MailService implements OnModuleInit {
 
   async sendMail(args: {
     to: string;
+    cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     text: string;
     html: string;
     fromName?: string;
-    attachments?: Array<{ filename: string; content: Buffer | string }>;
+    fromEmail?: string;
+    replyTo?: string;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    transport?: Transporter;
+    envelopeFrom?: string;
   }): Promise<EmailDeliveryResult> {
-    const transport = await this.getTransporter();
-    const from = this.getFromAddress();
-    const replyTo = this.getReplyToAddress();
+    const transport = args.transport ?? (await this.getTransporter());
+    const from = args.fromEmail ?? this.getFromAddress();
+    const replyTo = args.replyTo ?? this.getReplyToAddress();
     const bcc = this.getBccAddress();
-    const authUser = this.smtpUser();
+    const authUser = args.envelopeFrom ?? this.smtpUser();
     const displayName = args.fromName ?? 'Softdigit Consulting';
 
     const useEnvelopeFrom = authUser && authUser.toLowerCase() === from.toLowerCase();
@@ -215,7 +288,8 @@ export class MailService implements OnModuleInit {
       from: `"${displayName}" <${from}>`,
       replyTo,
       to: args.to,
-      bcc: bcc || undefined,
+      cc: args.cc,
+      bcc: (args.bcc ?? bcc) || undefined,
       subject: args.subject,
       text: args.text,
       html: args.html,
@@ -236,6 +310,80 @@ export class MailService implements OnModuleInit {
     );
 
     return { messageId, to: args.to, from, replyTo, bcc };
+  }
+
+  async sendPlatformMail(args: {
+    to: string;
+    cc?: string | string[];
+    bcc?: string | string[];
+    subject: string;
+    text: string;
+    html: string;
+    fromName?: string;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    return this.sendMail({
+      ...args,
+      fromName: args.fromName ?? 'Softdigit Consulting',
+      fromEmail: this.getFromAddress(),
+      replyTo: this.getReplyToAddress(),
+    });
+  }
+
+  async sendViaSmtp(
+    smtp: SenderSmtpConfig,
+    args: {
+      to: string;
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject: string;
+      text: string;
+      html: string;
+      fromName?: string;
+      fromEmail: string;
+      replyTo?: string;
+      attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+      senderId?: string;
+    },
+  ): Promise<EmailDeliveryResult> {
+    const cacheKey = args.senderId ?? smtp.user;
+    const transport = await this.getSenderTransport(cacheKey, smtp);
+    return this.sendMail({
+      ...args,
+      transport,
+      envelopeFrom: smtp.user,
+      replyTo: args.replyTo ?? args.fromEmail,
+    });
+  }
+
+  async sendTenantMail(
+    companyId: string,
+    args: {
+      to: string;
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject: string;
+      text: string;
+      html: string;
+      fromName?: string;
+      attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    },
+  ): Promise<EmailDeliveryResult> {
+    if (this.useJsonTransport()) {
+      const transport = await this.getTransporter();
+      return this.sendMail({ ...args, transport });
+    }
+    if (!this.emailSenders) {
+      throw new Error(NO_VERIFIED_SENDER_MESSAGE);
+    }
+    const sender = await this.emailSenders.resolveTenantSender(companyId);
+    return this.sendViaSmtp(sender.smtp, {
+      ...args,
+      senderId: sender.senderId,
+      fromName: args.fromName ?? sender.fromName,
+      fromEmail: sender.fromEmail,
+      replyTo: sender.replyTo,
+    });
   }
 
   rfqPortalAccessCode(rfqId: string): string {
@@ -269,13 +417,19 @@ export class MailService implements OnModuleInit {
   }
 
   async sendRfqInvites(args: {
+    companyId: string;
     rfqId: string;
     rfqNumber: string;
     rfqTitle: string;
     deadline?: Date | null;
     recipients: RfqInviteRecipient[];
+    shopId?: string | null;
+    prepareInvite?: (content: RfqInviteEmailContent) =>
+      | { enabled: false }
+      | { enabled: true; subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<RfqInviteDeliverySummary> {
-    if (!this.isConfigured()) {
+    if (!this.useJsonTransport() && !this.emailSenders) {
       return {
         configured: false,
         sent: 0,
@@ -286,17 +440,17 @@ export class MailService implements OnModuleInit {
           supplierName: r.supplierName,
           email: r.email,
           status: 'skipped',
-          error: 'SMTP not configured',
+          error: NO_VERIFIED_SENDER_MESSAGE,
         })),
       };
     }
 
     try {
-      await this.getTransporter();
+      if (!this.useJsonTransport()) await this.emailSenders!.resolveTenantSender(args.companyId);
     } catch (err) {
       const message = (err as Error).message;
       return {
-        configured: true,
+        configured: false,
         sent: 0,
         failed: args.recipients.length,
         skipped: 0,
@@ -308,6 +462,12 @@ export class MailService implements OnModuleInit {
           error: message,
         })),
       };
+    }
+
+    try {
+      await this.getTransporter().catch(() => undefined);
+    } catch {
+      // tenant SMTP is resolved per send
     }
 
     const results: RfqInviteEmailResult[] = [];
@@ -333,12 +493,27 @@ export class MailService implements OnModuleInit {
         supplierName: recipient.supplierName,
       });
 
+      const prepared = args.prepareInvite?.(content);
+      if (prepared && !prepared.enabled) {
+        results.push({
+          supplierId: recipient.supplierId,
+          supplierName: recipient.supplierName,
+          email,
+          status: 'skipped',
+          error: 'Email template disabled',
+        });
+        continue;
+      }
+
       try {
-        const delivery = await this.sendMail({
+        const delivery = await this.sendTenantMail(args.companyId, {
           to: email,
-          subject: rfqInviteSubject(content),
-          text: rfqInviteText(content),
-          html: rfqInviteHtml(content),
+          subject: prepared?.enabled ? prepared.subject : rfqInviteSubject(content),
+          text: prepared?.enabled ? prepared.text : rfqInviteText(content),
+          html: prepared?.enabled ? prepared.html : rfqInviteHtml(content),
+          cc: prepared?.enabled ? prepared.cc : undefined,
+          bcc: prepared?.enabled ? prepared.bcc : undefined,
+          attachments: args.attachments,
         });
         results.push({
           supplierId: recipient.supplierId,
@@ -422,38 +597,64 @@ export class MailService implements OnModuleInit {
   }
 
   async sendSalesQuotationToCustomer(args: {
+    companyId: string;
     to: string;
     content: SalesQuotationEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<EmailDeliveryResult> {
-    if (!this.isConfigured()) {
-      throw new Error(
-        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
-      );
-    }
-    return this.sendMail({
+    const baseText = args.overrides?.text ?? salesQuotationText(args.content);
+    const baseHtml = args.overrides?.html ?? salesQuotationHtml(args.content);
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
-      subject: salesQuotationSubject(args.content),
-      text: salesQuotationText(args.content),
-      html: salesQuotationHtml(args.content),
+      subject: args.overrides?.subject ?? salesQuotationSubject(args.content),
+      text: ensureSalesQuotationPortalText(baseText, args.content.portalUrl),
+      html: ensureSalesQuotationPortalCta(
+        baseHtml,
+        args.content.portalUrl,
+        args.content.isRevision ?? false,
+      ),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 
   async sendPurchaseOrderToSupplier(args: {
+    companyId: string;
     to: string;
     content: PurchaseOrderEmailContent;
-    attachments?: Array<{ filename: string; content: Buffer | string }>;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
   }): Promise<EmailDeliveryResult> {
-    if (!this.isConfigured()) {
-      throw new Error(
-        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
-      );
-    }
-    return this.sendMail({
+    return this.sendTenantMail(args.companyId, {
       to: args.to,
-      subject: purchaseOrderSubject(args.content),
-      text: purchaseOrderText(args.content),
-      html: purchaseOrderHtml(args.content),
+      subject: args.overrides?.subject ?? purchaseOrderSubject(args.content),
+      text: args.overrides?.text ?? purchaseOrderText(args.content),
+      html: args.overrides?.html ?? purchaseOrderHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierReturnNotice(args: {
+    companyId: string;
+    to: string;
+    cc?: string | string[];
+    content: ReturnNoticeEmailContent;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+  }): Promise<EmailDeliveryResult> {
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      cc: args.overrides?.cc ?? args.cc,
+      subject: args.overrides?.subject ?? returnNoticeSubject(args.content),
+      text: args.overrides?.text ?? returnNoticeText(args.content),
+      html: args.overrides?.html ?? returnNoticeHtml(args.content),
+      bcc: args.overrides?.bcc,
       fromName: args.content.companyName,
       attachments: args.attachments,
     });
@@ -480,12 +681,212 @@ export class MailService implements OnModuleInit {
       expiresMinutes: args.expiresMinutes,
     };
 
-    return this.sendMail({
+    return this.sendPlatformMail({
       to: args.to,
       subject: signupOtpSubject(args.companyName),
       text: signupOtpText(content),
       html: signupOtpHtml(content),
       fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendPasswordResetOtp(args: {
+    to: string;
+    userName: string;
+    otpCode: string;
+    expiresMinutes: number;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+
+    const content: PasswordResetOtpEmailContent = {
+      userName: args.userName,
+      email: args.to,
+      otpCode: args.otpCode,
+      expiresMinutes: args.expiresMinutes,
+    };
+
+    return this.sendPlatformMail({
+      to: args.to,
+      subject: passwordResetOtpSubject(),
+      text: passwordResetOtpText(content),
+      html: passwordResetOtpHtml(content),
+      fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendPasswordResetLink(args: {
+    to: string;
+    userName: string;
+    token: string;
+    expiresMinutes: number;
+  }): Promise<EmailDeliveryResult> {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in apps/api/.env and restart the API.',
+      );
+    }
+
+    const content: PasswordResetLinkEmailContent = {
+      userName: args.userName,
+      email: args.to,
+      resetUrl: buildPasswordResetUrl(this.config, args.token),
+      expiresMinutes: args.expiresMinutes,
+    };
+
+    return this.sendPlatformMail({
+      to: args.to,
+      subject: passwordResetLinkSubject(),
+      text: passwordResetLinkText(content),
+      html: passwordResetLinkHtml(content),
+      fromName: 'Softdigit Consulting',
+    });
+  }
+
+  async sendInvoiceCreated(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').InvoiceCreatedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      invoiceCreatedHtml,
+      invoiceCreatedSubject,
+      invoiceCreatedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? invoiceCreatedSubject(args.content),
+      text: args.overrides?.text ?? invoiceCreatedText(args.content),
+      html: args.overrides?.html ?? invoiceCreatedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendPaymentReceived(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').PaymentReceivedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      paymentReceivedHtml,
+      paymentReceivedSubject,
+      paymentReceivedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? paymentReceivedSubject(args.content),
+      text: args.overrides?.text ?? paymentReceivedText(args.content),
+      html: args.overrides?.html ?? paymentReceivedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSalesOrderToCustomer(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SalesOrderCustomerEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      salesOrderCustomerHtml,
+      salesOrderCustomerSubject,
+      salesOrderCustomerText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? salesOrderCustomerSubject(args.content),
+      text: args.overrides?.text ?? salesOrderCustomerText(args.content),
+      html: args.overrides?.html ?? salesOrderCustomerHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierBillIssued(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SupplierBillIssuedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      supplierBillIssuedHtml,
+      supplierBillIssuedSubject,
+      supplierBillIssuedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? supplierBillIssuedSubject(args.content),
+      text: args.overrides?.text ?? supplierBillIssuedText(args.content),
+      html: args.overrides?.html ?? supplierBillIssuedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendGoodsReceiptToSupplier(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').GoodsReceiptSupplierEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      goodsReceiptSupplierHtml,
+      goodsReceiptSupplierSubject,
+      goodsReceiptSupplierText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? goodsReceiptSupplierSubject(args.content),
+      text: args.overrides?.text ?? goodsReceiptSupplierText(args.content),
+      html: args.overrides?.html ?? goodsReceiptSupplierHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
+    });
+  }
+
+  async sendSupplierPaymentRecorded(args: {
+    companyId: string;
+    to: string;
+    content: import('./transactional-email.templates').SupplierPaymentRecordedEmailContent;
+    overrides?: { subject: string; text: string; html: string; cc?: string[]; bcc?: string[] };
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  }): Promise<EmailDeliveryResult> {
+    const {
+      supplierPaymentRecordedHtml,
+      supplierPaymentRecordedSubject,
+      supplierPaymentRecordedText,
+    } = await import('./transactional-email.templates');
+    return this.sendTenantMail(args.companyId, {
+      to: args.to,
+      subject: args.overrides?.subject ?? supplierPaymentRecordedSubject(args.content),
+      text: args.overrides?.text ?? supplierPaymentRecordedText(args.content),
+      html: args.overrides?.html ?? supplierPaymentRecordedHtml(args.content),
+      cc: args.overrides?.cc,
+      bcc: args.overrides?.bcc,
+      fromName: args.content.companyName,
+      attachments: args.attachments,
     });
   }
 
@@ -511,7 +912,7 @@ export class MailService implements OnModuleInit {
       contractCount: args.contractCount,
       purchaseOrderCount: args.purchaseOrderCount,
     };
-    await this.sendMail({
+    await this.sendPlatformMail({
       to: args.adminEmail,
       subject: supplierDeletionSubject(args.supplierName),
       text: supplierDeletionText(content),

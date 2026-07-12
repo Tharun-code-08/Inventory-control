@@ -45,6 +45,7 @@ describe('MailService (json transport sink)', () => {
   it('sends RFQ invites through the sink without network I/O', async () => {
     const service = buildService({ MAIL_TRANSPORT: 'json' });
     const summary = await service.sendRfqInvites({
+      companyId: 'company-1',
       rfqId: 'rfq-1',
       rfqNumber: 'RFQ-0001',
       rfqTitle: 'Test RFQ',
@@ -64,6 +65,7 @@ describe('MailService (json transport sink)', () => {
   it('skips recipients without an email address', async () => {
     const service = buildService({ MAIL_TRANSPORT: 'json' });
     const summary = await service.sendRfqInvites({
+      companyId: 'company-2',
       rfqId: 'rfq-2',
       rfqNumber: 'RFQ-0002',
       rfqTitle: 'Test RFQ',
@@ -82,6 +84,7 @@ describe('MailService (json transport sink)', () => {
   it('reports skipped delivery when nothing is configured', async () => {
     const service = buildService({});
     const summary = await service.sendRfqInvites({
+      companyId: 'company-3',
       rfqId: 'rfq-3',
       rfqNumber: 'RFQ-0003',
       rfqTitle: 'Test RFQ',
