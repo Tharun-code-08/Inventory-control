@@ -1,11 +1,18 @@
--- CreateEnum
-CREATE TYPE "SalesQuotationStatus" AS ENUM ('DRAFT', 'SENT', 'ACCEPTED', 'USER_REQUESTED', 'CANCELLED', 'CONVERTED');
+-- CreateEnum (guarded)
+DO $$ BEGIN
+  CREATE TYPE "SalesQuotationStatus" AS ENUM ('DRAFT', 'SENT', 'ACCEPTED', 'USER_REQUESTED', 'CANCELLED', 'CONVERTED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'VOID');
+DO $$ BEGIN
+  CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'VOID');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "AlertType" AS ENUM ('LOW_STOCK', 'CONTRACT_EXPIRY', 'RFQ_DEADLINE', 'PO_OVERDUE');
+DO $$ BEGIN
+  CREATE TYPE "AlertType" AS ENUM ('LOW_STOCK', 'CONTRACT_EXPIRY', 'RFQ_DEADLINE', 'PO_OVERDUE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- DropForeignKey
 ALTER TABLE "cost_layers" DROP CONSTRAINT "cost_layers_product_fkey";
