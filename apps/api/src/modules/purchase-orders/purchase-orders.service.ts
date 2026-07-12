@@ -573,7 +573,15 @@ export class PurchaseOrdersService {
         const exists = await tx.purchaseOrderHeader.findUnique({ where: { poNumber: manualNumber } });
         if (exists) throw new BadRequestException('PO number already exists');
       }
-      const { lines, total } = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
+      let _linesResult: Awaited<ReturnType<typeof this.buildPoLineCreates>>;
+      try {
+        _linesResult = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
+      } catch (buildErr: unknown) {
+        const msg = buildErr instanceof Error ? buildErr.message : String(buildErr);
+        console.error('[PO-DEBUG] buildPoLineCreates threw:', msg);
+        throw buildErr;
+      }
+      const { lines, total } = _linesResult;
       let created: any = null;
       const maxAttempts = manualNumber ? 1 : 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
