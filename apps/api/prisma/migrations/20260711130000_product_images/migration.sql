@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS "alert_events" (
 );
 
 -- CreateTable
-CREATE TABLE "customer_returns" (
+CREATE TABLE IF NOT EXISTS "customer_returns" (
     "id" UUID NOT NULL,
     "return_number" TEXT NOT NULL,
     "return_date" DATE NOT NULL,
@@ -249,7 +249,7 @@ CREATE TABLE "customer_returns" (
 );
 
 -- CreateTable
-CREATE TABLE "customer_return_items" (
+CREATE TABLE IF NOT EXISTS "customer_return_items" (
     "id" UUID NOT NULL,
     "return_id" UUID NOT NULL,
     "product_id" UUID NOT NULL,
@@ -262,7 +262,7 @@ CREATE TABLE "customer_return_items" (
 );
 
 -- CreateTable
-CREATE TABLE "credit_notes" (
+CREATE TABLE IF NOT EXISTS "credit_notes" (
     "id" UUID NOT NULL,
     "credit_number" TEXT NOT NULL,
     "credit_date" DATE NOT NULL,
@@ -334,31 +334,31 @@ CREATE INDEX IF NOT EXISTS "alert_events_alert_type_triggered_at_idx" ON "alert_
 CREATE INDEX IF NOT EXISTS "alert_events_shop_id_is_read_idx" ON "alert_events"("shop_id", "is_read");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "customer_returns_return_number_key" ON "customer_returns"("return_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "customer_returns_return_number_key" ON "customer_returns"("return_number");
 
 -- CreateIndex
-CREATE INDEX "customer_returns_shop_id_return_date_idx" ON "customer_returns"("shop_id", "return_date");
+CREATE INDEX IF NOT EXISTS "customer_returns_shop_id_return_date_idx" ON "customer_returns"("shop_id", "return_date");
 
 -- CreateIndex
-CREATE INDEX "customer_returns_customer_id_idx" ON "customer_returns"("customer_id");
+CREATE INDEX IF NOT EXISTS "customer_returns_customer_id_idx" ON "customer_returns"("customer_id");
 
 -- CreateIndex
-CREATE INDEX "customer_returns_invoice_id_idx" ON "customer_returns"("invoice_id");
+CREATE INDEX IF NOT EXISTS "customer_returns_invoice_id_idx" ON "customer_returns"("invoice_id");
 
 -- CreateIndex
-CREATE INDEX "customer_return_items_return_id_idx" ON "customer_return_items"("return_id");
+CREATE INDEX IF NOT EXISTS "customer_return_items_return_id_idx" ON "customer_return_items"("return_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "credit_notes_credit_number_key" ON "credit_notes"("credit_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "credit_notes_credit_number_key" ON "credit_notes"("credit_number");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "credit_notes_return_id_key" ON "credit_notes"("return_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "credit_notes_return_id_key" ON "credit_notes"("return_id");
 
 -- CreateIndex
-CREATE INDEX "credit_notes_shop_id_credit_date_idx" ON "credit_notes"("shop_id", "credit_date");
+CREATE INDEX IF NOT EXISTS "credit_notes_shop_id_credit_date_idx" ON "credit_notes"("shop_id", "credit_date");
 
 -- CreateIndex
-CREATE INDEX "credit_notes_customer_id_idx" ON "credit_notes"("customer_id");
+CREATE INDEX IF NOT EXISTS "credit_notes_customer_id_idx" ON "credit_notes"("customer_id");
 
 -- AddForeignKey
 ALTER TABLE "product_plants" ADD CONSTRAINT "product_plants_storage_location_id_fkey" FOREIGN KEY ("storage_location_id") REFERENCES "storage_locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -436,22 +436,40 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_returns" ADD CONSTRAINT "customer_returns_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_returns" ADD CONSTRAINT "customer_returns_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_returns" ADD CONSTRAINT "customer_returns_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_returns" ADD CONSTRAINT "customer_returns_sales_order_id_fkey" FOREIGN KEY ("sales_order_id") REFERENCES "sales_order_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_return_items" ADD CONSTRAINT "customer_return_items_return_id_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "customer_return_items" ADD CONSTRAINT "customer_return_items_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "supplier_returns" ADD CONSTRAINT "supplier_returns_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -469,16 +487,28 @@ ALTER TABLE "supplier_return_items" ADD CONSTRAINT "supplier_return_items_return
 ALTER TABLE "supplier_return_items" ADD CONSTRAINT "supplier_return_items_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "credit_notes" ADD CONSTRAINT "credit_notes_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "credit_notes" ADD CONSTRAINT "credit_notes_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "credit_notes" ADD CONSTRAINT "credit_notes_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "credit_notes" ADD CONSTRAINT "credit_notes_return_id_fkey" FOREIGN KEY ("return_id") REFERENCES "customer_returns"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "supplier_bill_header" ADD CONSTRAINT "supplier_bill_header_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
