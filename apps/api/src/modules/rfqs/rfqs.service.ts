@@ -99,13 +99,15 @@ export class RfqsService {
 
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const sp = `sp_rfq_${attempt}`;
+        await tx.$executeRawUnsafe(`SAVEPOINT ${sp}`);
         const rfqNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
           shopId,
           docType: 'RFQ',
           date: rfqDate,
         });
         try {
-          return await tx.rfqHeader.create({
+          const result = await tx.rfqHeader.create({
             data: {
               rfqNumber,
               rfqDate,
@@ -135,7 +137,10 @@ export class RfqsService {
               items: { include: { product: true } },
             },
           });
+          await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${sp}`);
+          return result;
         } catch (error) {
+          await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${sp}`);
           const canRetry =
             attempt < maxAttempts &&
             isUniqueViolationForFields(error, ['rfq_number', 'rfqNumber']);

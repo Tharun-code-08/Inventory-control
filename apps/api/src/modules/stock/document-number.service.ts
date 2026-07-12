@@ -34,14 +34,6 @@ export class DocumentNumberService {
     tx: Prisma.TransactionClient,
     params: { shopId: string; docType: string; date: Date },
   ) {
-    // Debug: replace SELECT 1 with real model query to verify TX health
-    try {
-      const dbCheck = await tx.shop.findFirst({ select: { id: true }, take: 1 });
-      console.error('[PO-DEBUG] model health check OK inside nextConfiguredShopScopedNumber, shopId=', dbCheck?.id ?? 'null');
-    } catch (e: unknown) {
-      console.error('[PO-DEBUG] model health FAILED inside nextConfiguredShopScopedNumber:', (e as Error).message);
-      throw e;
-    }
     const shop = await tx.shop.findUnique({
       where: { id: params.shopId },
       select: { shopNumber: true, companyId: true },

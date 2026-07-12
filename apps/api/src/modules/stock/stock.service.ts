@@ -89,9 +89,13 @@ export class StockService {
       payload.idempotencyKey ??
       `${payload.type}:${payload.ref}:${payload.productId}:${String(payload.inQty)}:${String(payload.outQty)}`;
 
+    await tx.$executeRawUnsafe(`SAVEPOINT sp_post_movement`);
     try {
-      return await this.postMovement(tx, { ...payload, idempotencyKey: key });
+      const result = await this.postMovement(tx, { ...payload, idempotencyKey: key });
+      await tx.$executeRawUnsafe(`RELEASE SAVEPOINT sp_post_movement`);
+      return result;
     } catch (err) {
+      await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT sp_post_movement`);
       if (isUniqueViolation(err)) {
         const existing = await tx.stockLedger.findUnique({ where: { idempotencyKey: key } });
         if (existing) return existing;

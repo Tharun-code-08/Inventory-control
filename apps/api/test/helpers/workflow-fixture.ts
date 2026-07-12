@@ -12,6 +12,7 @@ export type WorkflowContext = {
   productId: string;
   supplierId: string;
   customerId: string;
+  storageLocationId: string;
 };
 
 const WORKFLOW_OWNER_PASSWORD = 'E2eOwner@123';
@@ -111,6 +112,14 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
   expect(customerRes.status).toBe(201);
   const customer = unwrap<{ id: string }>(customerRes.body);
 
+  const locationRes = await api.post('/api/v1/storage-locations').send({
+    shopId: shop.id,
+    code: 'MAIN',
+    name: 'Main Store',
+  });
+  expect(locationRes.status).toBe(201);
+  const location = unwrap<{ id: string }>(locationRes.body);
+
   return {
     token,
     user,
@@ -119,5 +128,6 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
     productId: product.id,
     supplierId: supplier.id,
     customerId: customer.id,
+    storageLocationId: location.id,
   };
 }

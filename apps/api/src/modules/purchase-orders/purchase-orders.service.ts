@@ -573,27 +573,15 @@ export class PurchaseOrdersService {
         const exists = await tx.purchaseOrderHeader.findUnique({ where: { poNumber: manualNumber } });
         if (exists) throw new BadRequestException('PO number already exists');
       }
-      let _linesResult: Awaited<ReturnType<typeof this.buildPoLineCreates>>;
-      try {
-        _linesResult = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
-      } catch (buildErr: unknown) {
-        const msg = buildErr instanceof Error ? buildErr.message : String(buildErr);
-        console.error('[PO-DEBUG] buildPoLineCreates threw:', msg);
-        throw buildErr;
-      }
-      const { lines, total } = _linesResult;
-      // TX health check after buildPoLineCreates
-      try {
-        await tx.$executeRaw`SELECT 1`;
-        console.error('[PO-DEBUG] TX health OK after buildPoLineCreates');
-      } catch (healthErr: unknown) {
-        const msg = healthErr instanceof Error ? healthErr.message : String(healthErr);
-        console.error('[PO-DEBUG] TX health FAILED after buildPoLineCreates:', msg);
-        throw healthErr;
-      }
+      const { lines, total } = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);
       let created: any = null;
       const maxAttempts = manualNumber ? 1 : 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Use a savepoint so a P2002 on poNumber doesn't abort the outer
+        // PostgreSQL transaction — ROLLBACK TO SAVEPOINT recovers the
+        // connection and lets the next attempt allocate a fresh number.
+        const sp = `sp_po_${attempt}`;
+        await tx.$executeRawUnsafe(`SAVEPOINT ${sp}`);
         const poNumber =
           manualNumber ||
           (await this.numbers.nextConfiguredShopScopedNumber(tx, {
@@ -618,8 +606,10 @@ export class PurchaseOrdersService {
             },
             include: { items: ITEM_WITH_PRODUCT, shop: true },
           });
+          await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${sp}`);
           break;
         } catch (error) {
+          await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${sp}`);
           const canRetry =
             !manualNumber &&
             attempt < maxAttempts &&

@@ -7,6 +7,7 @@ import cookieParser = require('cookie-parser');
 import { AppModule } from '../../src/app.module';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from '../../src/common/interceptors/response-envelope.interceptor';
+import { requestContextMiddleware } from '../../src/common/context/request-context.middleware';
 
 export const E2E_DB_ENABLED = HAS_EXPLICIT_DATABASE_URL;
 
@@ -24,6 +25,7 @@ export async function createE2eApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
   app.use(cookieParser(process.env.COOKIE_SECRET ?? 'test-secret-key-for-e2e-only'));
+  app.use(requestContextMiddleware());
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
