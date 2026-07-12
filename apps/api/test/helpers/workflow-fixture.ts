@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { BillingCycle, DocumentSeriesRestart, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { BillingCycle, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { DOCUMENT_SERIES_MODULES } from '../../src/modules/document-series/document-series.constants';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../src/prisma/prisma.service';
