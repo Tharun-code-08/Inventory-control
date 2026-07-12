@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
-import { BillingCycle, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { BillingCycle, DocumentSeriesRestart, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { DOCUMENT_SERIES_MODULES } from '../../src/modules/document-series/document-series.constants';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { authed, login, uniqueCode, unwrap, type AuthSession } from './e2e-http';
@@ -75,6 +76,29 @@ export async function seedWorkflowMasterData(app: INestApplication): Promise<Wor
         isActive: true,
       },
     });
+    // Configure all document series as shop-scoped so each test company
+    // generates unique numbers.  Without this, all companies share the same
+    // global prefix (PO-00001, RFQ-00001, …) which causes P2002 collisions
+    // across tests that each seed their own company.
+    await Promise.all(
+      DOCUMENT_SERIES_MODULES.map((m) =>
+        tx.documentSeriesConfig.create({
+          data: {
+            companyId: company.id,
+            shopId: null,
+            docType: m.docType,
+            moduleLabel: m.moduleLabel,
+            prefix: m.defaultPrefix,
+            startingNumber: m.defaultStartingNumber,
+            padWidth: m.defaultPadWidth,
+            restartPeriod: m.defaultRestartPeriod,
+            shopScoped: true,
+            enabled: true,
+            useCategoryPrefix: m.defaultUseCategoryPrefix ?? false,
+          },
+        }),
+      ),
+    );
     return { company, shop };
   });
 
