@@ -27,6 +27,7 @@ describe('Phase 9 — Business scenario simulations (e2e)', () => {
       supplier: 'Partial Delivery Inc',
       items: [{ productId: ctx.productId, orderQty: 100, rate: 2 }],
     });
+    if (poRes.status !== 201) console.error('PO 400:', JSON.stringify(poRes.body));
     expect(poRes.status).toBe(201);
     const po = unwrap<{ id: string }>(poRes.body);
     await api.post(`/api/v1/purchase-orders/${po.id}/confirm`).expect(201);

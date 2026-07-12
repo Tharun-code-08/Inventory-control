@@ -29,6 +29,7 @@ describe('Phase 2 — Concurrent GR posting (e2e)', () => {
       supplier: 'Concurrent GR Supplier',
       items: [{ productId: ctx.productId, orderQty: 10, rate: 3 }],
     });
+    if (poRes.status !== 201) console.error('PO 400:', JSON.stringify(poRes.body));
     expect(poRes.status).toBe(201);
     const po = unwrap<{ id: string }>(poRes.body);
     await authed(app, token).post(`/api/v1/purchase-orders/${po.id}/confirm`).expect(201);

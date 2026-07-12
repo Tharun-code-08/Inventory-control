@@ -82,7 +82,7 @@ describe('Phase 2 — Procurement workflows (e2e)', () => {
     const ctx = await seedWorkflowMasterData(app);
     const api = authed(app, ctx.token);
     const today = todayDateString();
-    const poDate = tomorrowDateString();
+    const poDate = todayDateString();
 
     const poRes = await api.post('/api/v1/purchase-orders').send({
       poDate,

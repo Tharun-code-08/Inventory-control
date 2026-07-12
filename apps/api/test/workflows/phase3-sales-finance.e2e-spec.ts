@@ -71,6 +71,7 @@ describe('Phase 3 — Sales & Finance workflows (e2e)', () => {
       supplier: 'E2E Supplier',
       items: [{ productId: ctx.productId, orderQty: 5, rate: 4 }],
     });
+    if (poRes.status !== 201) console.error('PO 400:', JSON.stringify(poRes.body));
     expect(poRes.status).toBe(201);
     const po = unwrap<{ id: string }>(poRes.body);
     await api.post(`/api/v1/purchase-orders/${po.id}/confirm`);
