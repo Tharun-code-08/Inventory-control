@@ -86,8 +86,8 @@ ALTER TABLE "supplier_return_items" ALTER COLUMN "id" DROP DEFAULT;
 ALTER TABLE "supplier_returns" ALTER COLUMN "id" DROP DEFAULT,
 ALTER COLUMN "updated_at" DROP DEFAULT;
 
--- CreateTable
-CREATE TABLE "sales_quote_header" (
+-- CreateTable (IF NOT EXISTS: may already exist from schema_reconstruction)
+CREATE TABLE IF NOT EXISTS "sales_quote_header" (
     "id" UUID NOT NULL,
     "quote_number" TEXT NOT NULL,
     "quote_date" DATE NOT NULL,
@@ -114,8 +114,14 @@ CREATE TABLE "sales_quote_header" (
     CONSTRAINT "sales_quote_header_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "sales_quote_items" (
+-- Add missing branding columns to sales_quote_header if created by reconstruction (IF NOT EXISTS guard)
+ALTER TABLE "sales_quote_header" ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'LIVE';
+ALTER TABLE "sales_quote_header" ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB;
+ALTER TABLE "sales_quote_header" ADD COLUMN IF NOT EXISTS "branding_version" INTEGER;
+ALTER TABLE "sales_quote_header" ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+
+-- CreateTable (IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS "sales_quote_items" (
     "id" UUID NOT NULL,
     "quote_header_id" UUID NOT NULL,
     "product_id" UUID NOT NULL,
@@ -131,8 +137,8 @@ CREATE TABLE "sales_quote_items" (
     CONSTRAINT "sales_quote_items_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "invoice_header" (
+-- CreateTable (IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS "invoice_header" (
     "id" UUID NOT NULL,
     "invoice_number" TEXT NOT NULL,
     "invoice_date" DATE NOT NULL,
@@ -160,8 +166,18 @@ CREATE TABLE "invoice_header" (
     CONSTRAINT "invoice_header_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "payment_receipts" (
+-- Add missing columns to invoice_header if created by reconstruction
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT';
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB;
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "branding_version" INTEGER;
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "currency" TEXT NOT NULL DEFAULT 'USD';
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "fx_rate_used" DECIMAL(18,8);
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "discount_amount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "invoice_header" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+
+-- CreateTable (IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS "payment_receipts" (
     "id" UUID NOT NULL,
     "receipt_number" TEXT NOT NULL,
     "receipt_date" DATE NOT NULL,
@@ -185,8 +201,16 @@ CREATE TABLE "payment_receipts" (
     CONSTRAINT "payment_receipts_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "alert_events" (
+-- Add missing columns to payment_receipts if created by reconstruction
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "currency" TEXT NOT NULL DEFAULT 'USD';
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "fx_rate_used" DECIMAL(18,8);
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "branding_mode" "BrandingMode" NOT NULL DEFAULT 'SNAPSHOT';
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "branding_snapshot" JSONB;
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "branding_version" INTEGER;
+ALTER TABLE "payment_receipts" ADD COLUMN IF NOT EXISTS "template_version" INTEGER NOT NULL DEFAULT 1;
+
+-- CreateTable (IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS "alert_events" (
     "id" UUID NOT NULL,
     "alert_type" "AlertType" NOT NULL,
     "severity" TEXT NOT NULL DEFAULT 'MEDIUM',
@@ -259,55 +283,55 @@ CREATE TABLE "credit_notes" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sales_quote_header_quote_number_key" ON "sales_quote_header"("quote_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "sales_quote_header_quote_number_key" ON "sales_quote_header"("quote_number");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sales_quote_header_sales_order_id_key" ON "sales_quote_header"("sales_order_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "sales_quote_header_sales_order_id_key" ON "sales_quote_header"("sales_order_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sales_quote_header_portal_token_key" ON "sales_quote_header"("portal_token");
+CREATE UNIQUE INDEX IF NOT EXISTS "sales_quote_header_portal_token_key" ON "sales_quote_header"("portal_token");
 
 -- CreateIndex
-CREATE INDEX "sales_quote_header_shop_id_quote_date_idx" ON "sales_quote_header"("shop_id", "quote_date");
+CREATE INDEX IF NOT EXISTS "sales_quote_header_shop_id_quote_date_idx" ON "sales_quote_header"("shop_id", "quote_date");
 
 -- CreateIndex
-CREATE INDEX "sales_quote_header_customer_id_idx" ON "sales_quote_header"("customer_id");
+CREATE INDEX IF NOT EXISTS "sales_quote_header_customer_id_idx" ON "sales_quote_header"("customer_id");
 
 -- CreateIndex
-CREATE INDEX "sales_quote_header_status_idx" ON "sales_quote_header"("status");
+CREATE INDEX IF NOT EXISTS "sales_quote_header_status_idx" ON "sales_quote_header"("status");
 
 -- CreateIndex
-CREATE INDEX "sales_quote_items_quote_header_id_idx" ON "sales_quote_items"("quote_header_id");
+CREATE INDEX IF NOT EXISTS "sales_quote_items_quote_header_id_idx" ON "sales_quote_items"("quote_header_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "invoice_header_invoice_number_key" ON "invoice_header"("invoice_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "invoice_header_invoice_number_key" ON "invoice_header"("invoice_number");
 
 -- CreateIndex
-CREATE INDEX "invoice_header_shop_id_invoice_date_idx" ON "invoice_header"("shop_id", "invoice_date");
+CREATE INDEX IF NOT EXISTS "invoice_header_shop_id_invoice_date_idx" ON "invoice_header"("shop_id", "invoice_date");
 
 -- CreateIndex
-CREATE INDEX "invoice_header_shop_id_status_invoice_date_idx" ON "invoice_header"("shop_id", "status", "invoice_date");
+CREATE INDEX IF NOT EXISTS "invoice_header_shop_id_status_invoice_date_idx" ON "invoice_header"("shop_id", "status", "invoice_date");
 
 -- CreateIndex
-CREATE INDEX "invoice_header_customer_id_idx" ON "invoice_header"("customer_id");
+CREATE INDEX IF NOT EXISTS "invoice_header_customer_id_idx" ON "invoice_header"("customer_id");
 
 -- CreateIndex
-CREATE INDEX "invoice_header_sales_order_id_idx" ON "invoice_header"("sales_order_id");
+CREATE INDEX IF NOT EXISTS "invoice_header_sales_order_id_idx" ON "invoice_header"("sales_order_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "payment_receipts_receipt_number_key" ON "payment_receipts"("receipt_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "payment_receipts_receipt_number_key" ON "payment_receipts"("receipt_number");
 
 -- CreateIndex
-CREATE INDEX "payment_receipts_shop_id_receipt_date_idx" ON "payment_receipts"("shop_id", "receipt_date");
+CREATE INDEX IF NOT EXISTS "payment_receipts_shop_id_receipt_date_idx" ON "payment_receipts"("shop_id", "receipt_date");
 
 -- CreateIndex
-CREATE INDEX "payment_receipts_invoice_id_idx" ON "payment_receipts"("invoice_id");
+CREATE INDEX IF NOT EXISTS "payment_receipts_invoice_id_idx" ON "payment_receipts"("invoice_id");
 
 -- CreateIndex
-CREATE INDEX "alert_events_alert_type_triggered_at_idx" ON "alert_events"("alert_type", "triggered_at");
+CREATE INDEX IF NOT EXISTS "alert_events_alert_type_triggered_at_idx" ON "alert_events"("alert_type", "triggered_at");
 
 -- CreateIndex
-CREATE INDEX "alert_events_shop_id_is_read_idx" ON "alert_events"("shop_id", "is_read");
+CREATE INDEX IF NOT EXISTS "alert_events_shop_id_is_read_idx" ON "alert_events"("shop_id", "is_read");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "customer_returns_return_number_key" ON "customer_returns"("return_number");
@@ -346,37 +370,70 @@ ALTER TABLE "cost_layers" ADD CONSTRAINT "cost_layers_shop_id_fkey" FOREIGN KEY 
 ALTER TABLE "cost_layers" ADD CONSTRAINT "cost_layers_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "sales_quote_header" ADD CONSTRAINT "sales_quote_header_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "sales_quote_header" ADD CONSTRAINT "sales_quote_header_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "sales_quote_header" ADD CONSTRAINT "sales_quote_header_sales_order_id_fkey" FOREIGN KEY ("sales_order_id") REFERENCES "sales_order_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "sales_quote_items" ADD CONSTRAINT "sales_quote_items_quote_header_id_fkey" FOREIGN KEY ("quote_header_id") REFERENCES "sales_quote_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "sales_quote_items" ADD CONSTRAINT "sales_quote_items_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "invoice_header" ADD CONSTRAINT "invoice_header_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "invoice_header" ADD CONSTRAINT "invoice_header_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "invoice_header" ADD CONSTRAINT "invoice_header_sales_order_id_fkey" FOREIGN KEY ("sales_order_id") REFERENCES "sales_order_header"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "payment_receipts" ADD CONSTRAINT "payment_receipts_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoice_header"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "payment_receipts" ADD CONSTRAINT "payment_receipts_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
+DO $$ BEGIN
 ALTER TABLE "alert_events" ADD CONSTRAINT "alert_events_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "customer_returns" ADD CONSTRAINT "customer_returns_shop_id_fkey" FOREIGN KEY ("shop_id") REFERENCES "shops"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
