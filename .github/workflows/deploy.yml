@@ -36,6 +36,9 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
 
           # Run deployment script
+          # Pull latest code first so deploy.sh itself is up-to-date before
+          # it executes (git pull inside deploy.sh updates files on disk but
+          # the already-running process keeps the old in-memory script).
           echo "🚀 Connecting to $USER@$HOST..."
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
@@ -43,7 +46,7 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "$USER@$HOST" \
-            "/opt/Inventory-control-prod/scripts/deploy.sh prod"
+            "git -C /opt/Inventory-control-prod pull origin main --quiet && /opt/Inventory-control-prod/scripts/deploy.sh prod"
 
       - name: Deployment Status
         if: success()
