@@ -11,8 +11,9 @@ test.describe('reports page (Phase 8)', () => {
   });
 
   test('loads low-stock tab with data table', async ({ page }) => {
-    // Reports redesign renamed the default tab from "Inventory" to "Low Stock".
-    await expect(page.getByRole('tab', { name: /low stock/i })).toBeVisible();
+    const lowStockTab = page.getByRole('tab', { name: /low stock/i });
+    await expect(lowStockTab).toBeVisible();
+    await lowStockTab.click();
     const table = page.locator('table').first();
     await expect(table).toBeVisible({ timeout: 25_000 });
     await expect(table.locator('tbody tr').first()).toBeVisible({ timeout: 25_000 });

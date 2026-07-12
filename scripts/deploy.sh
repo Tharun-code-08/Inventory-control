@@ -129,6 +129,9 @@ echo "✓ Pulled"
 # Step 2: Install deps
 CURRENT_STEP="npm-ci"
 echo -e "\n${GREEN}Installing dependencies...${NC}"
+# Mobile workspace has native/expo deps that cause ENOTEMPTY errors during
+# npm ci's clean step. Remove its node_modules before running npm ci.
+rm -rf apps/mobile/node_modules 2>/dev/null || true
 npm ci --quiet
 echo "✓ Dependencies installed"
 
