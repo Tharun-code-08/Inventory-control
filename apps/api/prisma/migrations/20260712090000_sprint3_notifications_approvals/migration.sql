@@ -77,6 +77,7 @@ CREATE TABLE "notification_preferences" (
     "device_alert" BOOLEAN NOT NULL DEFAULT true,
     "push_enabled" BOOLEAN NOT NULL DEFAULT true,
     "email_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "whatsapp_enabled" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL,
 

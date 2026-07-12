@@ -1,7 +1,11 @@
 -- Notification Engine — per-company rules/templates + whatsapp preference (Step 4)
 
--- AlterTable
-ALTER TABLE "notification_preferences" ADD COLUMN "whatsapp_enabled" BOOLEAN NOT NULL DEFAULT false;
+-- AlterTable (guarded: table created later in 20260712090000)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='notification_preferences') THEN
+    ALTER TABLE "notification_preferences" ADD COLUMN IF NOT EXISTS "whatsapp_enabled" BOOLEAN NOT NULL DEFAULT false;
+  END IF;
+END $$;
 
 -- CreateTable
 CREATE TABLE "notification_rules" (
