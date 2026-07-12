@@ -176,12 +176,20 @@ restart_app
 echo "✓ Restarted ($PM2_APP online)"
 
 # Step 6: Health check (correct port for this environment)
-# sleep 10: NestJS on this server takes ~5-8s to bind the port after pm2 marks online.
+# Retry loop: NestJS takes ~15-20s to bind the port on this server after pm2 marks online.
 # Using `false` (not `exit 1`) so a failing health check triggers the ERR trap → rollback.
 CURRENT_STEP="health-check"
 echo -e "\n${GREEN}Health check (:${HEALTH_PORT})...${NC}"
-sleep 10
-if ! health_ok; then
+HEALTH_OK=false
+for i in $(seq 1 8); do
+  sleep 5
+  if health_ok; then
+    HEALTH_OK=true
+    break
+  fi
+  echo "  ... waiting (${i}/8)"
+done
+if [ "$HEALTH_OK" != "true" ]; then
   echo "Health check failed on :${HEALTH_PORT}"
   false
 fi
