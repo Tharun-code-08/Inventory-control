@@ -1,1 +1,0 @@
-function i(n,r){return n?n.role==="ADMIN"||n.role==="OWNER"?!0:n.permissions.includes(r):!1}function s(n,...r){return n?n.role==="ADMIN"||n.role==="OWNER"?!0:r.some(e=>n.permissions.includes(e)):!1}export{s as a,i as h};

@@ -35,6 +35,12 @@ pnpm-debug.log*
 backups/
 apps/api/storage/backups/
 *.pdf
+**/dist-old/
+**/dist.bak*/
+**/dist.backup*/
+
+# Local tooling state
+.expo/
 
 # Accidental files
 q

@@ -1,1 +1,0 @@
-export declare const AI_PROVIDER = "AGENT_PLATFORM_AI_PROVIDER";
