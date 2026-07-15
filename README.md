@@ -1,6 +1,21 @@
-# Retail Shop Inventory Management System (Retail IMS)
+# SoftdigitIMS — Inventory Control ERP
 
-Monorepo with a **NestJS 11** API (`apps/api`), **React 18 + Vite** web app (`apps/web`), **Expo (React Native)** warehouse mobile app (`apps/mobile`), **PostgreSQL 15**, **Prisma** migrations (including DB triggers for stock), **Redis + BullMQ** for async exports, and **Docker** compose for local dependencies.
+Multi-tenant inventory and ERP SaaS covering the full procure-to-pay and order-to-cash cycle: purchase orders and approvals, goods receipt/issue/return, batch & expiry tracking (FEFO), sales orders, GST-compliant invoice PDFs, payments, reports & analytics, role-based access, notifications (email / WhatsApp / in-app), and a WhatsApp AI assistant.
+
+Monorepo with a **NestJS 11** API (`apps/api`), **React 18 + Vite** web app (`apps/web`), **Expo (React Native)** warehouse mobile app (`apps/mobile`), **PostgreSQL 15**, **Prisma** migrations (including DB triggers for stock), **Redis + BullMQ** for async jobs, and **Docker** compose for local dependencies.
+
+## Repository layout
+
+| Path | Contents |
+|------|----------|
+| `apps/api` | NestJS API — modules per domain, Prisma schema & migrations, PDF pipeline (Puppeteer) |
+| `apps/web` | React SPA (Vite, Tailwind, TanStack Query) |
+| `apps/mobile` | Expo warehouse app (login, stock lookup, goods issues) |
+| `packages/shared-types` | Types shared between API and clients |
+| `docker/` | Local Postgres + Redis compose |
+| `deploy/`, `scripts/` | Deployment, backup, and ops scripts (`scripts/deploy.sh`) |
+| `fixtures/` | Frozen invoice fixtures used by the PDF gate harness |
+| `docs/`, `RUNBOOK.md`, `DEPLOYMENT.md` | Operational documentation (see below) |
 
 ## Prerequisites
 
@@ -230,34 +245,20 @@ Deploy the contents of **`apps/web/dist/`** (static files). The built `index.htm
 - **Negative stock** is blocked in the DB on outbound `stock_ledger` inserts.
 - **Document numbers** use `document_sequences` + `pg_advisory_xact_lock(hashtext(...))` for concurrency safety.
 
-## Phase 1 priorities (must-have first)
+- **Stock ledger is fully automatic:** users never create ledger entries manually. GR, goods issue, goods return, and stock transfer flows post ledger movements inside backend transactions.
+- **Inventory lots:** batch/expiry tracking with FEFO consumption; expiry scanning surfaces health exceptions.
+- **PDF documents** (invoices, POs, GRs, quotations, receipts) render via a template registry + Puppeteer pipeline in `apps/api/src/common/pdf/`.
 
-To complete the core procure-to-pay (P2P) flow first, prioritize delivery in this order:
+## Operational documentation
 
-1. KPI Dashboard
-2. Quotation Comparison
-3. PO Approval Workflow
-4. Low Stock Alerts
-5. Stock Transfer
-6. Sales Orders
-7. Invoice Generation
-8. Role-Based Access
-9. Reports
+| Document | Purpose |
+|----------|---------|
+| [RUNBOOK.md](RUNBOOK.md) | On-call diagnosis tree, restart/recovery procedures, incident log |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment guide (pushes to `main` auto-deploy production via `.github/workflows/deploy.yml`) |
+| [docs/deployment-safety-checklist.md](docs/deployment-safety-checklist.md) | Pre-deploy checks |
+| [docs/deploy-rollback-demo.md](docs/deploy-rollback-demo.md) | Rollback walkthrough |
+| [docs/hardening-operations-runbook.md](docs/hardening-operations-runbook.md) | Security/ops hardening |
+| [docs/BACKUP-RECOVERY-GUIDE.md](docs/BACKUP-RECOVERY-GUIDE.md), [docs/postgres-backup-recovery.md](docs/postgres-backup-recovery.md) | Backup & restore |
+| [docs/business-workflow-testing.md](docs/business-workflow-testing.md) | E2E business workflow test map |
 
-## Daily operations flow (P2P + inventory)
-
-Typical day-to-day flow across procurement, warehouse, supplier collaboration, and finance:
-
-1. Purchase Order (PO) is raised and approved.
-2. Goods are received in one or more parts (Partial GR).
-3. Damaged or incorrect quantities are returned (Goods Return) when needed.
-4. Stock Ledger records every movement automatically in the background.
-5. Finance tracks payable amounts, due dates, and settlements (Payment Tracking).
-6. Supplier Portal exposes shared status (PO, GR, returns, payment state) to suppliers.
-7. Notifications keep all stakeholders informed at each step.
-
-## Implementation priorities and guardrails
-
-- **Stock ledger must be fully automatic:** users should never create ledger entries manually. GR, goods issue, goods return, and stock transfer flows must all post ledger movements in backend transactions.
-- **Notifications rollout:** start with email using SMTP/SendGrid; enable WhatsApp only after onboarding with WhatsApp Business API providers (for example Twilio or WATI) and approved Meta templates.
-- **Supplier portal architecture:** build as a separate subdomain (for example `portal.yoursite.com`) with isolated authentication and authorization, while reading from the same ERP database and service layer.
+> **Deploy warning:** merging or pushing to `main` triggers an automatic production deployment. Use feature branches + PRs; CI (quality gate, unit + integration tests, Playwright) runs on every PR without deploying.
