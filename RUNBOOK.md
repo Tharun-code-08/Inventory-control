@@ -515,6 +515,19 @@ After any incident:
 
 ---
 
+## Incident Log
+
+### 2026-07-15 — Invoice PDF generation returned HTTP 500 on null template fields
+
+- **Issue:** Invoice PDF generation could return HTTP 500 when template fields contained `null` values. First observed on staging 2026-07-12 (`GET /api/v1/documents/invoice/:id/pdf` → 500).
+- **Root Cause:** `escapeHtml()` in `apps/api/src/common/pdf/document-pdf.formatters.ts` assumed all inputs were strings and called `.replace()` on `null`/`undefined`. Dozens of PDF template call sites feed it DB-sourced values, where nominally required columns can be null in legacy rows.
+- **Fix:** Made `escapeHtml()` null-safe — signature widened to `string | null | undefined`, missing values default to an empty string before escaping. Shipped via PR #5 (commit `c20a1011`, merged to `main` as `5d4f3738`), deployed to production 2026-07-15.
+- **Validation:** Type checks, unit tests (538 API / 26 web), CI quality gates, production deployment, production health checks, and direct rendering-path verification against the deployed `dist/` (both invoice and GST templates rendered with all-null fields, no `TypeError`) all passed.
+- **Outstanding:** One successful production invoice PDF download to complete end-to-end release verification (prod DB held zero invoices at fix time, so no live document was available to exercise the full HTTP → auth → DB → Puppeteer pipeline).
+- **Operational lesson:** The `Deploy to Production` workflow pre-pulls `main` into the prod checkout; if that checkout is left on a feature branch, the deploy fails at `git pull` (safely, before build/restart). Keep `/opt/Inventory-control-prod` checked out on `main`.
+
+---
+
 ## References
 
 - **Backup Procedure:** [docs/BACKUP-RECOVERY-GUIDE.md](docs/BACKUP-RECOVERY-GUIDE.md)
@@ -526,6 +539,6 @@ After any incident:
 
 **Keep this open during on-call rotations.**
 
-**Last Updated:** 2026-06-13
+**Last Updated:** 2026-07-15
 
-**Version:** 1.0
+**Version:** 1.1
