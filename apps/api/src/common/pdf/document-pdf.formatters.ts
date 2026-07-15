@@ -1,5 +1,7 @@
-export function escapeHtml(value: string): string {
-  return value
+export function escapeHtml(value: string | null | undefined): string {
+  // PDF view-model fields come from DB rows where "required" columns can
+  // still be null in legacy data; a missing value must render empty, not 500.
+  return (value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
