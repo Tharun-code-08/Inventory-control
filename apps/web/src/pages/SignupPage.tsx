@@ -26,6 +26,7 @@ import { PasswordStrengthBar } from '@/components/auth/PasswordStrengthBar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TurnstileField } from '@/components/TurnstileField';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { useAuthStore } from '@/store/authStore';
@@ -114,6 +115,8 @@ export function SignupPage() {
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [pendingAuthPayload, setPendingAuthPayload] = useState<unknown>(null);
   const [mfaSkipped, setMfaSkipped] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
 
   const steps = [
     { id: 'details', label: 'Account' },
@@ -237,6 +240,7 @@ export function SignupPage() {
         confirmPassword,
         plan: selectedPlan,
         billing: isPaidPlan ? billing : undefined,
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
       const reqData = (reqRes.data?.data ?? reqRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
       setPhoneOtpSent(Boolean(reqData?.phoneOtpSent));
@@ -689,7 +693,11 @@ export function SignupPage() {
                   </div>
                 </div>
 
-                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || paying}>
+                {turnstileSiteKey ? (
+                  <TurnstileField siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                ) : null}
+
+                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || paying || (Boolean(turnstileSiteKey) && !turnstileToken)}>
                   {isSubmitting ? 'Sending verification code...' : 'Create account and verify email'}
                 </Button>
 

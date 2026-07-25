@@ -97,12 +97,21 @@ export class PdfClusterService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`✓ Puppeteer cluster initialized (concurrency: ${maxConcurrency})`);
   }
 
+  private maxQueueDepth(): number {
+    return this.config.get<number>('PDF_MAX_QUEUE_DEPTH', 10);
+  }
+
   async renderPdf(html: string, options?: { filename?: string; scale?: number }): Promise<Buffer> {
     // Ensure cluster is initialized on first use
     await this.ensureClusterInitialized();
 
     if (!this.cluster) {
       throw new Error('Puppeteer cluster not available - PDF generation disabled');
+    }
+
+    const queued = (this.cluster as any).jobQueue?.size ?? 0;
+    if (queued >= this.maxQueueDepth()) {
+      throw new Error(`PDF render queue is full (${queued} pending). Try again in a moment.`);
     }
 
     const startTime = Date.now();

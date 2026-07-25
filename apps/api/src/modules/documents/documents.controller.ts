@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Res, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -20,6 +21,7 @@ export class DocumentsController {
     private readonly documentEmail: DocumentEmailService,
   ) {}
 
+  @Throttle({ global: { ttl: 60_000, limit: 10 } })
   @Get(':kind/:id/pdf')
   async downloadPdf(
     @CurrentUser() user: RequestUser,

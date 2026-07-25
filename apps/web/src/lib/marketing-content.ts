@@ -400,11 +400,14 @@ export const MARKETING_FOOTER = {
       links: [
         { label: 'Contact', href: '#contact' },
         { label: 'Sign in', href: '/login' },
+        { label: 'Privacy Policy', href: '/privacy' },
+        { label: 'Terms of Service', href: '/terms' },
+        { label: 'Cancellation Policy', href: '/cancellation' },
       ],
     },
   ] satisfies MarketingFooterColumn[],
-  privacyUrl: null as string | null,
-  termsUrl: null as string | null,
+  privacyUrl: '/privacy' as string | null,
+  termsUrl: '/terms' as string | null,
   socialLinks: {
     linkedin: null as string | null,
     twitter: null as string | null,

@@ -20,8 +20,17 @@ export async function loadInvoiceForPdf(prisma: PrismaService, id: string) {
     include: {
       customer: true,
       salesOrder: {
-        include: {
-          items: { include: { product: { select: { productCode: true, description: true } } } },
+        select: {
+          soNumber: true,
+          gstSupplyType: true,
+          totalCgst: true,
+          totalSgst: true,
+          totalIgst: true,
+          items: {
+            include: {
+              product: { select: { productCode: true, description: true, hsnCode: true } },
+            },
+          },
         },
       },
     },
@@ -40,14 +49,21 @@ export async function buildInvoicePdfViewModel(
   const soItems = invoice.salesOrder?.items ?? [];
   const lines =
     soItems.length > 0
-      ? soItems.map((item) => ({
-          code: item.product?.productCode ?? item.productId.slice(0, 8),
-          description: item.product?.description ?? '—',
-          qty: formatDocumentMoney(Number(item.quantity)),
-          unitPrice: formatDocumentCurrency(Number(item.unitPrice), currency),
-          extra: formatDocumentCurrency(Number(item.taxAmount), currency),
-          amount: formatDocumentCurrency(Number(item.lineValue), currency),
-        }))
+      ? soItems.map((item) => {
+          const hsn = item.product?.hsnCode?.trim();
+          const taxRatePct = Number(item.taxRate) > 0 ? ` (${Number(item.taxRate).toFixed(0)}%)` : '';
+          return {
+            code: item.product?.productCode ?? item.productId.slice(0, 8),
+            description: [
+              item.product?.description ?? '—',
+              hsn ? `HSN: ${hsn}` : null,
+            ].filter(Boolean).join(' | '),
+            qty: `${formatDocumentMoney(Number(item.quantity))} ${item.uom}`,
+            unitPrice: formatDocumentCurrency(Number(item.unitPrice), currency),
+            extra: `${formatDocumentCurrency(Number(item.taxAmount), currency)}${taxRatePct}`,
+            amount: formatDocumentCurrency(Number(item.lineValue), currency),
+          };
+        })
       : [
           {
             code: '—',
@@ -68,10 +84,20 @@ export async function buildInvoicePdfViewModel(
   const paid = Number(invoice.paidValue);
   const balance = Math.max(grandTotal - paid, 0);
 
+  const so = invoice.salesOrder;
+  const totalCgst = so ? Number(so.totalCgst) : 0;
+  const totalSgst = so ? Number(so.totalSgst) : 0;
+  const totalIgst = so ? Number(so.totalIgst) : 0;
+  const hasGstSplit = (totalCgst + totalSgst + totalIgst) > 0;
+
+  const gstSupplyType = so?.gstSupplyType ?? 'INTRA_STATE';
+  const placeOfSupplyLabel = gstSupplyType === 'INTER_STATE' ? 'Inter-State' : 'Intra-State';
+
   const metaRows = [
     { label: 'Status', value: invoice.status },
-    ...(invoice.salesOrder ? [{ label: 'Sales Order', value: invoice.salesOrder.soNumber }] : []),
+    ...(so ? [{ label: 'Sales Order', value: so.soNumber }] : []),
     ...(invoice.dueDate ? [{ label: 'Due Date', value: formatDocumentDate(invoice.dueDate) }] : []),
+    { label: 'Place of Supply', value: placeOfSupplyLabel },
     { label: 'Plant', value: ctx.shopName },
   ];
 
@@ -90,11 +116,22 @@ export async function buildInvoicePdfViewModel(
     extraColumnHeader: 'Tax',
     padRowCount: Math.max(0, MIN_ROWS - lines.length),
     totals: [
-      { label: 'Subtotal', value: formatDocumentCurrency(subtotal, currency) },
+      { label: 'Taxable Value', value: formatDocumentCurrency(subtotal, currency) },
       ...(discount > 0
         ? [{ label: 'Discount', value: formatDocumentCurrency(discount, currency) }]
         : []),
-      { label: 'Tax', value: formatDocumentCurrency(tax, currency) },
+      ...(hasGstSplit && totalCgst > 0
+        ? [{ label: 'CGST', value: formatDocumentCurrency(totalCgst, currency) }]
+        : []),
+      ...(hasGstSplit && totalSgst > 0
+        ? [{ label: 'SGST', value: formatDocumentCurrency(totalSgst, currency) }]
+        : []),
+      ...(hasGstSplit && totalIgst > 0
+        ? [{ label: 'IGST', value: formatDocumentCurrency(totalIgst, currency) }]
+        : []),
+      ...(!hasGstSplit
+        ? [{ label: 'Tax', value: formatDocumentCurrency(tax, currency) }]
+        : []),
       { label: 'Grand Total', value: formatDocumentCurrency(grandTotal, currency), bold: true },
       ...(paid > 0 ? [{ label: 'Paid', value: formatDocumentCurrency(paid, currency) }] : []),
       ...(balance > 0 && paid > 0

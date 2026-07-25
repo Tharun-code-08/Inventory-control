@@ -9,6 +9,9 @@ import { useSubscription } from '@/hooks/use-subscription';
 import { TrialFeatureGate } from '@/components/TrialFeatureGate';
 import { preloadForCurrentRoute } from '@/lib/route-preload';
 const HomePage = lazyPage(() => import('@/pages/HomePage'), 'HomePage');
+const PrivacyPolicyPage = lazyPage(() => import('@/pages/PrivacyPolicyPage'), 'PrivacyPolicyPage');
+const TermsOfServicePage = lazyPage(() => import('@/pages/TermsOfServicePage'), 'TermsOfServicePage');
+const CancellationPolicyPage = lazyPage(() => import('@/pages/CancellationPolicyPage'), 'CancellationPolicyPage');
 const LoginPage = lazyPage(() => import('@/pages/LoginPage'), 'LoginPage');
 const SignupPage = lazyPage(() => import('@/pages/SignupPage'), 'SignupPage');
 const ForgotPasswordPage = lazyPage(
@@ -155,7 +158,9 @@ export function AppRoutes() {
         <Suspense fallback={<PageFallbackRoute />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            {/* Redirect all other paths back to home */}
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/cancellation" element={<CancellationPolicyPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

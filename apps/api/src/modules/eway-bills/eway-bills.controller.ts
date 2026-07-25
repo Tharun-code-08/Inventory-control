@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { RequestUser } from '@/common/types/request-user';
@@ -44,6 +45,7 @@ export class EwayBillsController {
     return this.service.stats(user);
   }
 
+  @Throttle({ global: { ttl: 60_000, limit: 10 } })
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Download E-Way Bill as PDF' })
   async downloadPdf(
