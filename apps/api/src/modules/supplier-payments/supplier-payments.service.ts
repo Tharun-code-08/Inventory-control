@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { AuditAction, DocumentEmailTrigger, Prisma, SupplierBillStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
@@ -39,8 +39,7 @@ export class SupplierPaymentsService {
     query: { cursor?: string; take?: number; supplier_bill_id?: string } = {},
   ) {
     const take = query.take && query.take > 0 ? Math.min(query.take, 100) : 20;
-    const where: Prisma.SupplierPaymentWhereInput = {};
-    if (user.shopId) where.shopId = user.shopId;
+    const where: Prisma.SupplierPaymentWhereInput = { shop: shopListWhere(user) };
     if (query.supplier_bill_id) where.supplierBillId = query.supplier_bill_id;
 
     const rows = await this.prisma.supplierPayment.findMany({

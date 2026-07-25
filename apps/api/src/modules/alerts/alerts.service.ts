@@ -3,6 +3,7 @@ import { AlertType, DocumentStatus, InvoiceStatus, PurchaseOrderStatus } from '@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
+import { shopListWhere } from '../../common/utils/shop-scope';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -87,15 +88,23 @@ export class AlertsService {
 
   async list(user: RequestUser) {
     return this.prisma.alertEvent.findMany({
-      where: user.shopId ? { shopId: user.shopId } : undefined,
+      where: {
+        // Include shop-scoped alerts the user can see, plus global (shopId=null) alerts.
+        OR: [{ shop: shopListWhere(user) }, { shopId: null }],
+      },
       orderBy: { triggeredAt: 'desc' },
       take: 100,
     });
   }
 
   async markRead(user: RequestUser, id: string) {
-    return this.prisma.alertEvent.update({
-      where: { id },
+    // Use updateMany so we can add a scope filter without a separate read.
+    // If the alert is outside the user's scope, count===0 and we silently ignore it.
+    await this.prisma.alertEvent.updateMany({
+      where: {
+        id,
+        OR: [{ shop: shopListWhere(user) }, { shopId: null }],
+      },
       data: { isRead: true, resolvedAt: new Date() },
     });
   }

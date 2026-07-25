@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { AuditAction, DocumentEmailTrigger, InvoiceStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { AuditService } from '../audit/audit.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { asMoney, assertNonNegativeMoney, assertPositiveMoney, roundMoney } from '../../common/utils/money';
@@ -32,8 +32,7 @@ export class PaymentsService {
     query: { cursor?: string; take?: number; invoice_id?: string } = {},
   ) {
     const take = query.take && query.take > 0 ? Math.min(query.take, 100) : 20;
-    const where: Prisma.PaymentReceiptWhereInput = {};
-    if (user.shopId) where.shopId = user.shopId;
+    const where: Prisma.PaymentReceiptWhereInput = { shop: shopListWhere(user) };
     if (query.invoice_id) where.invoiceId = query.invoice_id;
 
     const rows = await this.prisma.paymentReceipt.findMany({

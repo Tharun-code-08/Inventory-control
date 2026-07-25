@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DocumentStatus, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { DocumentNumberService } from '../stock/document-number.service';
 import {
   AcceptAutoLinkQuotationDto,
@@ -23,7 +23,7 @@ export class QuotationsService {
   async list(user: RequestUser, rfqId?: string) {
     const where: Prisma.SupplierQuotationHeaderWhereInput = {
       ...(rfqId ? { rfqId } : {}),
-      ...(user.shopId ? { shopId: user.shopId } : {}),
+      shop: shopListWhere(user),
     };
     return this.prisma.supplierQuotationHeader.findMany({
       where,
