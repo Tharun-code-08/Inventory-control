@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { assertShopScope } from '../../common/utils/shop-scope';
+import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { CreateContractDto, CreateContractItemDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 
@@ -18,7 +18,7 @@ export class ContractsService {
 
   async list(user: RequestUser) {
     return this.prisma.contractHeader.findMany({
-      where: user.shopId ? { shopId: user.shopId } : undefined,
+      where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
       include: {
         supplier: true,

@@ -268,8 +268,8 @@ export class SubscriptionService {
           subscriptionEndsAt: subscriptionEndDate(args.plan, args.billingCycle, now),
         },
       });
-      await tx.subscriptionPayment.updateMany({
-        where: { razorpayOrderId: args.orderId },
+      const { count } = await tx.subscriptionPayment.updateMany({
+        where: { razorpayOrderId: args.orderId, consumedAt: null },
         data: {
           companyId: args.companyId,
           razorpayPaymentId: args.paymentId,
@@ -278,6 +278,9 @@ export class SubscriptionService {
           consumedAt: now,
         },
       });
+      if (count === 0) {
+        throw new BadRequestException('Payment already consumed by a concurrent request');
+      }
     });
   }
 

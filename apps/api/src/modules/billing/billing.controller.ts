@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -135,8 +136,8 @@ export class BillingController {
     if (!payment || payment.status !== 'paid') {
       throw new BadRequestException('Payment not verified');
     }
-    if (payment.consumedAt && payment.companyId && payment.companyId !== companyId) {
-      throw new BadRequestException('Payment already used by another organisation');
+    if (payment.consumedAt) {
+      throw new BadRequestException('Payment already used');
     }
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -198,6 +199,7 @@ export class BillingController {
     return this.invoices.listForCompany(companyId);
   }
 
+  @Throttle({ global: { ttl: 60_000, limit: 10 } })
   @Get('invoices/:id/pdf')
   @RequirePermission('billing:manage')
   @ApiOperation({ summary: 'Download SaaS subscription invoice PDF' })

@@ -25,7 +25,7 @@ import { RoleName } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CSRF_COOKIE_NAME, CsrfGuard } from '../../common/guards/csrf.guard';
-import { LoginRateLimitGuard } from '../../common/guards/login-rate-limit.guard';
+import { LoginLockoutService } from '../../common/guards/login-rate-limit.guard';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
 import { avatarMulterOptions } from '../../common/upload/avatar-multer.options';
@@ -70,7 +70,7 @@ export class AuthController {
     private readonly mfa: MfaService,
     private readonly passwordReset: PasswordResetService,
     private readonly config: ConfigService,
-    private readonly loginRateLimitGuard: LoginRateLimitGuard,
+    private readonly loginLockout: LoginLockoutService,
   ) {}
 
   private cookieName() {
@@ -348,7 +348,6 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(LoginRateLimitGuard)
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('login')
   @ApiOperation({
@@ -361,9 +360,10 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'Too many login attempts.' })
   async login(@Req() req: Request, @Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const ctx = this.loginCtx(req);
+    await this.loginLockout.assertNotLocked(dto.email);
     try {
       const user = await this.auth.validateCredentials(dto);
-      this.loginRateLimitGuard.recordSuccessfulAttempt(dto.email);
+      await this.loginLockout.recordSuccessfulAttempt(dto.email);
       if (user.mfaEnabled) {
         const hasFunctionalConsent = this.hasFunctionalCookieConsent(req);
         const trustedDeviceToken = hasFunctionalConsent
@@ -383,7 +383,7 @@ export class AuthController {
       this.writeAuthCookies(res, result.refreshCookieValue);
       return { accessToken: result.accessToken, user: result.user };
     } catch (error) {
-      this.loginRateLimitGuard.recordFailedAttempt(dto.email);
+      await this.loginLockout.recordFailedAttempt(dto.email);
       throw error;
     }
   }
@@ -410,7 +410,6 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(LoginRateLimitGuard)
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @Post('mobile/login')
   @ApiOperation({
@@ -421,16 +420,17 @@ export class AuthController {
   @ApiResponse({ status: 201, description: 'Login successful.' })
   async mobileLogin(@Req() req: RequestContextRequest, @Body() dto: LoginDto) {
     const ctx = this.loginCtx(req);
+    await this.loginLockout.assertNotLocked(dto.email);
     try {
       const user = await this.auth.validateCredentials(dto, ctx);
-      this.loginRateLimitGuard.recordSuccessfulAttempt(dto.email);
+      await this.loginLockout.recordSuccessfulAttempt(dto.email);
       if (user.mfaEnabled) {
         return this.mfa.createLoginChallenge(user.id, user.email, ctx);
       }
       const result = await this.auth.issueSessionForUser(user.id, ctx);
       return this.mobileAuthResponse(result);
     } catch (error) {
-      this.loginRateLimitGuard.recordFailedAttempt(dto.email);
+      await this.loginLockout.recordFailedAttempt(dto.email);
       throw error;
     }
   }
