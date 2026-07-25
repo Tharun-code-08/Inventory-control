@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { request } from 'undici';
 import {
   BillingCycle,
   MfaMethod,
@@ -159,6 +160,35 @@ export class SignupService {
   private assertSignupEnabled() {
     if (!this.signupEnabled()) {
       throw new BadRequestException('Self-service signup is not enabled on this environment');
+    }
+  }
+
+  private async verifyTurnstile(responseToken?: string) {
+    const secret = this.config.get<string>('TURNSTILE_SECRET_KEY')?.trim();
+    if (!secret) return;
+    if (!responseToken) {
+      throw new BadRequestException('Captcha verification failed. Please try again.');
+    }
+    try {
+      const { statusCode, body } = await request(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ secret, response: responseToken }).toString(),
+        },
+      );
+      if (statusCode >= 500) {
+        throw new ServiceUnavailableException('Captcha verification is unavailable. Try again.');
+      }
+      const result = (await body.json()) as { success: boolean };
+      if (!result.success) {
+        throw new BadRequestException('Captcha verification failed. Please try again.');
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException || err instanceof ServiceUnavailableException) throw err;
+      this.logger.error('Turnstile verification error', err);
+      throw new ServiceUnavailableException('Captcha verification is unavailable. Try again.');
     }
   }
 
@@ -385,6 +415,7 @@ export class SignupService {
 
   async requestSignup(dto: SignupRequestDto) {
     this.assertSignupEnabled();
+    await this.verifyTurnstile(dto.turnstileToken);
 
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException('Password and confirmation do not match');

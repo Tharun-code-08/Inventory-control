@@ -91,4 +91,9 @@ export class SignupRequestDto {
   @IsOptional()
   @IsIn(['monthly', 'yearly'])
   billing?: 'monthly' | 'yearly';
+
+  @ApiPropertyOptional({ description: 'Cloudflare Turnstile challenge token' })
+  @IsOptional()
+  @IsString()
+  turnstileToken?: string;
 }
