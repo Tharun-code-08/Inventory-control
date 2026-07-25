@@ -5,6 +5,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { CacheModule } from './common/cache/cache.module';
+import { REDIS_CLIENT } from './common/cache/redis.provider';
+import { ThrottlerRedisStorage } from './common/throttler/throttler-redis.storage';
+import type Redis from 'ioredis';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { envValidationSchema } from './config/env.validation';
 import { resolveEnvFilePaths } from './config/resolve-env-files';
@@ -107,8 +111,10 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
       }),
     }),
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      imports: [CacheModule],
+      inject: [ConfigService, REDIS_CLIENT],
+      useFactory: (config: ConfigService, redis: Redis) => ({
+        storage: new ThrottlerRedisStorage(redis),
         throttlers: [
           {
             name: 'global',
