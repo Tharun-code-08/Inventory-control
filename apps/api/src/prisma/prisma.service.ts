@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { RequestContextStore } from '../common/context/request-context';
+import { TenantContext } from '../common/tenant/tenant-context';
 
 /**
  * Models that maintain a `deletedAt` timestamp instead of being hard-deleted.
@@ -63,17 +64,34 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // pick up the filter. We keep `$transaction`, `$queryRaw`, `$executeRaw`,
     // `$on`, `$connect`, `$disconnect` on the underlying client because the
     // extended client preserves those methods unchanged.
-    const extended = this.$extends({
+    // Capture a reference to the base client for use inside the extension.
+    // The extension itself cannot call this.$transaction — it needs the base client.
+    const base = this as unknown as PrismaClient;
+
+    const extended = base.$extends({
       query: {
         $allModels: {
           async $allOperations({ model, operation, args, query }) {
-            if (!model || !SOFT_DELETE_MODELS.has(model as Prisma.ModelName)) {
-              return query(args);
+            // Apply soft-delete filter first.
+            let resolvedArgs = args;
+            if (model && SOFT_DELETE_MODELS.has(model as Prisma.ModelName) && READ_OPS.has(operation)) {
+              resolvedArgs = applyDeletedAtFilter(args) as typeof args;
             }
-            if (READ_OPS.has(operation)) {
-              return query(applyDeletedAtFilter(args));
+
+            const ctx = TenantContext.get();
+            // Skip RLS wrap when: no company context, or already inside the
+            // wrapping transaction (prevents infinite recursion).
+            if (!ctx?.companyId || ctx.inRLSTx) {
+              return query(resolvedArgs);
             }
-            return query(args);
+
+            const companyId = ctx.companyId;
+            // Use SET LOCAL so the setting is scoped to this transaction only,
+            // which is safe with connection pooling — it resets on commit/rollback.
+            return base.$transaction(async () => {
+              await base.$executeRaw`SELECT set_config('app.current_company_id', ${companyId}, true)`;
+              return TenantContext.run({ companyId, inRLSTx: true }, () => query(resolvedArgs));
+            });
           },
         },
       },
