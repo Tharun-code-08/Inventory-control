@@ -168,10 +168,16 @@ export class ConversationService {
     if (pending) {
       const decision = await this.taskFlow.handleDecision(link, pending, rawText);
       if (decision) return { body: decision };
-      // User is editing/discussing the draft — show it with action buttons.
-      const reply = await this.orchestrator.respond(link, conversation, rawText, inboundMessageId, pending);
-      const body = reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
-      return { body, buttons: TASK_BUTTONS };
+      // Only route to AI when the message looks like a modification ("change qty to 5",
+      // "use supplier X instead"). Greetings, thanks, and unrelated messages get the
+      // task reminder so approve/cancel buttons always appear on meaningful context —
+      // never on a generic "Hello again!" that confuses the user into accidental approval.
+      if (this.looksLikeTaskModification(rawText)) {
+        const reply = await this.orchestrator.respond(link, conversation, rawText, inboundMessageId, pending);
+        const body = reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
+        return { body, buttons: TASK_BUTTONS };
+      }
+      return { body: this.taskFlow.pendingReminder(pending), buttons: TASK_BUTTONS };
     }
 
     // 3. Translate button IDs to natural-language queries before intent/AI routing.
@@ -184,6 +190,13 @@ export class ConversationService {
     // 5. AI tier with context-aware button post-processing.
     const aiText = await this.orchestrator.respond(link, conversation, text, inboundMessageId);
     return this.postProcessAiReply(aiText);
+  }
+
+  /** True when the message is clearly asking to modify a pending draft (not a greeting). */
+  private looksLikeTaskModification(text: string): boolean {
+    return /\b(change|update|modify|edit|make\s+it|set|use|instead|different|wrong|correct|fix|replace|add|remove|with|for|quantity|qty|supplier|customer|price|date|item|product)\b/i.test(
+      text,
+    );
   }
 
   /**

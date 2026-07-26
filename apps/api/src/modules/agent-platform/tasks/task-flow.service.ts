@@ -51,9 +51,13 @@ export class TaskFlowService {
     return null;
   }
 
-  /** Reminder shown when the AI is unavailable but a decision is pending. */
+  /** Reminder shown for any non-decision message while a task is pending. */
   pendingReminder(task: AgentTaskWithSteps): string {
-    return `⏳ Task #${task.taskNumber} is waiting for your decision:\n\n${task.summary}`;
+    return (
+      `⏳ *Task #${task.taskNumber} needs your approval:*\n\n` +
+      `${task.summary}\n\n` +
+      `Tap *✅ Approve* to confirm, *❌ Cancel* to discard, or describe a change to update the draft.`
+    );
   }
 
   private async approve(link: UserChannelLink, task: AgentTaskWithSteps): Promise<string> {
