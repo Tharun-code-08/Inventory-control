@@ -18,10 +18,15 @@ export const CAPABILITIES_TEXT = [
   '- "Create invoice for SO-00001"',
   '- "Transfer 5 units of X from Shop A to Shop B"',
   '',
+  '*🔔 Notifications*',
+  '- "Stop daily summary"',
+  '- "Enable low stock alerts"',
+  '- "Notification settings"',
+  '',
   'Just ask in plain language!',
 ].join('\n');
 
-/** @deprecated Use CAPABILITIES_TEXT — exported for backward compat */
+/** @deprecated alias kept for backward compat */
 export const CAPABILITIES_REPLY = CAPABILITIES_TEXT;
 
 const GREETING_TEXT = [
@@ -38,23 +43,15 @@ const MAIN_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
   { id: 'help', title: '❓ What can I do?' },
 ];
 
-const SNAPSHOT_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
-  { id: 'snapshot', title: '📊 Get latest' },
-  { id: 'low_stock', title: '📦 Low stock' },
-  { id: 'revenue', title: '💰 Revenue' },
-];
-
-type IntentRule = {
-  name: string;
-  pattern: RegExp;
-  reply: OutboundReply;
-};
+type IntentRule = { name: string; pattern: RegExp; reply: OutboundReply };
 
 /**
- * Rule tier of the intent engine: deterministic answers that need no AI call
- * (and therefore cost nothing). Anything unmatched falls through to the AI
- * orchestrator. Extend by adding rows — keep patterns anchored/tight so real
- * questions ("hi, how much stock of pens?") are NOT swallowed by a rule.
+ * Rule tier: deterministic, free, instant. Returns an OutboundReply (with optional
+ * quick-reply buttons) or null to engage the AI. Keep patterns anchored/tight.
+ *
+ * Button IDs tapped by the user arrive here as raw strings (e.g. "snapshot",
+ * "low_stock"). Most pass through to the AI for real data; "help" is answered here.
+ * Notification commands are handled upstream in NotificationCommandService.
  */
 const RULES: IntentRule[] = [
   {
@@ -64,6 +61,7 @@ const RULES: IntentRule[] = [
   },
   {
     name: 'help',
+    // Also matches the "help" button ID
     pattern: /^(help|menu|options?|commands?|what can you do\??|capabilities)[\s!.?]*$/i,
     reply: { body: CAPABILITIES_TEXT, buttons: MAIN_BUTTONS },
   },
@@ -73,30 +71,35 @@ const RULES: IntentRule[] = [
     reply: { body: 'Anytime! 👍' },
   },
   {
-    name: 'snapshot',
-    // "snapshot", "summary", "overview", "report", "📊 Get latest", "📊 Snapshot"
-    pattern:
-      /^(snapshot|summary|overview|report|business\s+(?:report|overview|snapshot)|daily\s+(?:report|summary)|get\s+latest|📊\s*(?:snapshot|get\s+latest))[\s!.?]*$/i,
-    reply: {
-      body: 'Fetching your latest business snapshot… one moment.',
-      buttons: SNAPSHOT_BUTTONS,
-    },
-  },
-  {
     name: 'low_stock_shortcut',
-    pattern: /^(📦\s*low\s+stock|low\s+stock\s+alert)[\s!.?]*$/i,
+    // Matches the "low_stock" button ID (underscore form) and natural language
+    pattern: /^(low_stock|📦\s*low\s+stock|low\s+stock\s+alert)[\s!.?]*$/i,
     reply: { body: 'Checking low-stock items for you…' },
   },
   {
     name: 'revenue_shortcut',
-    pattern: /^(💰\s*revenue|revenue\s+details?)[\s!.?]*$/i,
-    reply: { body: "Let me pull today's revenue numbers…" },
+    // Matches the "revenue" button ID and natural variants
+    pattern: /^(revenue|💰\s*revenue|revenue\s+details?)[\s!.?]*$/i,
+    reply: { body: "Pulling today's revenue numbers…" },
   },
 ];
 
+/**
+ * Button IDs that should be translated to natural-language queries and passed
+ * to the AI. The AI uses real ERP tools to answer them with live data.
+ */
+export const BUTTON_ID_TO_QUERY: Record<string, string> = {
+  snapshot: 'Give me a business snapshot with today\'s new orders, total revenue, low stock count, and overdue invoice count.',
+  low_stock: 'Show me all items that are below their minimum stock level.',
+  revenue: "What is my total sales revenue for today? Include number of orders.",
+  overdue: 'Show me overdue customer invoices — total overdue amount and which customers owe the most.',
+  create_po: 'I want to create a purchase order.',
+  create_so: 'I want to create a sales order.',
+};
+
 @Injectable()
 export class IntentService {
-  /** Returns a structured reply (with optional quick-reply buttons) for trivial messages, or null to engage the AI. */
+  /** Returns a structured reply (with optional quick-reply buttons) or null to engage the AI. */
   match(text: string): OutboundReply | null {
     const normalized = text.trim();
     if (!normalized) return { body: CAPABILITIES_TEXT, buttons: MAIN_BUTTONS };
@@ -104,5 +107,13 @@ export class IntentService {
       if (rule.pattern.test(normalized)) return rule.reply;
     }
     return null;
+  }
+
+  /**
+   * Translate a button ID to a natural-language query the AI can handle.
+   * Returns the original text unchanged if it's not a known button ID.
+   */
+  resolveButtonId(text: string): string {
+    return BUTTON_ID_TO_QUERY[text.trim()] ?? text;
   }
 }

@@ -12,17 +12,25 @@ import {
 import { Queue } from 'bullmq';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiOrchestratorService, REPLIES } from '../ai/ai-orchestrator.service';
+import { SummarizationService } from '../ai/summarization.service';
 import type { OutboundReply, QuickReply } from '../channels/channel-adapter.interface';
 import { IntentService } from '../intent/intent.service';
 import { LinkService } from '../link/link.service';
+import { NotificationCommandService } from '../notifications/notification-command.service';
 import { AgentTaskService } from '../tasks/agent-task.service';
 import { TaskFlowService } from '../tasks/task-flow.service';
 
 export type InboundText = {
   waMessageId: string;
-  /** Sender in Meta's format: E.164 digits without "+". */
   from: string;
   text: string;
+  timestamp?: Date;
+};
+
+export type InboundMedia = {
+  waMessageId: string;
+  from: string;
+  mediaType: string;
   timestamp?: Date;
 };
 
@@ -32,21 +40,54 @@ const LINKED_REPLY =
   '✅ WhatsApp linked successfully.\n\nWelcome! ' +
   'Ask me about stock, sales, low stock, top sellers, or what to reorder — in plain language.';
 
-/** "LINK V1-ABCD2345" or "LINK ABCD2345" (prefix optional), case-insensitive. */
+const MEDIA_REPLY =
+  "🤖 I can only process text messages right now. Please type your question and I'll answer right away!";
+
 const LINK_COMMAND_REGEX = /^LINK\s+((?:V1-)?[A-Z0-9]{6,12})$/i;
 
-/**
- * Detect AI replies that look like a business snapshot (multiple ERP metric
- * lines) so we can append quick-reply buttons for convenient follow-ups.
- */
-const SNAPSHOT_REPLY_RE =
-  /(?:business\s+snapshot|📊|(?:orders?|revenue|low[\s-]?stock|overdue).*(?:orders?|revenue|low[\s-]?stock|overdue))/is;
+// ── Context-aware button sets ──────────────────────────────────────────────
 
-const SNAPSHOT_FOLLOW_UP_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
+const SNAPSHOT_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
   { id: 'snapshot', title: '📊 Get latest' },
   { id: 'low_stock', title: '📦 Low stock' },
   { id: 'revenue', title: '💰 Revenue' },
 ];
+
+const STOCK_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
+  { id: 'low_stock', title: '📦 Low stock' },
+  { id: 'create_po', title: '🛒 Create PO' },
+  { id: 'snapshot', title: '📊 Snapshot' },
+];
+
+const INVOICE_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
+  { id: 'overdue', title: '⚠️ Overdue' },
+  { id: 'create_so', title: '📝 Create SO' },
+  { id: 'snapshot', title: '📊 Snapshot' },
+];
+
+const SALES_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
+  { id: 'revenue', title: '💰 Revenue' },
+  { id: 'create_so', title: '📝 Create SO' },
+  { id: 'snapshot', title: '📊 Snapshot' },
+];
+
+const TASK_BUTTONS: [QuickReply, QuickReply] = [
+  { id: 'approve', title: '✅ Approve' },
+  { id: 'cancel', title: '❌ Cancel' },
+];
+
+// ── Reply topic detection ──────────────────────────────────────────────────
+
+const SNAPSHOT_RE =
+  /(?:📊|business\s+snapshot|(?:orders?|revenue|low[\s-]?stock|overdue)(?:.{0,80})(?:orders?|revenue|low[\s-]?stock|overdue))/is;
+const STOCK_RE =
+  /\b(stock|inventory|units?|qty|quantity|reorder|minimum\s+stock|out\s+of\s+stock)\b/i;
+const INVOICE_RE =
+  /\b(invoice|invoiced|overdue|payment|billing|receivable|outstanding\s+amount)\b/i;
+const SALES_RE =
+  /\b(sales?\s+order|revenue|customer|selling|sold|top\s+sell)\b/i;
+const DRAFT_RE =
+  /\b(draft|pending|approval|approve|confirm|cancel)\b/i;
 
 @Injectable()
 export class ConversationService {
@@ -59,12 +100,12 @@ export class ConversationService {
     private readonly orchestrator: AiOrchestratorService,
     private readonly tasks: AgentTaskService,
     private readonly taskFlow: TaskFlowService,
+    private readonly notifCommands: NotificationCommandService,
+    private readonly summarization: SummarizationService,
     @InjectQueue('whatsapp') private readonly whatsappQueue: Queue<WhatsAppSendJob>,
   ) {}
 
-  /** Webhook entry point for an inbound WhatsApp text message. */
   async handleInboundText(inbound: InboundText): Promise<void> {
-    // Meta redelivers webhooks; wa_message_id is the idempotency key.
     if (inbound.waMessageId) {
       const seen = await this.prisma.message.findUnique({
         where: { waMessageId: inbound.waMessageId },
@@ -84,62 +125,80 @@ export class ConversationService {
 
     const conversation = await this.getOrCreateActiveConversation(link);
     const inboundMessage = await this.persistInbound(conversation, inbound);
-    // Fire-and-forget: return 200 to Meta immediately; AI runs in background.
+
     void this.links
       .touchLastSeen(link)
       .then(() => this.buildReply(link, conversation, inbound.text, inboundMessage.id))
       .then((reply) => this.queueReply(conversation, reply))
+      .then(() => this.summarization.maybeSummarize(conversation.id, link.companyId))
       .catch((err: Error) =>
         this.logger.error(`Conversation turn failed for link ${link.id}: ${err.message}`),
       );
   }
 
-  /**
-   * Reply routing. With a task pending, approve/cancel is handled directly and
-   * anything else goes to the AI with the draft in context (the "edit" path) —
-   * the rule tier is bypassed so "ok"-style smalltalk can't be misread while a
-   * decision is pending. Without one: rule tier first (free, instant), then AI.
-   */
+  /** Handle non-text messages (voice, image, document, etc.) with a friendly reply. */
+  async handleInboundMedia(inbound: InboundMedia): Promise<void> {
+    const link = await this.prisma.userChannelLink.findUnique({
+      where: { channel_phoneNumber: { channel: ChatChannel.WHATSAPP, phoneNumber: inbound.from } },
+    });
+    if (!link || link.status !== ChannelLinkStatus.ACTIVE) return;
+
+    const conversation = await this.getOrCreateActiveConversation(link);
+    await this.persistInbound(conversation, {
+      waMessageId: inbound.waMessageId,
+      from: inbound.from,
+      text: `[${inbound.mediaType}]`,
+      timestamp: inbound.timestamp,
+    });
+    await this.queueOutboundText(conversation, MEDIA_REPLY);
+  }
+
   private async buildReply(
     link: UserChannelLink,
     conversation: Conversation,
-    text: string,
+    rawText: string,
     inboundMessageId: string,
   ): Promise<OutboundReply> {
+    // 1. Notification preference commands — must execute before intent/AI.
+    const notifCommand = this.notifCommands.detect(rawText);
+    if (notifCommand) return this.notifCommands.execute(link, notifCommand);
+
+    // 2. Task pending — approve/cancel takes priority.
     const pending = await this.tasks.findPending(conversation.id);
     if (pending) {
-      const decision = await this.taskFlow.handleDecision(link, pending, text);
+      const decision = await this.taskFlow.handleDecision(link, pending, rawText);
       if (decision) return { body: decision };
-      const reply = await this.orchestrator.respond(link, conversation, text, inboundMessageId, pending);
-      const body =
-        reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
-      return { body };
+      // User is editing/discussing the draft — show it with action buttons.
+      const reply = await this.orchestrator.respond(link, conversation, rawText, inboundMessageId, pending);
+      const body = reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
+      return { body, buttons: TASK_BUTTONS };
     }
-    return (
-      this.intents.match(text) ??
-      this.postProcessAiReply(
-        await this.orchestrator.respond(link, conversation, text, inboundMessageId),
-      )
-    );
+
+    // 3. Translate button IDs to natural-language queries before intent/AI routing.
+    const text = this.intents.resolveButtonId(rawText);
+
+    // 4. Intent tier (free, instant, no AI call).
+    const intentReply = this.intents.match(text);
+    if (intentReply) return intentReply;
+
+    // 5. AI tier with context-aware button post-processing.
+    const aiText = await this.orchestrator.respond(link, conversation, text, inboundMessageId);
+    return this.postProcessAiReply(aiText);
   }
 
   /**
-   * Wrap an AI-generated reply as OutboundReply. If the text looks like a
-   * business snapshot, attach quick-reply buttons so the user can easily ask
-   * for a refresh or drill into details.
+   * Attach context-aware quick-reply buttons to an AI response based on the
+   * topic of the reply, so the user can naturally continue the conversation.
    */
   private postProcessAiReply(text: string): OutboundReply {
-    if (SNAPSHOT_REPLY_RE.test(text)) {
-      return { body: text, buttons: SNAPSHOT_FOLLOW_UP_BUTTONS };
-    }
+    if (SNAPSHOT_RE.test(text)) return { body: text, buttons: SNAPSHOT_BUTTONS };
+    if (DRAFT_RE.test(text))    return { body: text, buttons: TASK_BUTTONS };
+    if (INVOICE_RE.test(text))  return { body: text, buttons: INVOICE_BUTTONS };
+    if (SALES_RE.test(text))    return { body: text, buttons: SALES_BUTTONS };
+    if (STOCK_RE.test(text))    return { body: text, buttons: STOCK_BUTTONS };
     return { body: text };
   }
 
-  /**
-   * Persist an OUT message and queue the actual send (retried by BullMQ).
-   * Sends as interactive (with buttons) when the reply includes them,
-   * otherwise falls back to plain text.
-   */
   async queueReply(conversation: Conversation, reply: OutboundReply): Promise<void> {
     if (reply.buttons?.length) {
       await this.queueOutboundInteractive(conversation, reply.body, reply.buttons);
@@ -148,7 +207,7 @@ export class ConversationService {
     }
   }
 
-  /** @deprecated Use queueReply — kept for any external callers. */
+  /** @deprecated Use queueReply */
   async queueOutbound(conversation: Conversation, _to: string, body: string): Promise<void> {
     await this.queueOutboundText(conversation, body);
   }
@@ -187,13 +246,11 @@ export class ConversationService {
   private async handleUnlinkedNumber(inbound: InboundText): Promise<void> {
     const match = LINK_COMMAND_REGEX.exec(inbound.text.trim());
     if (!match) {
-      // Unknown number without a LINK command: stay silent (no account enumeration, no spam loop).
       this.logger.debug(`Ignoring message from unlinked number ending ${inbound.from.slice(-4)}`);
       return;
     }
     const result = await this.links.redeemLinkToken(inbound.from, match[1]);
     if (!result) {
-      // Invalid/expired/foreign token: silent too — a rejection reply would confirm the endpoint.
       this.logger.debug(`Rejected LINK attempt from number ending ${inbound.from.slice(-4)}`);
       return;
     }

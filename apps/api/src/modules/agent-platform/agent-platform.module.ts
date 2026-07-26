@@ -47,6 +47,9 @@ import { LinkService } from './link/link.service';
 import { LinkTokenCleanupService } from './link/link-token-cleanup.service';
 import { CacheModule } from '@/common/cache/cache.module';
 import { AiSettingsService } from './settings/ai-settings.service';
+import { NotificationPrefsService } from './notifications/notification-prefs.service';
+import { NotificationCommandService } from './notifications/notification-command.service';
+import { SummarizationService } from './ai/summarization.service';
 
 /**
  * Agent Platform — conversational AI over messaging channels.
@@ -129,6 +132,9 @@ import { AiSettingsService } from './settings/ai-settings.service';
     AiSettingsService,
     UsageLimitService,
     AiOrchestratorService,
+    NotificationPrefsService,
+    NotificationCommandService,
+    SummarizationService,
   ],
   exports: [ConversationService],
 })

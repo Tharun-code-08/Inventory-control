@@ -21,6 +21,7 @@ import {
   type NotificationJob,
   type OverduePaymentJob,
 } from './notification-jobs';
+import { NotificationPrefsService } from './notification-prefs.service';
 
 type AnalyticsResult = {
   totalRevenue?: unknown;
@@ -74,6 +75,7 @@ export class NotificationProcessor extends WorkerHost {
     private readonly reports: ReportsService,
     private readonly links: LinkService,
     private readonly adapter: WhatsAppAdapter,
+    private readonly notifPrefs: NotificationPrefsService,
   ) {
     super();
   }
@@ -95,6 +97,11 @@ export class NotificationProcessor extends WorkerHost {
 
         const userName = await this.resolveUserName(user.id);
         const companyName = await this.resolveCompanyName(link.companyId);
+
+        // Respect per-user notification preferences stored in link metadata.
+        if (type === 'daily_summary' && !this.notifPrefs.isDailySummaryEnabled(link)) continue;
+        if (type === 'low_stock_alert' && !this.notifPrefs.isLowStockEnabled(link)) continue;
+        if (type === 'overdue_payment' && !this.notifPrefs.isOverduePaymentEnabled(link)) continue;
 
         let payload: NotificationPayload | null = null;
         if (type === 'daily_summary') {

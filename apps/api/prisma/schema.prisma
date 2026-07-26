@@ -3404,6 +3404,8 @@ model UserChannelLink {
   status      ChannelLinkStatus @default(PENDING)
   verifiedAt  DateTime?         @map("verified_at") @db.Timestamptz(6)
   lastSeenAt  DateTime?         @map("last_seen_at") @db.Timestamptz(6)
+  /// Per-user preferences (notification opt-ins, etc.). Schema: { notifPrefs?: { dailySummary?: bool, lowStock?: bool, overduePayment?: bool } }
+  metadata    Json              @default("{}")
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 

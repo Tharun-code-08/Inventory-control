@@ -25,7 +25,7 @@ type MetaWebhookMessage = {
   timestamp?: string;
   type?: string;
   text?: { body?: string };
-  /** Sent when the user taps a quick-reply button. */
+  /** Quick-reply button tap. */
   interactive?: {
     type?: string;
     button_reply?: { id?: string; title?: string };
@@ -41,6 +41,12 @@ type MetaWebhookPayload = {
     }>;
   }>;
 };
+
+/** Types that are non-text but deserve a friendly acknowledgment. */
+const MEDIA_TYPES = new Set(['audio', 'image', 'video', 'document', 'sticker', 'location', 'contacts']);
+
+const MEDIA_REPLY =
+  '🤖 I can only process text messages right now. Please type your question and I\'ll answer right away!';
 
 @ApiTags('Agent Platform')
 @Controller('agent-platform/whatsapp')
@@ -89,28 +95,44 @@ export class WhatsAppWebhookController {
         for (const message of change.value?.messages ?? []) {
           if (!message.from) continue;
 
-          // Resolve inbound text: plain text OR a tapped quick-reply button.
-          let inboundText: string | undefined;
-          if (message.type === 'text') {
-            inboundText = message.text?.body;
-          } else if (
-            message.type === 'interactive' &&
-            message.interactive?.type === 'button_reply'
-          ) {
-            // Button title is what the user "said" — route it like any text message.
-            inboundText = message.interactive.button_reply?.title?.trim();
-          }
+          const ts = message.timestamp
+            ? new Date(Number(message.timestamp) * 1000)
+            : undefined;
 
-          if (!inboundText) continue;
           try {
-            await this.conversations.handleInboundText({
-              waMessageId: message.id ?? '',
-              from: message.from,
-              text: inboundText,
-              timestamp: message.timestamp
-                ? new Date(Number(message.timestamp) * 1000)
-                : undefined,
-            });
+            if (message.type === 'text' && message.text?.body) {
+              // Plain text message.
+              await this.conversations.handleInboundText({
+                waMessageId: message.id ?? '',
+                from: message.from,
+                text: message.text.body,
+                timestamp: ts,
+              });
+            } else if (
+              message.type === 'interactive' &&
+              message.interactive?.type === 'button_reply'
+            ) {
+              // Button tap: use the machine-readable ID as inbound text so the
+              // conversation layer can translate it to a natural-language query
+              // or route it to the approval flow (id="approve"/"cancel").
+              const buttonId = message.interactive.button_reply?.id?.trim();
+              if (buttonId) {
+                await this.conversations.handleInboundText({
+                  waMessageId: message.id ?? '',
+                  from: message.from,
+                  text: buttonId,
+                  timestamp: ts,
+                });
+              }
+            } else if (message.type && MEDIA_TYPES.has(message.type)) {
+              // Voice note, image, document, etc. — acknowledge gracefully.
+              await this.conversations.handleInboundMedia({
+                waMessageId: message.id ?? '',
+                from: message.from,
+                mediaType: message.type,
+                timestamp: ts,
+              });
+            }
           } catch (err) {
             // Never fail the webhook for one bad message — Meta would retry the whole batch.
             this.logger.error(

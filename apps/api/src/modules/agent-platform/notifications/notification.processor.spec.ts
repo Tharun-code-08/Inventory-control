@@ -49,11 +49,17 @@ function buildHarness() {
     sendText: jest.fn().mockResolvedValue({ providerMessageId: 'wamid-1' }),
     sendTemplate: jest.fn().mockResolvedValue({ providerMessageId: 'wamid-1' }),
   };
+  const notifPrefs = {
+    isDailySummaryEnabled: jest.fn().mockReturnValue(true),
+    isLowStockEnabled: jest.fn().mockReturnValue(true),
+    isOverduePaymentEnabled: jest.fn().mockReturnValue(true),
+  };
   const processor = new NotificationProcessor(
     prisma as never,
     reports as never,
     links as never,
     adapter as never,
+    notifPrefs as never,
   );
   return { prisma, reports, links, adapter, processor };
 }
