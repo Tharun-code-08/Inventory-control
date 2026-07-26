@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatChannel } from '@prisma/client';
-import type { ChannelAdapter, OutboundText, SendResult } from '../channel-adapter.interface';
+import type { ChannelAdapter, OutboundInteractive, OutboundText, SendResult } from '../channel-adapter.interface';
 
 type MetaSendResponse = {
   messages?: Array<{ id?: string }>;
@@ -47,6 +47,29 @@ export class WhatsAppAdapter implements ChannelAdapter {
       to: message.to,
       type: 'text',
       text: { preview_url: false, body: message.body },
+    });
+  }
+
+  /**
+   * Send an interactive button message (up to 3 quick-reply buttons). Meta
+   * requires the 24h service window to be open; use sendTemplate for
+   * business-initiated sends outside that window.
+   */
+  async sendInteractive(message: OutboundInteractive): Promise<SendResult> {
+    const buttons = message.buttons.slice(0, 3).map((b) => ({
+      type: 'reply',
+      reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+    }));
+    return this.postMessage({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: message.to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: message.body },
+        action: { buttons },
+      },
     });
   }
 

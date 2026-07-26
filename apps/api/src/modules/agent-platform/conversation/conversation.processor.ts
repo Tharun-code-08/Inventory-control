@@ -6,7 +6,10 @@ import { JobFailureService } from '@/common/queues/job-failure.service';
 import { MetricsService } from '@/common/observability/metrics.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { WhatsAppAdapter } from '../channels/whatsapp/whatsapp.adapter';
+import type { QuickReply } from '../channels/channel-adapter.interface';
 import type { WhatsAppSendJob } from './conversation.service';
+
+type InteractivePayload = { buttons: QuickReply[] };
 
 @Processor('whatsapp')
 export class ConversationProcessor extends WorkerHost {
@@ -35,14 +38,31 @@ export class ConversationProcessor extends WorkerHost {
     if (!this.adapter.isConfigured()) {
       const error = 'WhatsApp adapter not configured; message not sent';
       await this.markFailed(message.id, error);
-      // Retrying cannot help until credentials are configured.
       throw new UnrecoverableError(error);
     }
 
-    const result = await this.adapter.sendText({
-      to: message.conversation.userChannelLink.phoneNumber,
-      body: message.body ?? '',
-    });
+    const phoneNumber = message.conversation.userChannelLink.phoneNumber;
+    const body = message.body ?? '';
+    let result: { providerMessageId: string | null };
+
+    if (job.name === 'send-interactive' && message.type === 'interactive') {
+      const payload = message.payload as InteractivePayload | null;
+      const buttons = payload?.buttons ?? [];
+      if (buttons.length === 0) {
+        // Buttons missing — degrade to plain text gracefully.
+        this.logger.warn(`Interactive message ${message.id} has no buttons; falling back to text`);
+        result = await this.adapter.sendText({ to: phoneNumber, body });
+      } else {
+        result = await this.adapter.sendInteractive({
+          to: phoneNumber,
+          body,
+          buttons: buttons as [QuickReply, ...QuickReply[]],
+        });
+      }
+    } else {
+      result = await this.adapter.sendText({ to: phoneNumber, body });
+    }
+
     await this.prisma.message.update({
       where: { id: message.id },
       data: { status: ChatMessageStatus.SENT, waMessageId: result.providerMessageId, error: null },

@@ -6,6 +6,22 @@ export type OutboundText = {
   body: string;
 };
 
+/** A WhatsApp quick-reply button (title ≤ 20 chars, id ≤ 256 chars). */
+export type QuickReply = { id: string; title: string };
+
+/** An interactive button message — body text + 1–3 quick-reply buttons. */
+export type OutboundInteractive = {
+  to: string;
+  body: string;
+  /** 1–3 quick-reply buttons. Meta rejects more than 3. */
+  buttons: [QuickReply, ...QuickReply[]];
+};
+
+/** Caller-facing reply shape: plain text or text + quick-reply buttons. */
+export type OutboundReply =
+  | { body: string; buttons?: undefined }
+  | { body: string; buttons: [QuickReply, ...QuickReply[]] };
+
 export type SendResult = {
   /** Provider-assigned message id (Meta: `wamid...`), if returned. */
   providerMessageId: string | null;

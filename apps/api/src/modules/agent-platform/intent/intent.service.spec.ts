@@ -1,4 +1,4 @@
-import { CAPABILITIES_REPLY, IntentService } from './intent.service';
+import { CAPABILITIES_TEXT, IntentService } from './intent.service';
 
 describe('IntentService', () => {
   const service = new IntentService();
@@ -15,6 +15,10 @@ describe('IntentService', () => {
     ['thanks', 'thanks'],
     ['Thank you!', 'thanks'],
     ['ok', 'thanks'],
+    ['summary', 'snapshot'],
+    ['snapshot', 'snapshot'],
+    ['overview', 'snapshot'],
+    ['get latest', 'snapshot'],
   ];
 
   it.each(ruleMatched)('answers %p from the rule tier (no AI)', (text) => {
@@ -38,6 +42,22 @@ describe('IntentService', () => {
   });
 
   it('answers empty/whitespace messages with the capabilities text', () => {
-    expect(service.match('   ')).toBe(CAPABILITIES_REPLY);
+    const result = service.match('   ');
+    expect(result?.body).toBe(CAPABILITIES_TEXT);
+  });
+
+  it('attaches quick-reply buttons to greeting reply', () => {
+    const result = service.match('hi');
+    expect(result?.buttons?.length).toBeGreaterThan(0);
+  });
+
+  it('attaches quick-reply buttons to snapshot reply', () => {
+    const result = service.match('summary');
+    expect(result?.buttons?.length).toBeGreaterThan(0);
+  });
+
+  it('returns no buttons for thanks reply', () => {
+    const result = service.match('thanks');
+    expect(result?.buttons).toBeUndefined();
   });
 });

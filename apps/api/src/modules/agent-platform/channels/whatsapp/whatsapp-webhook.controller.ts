@@ -19,20 +19,25 @@ import { SkipEnvelope } from '@/common/decorators/skip-envelope.decorator';
 import { ConversationService } from '../../conversation/conversation.service';
 import { verifyMetaSignature } from './whatsapp-signature.util';
 
+type MetaWebhookMessage = {
+  id?: string;
+  from?: string;
+  timestamp?: string;
+  type?: string;
+  text?: { body?: string };
+  /** Sent when the user taps a quick-reply button. */
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+  };
+};
+
 type MetaWebhookPayload = {
   object?: string;
   entry?: Array<{
     changes?: Array<{
       field?: string;
-      value?: {
-        messages?: Array<{
-          id?: string;
-          from?: string;
-          timestamp?: string;
-          type?: string;
-          text?: { body?: string };
-        }>;
-      };
+      value?: { messages?: MetaWebhookMessage[] };
     }>;
   }>;
 };
@@ -82,12 +87,26 @@ export class WhatsAppWebhookController {
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         for (const message of change.value?.messages ?? []) {
-          if (message.type !== 'text' || !message.from || !message.text?.body) continue;
+          if (!message.from) continue;
+
+          // Resolve inbound text: plain text OR a tapped quick-reply button.
+          let inboundText: string | undefined;
+          if (message.type === 'text') {
+            inboundText = message.text?.body;
+          } else if (
+            message.type === 'interactive' &&
+            message.interactive?.type === 'button_reply'
+          ) {
+            // Button title is what the user "said" — route it like any text message.
+            inboundText = message.interactive.button_reply?.title?.trim();
+          }
+
+          if (!inboundText) continue;
           try {
             await this.conversations.handleInboundText({
               waMessageId: message.id ?? '',
               from: message.from,
-              text: message.text.body,
+              text: inboundText,
               timestamp: message.timestamp
                 ? new Date(Number(message.timestamp) * 1000)
                 : undefined,

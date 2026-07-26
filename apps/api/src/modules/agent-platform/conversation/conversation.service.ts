@@ -12,6 +12,7 @@ import {
 import { Queue } from 'bullmq';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiOrchestratorService, REPLIES } from '../ai/ai-orchestrator.service';
+import type { OutboundReply, QuickReply } from '../channels/channel-adapter.interface';
 import { IntentService } from '../intent/intent.service';
 import { LinkService } from '../link/link.service';
 import { AgentTaskService } from '../tasks/agent-task.service';
@@ -33,6 +34,19 @@ const LINKED_REPLY =
 
 /** "LINK V1-ABCD2345" or "LINK ABCD2345" (prefix optional), case-insensitive. */
 const LINK_COMMAND_REGEX = /^LINK\s+((?:V1-)?[A-Z0-9]{6,12})$/i;
+
+/**
+ * Detect AI replies that look like a business snapshot (multiple ERP metric
+ * lines) so we can append quick-reply buttons for convenient follow-ups.
+ */
+const SNAPSHOT_REPLY_RE =
+  /(?:business\s+snapshot|📊|(?:orders?|revenue|low[\s-]?stock|overdue).*(?:orders?|revenue|low[\s-]?stock|overdue))/is;
+
+const SNAPSHOT_FOLLOW_UP_BUTTONS: [QuickReply, QuickReply, QuickReply] = [
+  { id: 'snapshot', title: '📊 Get latest' },
+  { id: 'low_stock', title: '📦 Low stock' },
+  { id: 'revenue', title: '💰 Revenue' },
+];
 
 @Injectable()
 export class ConversationService {
@@ -71,12 +85,13 @@ export class ConversationService {
     const conversation = await this.getOrCreateActiveConversation(link);
     const inboundMessage = await this.persistInbound(conversation, inbound);
     // Fire-and-forget: return 200 to Meta immediately; AI runs in background.
-    // lastSeen is throttled inside touchLastSeen (one write per 5 min max).
     void this.links
       .touchLastSeen(link)
       .then(() => this.buildReply(link, conversation, inbound.text, inboundMessage.id))
-      .then((reply) => this.queueOutbound(conversation, inbound.from, reply))
-      .catch((err: Error) => this.logger.error(`Conversation turn failed for link ${link.id}: ${err.message}`));
+      .then((reply) => this.queueReply(conversation, reply))
+      .catch((err: Error) =>
+        this.logger.error(`Conversation turn failed for link ${link.id}: ${err.message}`),
+      );
   }
 
   /**
@@ -90,33 +105,83 @@ export class ConversationService {
     conversation: Conversation,
     text: string,
     inboundMessageId: string,
-  ): Promise<string> {
+  ): Promise<OutboundReply> {
     const pending = await this.tasks.findPending(conversation.id);
     if (pending) {
       const decision = await this.taskFlow.handleDecision(link, pending, text);
-      if (decision) return decision;
+      if (decision) return { body: decision };
       const reply = await this.orchestrator.respond(link, conversation, text, inboundMessageId, pending);
-      // AI unavailable: never leave the user without their pending decision.
-      return reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
+      const body =
+        reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
+      return { body };
     }
     return (
       this.intents.match(text) ??
-      (await this.orchestrator.respond(link, conversation, text, inboundMessageId))
+      this.postProcessAiReply(
+        await this.orchestrator.respond(link, conversation, text, inboundMessageId),
+      )
     );
   }
 
-  /** Persist an OUT message and queue the actual send (retried by BullMQ). */
-  async queueOutbound(conversation: Conversation, to: string, body: string): Promise<void> {
-    void to; // destination is resolved from the conversation's link at send time
+  /**
+   * Wrap an AI-generated reply as OutboundReply. If the text looks like a
+   * business snapshot, attach quick-reply buttons so the user can easily ask
+   * for a refresh or drill into details.
+   */
+  private postProcessAiReply(text: string): OutboundReply {
+    if (SNAPSHOT_REPLY_RE.test(text)) {
+      return { body: text, buttons: SNAPSHOT_FOLLOW_UP_BUTTONS };
+    }
+    return { body: text };
+  }
+
+  /**
+   * Persist an OUT message and queue the actual send (retried by BullMQ).
+   * Sends as interactive (with buttons) when the reply includes them,
+   * otherwise falls back to plain text.
+   */
+  async queueReply(conversation: Conversation, reply: OutboundReply): Promise<void> {
+    if (reply.buttons?.length) {
+      await this.queueOutboundInteractive(conversation, reply.body, reply.buttons);
+    } else {
+      await this.queueOutboundText(conversation, reply.body);
+    }
+  }
+
+  /** @deprecated Use queueReply — kept for any external callers. */
+  async queueOutbound(conversation: Conversation, _to: string, body: string): Promise<void> {
+    await this.queueOutboundText(conversation, body);
+  }
+
+  private async queueOutboundText(conversation: Conversation, body: string): Promise<void> {
     const message = await this.prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: MessageDirection.OUT,
+        type: 'text',
         body,
         status: ChatMessageStatus.QUEUED,
       },
     });
     await this.whatsappQueue.add('send-text', { messageId: message.id });
+  }
+
+  private async queueOutboundInteractive(
+    conversation: Conversation,
+    body: string,
+    buttons: [QuickReply, ...QuickReply[]],
+  ): Promise<void> {
+    const message = await this.prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: MessageDirection.OUT,
+        type: 'interactive',
+        body,
+        payload: { buttons } as object,
+        status: ChatMessageStatus.QUEUED,
+      },
+    });
+    await this.whatsappQueue.add('send-interactive', { messageId: message.id });
   }
 
   private async handleUnlinkedNumber(inbound: InboundText): Promise<void> {
@@ -134,7 +199,7 @@ export class ConversationService {
     }
     const conversation = await this.getOrCreateActiveConversation(result.link);
     await this.persistInbound(conversation, inbound);
-    await this.queueOutbound(conversation, inbound.from, LINKED_REPLY);
+    await this.queueOutboundText(conversation, LINKED_REPLY);
   }
 
   private async getOrCreateActiveConversation(link: UserChannelLink): Promise<Conversation> {
