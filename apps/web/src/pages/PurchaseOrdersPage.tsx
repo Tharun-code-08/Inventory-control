@@ -1662,9 +1662,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             <Label className="text-xs">Delivery address</Label>
             <p className="text-[10px] text-muted-foreground">
               From selected plant
-              {shops.find((s) => s.id === resolvedDeliveryPlantId)?.shopName
-                ? `: ${shops.find((s) => s.id === resolvedDeliveryPlantId)!.shopName}`
-                : ''}
+              {(() => { const n = shops.find((s) => s.id === resolvedDeliveryPlantId)?.shopName; return n ? `: ${n}` : ''; })()}
             </p>
             <Input
               readOnly
@@ -2542,22 +2540,24 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(detailPO as PurchaseOrder).receiptProgress!.map((row) => {
-                            const productCode =
-                              row.productCode ??
-                              detailPO.items.find((item) => item.productId === row.productId)?.product
-                                ?.productCode;
-                            return (
-                            <TableRow key={row.productId}>
-                              <TableCell className="font-mono text-xs">
-                                {productCode?.trim() || '—'}
-                              </TableCell>
-                              <TableCell className="text-right">{Number(row.orderedQty)}</TableCell>
-                              <TableCell className="text-right">{Number(row.receivedQty)}</TableCell>
-                              <TableCell className="text-right font-medium">{Number(row.remainingQty)}</TableCell>
-                            </TableRow>
+                          {(() => {
+                            const codeByProductId = new Map(
+                              detailPO.items.map((item) => [item.productId, item.product?.productCode]),
                             );
-                          })}
+                            return (detailPO as PurchaseOrder).receiptProgress!.map((row) => {
+                              const productCode = row.productCode ?? codeByProductId.get(row.productId);
+                              return (
+                                <TableRow key={row.productId}>
+                                  <TableCell className="font-mono text-xs">
+                                    {productCode?.trim() || '—'}
+                                  </TableCell>
+                                  <TableCell className="text-right">{Number(row.orderedQty)}</TableCell>
+                                  <TableCell className="text-right">{Number(row.receivedQty)}</TableCell>
+                                  <TableCell className="text-right font-medium">{Number(row.remainingQty)}</TableCell>
+                                </TableRow>
+                              );
+                            });
+                          })()}
                         </TableBody>
                       </Table>
                     </div>

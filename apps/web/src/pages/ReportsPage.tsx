@@ -1247,19 +1247,14 @@ function GiRegisterTab({
 
   const shopValue = filters.shopId ?? ALL;
 
-  const monthlyTotals = filtered.reduce(
-    (acc: Array<{ month: string; count: number }>, row) => {
-      const month = new Date(row.giDate).toLocaleDateString('en-US', {
-        month: 'short',
-        year: '2-digit',
-      });
-      const existing = acc.find((a) => a.month === month);
-      if (existing) existing.count += 1;
-      else acc.push({ month, count: 1 });
-      return acc;
-    },
-    [],
-  );
+  const monthlyTotals = (() => {
+    const countByMonth = new Map<string, number>();
+    for (const row of filtered) {
+      const month = new Date(row.giDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      countByMonth.set(month, (countByMonth.get(month) ?? 0) + 1);
+    }
+    return Array.from(countByMonth, ([month, count]) => ({ month, count }));
+  })();
 
   const handleExport = () => {
     const ok = exportReportCsv('gi-register-report.csv', filtered, [

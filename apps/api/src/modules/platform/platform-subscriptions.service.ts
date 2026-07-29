@@ -39,22 +39,32 @@ export class PlatformSubscriptionsService {
       take: 500,
     });
 
-    const trials = companies.filter((c) => c.subscriptionPlan === SubscriptionPlan.TRIAL);
-    const activeTrials = trials.filter((c) => c.subscriptionStatus === SubscriptionStatus.ACTIVE);
-    const expiringTrials = trials.filter(
-      (c) =>
-        c.trialEndsAt &&
-        c.trialEndsAt.getTime() > now.getTime() &&
-        c.trialEndsAt.getTime() <= now.getTime() + 7 * 24 * 60 * 60 * 1000,
-    );
+    // Single pass over companies to derive all partitions — avoids 6+ O(n) filter passes.
+    const trialExpiry7d = now.getTime() + 7 * 24 * 60 * 60 * 1000;
+    const trials: typeof companies = [];
+    const activeTrials: typeof companies = [];
+    const expiringTrials: typeof companies = [];
+    const paid: typeof companies = [];
+    let trialStarts30d = 0;
+    let churnExpired = 0;
 
-    const paid = companies.filter(
-      (c) =>
-        c.subscriptionPlan !== SubscriptionPlan.TRIAL &&
-        c.subscriptionStatus === SubscriptionStatus.ACTIVE,
-    );
-
-    const trialStarts30d = trials.filter((c) => c.trialStartsAt && c.trialStartsAt >= thirtyDays).length;
+    for (const c of companies) {
+      if (c.subscriptionPlan === SubscriptionPlan.TRIAL) {
+        trials.push(c);
+        if (c.subscriptionStatus === SubscriptionStatus.ACTIVE) activeTrials.push(c);
+        if (
+          c.trialEndsAt &&
+          c.trialEndsAt.getTime() > now.getTime() &&
+          c.trialEndsAt.getTime() <= trialExpiry7d
+        ) {
+          expiringTrials.push(c);
+        }
+        if (c.trialStartsAt && c.trialStartsAt >= thirtyDays) trialStarts30d++;
+      } else if (c.subscriptionStatus === SubscriptionStatus.ACTIVE) {
+        paid.push(c);
+      }
+      if (c.subscriptionStatus === SubscriptionStatus.EXPIRED) churnExpired++;
+    }
 
     const conversions = await this.prisma.subscriptionPayment.count({
       where: {
@@ -112,7 +122,7 @@ export class PlatformSubscriptionsService {
         conversionRate30d: conversionRate,
         mrrInr: mrr,
         arrInr: mrr * 12,
-        churnExpired: companies.filter((c) => c.subscriptionStatus === SubscriptionStatus.EXPIRED).length,
+        churnExpired,
       },
       upcomingRenewals,
       failedPayments: failedPayments.map((p) => ({

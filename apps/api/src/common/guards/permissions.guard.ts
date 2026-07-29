@@ -37,18 +37,19 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    // Wildcard '*' grants all permissions
-    const hasWildcard = user.permissions.includes('*');
+    // Build a Set once per request so all permission lookups are O(1).
+    const permSet = new Set(user.permissions);
+    const hasWildcard = permSet.has('*');
 
     if (requiredAny?.length) {
-      const allowed = hasWildcard || requiredAny.some((perm) => user.permissions.includes(perm));
+      const allowed = hasWildcard || requiredAny.some((perm) => permSet.has(perm));
       if (!allowed) {
         throw new ForbiddenException('Missing permission');
       }
     } else if (required?.length) {
       if (!hasWildcard) {
         for (const perm of required) {
-          if (!user.permissions.includes(perm)) {
+          if (!permSet.has(perm)) {
             throw new ForbiddenException('Missing permission');
           }
         }

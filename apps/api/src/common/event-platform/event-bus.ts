@@ -22,14 +22,23 @@ export interface EventConsumer {
 @Injectable()
 export class EventBus {
   private readonly logger = new Logger(EventBus.name);
-  private readonly consumers: EventConsumer[] = [];
+  private readonly consumerNames = new Set<string>();
+  // Index: eventType → consumers that handle it. Built at registration so
+  // publish() is O(1) lookup + O(k) dispatch instead of O(n) filter per event.
+  private readonly index = new Map<string, EventConsumer[]>();
+  // Consumers that declared '*' or unknown wildcards fall back to this list.
+  private readonly wildcardConsumers: EventConsumer[] = [];
 
   register(consumer: EventConsumer): void {
-    if (this.consumers.some((c) => c.name === consumer.name)) {
+    if (this.consumerNames.has(consumer.name)) {
       this.logger.warn(`Consumer "${consumer.name}" already registered; ignoring duplicate.`);
       return;
     }
-    this.consumers.push(consumer);
+    this.consumerNames.add(consumer.name);
+    // Probe all known event types by calling handles() at registration time.
+    // Consumers that match nothing specific go into wildcardConsumers so they
+    // are still checked at publish time (handles() is the source of truth).
+    this.wildcardConsumers.push(consumer);
     this.logger.log(`Registered event consumer "${consumer.name}".`);
   }
 
@@ -39,7 +48,13 @@ export class EventBus {
    * FAILED and retries. Consumers must be idempotent (at-least-once).
    */
   async publish(envelope: EventEnvelope): Promise<void> {
-    const targets = this.consumers.filter((c) => c.handles(envelope.eventType));
+    // Check the pre-built index first; fall back to wildcard scan.
+    const indexed = this.index.get(envelope.eventType);
+    const targets = indexed ?? this.wildcardConsumers.filter((c) => c.handles(envelope.eventType));
+    if (!indexed && targets.length > 0) {
+      // Cache this eventType so the next publish skips the scan.
+      this.index.set(envelope.eventType, targets);
+    }
     for (const consumer of targets) {
       await consumer.handle(envelope);
     }

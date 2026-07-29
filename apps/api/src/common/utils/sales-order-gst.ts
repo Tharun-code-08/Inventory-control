@@ -4,6 +4,7 @@ import { asMoney, roundMoney } from './money';
 import { isInterStateSupply } from './gst-supply-type';
 
 export const VALID_GST_SLABS = [0, 5, 12, 18, 28] as const;
+const VALID_GST_SLABS_SET = new Set<number>(VALID_GST_SLABS);
 
 export type SalesOrderLineGstInput = {
   quantity?: number;
@@ -28,7 +29,7 @@ export function validateGstSlab(cgstPercent: number, sgstPercent: number): void 
     throw new BadRequestException('CGST and SGST cannot exceed 14% each');
   }
   const combined = round2(cgstPercent + sgstPercent);
-  const valid = VALID_GST_SLABS.some((slab) => Math.abs(slab - combined) < 0.001);
+  const valid = VALID_GST_SLABS_SET.has(combined);
   if (!valid) {
     throw new BadRequestException(
       `Combined GST must be one of ${VALID_GST_SLABS.join('%, ')}% (got ${combined}%)`,
@@ -43,7 +44,7 @@ export function validateIgstSlab(igstPercent: number): void {
   if (igstPercent > 28) {
     throw new BadRequestException('IGST cannot exceed 28%');
   }
-  const valid = VALID_GST_SLABS.some((slab) => Math.abs(slab - igstPercent) < 0.001);
+  const valid = VALID_GST_SLABS_SET.has(round2(igstPercent));
   if (!valid) {
     throw new BadRequestException(
       `IGST must be one of ${VALID_GST_SLABS.join('%, ')}% (got ${igstPercent}%)`,

@@ -507,7 +507,8 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
     const tenantShopIds = shopIdsForUser(user);
     if (tenantShopIds) {
-      const accessible = product.plants.some((plant) => tenantShopIds.includes(plant.shopId));
+      const tenantShopSet = new Set(tenantShopIds);
+      const accessible = product.plants.some((plant) => tenantShopSet.has(plant.shopId));
       if (!accessible) throw new NotFoundException('Product not found');
     }
     // Same stock decoration as list() so detail screens can show the
@@ -568,7 +569,8 @@ export class ProductsService {
     } else {
       const tenantShopIds = shopIdsForUser(user);
       if (tenantShopIds) {
-        const accessible = existing.plants.some((plant) => tenantShopIds.includes(plant.shopId));
+        const tenantShopSet = new Set(tenantShopIds);
+        const accessible = existing.plants.some((plant) => tenantShopSet.has(plant.shopId));
         if (!accessible) throw new NotFoundException('Product not found');
       }
     }

@@ -245,8 +245,12 @@ export function buildDefaultEmailNotificationsConfig(): EmailNotificationsConfig
   };
 }
 
+const TEMPLATE_DEFINITION_MAP = new Map(
+  EMAIL_TEMPLATE_DEFINITIONS.map((def) => [def.id, def]),
+);
+
 export function getTemplateDefinition(templateId: EmailTemplateId) {
-  const def = EMAIL_TEMPLATE_DEFINITIONS.find((row) => row.id === templateId);
+  const def = TEMPLATE_DEFINITION_MAP.get(templateId);
   if (!def) throw new Error(`Unknown template: ${templateId}`);
   return def;
 }

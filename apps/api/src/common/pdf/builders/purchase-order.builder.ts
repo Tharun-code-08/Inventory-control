@@ -81,10 +81,16 @@ export async function buildPurchaseOrderPdfViewModel(
     document.shipToName && document.shipToName !== plantName ? `Attn: ${document.shipToName}` : '',
   ].filter(Boolean);
 
+  // Pre-index tax rates by productId so both the lines map and the VAT
+  // reduce below are O(1) per item instead of O(n) each → O(n) total.
+  const taxByProductId = new Map(
+    (document.lineItemTaxes ?? []).map((t) => [t.productId, t.taxPercent]),
+  );
+
   const lines = po.items.map((i) => {
     const qty = Number(i.orderQty);
     const rate = Number(i.rate);
-    const taxPercent = document.lineItemTaxes?.find((t) => t.productId === i.productId)?.taxPercent ?? 0;
+    const taxPercent = taxByProductId.get(i.productId) ?? 0;
     const lineSubtotal = qty * rate;
     const lineTaxAmount = lineSubtotal * (taxPercent / 100);
     const lineTotal = lineSubtotal + lineTaxAmount;
@@ -102,7 +108,7 @@ export async function buildPurchaseOrderPdfViewModel(
   let vatAmt = Number(document.taxAmount) || 0;
   if (vatAmt === 0 && document.lineItemTaxes?.length) {
     vatAmt = po.items.reduce((sum, item) => {
-      const taxPct = document.lineItemTaxes?.find((t) => t.productId === item.productId)?.taxPercent ?? 0;
+      const taxPct = taxByProductId.get(item.productId) ?? 0;
       const sub = Number(item.orderQty) * Number(item.rate);
       return sum + sub * (taxPct / 100);
     }, 0);

@@ -754,8 +754,9 @@ COALESCE(
       ORDER BY bucket ASC
     `);
 
+    const bucketMap = new Map(bucketRows.map((r) => [r.bucket, r]));
     const buckets = ['0-30', '31-60', '61-90', '90+'].map((bucket) => {
-      const row = bucketRows.find((r) => r.bucket === bucket);
+      const row = bucketMap.get(bucket);
       return {
         bucket,
         itemCount: Number(row?.item_count ?? 0),
@@ -1955,13 +1956,19 @@ COALESCE(
     // Take top 10 actions
     const topActions = actions.slice(0, 10);
 
+    const actionsSummary = topActions.reduce(
+      (acc, a) => {
+        if (a.priority === 'CRITICAL') acc.critical++;
+        else if (a.priority === 'HIGH') acc.high++;
+        else if (a.priority === 'MEDIUM') acc.medium++;
+        return acc;
+      },
+      { critical: 0, high: 0, medium: 0 },
+    );
+
     return {
       generatedAt: new Date().toISOString(),
-      actionsSummary: {
-        critical: topActions.filter((a) => a.priority === 'CRITICAL').length,
-        high: topActions.filter((a) => a.priority === 'HIGH').length,
-        medium: topActions.filter((a) => a.priority === 'MEDIUM').length,
-      },
+      actionsSummary,
       actions: topActions,
     };
   }

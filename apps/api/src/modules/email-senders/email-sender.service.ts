@@ -160,8 +160,22 @@ export class EmailSenderService {
       this.config.get<string>('MAIL_REPLY_TO') ?? process.env.MAIL_REPLY_TO ?? platformFrom;
     const bcc = this.config.get<string>('MAIL_BCC') ?? process.env.MAIL_BCC ?? '';
 
-    const customDomainSenders = senders.filter((s) => s.senderType === EmailSenderType.CUSTOM_DOMAIN);
-    const publicDomainSenders = senders.filter((s) => s.senderType === EmailSenderType.PUBLIC_DOMAIN);
+    // Single pass: partition by type, group custom-domain senders by domainId,
+    // and capture the primary id — avoids 3 separate O(n) scans.
+    const sendersByDomainId = new Map<string, typeof senders>();
+    const publicDomainSenders: typeof senders = [];
+    let primarySenderId: string | null = null;
+
+    for (const s of senders) {
+      if (s.isPrimary) primarySenderId = s.id;
+      if (s.senderType === EmailSenderType.CUSTOM_DOMAIN && s.domainId) {
+        const bucket = sendersByDomainId.get(s.domainId);
+        if (bucket) bucket.push(s);
+        else sendersByDomainId.set(s.domainId, [s]);
+      } else if (s.senderType === EmailSenderType.PUBLIC_DOMAIN) {
+        publicDomainSenders.push(s);
+      }
+    }
 
     return {
       platform: {
@@ -180,12 +194,10 @@ export class EmailSenderService {
         verifiedAt: domain.verifiedAt,
         dkimHost: domain.dkimHost,
         dkimValue: domain.dkimValue,
-        senders: customDomainSenders
-          .filter((sender) => sender.domainId === domain.id)
-          .map((sender) => this.toSenderDto(sender)),
+        senders: (sendersByDomainId.get(domain.id) ?? []).map((sender) => this.toSenderDto(sender)),
       })),
       publicSenders: publicDomainSenders.map((sender) => this.toSenderDto(sender)),
-      primarySenderId: senders.find((s) => s.isPrimary)?.id ?? null,
+      primarySenderId,
     };
   }
 
