@@ -98,67 +98,128 @@ jobs:
             "git -C /opt/Inventory-control-prod pull origin main --quiet && /opt/Inventory-control-prod/scripts/deploy.sh prod"
 
       - name: Post-deployment verification
-        # Independently verify the running process from outside deploy.sh.
-        # Three checks:
-        #   1. Liveness  — /health returns HTTP 200 and status:"ok"
-        #   2. Readiness — /health/ready returns database:"connected"
-        #   3. Identity  — /health/live returns the commit SHA we just deployed
+        # Independently verifies the running process from outside deploy.sh.
+        # Four checks:
+        #   1. Liveness   — /health returns HTTP 200 and status:"ok"
+        #   2. Readiness  — /health/ready returns database:"connected"
+        #   3. Identity   — /health/live commit SHA matches the deployed commit
+        #   4. Public URL — HTTPS endpoint through nginx responds HTTP 200
         #
-        # deploy.sh already rolls back on its own health-check failure, but this
-        # step catches edge cases (nginx misconfiguration, stale PM2 process, etc.)
-        # that would make deploy.sh succeed while the app is not actually serving.
-        # Failure here marks the GitHub deployment as failed in the environment log.
+        # Each check retries up to 10 times (3s apart) to absorb brief startup
+        # jitter — deploy.sh already waits for PM2, but nginx or upstream buffers
+        # may still be draining. Failure marks the GitHub Environment deployment
+        # as failed without requiring a separate alerting tool.
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST_KNOWN_KEY: ${{ secrets.DEPLOY_HOST_KNOWN_KEY }}
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Set at repo or environment level (Settings → Variables).
+          # Used for the public HTTPS check. Skipped if absent.
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: |
           HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
           USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
 
-          # Reuse the SSH key written by the Deploy step above.
+          # Reuse the SSH key and host-key config written by the Deploy step.
           if [ -n "$DEPLOY_HOST_KNOWN_KEY" ]; then
             SSH_STRICT="-o StrictHostKeyChecking=yes"
           else
             SSH_STRICT="-o StrictHostKeyChecking=accept-new"
           fi
-
           SSH="ssh -i ~/.ssh/deploy_key $SSH_STRICT -o ConnectTimeout=15 -o ServerAliveInterval=10 $USER@$HOST"
 
-          echo "--- [1/3] Liveness check (/api/v1/health) ---"
-          HEALTH=$($SSH "curl -sf http://localhost:3001/api/v1/health")
+          MAX=10
+          DELAY=3
+
+          # ── [1/4] Liveness ──────────────────────────────────────────────────
+          echo "--- [1/4] Liveness (/api/v1/health) ---"
+          HEALTH=""
+          for i in $(seq 1 $MAX); do
+            HEALTH=$($SSH "curl -sf http://localhost:3001/api/v1/health" 2>/dev/null) && break
+            echo "  attempt $i/$MAX failed, retrying in ${DELAY}s..."
+            sleep $DELAY
+          done
+          if [ -z "$HEALTH" ]; then
+            echo "❌ Liveness: all $MAX attempts failed"
+            exit 1
+          fi
           echo "$HEALTH"
           STATUS=$(echo "$HEALTH" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).status??''))")
           if [ "$STATUS" != "ok" ]; then
-            echo "❌ Liveness check failed: status='$STATUS' (expected 'ok')"
+            echo "❌ Liveness: status='$STATUS' (expected 'ok')"
             exit 1
           fi
           echo "✓ Liveness: status=ok"
 
-          echo "--- [2/3] Readiness check (/api/v1/health/ready) ---"
-          READY=$($SSH "curl -sf http://localhost:3001/api/v1/health/ready")
+          # ── [2/4] Readiness ─────────────────────────────────────────────────
+          echo "--- [2/4] Readiness (/api/v1/health/ready) ---"
+          READY=""
+          for i in $(seq 1 $MAX); do
+            READY=$($SSH "curl -sf http://localhost:3001/api/v1/health/ready" 2>/dev/null) && break
+            echo "  attempt $i/$MAX failed, retrying in ${DELAY}s..."
+            sleep $DELAY
+          done
+          if [ -z "$READY" ]; then
+            echo "❌ Readiness: all $MAX attempts failed"
+            exit 1
+          fi
           echo "$READY"
           DB=$(echo "$READY" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).database??''))")
           if [ "$DB" != "connected" ]; then
-            echo "❌ Readiness check failed: database='$DB' (expected 'connected')"
+            echo "❌ Readiness: database='$DB' (expected 'connected')"
             exit 1
           fi
           echo "✓ Readiness: database=connected"
 
-          echo "--- [3/3] Identity check (/api/v1/health/live) ---"
-          LIVE=$($SSH "curl -sf http://localhost:3001/api/v1/health/live")
+          # ── [3/4] Identity ──────────────────────────────────────────────────
+          echo "--- [3/4] Identity (/api/v1/health/live) ---"
+          LIVE=""
+          for i in $(seq 1 $MAX); do
+            LIVE=$($SSH "curl -sf http://localhost:3001/api/v1/health/live" 2>/dev/null) && break
+            echo "  attempt $i/$MAX failed, retrying in ${DELAY}s..."
+            sleep $DELAY
+          done
+          if [ -z "$LIVE" ]; then
+            echo "❌ Identity: all $MAX attempts failed"
+            exit 1
+          fi
           echo "$LIVE"
           ACTUAL_SHA=$(echo "$LIVE" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).commit??''))")
-          if [ "$ACTUAL_SHA" = "unknown" ] || [ -z "$ACTUAL_SHA" ]; then
-            echo "⚠️  Commit SHA not set in running process (APP_COMMIT_SHA env var missing from PM2)."
-            echo "    Deploy succeeded but identity could not be verified."
-          elif [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-            echo "❌ Identity check failed: running=$ACTUAL_SHA expected=$EXPECTED_SHA"
+          # Normalize to 40 chars — guards against short-SHA vs full-SHA mismatches.
+          EXPECTED_NORM="${EXPECTED_SHA:0:40}"
+          ACTUAL_NORM="${ACTUAL_SHA:0:40}"
+          if [ "$ACTUAL_NORM" = "unknown" ] || [ -z "$ACTUAL_NORM" ]; then
+            echo "⚠️  Commit SHA not set (APP_COMMIT_SHA env var missing from PM2). Identity skipped."
+          elif [ "$ACTUAL_NORM" != "$EXPECTED_NORM" ]; then
+            echo "❌ Identity: running=$ACTUAL_NORM expected=$EXPECTED_NORM"
             exit 1
           else
-            echo "✓ Identity: commit=$ACTUAL_SHA matches deployed SHA"
+            echo "✓ Identity: commit=${ACTUAL_NORM:0:12}... matches deployed SHA"
+          fi
+
+          # ── [4/4] Public URL ────────────────────────────────────────────────
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "--- [4/4] Public URL check skipped (PRODUCTION_URL variable not set) ---"
+            echo "    Set it at Settings → Variables → PRODUCTION_URL (e.g. https://api.example.com)"
+          else
+            echo "--- [4/4] Public URL ($PRODUCTION_URL/api/v1/health) ---"
+            PUB_CODE=""
+            for i in $(seq 1 $MAX); do
+              PUB_CODE=$(curl -sf -o /dev/null -w '%{http_code}' "$PRODUCTION_URL/api/v1/health" 2>/dev/null) && break
+              echo "  attempt $i/$MAX failed, retrying in ${DELAY}s..."
+              sleep $DELAY
+            done
+            if [ -z "$PUB_CODE" ]; then
+              echo "❌ Public URL: all $MAX attempts failed (nginx down or TLS error?)"
+              exit 1
+            fi
+            if [ "$PUB_CODE" != "200" ]; then
+              echo "❌ Public URL: HTTP $PUB_CODE (expected 200) — check nginx config, TLS cert, or firewall"
+              exit 1
+            fi
+            echo "✓ Public URL: HTTP 200"
           fi
 
       - name: Deployment Status
