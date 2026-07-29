@@ -97,9 +97,73 @@ jobs:
             "$USER@$HOST" \
             "git -C /opt/Inventory-control-prod pull origin main --quiet && /opt/Inventory-control-prod/scripts/deploy.sh prod"
 
+      - name: Post-deployment verification
+        # Independently verify the running process from outside deploy.sh.
+        # Three checks:
+        #   1. Liveness  — /health returns HTTP 200 and status:"ok"
+        #   2. Readiness — /health/ready returns database:"connected"
+        #   3. Identity  — /health/live returns the commit SHA we just deployed
+        #
+        # deploy.sh already rolls back on its own health-check failure, but this
+        # step catches edge cases (nginx misconfiguration, stale PM2 process, etc.)
+        # that would make deploy.sh succeed while the app is not actually serving.
+        # Failure here marks the GitHub deployment as failed in the environment log.
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST_KNOWN_KEY: ${{ secrets.DEPLOY_HOST_KNOWN_KEY }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
+          USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
+
+          # Reuse the SSH key written by the Deploy step above.
+          if [ -n "$DEPLOY_HOST_KNOWN_KEY" ]; then
+            SSH_STRICT="-o StrictHostKeyChecking=yes"
+          else
+            SSH_STRICT="-o StrictHostKeyChecking=accept-new"
+          fi
+
+          SSH="ssh -i ~/.ssh/deploy_key $SSH_STRICT -o ConnectTimeout=15 -o ServerAliveInterval=10 $USER@$HOST"
+
+          echo "--- [1/3] Liveness check (/api/v1/health) ---"
+          HEALTH=$($SSH "curl -sf http://localhost:3001/api/v1/health")
+          echo "$HEALTH"
+          STATUS=$(echo "$HEALTH" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).status??''))")
+          if [ "$STATUS" != "ok" ]; then
+            echo "❌ Liveness check failed: status='$STATUS' (expected 'ok')"
+            exit 1
+          fi
+          echo "✓ Liveness: status=ok"
+
+          echo "--- [2/3] Readiness check (/api/v1/health/ready) ---"
+          READY=$($SSH "curl -sf http://localhost:3001/api/v1/health/ready")
+          echo "$READY"
+          DB=$(echo "$READY" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).database??''))")
+          if [ "$DB" != "connected" ]; then
+            echo "❌ Readiness check failed: database='$DB' (expected 'connected')"
+            exit 1
+          fi
+          echo "✓ Readiness: database=connected"
+
+          echo "--- [3/3] Identity check (/api/v1/health/live) ---"
+          LIVE=$($SSH "curl -sf http://localhost:3001/api/v1/health/live")
+          echo "$LIVE"
+          ACTUAL_SHA=$(echo "$LIVE" | node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d).commit??''))")
+          if [ "$ACTUAL_SHA" = "unknown" ] || [ -z "$ACTUAL_SHA" ]; then
+            echo "⚠️  Commit SHA not set in running process (APP_COMMIT_SHA env var missing from PM2)."
+            echo "    Deploy succeeded but identity could not be verified."
+          elif [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "❌ Identity check failed: running=$ACTUAL_SHA expected=$EXPECTED_SHA"
+            exit 1
+          else
+            echo "✓ Identity: commit=$ACTUAL_SHA matches deployed SHA"
+          fi
+
       - name: Deployment Status
         if: success()
-        run: echo "✅ Deployment successful - ${{ github.event.workflow_run.head_sha }}"
+        run: echo "✅ Deployment verified - ${{ github.event.workflow_run.head_sha }}"
 
       - name: Notify on failure
         if: failure()

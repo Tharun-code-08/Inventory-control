@@ -24,6 +24,10 @@ export class HealthService {
       },
       nodeVersion: process.version,
       pid: process.pid,
+      // Set by deploy.sh via `sudo -E pm2 restart --update-env`.
+      // CI post-deployment verification reads this to confirm the right commit is live.
+      commit: process.env.APP_COMMIT_SHA ?? 'unknown',
+      version: process.env.APP_VERSION ?? 'unknown',
     };
   }
 
