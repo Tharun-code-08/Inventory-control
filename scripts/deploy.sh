@@ -91,8 +91,8 @@ rollback() {
 
     # Export build identity for the rollback commit so the startup log is accurate.
     export APP_COMMIT_SHA="$PREVIOUS"
-    export APP_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    export APP_VERSION="$(node -p "require('./apps/api/package.json').version" 2>/dev/null || echo unknown)"
+    APP_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; export APP_BUILD_TIME
+    APP_VERSION="$(node -p "require('./apps/api/package.json').version" 2>/dev/null || echo unknown)"; export APP_VERSION
 
     if restart_app; then
       sleep 5
@@ -169,9 +169,9 @@ echo "✓ Migrations applied"
 # Step 5: Restart API (build identity is exported so the app can log what it is)
 CURRENT_STEP="pm2-restart"
 echo -e "\n${GREEN}Restarting API...${NC}"
-export APP_COMMIT_SHA="$(git rev-parse HEAD)"
-export APP_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-export APP_VERSION="$(node -p "require('./apps/api/package.json').version" 2>/dev/null || echo unknown)"
+APP_COMMIT_SHA="$(git rev-parse HEAD)"; export APP_COMMIT_SHA
+APP_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; export APP_BUILD_TIME
+APP_VERSION="$(node -p "require('./apps/api/package.json').version" 2>/dev/null || echo unknown)"; export APP_VERSION
 restart_app
 echo "✓ Restarted ($PM2_APP online)"
 
