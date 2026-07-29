@@ -8,6 +8,17 @@ on:
     types: [completed]
     branches: [main]
 
+# Least-privilege: checkout only needs read; SSH deploy uses its own key.
+permissions:
+  contents: read
+
+# Queue deploys rather than cancelling mid-flight.
+# cancel-in-progress: false ensures a running deployment finishes before the
+# next one starts — partial deploys are far worse than a short queue.
+concurrency:
+  group: production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

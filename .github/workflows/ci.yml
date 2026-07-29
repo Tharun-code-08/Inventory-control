@@ -5,6 +5,10 @@ on:
     branches: ['**']
   pull_request:
 
+# Least-privilege: this workflow only reads the repository.
+permissions:
+  contents: read
+
 # Cancel in-progress runs for the same branch/PR so pushes don't queue up.
 concurrency:
   group: ci-${{ github.ref }}
@@ -31,11 +35,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: apps/api/node_modules/.prisma
-          key: prisma-${{ hashFiles('apps/api/prisma/schema.prisma') }}
+          # Key includes lockfile (captures Prisma CLI version) and Node version
+          # so a dependency bump or runtime upgrade forces regeneration.
+          key: prisma-node20-${{ hashFiles('apps/api/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Generate Prisma client
         # @prisma/client types must exist before tsc and tests run.
-        # Skipped when the cache hit matches the current schema hash.
+        # Skipped when the cache key matches — schema and lockfile are unchanged.
         if: steps.prisma-cache.outputs.cache-hit != 'true'
         run: npm run prisma:generate --workspace=api
 
