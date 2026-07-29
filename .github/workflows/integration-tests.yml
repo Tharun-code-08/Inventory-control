@@ -6,6 +6,11 @@ on:
     branches: ['**']
   pull_request:
 
+# Cancel in-progress runs for the same branch/PR so pushes don't queue up.
+concurrency:
+  group: integration-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api-business-workflows:
     name: API business workflows
@@ -50,8 +55,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm install
+      # npm ci (not npm install) ensures the lockfile is respected exactly.
+      - run: npm ci
       - run: npm run prisma:generate --workspace=api
+      - name: Create required storage directories
+        run: mkdir -p ./storage/exports ./storage/uploads
       - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
       - run: npx prisma db seed --schema apps/api/prisma/schema.prisma
       - run: npm run test:e2e:workflows --workspace=api -- --runInBand
@@ -101,23 +109,29 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm install
+      # npm ci (not npm install) ensures the lockfile is respected exactly.
+      - run: npm ci
       - run: npm run prisma:generate --workspace=api
+      - name: Create required storage directories
+        run: mkdir -p ./storage/exports ./storage/uploads
       - run: |
           npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
           npx prisma db seed --schema apps/api/prisma/schema.prisma
       - run: npm run build
       - run: npx playwright install chromium --with-deps
         working-directory: apps/web
-      - run: |
+      - name: Start API and web preview
+        run: |
           npm run start --workspace=api &
           npm run preview --workspace=web -- --host 127.0.0.1 --port 5200 &
-      - run: |
+      - name: Wait for API and web to be ready
+        run: |
           for i in $(seq 1 60); do
             curl -sf http://127.0.0.1:3000/api/v1/health > /dev/null &&
             curl -sf http://127.0.0.1:5200 > /dev/null && exit 0
             sleep 2
           done
+          echo "❌ Services did not become ready within 120s"
           exit 1
       - run: npm run test:e2e --workspace=web
       - uses: actions/upload-artifact@v4

@@ -1,24 +1,36 @@
 name: Deploy to Production
 
+# Gate: only deploy after CI Quality Gate passes on main.
+# This prevents racing against CI and deploying broken commits.
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["CI Quality Gate"]
+    types: [completed]
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy API to VPS
+    # Only proceed when the upstream Quality Gate actually succeeded.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Check out the exact commit that passed CI, not whatever HEAD is now.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Deploy to VPS
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          # Optional: set this secret to the output of `ssh-keyscan <host>` to
+          # enable strict host-key verification and prevent MITM attacks.
+          # If absent, falls back to accept-new (safe for first connection).
+          DEPLOY_HOST_KNOWN_KEY: ${{ secrets.DEPLOY_HOST_KNOWN_KEY }}
         run: |
           # Trim secrets (pasted values may have trailing newlines/spaces)
           HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
@@ -35,13 +47,26 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Run deployment script
+          # Configure host-key verification.
+          # Preferred: inject known_hosts from the DEPLOY_HOST_KNOWN_KEY secret
+          # (populate with: ssh-keyscan -H <your-host>).
+          # Fallback: accept-new accepts the key on first connection but rejects
+          # any change thereafter — safer than StrictHostKeyChecking=no.
+          if [ -n "$DEPLOY_HOST_KNOWN_KEY" ]; then
+            printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" >> ~/.ssh/known_hosts
+            chmod 600 ~/.ssh/known_hosts
+            SSH_STRICT="-o StrictHostKeyChecking=yes"
+          else
+            SSH_STRICT="-o StrictHostKeyChecking=accept-new"
+          fi
+
+          # Run deployment script.
           # Pull latest code first so deploy.sh itself is up-to-date before
           # it executes (git pull inside deploy.sh updates files on disk but
           # the already-running process keeps the old in-memory script).
           echo "🚀 Connecting to $USER@$HOST..."
           ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
+            $SSH_STRICT \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
@@ -50,8 +75,8 @@ jobs:
 
       - name: Deployment Status
         if: success()
-        run: echo "✅ Deployment successful - $(git rev-parse --short HEAD)"
+        run: echo "✅ Deployment successful - ${{ github.event.workflow_run.head_sha }}"
 
       - name: Notify on failure
         if: failure()
-        run: echo "❌ Deployment failed"
+        run: echo "❌ Deployment failed for ${{ github.event.workflow_run.head_sha }}"

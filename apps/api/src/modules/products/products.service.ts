@@ -861,16 +861,19 @@ export class ProductsService {
         damaged: damagedCount,
         stockLedger: ledgerCount,
       },
-      plants: existing.plants.map((plant) => {
-        const shop = shops.find((row) => row.id === plant.shopId);
-        return {
-          shopId: plant.shopId,
-          shopNumber: shop?.shopNumber ?? plant.shopId,
-          shopName: shop?.shopName ?? null,
-          isActive: plant.isActive,
-          currentStock: stockBalances.get(`${id}:${plant.shopId}`) ?? 0,
-        };
-      }),
+      plants: (() => {
+        const shopById = new Map(shops.map((s) => [s.id, s]));
+        return existing.plants.map((plant) => {
+          const shop = shopById.get(plant.shopId);
+          return {
+            shopId: plant.shopId,
+            shopNumber: shop?.shopNumber ?? plant.shopId,
+            shopName: shop?.shopName ?? null,
+            isActive: plant.isActive,
+            currentStock: stockBalances.get(`${id}:${plant.shopId}`) ?? 0,
+          };
+        });
+      })(),
     };
   }
 
@@ -1044,11 +1047,13 @@ export class ProductsService {
           location,
         ]),
       );
+      // Pre-filter to active only — applyBulkUpsertRow only ever needs active locations.
       const locationsByShop = new Map<
         string,
         Array<{ id: string; shopId: string; code: string; name: string; isActive: boolean }>
       >();
       for (const location of locations) {
+        if (!location.isActive) continue;
         const bucket = locationsByShop.get(location.shopId) ?? [];
         bucket.push(location);
         locationsByShop.set(location.shopId, bucket);
@@ -1146,7 +1151,10 @@ export class ProductsService {
       (await this.resolveGeneratedProductCode(tx, companyId, shop.id, row.category, reservedCodes));
     const existing = incomingCode ? productByCode.get(incomingCode) : undefined;
     const action: 'create' | 'update' = existing ? 'update' : 'create';
-    const rowLocations = (locationsByShop.get(shop.id) ?? []).filter((location) => location.isActive);
+    // locationsByShop is pre-filtered to active; no secondary filter needed.
+    const rowLocations = locationsByShop.get(shop.id) ?? [];
+    // O(1) location lookup by id — used when building the in-memory plant shape below.
+    const locationById = new Map(rowLocations.map((l) => [l.id, l]));
 
     let storageLocationId: string | null = null;
     if (row.storageLocationCode) {
@@ -1275,13 +1283,10 @@ export class ProductsService {
               createdById: user.id,
               updatedById: null,
               storageLocation: storageLocationId
-                ? {
-                    id: storageLocationId,
-                    code:
-                      rowLocations.find((location) => location.id === storageLocationId)?.code ?? '',
-                    name:
-                      rowLocations.find((location) => location.id === storageLocationId)?.name ?? '',
-                  }
+                ? (() => {
+                    const loc = locationById.get(storageLocationId);
+                    return { id: storageLocationId, code: loc?.code ?? '', name: loc?.name ?? '' };
+                  })()
                 : null,
             },
           ],
@@ -1413,13 +1418,10 @@ export class ProductsService {
         createdById: user.id,
         updatedById: null,
         storageLocation: resolvedStorageLocationId
-          ? {
-              id: resolvedStorageLocationId,
-              code:
-                rowLocations.find((location) => location.id === resolvedStorageLocationId)?.code ?? '',
-              name:
-                rowLocations.find((location) => location.id === resolvedStorageLocationId)?.name ?? '',
-            }
+          ? (() => {
+              const loc = locationById.get(resolvedStorageLocationId);
+              return { id: resolvedStorageLocationId, code: loc?.code ?? '', name: loc?.name ?? '' };
+            })()
           : null,
       } as ProductRow['plants'][number]);
     }

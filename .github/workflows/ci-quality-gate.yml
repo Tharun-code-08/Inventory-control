@@ -5,6 +5,11 @@ on:
     branches: ['**']
   pull_request:
 
+# Cancel in-progress runs for the same branch/PR so pushes don't queue up.
+concurrency:
+  group: ci-quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
@@ -31,17 +36,11 @@ jobs:
         run: npm run test --workspace=web
       - name: API unit tests with coverage gate
         run: npm run test:cov --workspace=api -- --runInBand
-      - name: OpenAPI smoke validation
-        # Builds the Swagger document and runs swagger-parser against it. Only
-        # runs when a DATABASE_URL is exported (the Nest test bootstrap exits
-        # early without one, so the test suite is a no-op on PR builds without
-        # a DB). The job is therefore non-fatal in those environments.
-        run: npm run test:e2e --workspace=api -- --testPathPattern openapi.e2e-spec
-        continue-on-error: true
       - name: Upload API coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-coverage
-          path: retail-ims/apps/api/coverage
+          # Path is relative to the repo root inside the runner checkout.
+          path: apps/api/coverage
           if-no-files-found: ignore

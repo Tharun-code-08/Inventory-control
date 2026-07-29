@@ -155,20 +155,24 @@ export class GstHsnService {
   private rankMatches(matches: GstHsnMatch[], query: string): GstHsnMatch[] {
     const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     const queryWords = normalizedQuery.split(' ').filter((w) => w.length >= 2);
+    // Pre-computed once; was being recomputed inside score() on every sort comparison.
+    const codeDigits = query.replace(/\D/g, '');
 
-    const score = (match: GstHsnMatch): number => {
+    // Pre-compute scores in O(n*q) so sort comparisons are O(1) instead of O(q) each.
+    const scored = matches.map((match) => {
       const desc = match.description.toLowerCase();
       let points = 0;
       if (desc.includes(normalizedQuery)) points += 50;
       for (const word of queryWords) {
         if (desc.includes(word)) points += 10;
       }
-      if (match.code.startsWith(query.replace(/\D/g, ''))) points += 30;
+      if (codeDigits && match.code.startsWith(codeDigits)) points += 30;
       points += Math.min(match.code.length, 8);
-      return points;
-    };
+      return { match, points };
+    });
 
-    return [...matches].sort((a, b) => score(b) - score(a));
+    scored.sort((a, b) => b.points - a.points);
+    return scored.map(({ match }) => match);
   }
 
   private chunk<T>(items: T[], size: number): T[][] {
