@@ -34,8 +34,18 @@ jobs:
       - name: Web smoke tests
         # vitest — jest's --runInBand is not a valid flag here
         run: npm run test --workspace=web
+      - name: Typecheck (spec files)
+        # nest build uses tsconfig.build.json which excludes **/*spec.ts.
+        # This separate tsc pass catches type errors in test files that the
+        # build step silently skips.
+        run: npx tsc --noEmit -p apps/api/tsconfig.json
       - name: API unit tests with coverage gate
         run: npm run test:cov --workspace=api -- --runInBand
+      - name: OpenAPI smoke validation
+        # Only runs when DATABASE_URL is exported — Nest test bootstrap exits
+        # without it. Skipped on standard CI; runs in integration environments.
+        if: env.DATABASE_URL != ''
+        run: npm run test:e2e --workspace=api -- --testPathPattern openapi.e2e-spec
       - name: Upload API coverage artifact
         if: always()
         uses: actions/upload-artifact@v4

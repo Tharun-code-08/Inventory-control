@@ -33,6 +33,12 @@ jobs:
         # Compiles TypeScript for all workspaces; tsc errors surface here.
         run: npm run build
 
+      - name: Typecheck (spec files)
+        # nest build uses tsconfig.build.json which excludes **/*spec.ts.
+        # This separate tsc pass catches type errors in test files that the
+        # build step silently skips.
+        run: npx tsc --noEmit -p apps/api/tsconfig.json
+
       - name: Run tests
         run: npm run test --workspace=api
 

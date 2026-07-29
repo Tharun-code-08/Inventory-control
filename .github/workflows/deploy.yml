@@ -48,15 +48,22 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
 
           # Configure host-key verification.
-          # Preferred: inject known_hosts from the DEPLOY_HOST_KNOWN_KEY secret
-          # (populate with: ssh-keyscan -H <your-host>).
-          # Fallback: accept-new accepts the key on first connection but rejects
-          # any change thereafter — safer than StrictHostKeyChecking=no.
+          #
+          # REQUIRED FOR PRODUCTION: set the DEPLOY_HOST_KNOWN_KEY secret to
+          # the output of `ssh-keyscan -H <your-host>` run from a trusted machine.
+          # This is the only way to fully prevent MITM attacks against deploys.
+          #
+          # The accept-new fallback below is a TRANSITIONAL default only.
+          # It accepts the host key on the first connection and rejects any
+          # change afterward — safer than StrictHostKeyChecking=no, but still
+          # vulnerable on first contact. Do not rely on this permanently.
           if [ -n "$DEPLOY_HOST_KNOWN_KEY" ]; then
             printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" >> ~/.ssh/known_hosts
             chmod 600 ~/.ssh/known_hosts
             SSH_STRICT="-o StrictHostKeyChecking=yes"
           else
+            echo "⚠️  DEPLOY_HOST_KNOWN_KEY is not set. Using accept-new as a transitional fallback."
+            echo "    Set this secret (ssh-keyscan -H <host>) to enable strict host verification."
             SSH_STRICT="-o StrictHostKeyChecking=accept-new"
           fi
 
