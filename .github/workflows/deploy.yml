@@ -12,8 +12,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy API to VPS
+    timeout-minutes: 30
     # Only proceed when the upstream Quality Gate actually succeeded.
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    # GitHub Environment: enables required reviewers, wait timers, deployment
+    # history, and environment-scoped secrets on GitHub.
+    # Set up at: Settings → Environments → production
+    environment: production
 
     steps:
       - name: Checkout code
@@ -27,9 +33,9 @@ jobs:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          # Optional: set this secret to the output of `ssh-keyscan <host>` to
-          # enable strict host-key verification and prevent MITM attacks.
-          # If absent, falls back to accept-new (safe for first connection).
+          # REQUIRED FOR PRODUCTION: set this secret to the output of
+          # `ssh-keyscan -H <your-host>` run from a trusted machine.
+          # This is the only way to fully prevent MITM attacks against deploys.
           DEPLOY_HOST_KNOWN_KEY: ${{ secrets.DEPLOY_HOST_KNOWN_KEY }}
         run: |
           # Trim secrets (pasted values may have trailing newlines/spaces)

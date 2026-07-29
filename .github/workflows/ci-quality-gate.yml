@@ -13,6 +13,7 @@ concurrency:
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,10 +22,21 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+
+      - name: Restore Prisma client cache
+        id: prisma-cache
+        uses: actions/cache@v4
+        with:
+          path: apps/api/node_modules/.prisma
+          key: prisma-${{ hashFiles('apps/api/prisma/schema.prisma') }}
+
       - name: Generate Prisma client
         # Tests and build both consume types from @prisma/client; ensure they
         # exist before downstream steps run.
+        # Skipped when the cache hit matches the current schema hash.
+        if: steps.prisma-cache.outputs.cache-hit != 'true'
         run: npm run prisma:generate --workspace=api
+
       - name: Lint
         run: npm run lint
       - name: Build

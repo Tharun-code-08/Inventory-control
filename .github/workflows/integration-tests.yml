@@ -15,6 +15,7 @@ jobs:
   api-business-workflows:
     name: API business workflows
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:15-alpine
@@ -57,7 +58,18 @@ jobs:
           cache: npm
       # npm ci (not npm install) ensures the lockfile is respected exactly.
       - run: npm ci
-      - run: npm run prisma:generate --workspace=api
+
+      - name: Restore Prisma client cache
+        id: prisma-cache
+        uses: actions/cache@v4
+        with:
+          path: apps/api/node_modules/.prisma
+          key: prisma-${{ hashFiles('apps/api/prisma/schema.prisma') }}
+
+      - name: Generate Prisma client
+        if: steps.prisma-cache.outputs.cache-hit != 'true'
+        run: npm run prisma:generate --workspace=api
+
       - name: Create required storage directories
         run: mkdir -p ./storage/exports ./storage/uploads
       - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
@@ -67,6 +79,7 @@ jobs:
   playwright-mobile:
     name: Playwright (Phase 8 mobile)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:15-alpine
@@ -111,7 +124,18 @@ jobs:
           cache: npm
       # npm ci (not npm install) ensures the lockfile is respected exactly.
       - run: npm ci
-      - run: npm run prisma:generate --workspace=api
+
+      - name: Restore Prisma client cache
+        id: prisma-cache
+        uses: actions/cache@v4
+        with:
+          path: apps/api/node_modules/.prisma
+          key: prisma-${{ hashFiles('apps/api/prisma/schema.prisma') }}
+
+      - name: Generate Prisma client
+        if: steps.prisma-cache.outputs.cache-hit != 'true'
+        run: npm run prisma:generate --workspace=api
+
       - name: Create required storage directories
         run: mkdir -p ./storage/exports ./storage/uploads
       - run: |
