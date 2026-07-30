@@ -3851,6 +3851,98 @@ model NotificationTemplate {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Workflow / Notification Engine — explainability decision log (Phase 1, Step 4)
+// One row per delivery decision recording *why*: the chosen channel, priority,
+// outcome and reason. Append-only observability sidecar; the engine writes it
+// best-effort and never lets a log failure break notification delivery.
+// Written via guarded raw SQL today; typed model kept in sync for future use +
+// drift detection.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkflowDecisionLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  /// Envelope eventId — trace back to the source event.
+  eventId         String   @map("event_id") @db.Uuid
+  correlationId   String   @map("correlation_id") @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  eventType       String   @map("event_type")
+  /// Null for event-level decisions (e.g. NO_RECIPIENTS); set per recipient otherwise.
+  recipientUserId String?  @map("recipient_user_id") @db.Uuid
+  /// DeliveryChannel name, kept as text so the log is decoupled from the enum.
+  channel         String
+  /// NotificationPriority name at decision time.
+  priority        String
+  /// Reserved for numeric priority scoring (Phase 3).
+  priorityScore   Int?     @map("priority_score")
+  /// DELIVERED | SUPPRESSED_DUPLICATE | NO_RECIPIENTS | FAILED.
+  outcome         String
+  reason          String
+  /// Which rule drove this (e.g. "code-default" or a NotificationRule id).
+  matchedRule     String?  @map("matched_rule")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, createdAt])
+  @@index([eventId])
+  @@index([correlationId])
+  @@map("workflow_decision_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer follow-up / dunning (Phase 2)
+// Consent is required before any outbound customer message (WhatsApp policy +
+// legal). FollowupThread is the durable dunning FSM state per invoice. States
+// are stored as text (documented allowed values) so the models stay decoupled
+// from generated Prisma enums and safe to add without a client regen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CustomerContactChannel {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  /// WHATSAPP | EMAIL
+  channel       String
+  /// E.164 without "+" for WhatsApp, or an email address.
+  address       String
+  /// PENDING | OPTED_IN | OPTED_OUT
+  consentState  String    @default("PENDING") @map("consent_state")
+  consentAt     DateTime? @map("consent_at") @db.Timestamptz(6)
+  lastEngagedAt DateTime? @map("last_engaged_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([customerId, channel])
+  @@index([companyId, consentState])
+  @@map("customer_contact_channels")
+}
+
+model FollowupThread {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  /// The dunned entity, e.g. "invoice".
+  entityType      String    @map("entity_type")
+  entityId        String    @map("entity_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  /// Highest completed ladder index; -1 = none yet.
+  ladderStep      Int       @default(-1) @map("ladder_step")
+  /// Reserved for the compiled WorkflowGraph node id (Phase 5).
+  currentNodeId   String?   @map("current_node_id")
+  /// Pins the workflow version a running thread executes.
+  workflowVersion Int       @default(1) @map("workflow_version")
+  /// ACTIVE | PAUSED | RESOLVED | ESCALATED | STOPPED | WAITING_APPROVAL
+  state           String    @default("ACTIVE")
+  nextActionAt    DateTime? @map("next_action_at") @db.Timestamptz(6)
+  lastEventId     String?   @map("last_event_id") @db.Uuid
+  stopReason      String?   @map("stop_reason")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entityType, entityId])
+  @@index([companyId, state, nextActionAt])
+  @@index([customerId])
+  @@map("followup_threads")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Inventory Health — Exception Engine + Health Score (Phase 2.5)
 // ─────────────────────────────────────────────────────────────────────────────
 

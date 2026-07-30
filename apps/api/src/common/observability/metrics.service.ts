@@ -14,6 +14,10 @@ export class MetricsService {
   readonly bullJobDuration: Histogram<string>;
   readonly prismaQueryDuration: Histogram<string>;
   readonly httpErrors: Counter<string>;
+  /** Workflow/Notification Engine: one increment per (channel, outcome) decision. */
+  readonly notificationDeliveries: Counter<string>;
+  /** Workflow/Notification Engine: per-event handle latency. */
+  readonly notificationEngineDuration: Histogram<string>;
 
   constructor() {
     collectDefaultMetrics({ register: this.registry });
@@ -46,6 +50,21 @@ export class MetricsService {
       name: 'http_errors_total',
       help: 'Total count of HTTP error responses (status >= 500)',
       labelNames: ['route', 'method', 'status'],
+      registers: [this.registry],
+    });
+
+    this.notificationDeliveries = new Counter({
+      name: 'notification_deliveries_total',
+      help: 'Workflow/Notification Engine delivery decisions by channel and outcome',
+      labelNames: ['channel', 'outcome'],
+      registers: [this.registry],
+    });
+
+    this.notificationEngineDuration = new Histogram({
+      name: 'notification_engine_duration_seconds',
+      help: 'Workflow/Notification Engine per-event handling latency in seconds',
+      labelNames: ['event_type', 'status'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
       registers: [this.registry],
     });
   }
