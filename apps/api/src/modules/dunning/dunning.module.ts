@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { WorkflowEngineModule } from '@/common/workflow-engine/workflow-engine.module';
 import { DUNNING_ENABLED_ENV, DUNNING_QUEUE } from './dunning.constants';
 import { DunningRepository } from './dunning.repository';
 import { DunningSweepService } from './dunning-sweep.service';
@@ -16,7 +17,7 @@ import { DunningSweepScheduler } from './dunning-sweep.scheduler';
  * no sweep runs. OutboxService + PrismaService come from their @Global modules.
  */
 @Module({
-  imports: [BullModule.registerQueue({ name: DUNNING_QUEUE })],
+  imports: [BullModule.registerQueue({ name: DUNNING_QUEUE }), WorkflowEngineModule],
   providers: [
     DunningRepository,
     DunningSweepService,

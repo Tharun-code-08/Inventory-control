@@ -11,8 +11,9 @@ import {
   isNotifiableEvent,
 } from './notification-rules';
 import { DecisionOutcome, WorkflowDecisionLogService } from './workflow-decision-log.service';
+import { CustomerDispatchService } from './dispatch/customer-dispatch.service';
 
-/** Phase 1 delivers IN_APP only; matched rules are the code defaults. */
+/** Staff notifications deliver IN_APP; matched rules are the code defaults. */
 const CHANNEL = DeliveryChannel.IN_APP;
 const MATCHED_RULE = 'code-default';
 
@@ -45,16 +46,28 @@ export class WorkflowEngineConsumer implements EventConsumer {
     private readonly notifications: NotificationService,
     private readonly decisionLog: WorkflowDecisionLogService,
     private readonly metrics: MetricsService,
+    private readonly customerDispatch: CustomerDispatchService,
   ) {}
 
   handles(eventType: string): boolean {
-    return isNotifiableEvent(eventType);
+    // Staff in-app events (NOTIFICATION_RULES) + customer-dunning lifecycle
+    // events both route through this single consumer (the one EVENT_REGISTRY
+    // names for all of them).
+    return isNotifiableEvent(eventType) || CustomerDispatchService.handles(eventType);
   }
 
   async handle(envelope: EventEnvelope): Promise<void> {
     const startedNs = process.hrtime.bigint();
     let status: 'success' | 'error' = 'success';
     try {
+      // Customer-dunning lifecycle (invoice.dunning-step / invoice.paid /
+      // customer.replied) runs the full routing + policy + AI + timeline
+      // pipeline; staff notifications keep the IN_APP path below.
+      if (CustomerDispatchService.handles(envelope.eventType)) {
+        await this.customerDispatch.handle(envelope);
+        return;
+      }
+
       const rule = NOTIFICATION_RULES[envelope.eventType];
       if (!rule) return; // handles() gates this; defensive.
 

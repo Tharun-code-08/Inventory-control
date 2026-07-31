@@ -18,6 +18,8 @@ export class MetricsService {
   readonly notificationDeliveries: Counter<string>;
   /** Workflow/Notification Engine: per-event handle latency. */
   readonly notificationEngineDuration: Histogram<string>;
+  /** Customer dispatch outcomes by channel + result (sent/failed/deferred/batched…). */
+  readonly workflowDispatch: Counter<string>;
 
   constructor() {
     collectDefaultMetrics({ register: this.registry });
@@ -65,6 +67,13 @@ export class MetricsService {
       help: 'Workflow/Notification Engine per-event handling latency in seconds',
       labelNames: ['event_type', 'status'],
       buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+      registers: [this.registry],
+    });
+
+    this.workflowDispatch = new Counter({
+      name: 'workflow_dispatch_total',
+      help: 'Customer dunning dispatch outcomes by channel and result',
+      labelNames: ['channel', 'result'],
       registers: [this.registry],
     });
   }

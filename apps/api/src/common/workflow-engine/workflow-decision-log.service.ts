@@ -7,7 +7,15 @@ export type DecisionOutcome =
   | 'DELIVERED'
   | 'SUPPRESSED_DUPLICATE'
   | 'NO_RECIPIENTS'
-  | 'FAILED';
+  | 'FAILED'
+  // Customer-dunning dispatch outcomes (Phase 2 live path).
+  | 'SENT'
+  | 'DEFERRED'
+  | 'NO_CHANNEL'
+  | 'SUPPRESSED_POLICY'
+  | 'STAFF_ESCALATION'
+  | 'THREAD_RESOLVED'
+  | 'THREAD_PAUSED';
 
 export interface DecisionLogEntry {
   eventId: string;

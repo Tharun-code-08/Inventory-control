@@ -35,13 +35,15 @@ const buildHarness = () => {
     notificationDeliveries: { inc: jest.fn() },
     notificationEngineDuration: { observe: jest.fn() },
   };
+  const customerDispatch = { handle: jest.fn().mockResolvedValue(undefined) };
   const consumer = new WorkflowEngineConsumer(
     prisma as never,
     notifications as never,
     decisionLog as never,
     metrics as never,
+    customerDispatch as never,
   );
-  return { consumer, prisma, notifications, decisionLog, metrics };
+  return { consumer, prisma, notifications, decisionLog, metrics, customerDispatch };
 };
 
 describe('WorkflowEngineConsumer', () => {
@@ -51,6 +53,20 @@ describe('WorkflowEngineConsumer', () => {
     expect(consumer.handles('goods-receipt.created')).toBe(true);
     expect(consumer.handles('auth.otp-requested')).toBe(false); // security → not in-app
     expect(consumer.handles('unknown.event')).toBe(false);
+    // Customer-dunning lifecycle events now route through the same consumer.
+    expect(consumer.handles('invoice.dunning-step')).toBe(true);
+    expect(consumer.handles('invoice.paid')).toBe(true);
+    expect(consumer.handles('customer.replied')).toBe(true);
+  });
+
+  it('delegates customer-dunning events to the dispatch pipeline (not the in-app path)', async () => {
+    const { consumer, customerDispatch, notifications } = buildHarness();
+    const envelope = buildEnvelope({ eventType: 'invoice.dunning-step' });
+
+    await consumer.handle(envelope);
+
+    expect(customerDispatch.handle).toHaveBeenCalledWith(envelope);
+    expect(notifications.create).not.toHaveBeenCalled();
   });
 
   it('fans a role-based event out to every matching user with a ledger row each', async () => {

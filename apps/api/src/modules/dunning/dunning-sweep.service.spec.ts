@@ -26,8 +26,18 @@ const buildHarness = (candidates: DunningCandidate[]) => {
     saveThreadOps: jest.fn().mockResolvedValue(undefined),
   };
   const outbox = { emit: jest.fn().mockResolvedValue('evt-1') };
-  const service = new DunningSweepService(prisma as never, repo as never, outbox as never);
-  return { service, prisma, repo, outbox, tx };
+  // Default: every tenant on the ladder model (graph-execution off), so all
+  // candidates flow through the pure planner exactly as before.
+  const features = { isEnabled: jest.fn().mockResolvedValue(false) };
+  const graph = { sweep: jest.fn().mockResolvedValue({ companiesEnabled: 0, threadsAdvanced: 0, stepsEmitted: 0, resolved: 0 }) };
+  const service = new DunningSweepService(
+    prisma as never,
+    repo as never,
+    outbox as never,
+    features as never,
+    graph as never,
+  );
+  return { service, prisma, repo, outbox, features, graph, tx };
 };
 
 describe('DunningSweepService.sweep', () => {
@@ -70,5 +80,20 @@ describe('DunningSweepService.sweep', () => {
 
     expect(outbox.emit).not.toHaveBeenCalled();
     expect(result).toMatchObject({ emitted: 0, blocked: 1 });
+  });
+
+  it('routes graph-execution tenants to the graph executor and skips them in the ladder', async () => {
+    const { service, outbox, features, graph } = buildHarness([dueCandidate()]);
+    features.isEnabled.mockResolvedValue(true); // this tenant is on the graph model
+    graph.sweep.mockResolvedValue({ companiesEnabled: 1, threadsAdvanced: 1, stepsEmitted: 1, resolved: 0 });
+
+    const result = await service.sweep(NOW);
+
+    // Ladder emitted nothing (the sole candidate was on the graph model)...
+    expect(outbox.emit).not.toHaveBeenCalled();
+    expect(result.emitted).toBe(0);
+    // ...and the graph executor ran and its advance count is surfaced.
+    expect(graph.sweep).toHaveBeenCalledWith(NOW);
+    expect(result.graphAdvanced).toBe(1);
   });
 });
