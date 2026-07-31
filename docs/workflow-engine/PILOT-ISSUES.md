@@ -16,7 +16,7 @@ Low (cosmetic / nice-to-have).
 
 | ID | Phase | Severity | Summary | Repro steps | Expected | Actual | Root cause | Fix commit | Status |
 |----|-------|----------|---------|-------------|----------|--------|------------|-----------|--------|
-| WE-001 | migration | Medium | `migrate-deploy.sh` post-verify would false-positive (block deploy) | fresh DB `migrate deploy` then `migrate diff --exit-code` | exit 0 (no drift) | exit 2 — 32 pre-existing `DROP DEFAULT` (schema uses app-level `@default(uuid())` but migrations set DB `gen_random_uuid()`; 10 of 32 are new tables, 22 pre-existing) + several enum retypes (`AuditAction`, `Eway*`) | repo-wide migration↔schema drift predating PR #7; the post-verify compares schema→DB which flags Prisma's app-vs-DB default noise | — (recommend: post-verify compare migrations→DB via shadow, or downgrade drift to a warning) | Open |
+| WE-001 | migration | Medium | `migrate-deploy.sh` post-verify would false-positive (block every deploy) | fresh DB `migrate deploy` then `migrate diff --exit-code` | exit 0 (no drift) | exit 2 — 32 pre-existing `DROP DEFAULT` (schema uses app-level `@default(uuid())` but migrations set DB `gen_random_uuid()`; 10 new-table, 22 pre-existing) + enum retypes | post-verify compared schema.prisma→DB, flagging Prisma's app-vs-DB default/enum noise; repo-wide, predates PR #7 | `migrate-deploy.sh` post-verify rewritten: (1) `migrate status` head-check (no failed/pending, false-positive-free) + (2) opt-in migrations→DB shadow diff. **Verified on throwaway DBs: OLD check exit=2, NEW check exit=0.** | **Verified** |
 
 <!-- Add rows as issues are found (boot/smoke/E2E/soak/pilot). -->
 

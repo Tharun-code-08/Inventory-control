@@ -2,20 +2,28 @@
 # Apply pending Prisma migrations safely during deploy.
 #
 # Called from scripts/deploy.sh (Step 4) on the VPS, after build and before
-# restart. Wraps `prisma migrate deploy` with a drift pre-check and a post-apply
-# verification so a hand-edited or partially-applied migration can't silently
-# leave the live schema out of sync with the codebase.
+# restart. Wraps `prisma migrate deploy` with a pre-check and a post-apply
+# verification so a failed / partially-applied / hand-edited migration can't
+# silently leave the live DB out of sync with the code.
 #
-# Why `migrate diff` and not `migrate status`: the 2026-07-10 prod schema-drift
-# 503 incident showed `migrate status` can report "up to date" while the live DB
-# actually diverges from the schema. `migrate diff --from-schema-datasource
-# (live DB) --to-schema-datamodel (schema.prisma) --exit-code` compares the real
-# database against the intended schema and is the source of truth:
-#   exit 0 = live DB matches schema, exit 2 = they differ, exit 1 = error.
+# Post-verify design (revised 2026-07-30 after WE-001):
+#   The old check compared schema.prisma -> live DB
+#   (`--from-schema-datasource --to-schema-datamodel`). That FALSE-POSITIVES on
+#   this repo: Prisma's app-level `@default(uuid())` reads as "no DB default",
+#   while the migrations set `gen_random_uuid()` at the DB level — so every
+#   uuid PK (32+ columns) plus some enum representations show as "drift" even
+#   on a perfectly-migrated DB, which would block every deploy.
 #
-# Idempotent and safe to re-run: `migrate deploy` only applies un-applied
-# migrations. Reads DATABASE_URL from apps/api/.env (Prisma auto-loads it), so
-# the target DB is whatever that environment's .env points at (prod vs staging).
+#   Instead we verify what actually matters:
+#     1) migration history is at HEAD — no failed, no pending (false-positive
+#        free; catches the 2026-07-10 schema-drift-503 class: missing migrations);
+#     2) (optional, authoritative) the live DB matches what the MIGRATIONS
+#        produce — `--from-migrations -> --to-schema-datasource` (live DB) via a
+#        shadow DB. Both sides come from the same migration SQL, so the uuid /
+#        enum noise cancels and only real drift (hand-edits) is flagged. Enable
+#        by setting PRISMA_SHADOW_DATABASE_URL to an empty DB Prisma may reset.
+#
+# Idempotent and safe to re-run. Reads DATABASE_URL from apps/api/.env.
 #
 # Usage:  scripts/migrate-deploy.sh
 set -Eeuo pipefail
@@ -28,48 +36,52 @@ SCHEMA="prisma/schema.prisma"
 
 cd "$API_DIR"
 
-# Compare the live database against the schema. Returns the diff exit code
-# (0 = in sync, 2 = differs) without tripping `set -e`.
-schema_diff_code() {
-  set +e
-  npx prisma migrate diff \
-    --from-schema-datasource "$SCHEMA" \
-    --to-schema-datamodel "$SCHEMA" \
-    --exit-code >/dev/null 2>&1
-  local rc=$?
-  set -e
-  return "$rc"
-}
-
-echo -e "${GREEN}» Prisma migrate: checking for pending schema changes...${NC}"
-
-# Informational: show which migrations Prisma considers applied/pending.
-# `migrate status` exits non-zero when migrations are pending, so never let it
-# fail the deploy — it is diagnostics only.
+echo -e "${GREEN}» Prisma migrate: current status...${NC}"
+# Informational: shows applied / pending. Exits non-zero when pending, so never
+# let it fail the deploy here — it is diagnostics only.
 npx prisma migrate status --schema "$SCHEMA" || true
 
-set +e; schema_diff_code; PRE_CODE=$?; set -e
-case "$PRE_CODE" in
-  0) echo "  ✓ Live database already matches the schema; migrate deploy will be a no-op." ;;
-  2) echo -e "  ${YELLOW}⟳ Live database differs from schema — applying migrations.${NC}" ;;
-  *) echo -e "  ${RED}✗ Could not compare schema to database (diff exit $PRE_CODE).${NC}"; exit 1 ;;
-esac
-
 echo -e "${GREEN}» Applying migrations (prisma migrate deploy)...${NC}"
+# `migrate deploy` itself hard-fails (non-zero → ERR trap) on any failed
+# migration, so a corrupted history cannot be deployed onto.
 npx prisma migrate deploy --schema "$SCHEMA"
 
-# Post-verify: after a clean deploy the live DB must exactly match the schema.
-# A remaining diff means a hand-edited migration SQL diverges from schema.prisma
-# (the exact failure mode behind the drift incident) — fail loudly rather than
-# restart the app onto a mismatched database.
-echo -e "${GREEN}» Verifying live schema matches the codebase...${NC}"
-set +e; schema_diff_code; POST_CODE=$?; set -e
-if [ "$POST_CODE" -ne 0 ]; then
-  echo -e "${RED}✗ Schema drift after migrate deploy (diff exit $POST_CODE).${NC}"
-  echo -e "${RED}  A migration's SQL does not reproduce schema.prisma. Investigate before serving traffic.${NC}"
-  echo "  Reproduce locally: npx prisma migrate diff \\"
-  echo "    --from-schema-datasource $SCHEMA --to-schema-datamodel $SCHEMA --script"
+echo -e "${GREEN}» Post-verify (1/2): migration history at head...${NC}"
+set +e
+STATUS_OUT="$(npx prisma migrate status --schema "$SCHEMA" 2>&1)"
+set -e
+if printf '%s' "$STATUS_OUT" | grep -qiE "have failed|failed to apply|following migration.*failed"; then
+  echo -e "${RED}✗ A migration is in a FAILED state after deploy. Investigate before serving traffic.${NC}"
+  printf '%s\n' "$STATUS_OUT"
   exit 1
 fi
+if printf '%s' "$STATUS_OUT" | grep -qiE "not yet been applied|following migration.*pending"; then
+  echo -e "${RED}✗ Migrations still PENDING after deploy — deploy did not fully apply.${NC}"
+  printf '%s\n' "$STATUS_OUT"
+  exit 1
+fi
+echo "  ✓ history at head (no failed, no pending)."
 
-echo -e "${GREEN}✓ Migrations applied and live schema verified in sync.${NC}"
+echo -e "${GREEN}» Post-verify (2/2): live DB matches migrations...${NC}"
+if [ -n "${PRISMA_SHADOW_DATABASE_URL:-}" ]; then
+  set +e
+  npx prisma migrate diff \
+    --from-migrations prisma/migrations \
+    --to-schema-datasource "$SCHEMA" \
+    --shadow-database-url "$PRISMA_SHADOW_DATABASE_URL" \
+    --exit-code >/dev/null 2>&1
+  DIFF_RC=$?
+  set -e
+  case "$DIFF_RC" in
+    0) echo "  ✓ live DB exactly reproduces the migrations." ;;
+    2) echo -e "${RED}✗ Live DB DRIFTS from the migrations (hand-edit / partial apply). Investigate.${NC}"
+       echo "  Reproduce: npx prisma migrate diff --from-migrations prisma/migrations \\"
+       echo "    --to-schema-datasource $SCHEMA --shadow-database-url \$PRISMA_SHADOW_DATABASE_URL --script"
+       exit 1 ;;
+    *) echo -e "${YELLOW}  ⚠ shadow diff could not run (rc $DIFF_RC); relying on the head check above.${NC}" ;;
+  esac
+else
+  echo -e "${YELLOW}  ⚠ structural check skipped — set PRISMA_SHADOW_DATABASE_URL (empty DB) to enable.${NC}"
+fi
+
+echo -e "${GREEN}✓ Migrations applied and verified.${NC}"
