@@ -16,13 +16,19 @@ Low (cosmetic / nice-to-have).
 
 | ID | Phase | Severity | Summary | Repro steps | Expected | Actual | Root cause | Fix commit | Status |
 |----|-------|----------|---------|-------------|----------|--------|------------|-----------|--------|
-| WE-001 | boot | — | _(template row — delete)_ | 1. `pm2 start` … | app boots, no DI errors | | | | Open |
+| WE-001 | migration | Medium | `migrate-deploy.sh` post-verify would false-positive (block deploy) | fresh DB `migrate deploy` then `migrate diff --exit-code` | exit 0 (no drift) | exit 2 — 32 pre-existing `DROP DEFAULT` (schema uses app-level `@default(uuid())` but migrations set DB `gen_random_uuid()`; 10 of 32 are new tables, 22 pre-existing) + several enum retypes (`AuditAction`, `Eway*`) | repo-wide migration↔schema drift predating PR #7; the post-verify compares schema→DB which flags Prisma's app-vs-DB default noise | — (recommend: post-verify compare migrations→DB via shadow, or downgrade drift to a warning) | Open |
 
-<!--
-Add rows as issues are found. Example of a filled row:
+<!-- Add rows as issues are found (boot/smoke/E2E/soak/pilot). -->
 
-| WE-002 | boot | Critical | DispatchProcessor fails to resolve CustomerDispatchService | deploy + start api | worker starts | Nest error: Nest can't resolve dependencies of DispatchProcessor | missing provider in workflow-engine.module | abc1234 | Verified |
--->
+## Validation runs (evidence)
+
+**2026-07-30 — throwaway-DB migration smoke (safe; no staging/prod touched):**
+- Created scratch DB `we_smoke_test`, ran full repo `prisma migrate deploy`.
+- ✅ **Migration chain applies cleanly** on a fresh DB — all migrations incl. PR #7's 5 (`…140000/150000/160000/170000/180000`). *"All migrations have been successfully applied."*
+- ✅ All **10 new tables present**; ✅ **RLS enabled + FORCED on all 10**.
+- ⚠️ Post-verify drift (WE-001) — pre-existing, repo-wide, not a PR #7 structural issue.
+- **Conclusion:** the migration *chain* is sound; **staging's failure is an environment problem (corrupted `_prisma_migrations`), not a repo problem.** Scratch DB dropped after; staging `.env` untouched.
+- ❌ **Boot NOT run here:** `load-env.ts` uses `dotenv override:true`, so any boot from this checkout force-loads staging's `.env` → would hit staging DB/Redis. Boot must run on **deployed staging** (correct env), per the runbook. Not a code issue — expected behaviour.
 
 ## Notes
 - Log the **environment** each issue was found in (staging/prod) in the Repro steps.
