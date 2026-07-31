@@ -76,11 +76,12 @@ export const PolicyStage: PipelineStage = {
   },
 };
 
-/** Stage 5 — content hash + TTL; a semantic duplicate is suppressed. */
+/** Stage 5 — content hash + TTL; a semantic duplicate is suppressed. Atomic
+ *  claim via Redis (`markIfNew`) so duplicates are caught across instances. */
 export class DeduplicationStage implements PipelineStage {
   readonly name = 'deduplication';
   constructor(private readonly store: DedupStore) {}
-  evaluate(ctx: PipelineContext): PipelineContext {
+  async evaluate(ctx: PipelineContext): Promise<PipelineContext> {
     const hash = contentHash({
       companyId: ctx.input.companyId,
       customerId: ctx.input.customerId,
@@ -88,10 +89,8 @@ export class DeduplicationStage implements PipelineStage {
       tone: ctx.input.tone,
       bucket: dayBucket(ctx.gathered.now),
     });
-    if (this.store.isDuplicate(hash, ctx.gathered.now)) {
-      return suppress(ctx, 'duplicate send suppressed (hash+ttl)');
-    }
-    this.store.remember(hash, ctx.gathered.now);
+    const isNew = await this.store.markIfNew(hash, ctx.gathered.now);
+    if (!isNew) return suppress(ctx, 'duplicate send suppressed (hash+ttl)');
     return { ...ctx, decision: { ...ctx.decision, dedupKey: hash } };
   }
 }

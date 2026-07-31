@@ -8,7 +8,8 @@ import { PipelineContext } from './pipeline-context';
 
 export interface PipelineStage {
   readonly name: string;
-  evaluate(ctx: PipelineContext): PipelineContext;
+  /** May be sync or async (e.g. the Redis-backed dedup stage). */
+  evaluate(ctx: PipelineContext): PipelineContext | Promise<PipelineContext>;
 }
 
 export class NotificationPipeline {
@@ -19,12 +20,12 @@ export class NotificationPipeline {
     return this.stages.map((s) => s.name);
   }
 
-  run(ctx: PipelineContext): PipelineContext {
+  async run(ctx: PipelineContext): Promise<PipelineContext> {
     let current = ctx;
     for (const stage of this.stages) {
       // Once suppressed, later stages are skipped — the decision is final.
       if (current.decision.suppressed) break;
-      current = stage.evaluate(current);
+      current = await stage.evaluate(current);
     }
     return current;
   }

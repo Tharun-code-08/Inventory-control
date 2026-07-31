@@ -34,6 +34,7 @@ import { CompositeCustomerSender } from './dispatch/composite-customer-sender';
 import { WhatsAppAdapter } from '@/modules/agent-platform/channels/whatsapp/whatsapp.adapter';
 import { EmailSendersModule } from '@/modules/email-senders/email-senders.module';
 import { CommonPdfModule } from '@/common/pdf/common-pdf.module';
+import { CacheModule } from '@/common/cache/cache.module';
 import { WorkflowEngineController } from './workflow-engine.controller';
 import { DispatchWebhookController } from './dispatch-webhook.controller';
 
@@ -54,6 +55,7 @@ import { DispatchWebhookController } from './dispatch-webhook.controller';
     NotificationsModule,
     EmailSendersModule,
     CommonPdfModule,
+    CacheModule,
     BullModule.registerQueue({ name: NOTIFICATION_DISPATCH_QUEUE }),
   ],
   controllers: [WorkflowEngineController, DispatchWebhookController],

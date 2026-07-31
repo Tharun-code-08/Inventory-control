@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { Redis } from 'ioredis';
 import { PrismaService } from '@/prisma/prisma.service';
+import { REDIS_CLIENT } from '@/common/cache/redis.provider';
 import { evaluatePolicies } from './policy-evaluator';
 import { PolicyCondition, PolicyAction, PolicyDecision, PolicyFacts, PolicyRule } from './policy-types';
 
@@ -15,25 +17,41 @@ export interface PolicyInput {
 
 /**
  * Loads a tenant's {@link NotificationPolicy} rows and evaluates them against a
- * fact set (Plan §7). Results are cached briefly per (company, scope) — policies
- * change rarely but are read on every pipeline pass (Plan §"Caching").
+ * fact set (Plan §7). Rules are cached in Redis per (company, generation, scope)
+ * — shared across instances and read on every pipeline pass (Plan §"Caching").
+ * A write bumps the company's generation counter, atomically invalidating every
+ * cached scope without pattern-deletes; stale keys expire by TTL. Fails open to
+ * Postgres if Redis is unavailable.
  */
 @Injectable()
 export class PolicyService {
+  private readonly logger = new Logger(PolicyService.name);
   private static readonly TTL_MS = 30_000;
-  private readonly cache = new Map<string, { at: number; rules: PolicyRule[] }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
 
   async decide(companyId: string, scope: string, facts: PolicyFacts): Promise<PolicyDecision> {
     const rules = await this.loadRules(companyId, scope);
     return evaluatePolicies(rules, facts);
   }
 
-  /** Invalidate the cache for a company (call after editing policies). */
-  invalidate(companyId: string): void {
-    for (const key of [...this.cache.keys()]) {
-      if (key.startsWith(`${companyId}:`)) this.cache.delete(key);
+  /** Invalidate a company's cache by bumping its generation (best-effort). */
+  async invalidate(companyId: string): Promise<void> {
+    try {
+      await this.redis.incr(`wf:polgen:${companyId}`);
+    } catch (err) {
+      this.logger.warn(`policy cache invalidation failed (${(err as Error).message})`);
+    }
+  }
+
+  private async generation(companyId: string): Promise<string> {
+    try {
+      return (await this.redis.get(`wf:polgen:${companyId}`)) ?? '0';
+    } catch {
+      return '0';
     }
   }
 
@@ -57,7 +75,7 @@ export class PolicyService {
         action: input.action as unknown as Prisma.InputJsonValue,
       },
     });
-    this.invalidate(companyId);
+    await this.invalidate(companyId);
     return row;
   }
 
@@ -75,7 +93,7 @@ export class PolicyService {
         action: input.action ? (input.action as unknown as Prisma.InputJsonValue) : undefined,
       },
     });
-    this.invalidate(companyId);
+    await this.invalidate(companyId);
     return row;
   }
 
@@ -83,14 +101,19 @@ export class PolicyService {
     const existing = await this.prisma.notificationPolicy.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Policy not found');
     await this.prisma.notificationPolicy.delete({ where: { id } });
-    this.invalidate(companyId);
+    await this.invalidate(companyId);
     return { deleted: true };
   }
 
   private async loadRules(companyId: string, scope: string): Promise<PolicyRule[]> {
-    const cacheKey = `${companyId}:${scope}`;
-    const hit = this.cache.get(cacheKey);
-    if (hit && Date.now() - hit.at < PolicyService.TTL_MS) return hit.rules;
+    const gen = await this.generation(companyId);
+    const cacheKey = `wf:pol:${companyId}:g${gen}:${scope}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached) as PolicyRule[];
+    } catch (err) {
+      this.logger.warn(`policy cache read failed (${(err as Error).message}); reading source`);
+    }
 
     const rows = await this.prisma.notificationPolicy.findMany({
       where: { companyId, enabled: true, scope: { in: [scope, '*'] } },
@@ -103,7 +126,11 @@ export class PolicyService {
       condition: r.condition as unknown as PolicyCondition,
       action: r.action as unknown as PolicyAction,
     }));
-    this.cache.set(cacheKey, { at: Date.now(), rules });
+    try {
+      await this.redis.set(cacheKey, JSON.stringify(rules), 'PX', PolicyService.TTL_MS);
+    } catch {
+      // Best-effort cache; Postgres is the source of truth.
+    }
     return rules;
   }
 }

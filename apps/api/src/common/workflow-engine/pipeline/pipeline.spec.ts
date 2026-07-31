@@ -5,6 +5,18 @@ import { PolicyDecision } from '../policy/policy-types';
 
 const now = new Date('2026-01-05T09:00:00Z'); // 14:30 IST, within window
 
+/** In-memory stand-in for the Redis-backed DedupStore (atomic claim). */
+function fakeDedup(): DedupStore {
+  const seen = new Set<string>();
+  return {
+    markIfNew: async (hash: string) => {
+      if (seen.has(hash)) return false;
+      seen.add(hash);
+      return true;
+    },
+  } as unknown as DedupStore;
+}
+
 function ctx(over: Partial<PipelineContext> = {}, policy?: PolicyDecision): PipelineContext {
   return {
     input: {
@@ -26,61 +38,61 @@ function ctx(over: Partial<PipelineContext> = {}, policy?: PolicyDecision): Pipe
 
 describe('NotificationPipeline', () => {
   it('runs all 9 stages in order', () => {
-    const p = buildDefaultPipeline(new DedupStore());
+    const p = buildDefaultPipeline(fakeDedup());
     expect(p.stageNames).toEqual([
       'context', 'consent', 'priority', 'policy', 'deduplication',
       'workflow', 'channel-selection', 'scheduling', 'dispatch',
     ]);
   });
 
-  it('selects WhatsApp and marks ready for a consented firm reminder', () => {
-    const out = buildDefaultPipeline(new DedupStore()).run(ctx());
-    expect(out.decision.suppressed).toBe(false);
-    expect(out.decision.channel).toBe('WHATSAPP');
-    expect(out.decision.sendNow).toBe(true);
-    expect(out.decision.priority).toBe('HIGH'); // firm tone
+  it('selects WhatsApp and marks ready for a consented firm reminder', async () => {
+    const out = (await buildDefaultPipeline(fakeDedup()).run(ctx())).decision;
+    expect(out.suppressed).toBe(false);
+    expect(out.channel).toBe('WHATSAPP');
+    expect(out.sendNow).toBe(true);
+    expect(out.priority).toBe('HIGH'); // firm tone
   });
 
-  it('suppresses at the consent stage when no channel is consented', () => {
-    const out = buildDefaultPipeline(new DedupStore()).run(
+  it('suppresses at the consent stage when no channel is consented', async () => {
+    const out = (await buildDefaultPipeline(fakeDedup()).run(
       ctx({ gathered: { ...ctx().gathered, consent: { whatsapp: false, email: false } } }),
-    );
-    expect(out.decision.suppressed).toBe(true);
-    expect(out.decision.suppressReason).toMatch(/no consented channel/);
-    expect(out.decision.channel).toBeNull(); // short-circuited before channel selection
+    )).decision;
+    expect(out.suppressed).toBe(true);
+    expect(out.suppressReason).toMatch(/no consented channel/);
+    expect(out.channel).toBeNull(); // short-circuited before channel selection
   });
 
-  it('suppresses when policy says suppress', () => {
-    const out = buildDefaultPipeline(new DedupStore()).run(
+  it('suppresses when policy says suppress', async () => {
+    const out = (await buildDefaultPipeline(fakeDedup()).run(
       ctx({}, { action: { suppress: true }, matched: ['hold'] }),
-    );
-    expect(out.decision.suppressed).toBe(true);
-    expect(out.decision.suppressReason).toMatch(/policy suppress/);
+    )).decision;
+    expect(out.suppressed).toBe(true);
+    expect(out.suppressReason).toMatch(/policy suppress/);
   });
 
-  it('honours a policy-forced channel', () => {
-    const out = buildDefaultPipeline(new DedupStore()).run(
+  it('honours a policy-forced channel', async () => {
+    const out = (await buildDefaultPipeline(fakeDedup()).run(
       ctx({}, { action: { channel: 'EMAIL' }, matched: ['prefer-email'] }),
-    );
-    expect(out.decision.channel).toBe('EMAIL');
+    )).decision;
+    expect(out.channel).toBe('EMAIL');
   });
 
-  it('suppresses a semantic duplicate on the second run in the same day bucket', () => {
-    const store = new DedupStore();
-    const first = buildDefaultPipeline(store).run(ctx());
-    expect(first.decision.suppressed).toBe(false);
-    const second = buildDefaultPipeline(store).run(ctx());
-    expect(second.decision.suppressed).toBe(true);
-    expect(second.decision.suppressReason).toMatch(/duplicate/);
+  it('suppresses a semantic duplicate on the second run in the same day bucket', async () => {
+    const store = fakeDedup();
+    const first = (await buildDefaultPipeline(store).run(ctx())).decision;
+    expect(first.suppressed).toBe(false);
+    const second = (await buildDefaultPipeline(store).run(ctx())).decision;
+    expect(second.suppressed).toBe(true);
+    expect(second.suppressReason).toMatch(/duplicate/);
   });
 
-  it('defers non-critical sends inside quiet hours', () => {
+  it('defers non-critical sends inside quiet hours', async () => {
     const quietNow = new Date('2026-01-05T17:00:00Z'); // 22:30 IST
-    const out = buildDefaultPipeline(new DedupStore()).run(
+    const out = (await buildDefaultPipeline(fakeDedup()).run(
       ctx({ gathered: { ...ctx().gathered, now: quietNow } }),
-    );
-    expect(out.decision.channel).toBe('WHATSAPP');
-    expect(out.decision.sendNow).toBe(false);
-    expect(out.decision.deferUntil).not.toBeNull();
+    )).decision;
+    expect(out.channel).toBe('WHATSAPP');
+    expect(out.sendNow).toBe(false);
+    expect(out.deferUntil).not.toBeNull();
   });
 });

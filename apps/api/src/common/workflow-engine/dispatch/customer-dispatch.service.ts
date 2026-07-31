@@ -137,7 +137,7 @@ export class CustomerDispatchService {
 
     // Run the 9-stage decision pipeline (Plan §4): consent → priority → policy →
     // dedup → workflow → channel → scheduling → dispatch.
-    const outcome = this.pipeline.run({
+    const outcome = (await this.pipeline.run({
       input: {
         eventId: envelope.eventId,
         correlationId: envelope.correlationId,
@@ -160,7 +160,7 @@ export class CustomerDispatchService {
       },
       precomputed: { policy: policyDecision, advice },
       decision: { ...initialDecision(), caps: DEFAULT_CAPS },
-    }).decision;
+    })).decision;
 
     const reason = `${outcome.reasons.join(' | ')} | ai=${advice.rationale} (conf ${advice.confidence})`;
 

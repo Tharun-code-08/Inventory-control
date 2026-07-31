@@ -1,15 +1,18 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '@/common/cache/redis.provider';
 
 /**
  * Content-hash + TTL deduplication (Plan §8 "Deduplication": hash → TTL →
  * suppress). Distinct from the at-least-once idempotency key on the delivery
  * ledger: this suppresses *semantically duplicate* sends (same customer, same
- * message intent, within a window) even across different events — e.g. two
- * overlapping sweeps both deciding to remind the same invoice the same day.
+ * message intent, within a window) even across different events.
  *
- * In-memory with lazy expiry: single-instance safe. A multi-instance deploy
- * should back this with Redis (same interface); noted for §10 scaling.
+ * Redis-backed so it is correct across instances (PM2 cluster / multiple pods):
+ * `SET key 1 NX PX ttl` is atomic — exactly one caller gets the send, the rest
+ * see a duplicate. Fails open (treats as new) if Redis is unavailable, so a
+ * cache outage never *blocks* delivery.
  */
 export interface DedupKeyParts {
   readonly companyId: string;
@@ -33,29 +36,23 @@ export function dayBucket(now: Date): string {
 
 @Injectable()
 export class DedupStore {
-  private readonly seen = new Map<string, number>(); // hash → expiry epoch ms
+  private readonly logger = new Logger(DedupStore.name);
   private static readonly DEFAULT_TTL_MS = 20 * 60 * 60 * 1000; // 20h
 
-  /** True if this hash is already present (and unexpired). */
-  isDuplicate(hash: string, now: Date = new Date()): boolean {
-    const expiry = this.seen.get(hash);
-    if (expiry === undefined) return false;
-    if (expiry <= now.getTime()) {
-      this.seen.delete(hash);
-      return false;
-    }
-    return true;
-  }
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
-  /** Record a hash with a TTL. */
-  remember(hash: string, now: Date = new Date(), ttlMs = DedupStore.DEFAULT_TTL_MS): void {
-    this.seen.set(hash, now.getTime() + ttlMs);
-    if (this.seen.size > 10_000) this.sweepExpired(now);
-  }
-
-  private sweepExpired(now: Date): void {
-    for (const [hash, expiry] of this.seen) {
-      if (expiry <= now.getTime()) this.seen.delete(hash);
+  /**
+   * Atomically claim a hash. Returns true if this caller is the first to see it
+   * within the TTL (i.e. NOT a duplicate — proceed to send), false if a
+   * duplicate. Fails open (true) on Redis errors so delivery is never blocked.
+   */
+  async markIfNew(hash: string, _now: Date = new Date(), ttlMs = DedupStore.DEFAULT_TTL_MS): Promise<boolean> {
+    try {
+      const res = await this.redis.set(`wf:dedup:${hash}`, '1', 'PX', ttlMs, 'NX');
+      return res === 'OK';
+    } catch (err) {
+      this.logger.warn(`dedup check failed open (${(err as Error).message})`);
+      return true;
     }
   }
 }
