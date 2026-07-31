@@ -1,6 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RoleName } from '@prisma/client';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { RolesGuard } from '@/common/guards/roles.guard';
+import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { RequestUser } from '@/common/types/request-user';
 import { AnalyticsRange, AnalyticsService } from './analytics/analytics.service';
@@ -13,17 +16,19 @@ import { PredictiveService } from './predictive/predictive.service';
 import { OptimizerService } from './optimizer/optimizer.service';
 import { AssistantService } from './assistant/assistant.service';
 import { AssistantTone } from './assistant/assistant-core';
-import { DeliveryStatusService } from './dispatch/delivery-status.service';
 import { PolicyService, PolicyInput } from './policy/policy.service';
 
 /**
  * Read + admin surface for the Workflow & Automation Engine (Plan §12 dashboards,
  * §10 simulation/feature-flags, §5/§6 workflow publishing). JWT-guarded and
  * tenant-scoped: every handler reads companyId from the authenticated user.
+ * Read endpoints are open to any authenticated user; mutating endpoints
+ * (publish, policy CRUD, feature flags, assistant proposals/approvals) require
+ * OWNER/ADMIN via {@link RolesGuard}.
  */
 @ApiTags('Workflow Engine')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('workflow-engine')
 export class WorkflowEngineController {
   constructor(
@@ -35,7 +40,6 @@ export class WorkflowEngineController {
     private readonly predictive: PredictiveService,
     private readonly optimizer: OptimizerService,
     private readonly assistant: AssistantService,
-    private readonly deliveryStatus: DeliveryStatusService,
     private readonly policies: PolicyService,
   ) {}
 
@@ -90,12 +94,14 @@ export class WorkflowEngineController {
   }
 
   @Post('workflows/:key/publish')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Compile + publish a new immutable workflow version' })
   publish(@CurrentUser() user: RequestUser, @Param('key') key: string, @Body() def: WorkflowGraphDef) {
     return this.registry.publish(user.companyId!, { ...def, key });
   }
 
   @Post('features/:feature')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Enable/disable a workflow feature for this tenant' })
   setFeature(
     @CurrentUser() user: RequestUser,
@@ -127,18 +133,21 @@ export class WorkflowEngineController {
 
   // ── Autonomous assistant (Phase 7) — proposals need human approval ──────────
   @Post('assistant/draft')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Propose a dunning message draft (pending approval)' })
   draft(@CurrentUser() user: RequestUser, @Body() body: { invoiceId: string; tone: AssistantTone }) {
     return this.assistant.proposeDraft(user.companyId!, body.invoiceId, body.tone, user.id);
   }
 
   @Post('assistant/summary')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Propose a thread summary (pending approval)' })
   summary(@CurrentUser() user: RequestUser, @Body() body: { entityType: string; entityId: string }) {
     return this.assistant.proposeSummary(user.companyId!, body.entityType, body.entityId, user.id);
   }
 
   @Post('assistant/escalation')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Propose an escalation decision (pending approval)' })
   escalation(@CurrentUser() user: RequestUser, @Body() body: { invoiceId: string }) {
     return this.assistant.proposeEscalation(user.companyId!, body.invoiceId, user.id);
@@ -151,12 +160,14 @@ export class WorkflowEngineController {
   }
 
   @Post('assistant/actions/:id/approve')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Approve an assistant proposal (human gate)' })
   approve(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.assistant.approve(user.companyId!, id, user.id);
   }
 
   @Post('assistant/actions/:id/reject')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Reject an assistant proposal' })
   reject(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.assistant.reject(user.companyId!, id, user.id);
@@ -170,34 +181,24 @@ export class WorkflowEngineController {
   }
 
   @Post('policies')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Create a policy (condition → action)' })
   createPolicy(@CurrentUser() user: RequestUser, @Body() body: PolicyInput) {
     return this.policies.create(user.companyId!, body);
   }
 
   @Patch('policies/:id')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Update a policy' })
   updatePolicy(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() body: Partial<PolicyInput>) {
     return this.policies.update(user.companyId!, id, body);
   }
 
   @Delete('policies/:id')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @ApiOperation({ summary: 'Delete a policy' })
   deletePolicy(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.policies.remove(user.companyId!, id);
   }
 
-  // ── Provider delivery status (§11) ──────────────────────────────────────────
-  // Internal/authenticated ingestion of a provider's delivered/read/failed
-  // status. The signature-verified WhatsApp webhook can also call
-  // DeliveryStatusService directly for public provider callbacks.
-  @Post('delivery-status')
-  @ApiOperation({ summary: 'Apply a provider delivery status to the ledger' })
-  async applyStatus(
-    @CurrentUser() user: RequestUser,
-    @Body() body: { providerMessageId: string; status: string },
-  ) {
-    const updated = await this.deliveryStatus.apply(body.providerMessageId, body.status, user.companyId!);
-    return { updated };
-  }
 }

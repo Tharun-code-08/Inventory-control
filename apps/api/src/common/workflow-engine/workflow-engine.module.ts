@@ -35,6 +35,7 @@ import { WhatsAppAdapter } from '@/modules/agent-platform/channels/whatsapp/what
 import { EmailSendersModule } from '@/modules/email-senders/email-senders.module';
 import { CommonPdfModule } from '@/common/pdf/common-pdf.module';
 import { WorkflowEngineController } from './workflow-engine.controller';
+import { DispatchWebhookController } from './dispatch-webhook.controller';
 
 /**
  * Workflow & Automation Engine (Plan §3–§12). Registers:
@@ -55,7 +56,7 @@ import { WorkflowEngineController } from './workflow-engine.controller';
     CommonPdfModule,
     BullModule.registerQueue({ name: NOTIFICATION_DISPATCH_QUEUE }),
   ],
-  controllers: [WorkflowEngineController],
+  controllers: [WorkflowEngineController, DispatchWebhookController],
   providers: [
     WorkflowEngineConsumer,
     WorkflowDecisionLogService,
