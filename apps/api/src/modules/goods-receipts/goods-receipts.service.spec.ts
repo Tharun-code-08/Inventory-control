@@ -55,6 +55,7 @@ function makeService() {
     { renderDocumentPdf: jest.fn() } as any,
     { sendDocument: jest.fn() } as any,
     { create: jest.fn() } as any,
+    { emit: jest.fn().mockResolvedValue('evt-1') } as any,
   );
   return { service, prisma, tx, stock, audit, costing };
 }
@@ -206,6 +207,7 @@ const emailNotificationsFactory = () =>
 const documentPdfFactory = () => ({ renderDocumentPdf: jest.fn() }) as any;
 const documentEmailFactory = () => ({ sendDocument: jest.fn() }) as any;
 const notificationsFactory = () => ({ create: jest.fn().mockResolvedValue(undefined) }) as any;
+const outboxFactory = () => ({ emit: jest.fn().mockResolvedValue('evt-1') }) as any;
 
 describe('GoodsReceiptsService.create', () => {
   it('rejects future grDate', async () => {
@@ -220,6 +222,7 @@ describe('GoodsReceiptsService.create', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     const future = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await expect(
@@ -244,6 +247,7 @@ describe('GoodsReceiptsService.create', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     await expect(
       service.create(adminUser, {
@@ -267,6 +271,7 @@ describe('GoodsReceiptsService.create', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     await expect(
       service.create(adminUser, {
@@ -301,6 +306,7 @@ describe('GoodsReceiptsService.post', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -349,6 +355,7 @@ describe('GoodsReceiptsService.post', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     await expect(service.post(adminUser, 'gr-1')).rejects.toBeInstanceOf(
       DocumentAlreadyPostedException,
@@ -414,6 +421,7 @@ describe('GoodsReceiptsService.post', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
 
     await service.post(adminUser, 'gr-1');
@@ -482,9 +490,91 @@ describe('GoodsReceiptsService.post', () => {
       documentPdfFactory(),
       documentEmailFactory(),
       notificationsFactory(),
+      outboxFactory(),
     );
     await service.post(adminUser, 'gr-1');
 
     expect(tx.$executeRaw).toHaveBeenCalled();
+  });
+
+  it('emits goods-receipt.created inside the posting transaction', async () => {
+    const items = [
+      {
+        id: 'l1',
+        productId: 'p1',
+        quantity: new Prisma.Decimal(1),
+        purchaseRate: new Prisma.Decimal(10),
+        lineValue: new Prisma.Decimal(10),
+        storageLocationId: 'loc-1',
+        expiryDate: new Date('2027-12-31'),
+      },
+    ];
+    const tx = buildTx({
+      shop: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ costingMethod: 'AVERAGE', companyId: 'co-1' }),
+      },
+    });
+    tx.goodsReceiptHeader.findUnique.mockResolvedValue({
+      id: 'gr-1',
+      shopId: 's1',
+      grNumber: 'GR-1',
+      grDate: new Date('2026-04-01'),
+      status: DocumentStatus.DRAFT,
+      purchaseOrderId: null,
+      items,
+    });
+    tx.goodsReceiptHeader.findUniqueOrThrow.mockResolvedValue({
+      id: 'gr-1',
+      grNumber: 'GR-1',
+      supplierName: 'ACME',
+      shopId: 's1',
+      status: DocumentStatus.POSTED,
+      totalValue: new Prisma.Decimal('10.00'),
+      items,
+      shop: { id: 's1', shopName: 'Main', companyId: 'co-1' },
+      purchaseOrder: { poNumber: 'PO-9' },
+    });
+    const prisma = makePrisma(tx);
+    prisma.goodsReceiptHeader.findUnique.mockResolvedValue({
+      id: 'gr-1',
+      shopId: 's1',
+      grNumber: 'GR-1',
+      grDate: new Date('2026-04-01'),
+      status: DocumentStatus.DRAFT,
+      items,
+    });
+    const outbox = outboxFactory();
+    const service = new GoodsReceiptsService(
+      prisma,
+      stockFactory(),
+      numbersFactory(),
+      auditFactory(),
+      costingFactory(),
+      emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
+      notificationsFactory(),
+      outbox,
+    );
+
+    await service.post(adminUser, 'gr-1');
+
+    expect(outbox.emit).toHaveBeenCalledTimes(1);
+    expect(outbox.emit.mock.calls[0][0]).toBe(tx); // emitted inside the tx
+    expect(outbox.emit.mock.calls[0][1]).toMatchObject({
+      eventType: 'goods-receipt.created',
+      eventVersion: 1,
+      aggregateId: 'gr-1',
+      companyId: 'co-1',
+      payload: {
+        goodsReceiptId: 'gr-1',
+        grNumber: 'GR-1',
+        supplierName: 'ACME',
+        shopId: 's1',
+        poNumber: 'PO-9',
+      },
+    });
   });
 });

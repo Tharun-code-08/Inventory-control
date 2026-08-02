@@ -49,6 +49,8 @@ import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.
 import { QuotationPortalModule } from './modules/quotation-portal/quotation-portal.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WorkflowEngineModule } from './common/workflow-engine/workflow-engine.module';
+import { DunningModule } from './modules/dunning/dunning.module';
 import { DeviceRegistrationModule } from './modules/device-registration/device-registration.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { EwayBillsModule } from './modules/eway-bills/eway-bills.module';
@@ -171,6 +173,8 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
     SupplierPortalModule,
     QuotationPortalModule,
     NotificationsModule,
+    WorkflowEngineModule,
+    DunningModule,
     DeviceRegistrationModule,
     ApprovalsModule,
     EwayBillsModule,

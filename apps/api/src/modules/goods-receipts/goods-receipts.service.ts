@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AlertType, AuditAction, CostingMethod, DocumentEmailTrigger, DocumentStatus, NotificationModule, NotificationPriority, Prisma, RoleName, TransactionType } from '@prisma/client';
+import { AuditAction, CostingMethod, DocumentEmailTrigger, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import { NotificationService } from '../notifications/services/notification.service';
 import * as Handlebars from 'handlebars';
 import { formatEmailDate, formatEmailMoney } from '../../common/mail/email-formatters';
@@ -29,6 +29,7 @@ import { GrAction } from '../../common/state-machines/document-actions';
 import { buildStatusTransitionAudit } from '../../common/state-machines/document-audit';
 import { buildReceiveGoodsAudit } from '../../common/state-machines/inventory-audit';
 import { assertGrMutationAllowed } from '../../common/utils/procurement-downstream';
+import { OutboxService } from '../../common/event-platform/outbox.service';
 
 @Injectable()
 export class GoodsReceiptsService {
@@ -42,6 +43,7 @@ export class GoodsReceiptsService {
     private readonly documentPdf: DocumentPdfService,
     private readonly documentEmail: DocumentEmailService,
     private readonly notifications: NotificationService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private async assertStorageLocationsForShop(
@@ -619,6 +621,29 @@ export class GoodsReceiptsService {
         }),
         tx,
       );
+
+      // Emit the domain event atomically with the posting. The Workflow /
+      // Notification Engine consumes this (in-app fan-out to the procurement/
+      // inventory team) via the outbox → relay → EventBus path, replacing the
+      // former direct notifyRoles call below.
+      if (shop?.companyId) {
+        const emitPayload: Record<string, unknown> = {
+          goodsReceiptId: posted.id,
+          grNumber: posted.grNumber,
+          supplierName: posted.supplierName,
+          shopId: posted.shopId,
+          createdBy: user.id,
+        };
+        if (posted.purchaseOrder?.poNumber) emitPayload.poNumber = posted.purchaseOrder.poNumber;
+        await this.outbox.emit(tx, {
+          eventType: 'goods-receipt.created',
+          eventVersion: 1,
+          aggregateType: 'goods-receipt',
+          aggregateId: posted.id,
+          companyId: shop.companyId,
+          payload: emitPayload,
+        });
+      }
       return posted;
     }).then(async (posted) => {
       let alertAttachments: Array<{ filename: string; content: Buffer }> = [];
@@ -646,30 +671,9 @@ export class GoodsReceiptsService {
 
       await this.autoSendGoodsReceiptEmail(user, posted).catch(() => undefined);
 
-      // In-app notification to the procurement/inventory team: "Goods Received".
-      const companyId = posted.shop?.companyId;
-      if (companyId) {
-        const poRef = posted.purchaseOrder?.poNumber
-          ? ` for ${posted.purchaseOrder.poNumber}`
-          : '';
-        await this.notifications
-          .notifyRoles(
-            [RoleName.INVENTORY_MANAGER, RoleName.PURCHASE_MANAGER, RoleName.OWNER, RoleName.ADMIN],
-            {
-              title: 'Goods Received',
-              message: `${posted.grNumber} has been posted${poRef}`,
-              type: AlertType.GOODS_RECEIPT_CREATED,
-              module: NotificationModule.GOODS_RECEIPT,
-              priority: NotificationPriority.NORMAL,
-              referenceType: 'goods_receipt',
-              referenceId: posted.id,
-              deepLink: `/goods-receipts/${posted.id}`,
-            },
-            companyId,
-            user.id,
-          )
-          .catch(() => undefined);
-      }
+      // In-app "Goods Received" fan-out now flows through the Workflow /
+      // Notification Engine, driven by the goods-receipt.created event emitted
+      // inside the posting transaction above. See WorkflowEngineConsumer.
       return posted;
     });
   }
