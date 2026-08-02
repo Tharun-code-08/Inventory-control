@@ -15,7 +15,7 @@ Environment facts (from ops notes):
 
 - [ ] CI green on PR #7 (tsc, tests, ShellCheck, CodeQL)
 - [ ] Code review approved
-- [ ] **Reconcile the staging migration divergence** (blocker — see Appendix A). `prisma migrate status` on staging currently reports DB-recorded migrations absent from the repo + duplicate RLS entries. Resolve *before* any `migrate deploy`, or `migrate-deploy.sh`'s post-verify will fail.
+- [ ] **Reconcile the failed migration history** (blocker — see Appendix A and the detailed audit **[PR #10](https://github.com/Tharun-code-08/Inventory-control/pull/10)**). Both DBs have failed `_prisma_migrations` rows (prod: 3, staging: 6) → `migrate deploy` aborts with **P3009** before app startup. Resolve *before* any `migrate deploy`. See PR #10 for the per-row `[VERIFIED]/[HYPOTHESIS]/[RECOMMENDATION]` verdicts and exact `migrate resolve` commands (backup + restore-rehearsal + DBA review required).
 - [ ] Confirm the 5 new migrations are the only pending ones after reconciliation:
       `20260730140000_workflow_engine_phase3_5`, `…150000_assistant_actions`,
       `…160000_dispatch_batch_items`, `…170000_customer_activities`,
@@ -131,9 +131,11 @@ Enable the sweep + decisioning **without** turning on `channel-routing` (senders
 
 ---
 
-## Appendix A — Staging migration reconciliation
+## Appendix A — Migration history reconciliation
 
-`prisma migrate status` on staging shows migrations recorded in `_prisma_migrations` that are absent from the repo (incl. duplicate `20260712130000_step1_rls_tenant_isolation_schema`) and differently-named eway-bill migrations. Do **not** hand-run `migrate deploy` into this state.
+> **Authoritative, verified detail: [PR #10 — DBA review audit of failed Prisma migrations](https://github.com/Tharun-code-08/Inventory-control/pull/10)** (`docs/workflow-engine/FAILED-MIGRATIONS-RECONCILIATION.md`). It supersedes the high-level notes below with per-row verdicts checked against git history, migration SQL, `schema.prisma`, app code, and the live DBs. Notably it found **prod is affected too** (3 failed rows, not just staging's 6), and corrects the branding-columns row to **`resolve --applied`** (do *not* roll back — later applied migrations re-add those columns).
+
+`prisma migrate status` on both DBs shows failed `_prisma_migrations` rows (finished_at NULL) — recorded migrations absent from the repo (incl. duplicate `20260712130000_step1_rls_tenant_isolation_schema` ×3 on staging) and an orphaned/differently-named eway-bill migration. Do **not** hand-run `migrate deploy` into this state (P3009).
 
 Reconcile first (DBA-supervised), e.g.:
 1. Snapshot the DB.
