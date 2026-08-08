@@ -6,10 +6,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tharun-code-08/Inventory-control/actions">CI</a> ·
-  <a href="https://github.com/Tharun-code-08/Inventory-control/pulls">Pull Requests</a> ·
-  <a href="https://github.com/Tharun-code-08/Inventory-control/issues">Issues</a> ·
-  <a href="./docs/README.md">Documentation</a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/actions"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/ci.yml?branch=main&label=CI&logo=github" alt="CI" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control"><img src="https://img.shields.io/github/repo-size/Tharun-code-08/Inventory-control?label=repo%20size" alt="Repository size" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/issues"><img src="https://img.shields.io/github/issues/Tharun-code-08/Inventory-control" alt="Issues" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/pulls"><img src="https://img.shields.io/github/issues-pr/Tharun-code-08/Inventory-control" alt="Pull requests" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/Tharun-code-08/Inventory-control" alt="License" /></a>
+</p>
+
+<p align="center">
+  <a href="./docs/README.md">Documentation</a> ·
+  <a href="./CONTRIBUTING.md">Contributing</a> ·
+  <a href="./SECURITY.md">Security</a> ·
+  <a href="./DEPLOYMENT.md">Deployment</a>
 </p>
 
 ---
@@ -20,19 +28,19 @@
 
 The platform is built with production-oriented guarantees around **shop/tenant isolation, stock integrity, authorization, auditability, transactional consistency, and controlled deployments**.
 
-### Core capabilities
+## Core capabilities
 
 | Domain | Capabilities |
 | --- | --- |
-| Procurement | Purchase orders, approvals, goods receipts, returns, suppliers |
-| Inventory | Stock ledger, transfers, batches, expiry, FEFO, low-stock monitoring |
-| Sales | Sales orders, goods issues, returns, payments, customer workflows |
-| Documents | Invoices, purchase orders, goods receipts, quotations, receipts |
-| Analytics | KPIs, reports, trends, inventory health, operational metrics |
-| Automation | Notifications, approvals, background jobs, scheduled workflows |
-| Integrations | Email, WhatsApp, in-app notifications, payment workflows |
-| Mobile | Warehouse-focused stock lookup and goods issue workflows |
-| Security | RBAC, shop/tenant isolation, audit trails, secure authentication |
+| **Procurement** | Purchase orders, approvals, goods receipts, returns, suppliers |
+| **Inventory** | Stock ledger, transfers, batches, expiry, FEFO, low-stock monitoring |
+| **Sales** | Sales orders, goods issues, returns, payments, customer workflows |
+| **Documents** | Invoices, purchase orders, goods receipts, quotations, receipts |
+| **Analytics** | KPIs, reports, trends, inventory health, operational metrics |
+| **Automation** | Notifications, approvals, background jobs, scheduled workflows |
+| **Integrations** | Email, WhatsApp, in-app notifications, payment workflows |
+| **Mobile** | Warehouse-focused stock lookup and goods issue workflows |
+| **Security** | RBAC, shop/tenant isolation, audit trails, secure authentication |
 
 ---
 
@@ -97,7 +105,12 @@ Inventory-control/
 ├── deploy/                  # Deployment configuration
 ├── scripts/                 # Setup, validation and operational tooling
 ├── docs/                    # Engineering and operational documentation
-└── fixtures/                # Test fixtures for document/PDF validation
+├── fixtures/                # Test fixtures for document/PDF validation
+├── .github/                 # CI, issue templates and repository governance
+├── CONTRIBUTING.md          # Engineering contribution standards
+├── SECURITY.md              # Security policy
+├── DEPLOYMENT.md            # Deployment procedures
+└── RUNBOOK.md               # Operational runbook
 ```
 
 ---
@@ -107,17 +120,17 @@ Inventory-control/
 ### Prerequisites
 
 - Node.js **20+**
-- npm **10+** or pnpm
+- pnpm **9.15+** (repository package manager)
 - Docker Desktop with Docker Compose
 
-### 1. Clone the repository
+### 1. Clone
 
 ```bash
 git clone https://github.com/Tharun-code-08/Inventory-control.git
 cd Inventory-control
 ```
 
-### 2. Install and provision
+### 2. Provision
 
 ```bash
 npm run setup:new-machine
@@ -129,13 +142,13 @@ To provision without starting development servers:
 powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1 -SkipStart
 ```
 
-### 3. Start development
+### 3. Develop
 
 ```bash
 npm run dev
 ```
 
-Run services independently when needed:
+Or start services independently:
 
 ```bash
 npm run dev:api
@@ -143,61 +156,23 @@ npm run dev:web
 npm run dev:mobile
 ```
 
-> Local environment variables belong in `apps/api/.env`. Never commit secrets or production credentials.
-
----
-
-## Configuration
-
-Generate secure local authentication secrets with:
-
-```bash
-npm run setup:credentials
-```
-
-Common configuration includes:
-
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection |
-| `REDIS_HOST` / `REDIS_PORT` | Redis connection |
-| `JWT_SECRET` | Access-token signing secret |
-| `REFRESH_SECRET` | Refresh-token signing secret |
-| `WEB_ORIGIN` | Allowed web origins |
-| `VITE_API_URL` | Web application API URL |
-| `EXPO_PUBLIC_API_URL` | Mobile application API URL |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | Email delivery |
-
-See the environment examples under the relevant application directories for the complete configuration surface.
+> Keep local secrets in environment files. Never commit production credentials, tokens, customer data, or database dumps.
 
 ---
 
 ## Quality engineering
 
-The repository includes automated checks for application quality, business workflows, UI behavior, runtime health, bundle size, and API performance.
-
-### Standard checks
+Run the checks relevant to your change before opening a pull request.
 
 ```bash
 npm run lint
 npm run build
 npm test
-```
-
-### Business workflows
-
-```bash
 npm run test:workflows
-```
-
-### Browser / UI tests
-
-```bash
-npx playwright install chromium
 npm run test:playwright
 ```
 
-### Operational gates
+Operational gates:
 
 ```bash
 npm run check:runtime-health
@@ -205,7 +180,7 @@ npm run check:bundle-budget
 npm run check:api-slo
 ```
 
-For contribution standards and the expected PR workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete engineering workflow.
 
 ---
 
@@ -233,13 +208,13 @@ Key invariants include:
 - Use secure cookies in production.
 - Do not commit credentials, tokens, customer data, database dumps, or generated secrets.
 
-See [SECURITY.md](SECURITY.md) for the security policy.
+See [SECURITY.md](SECURITY.md).
 
 ---
 
 ## API
 
-When running locally, Swagger/OpenAPI documentation is available at:
+Local Swagger/OpenAPI documentation:
 
 ```text
 http://localhost:3000/api/docs
@@ -251,57 +226,43 @@ API routes are versioned under:
 /api/v1
 ```
 
-The API generally uses the standard response envelope:
-
-```json
-{
-  "success": true,
-  "data": {}
-}
-```
-
 ---
 
 ## Deployment
 
-The repository includes deployment automation and operational safeguards. Changes merged into `main` may trigger the production deployment pipeline.
-
-**Production changes should go through a feature branch and pull request.**
+Production changes should go through a feature branch and pull request.
 
 Before promotion, validate:
 
-1. Application build and CI checks
+1. CI and application build
 2. Database migrations
 3. Runtime health
 4. Core procurement and sales workflows
 5. Inventory reconciliation
-6. Tenant/shop isolation
+6. Shop/tenant isolation
 7. Rollback readiness
 
-Operational procedures are documented in [DEPLOYMENT.md](DEPLOYMENT.md) and [RUNBOOK.md](RUNBOOK.md).
+See [DEPLOYMENT.md](DEPLOYMENT.md) and [RUNBOOK.md](RUNBOOK.md).
 
 ---
 
 ## Documentation
 
-| Document | Description |
+| Resource | Purpose |
 | --- | --- |
 | [Documentation Index](docs/README.md) | Central documentation hub |
 | [Contributing](CONTRIBUTING.md) | Development and PR standards |
 | [Security](SECURITY.md) | Security policy |
-| [Runbook](RUNBOOK.md) | Operations, diagnosis and recovery |
+| [Runbook](RUNBOOK.md) | Operations and recovery |
 | [Deployment](DEPLOYMENT.md) | Deployment procedures |
-| [Deployment Safety Checklist](docs/deployment-safety-checklist.md) | Pre-deployment validation |
-| [Business Workflow Testing](docs/business-workflow-testing.md) | End-to-end workflow validation |
-| [Rollback Guide](docs/deploy-rollback-demo.md) | Deployment rollback walkthrough |
-| [Hardening Runbook](docs/hardening-operations-runbook.md) | Security and operational hardening |
+| [Business Workflow Testing](docs/business-workflow-testing.md) | End-to-end validation |
+| [Deployment Safety Checklist](docs/deployment-safety-checklist.md) | Release validation |
+| [Rollback Guide](docs/deploy-rollback-demo.md) | Rollback walkthrough |
 | [Changelog](CHANGELOG.md) | Release history |
 
 ---
 
 ## Contributing
-
-Contributions are welcome. Please:
 
 1. Create a focused feature or fix branch.
 2. Keep changes scoped and reviewable.
@@ -312,15 +273,9 @@ Contributions are welcome. Please:
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change.
 
----
-
 ## Project status
 
-SoftdigitIMS is under active development. Features, APIs, operational procedures, and deployment architecture continue to evolve as the platform moves toward production maturity.
-
-For current work, see the repository's [open pull requests](https://github.com/Tharun-code-08/Inventory-control/pulls) and [issues](https://github.com/Tharun-code-08/Inventory-control/issues).
-
----
+SoftdigitIMS is under active development. Features, APIs, operational procedures, and deployment architecture continue to evolve toward production maturity.
 
 ## License
 
