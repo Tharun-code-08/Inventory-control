@@ -1,264 +1,205 @@
-# SoftdigitIMS — Inventory Control ERP
+# SoftdigitIMS
 
-Multi-tenant inventory and ERP SaaS covering the full procure-to-pay and order-to-cash cycle: purchase orders and approvals, goods receipt/issue/return, batch & expiry tracking (FEFO), sales orders, GST-compliant invoice PDFs, payments, reports & analytics, role-based access, notifications (email / WhatsApp / in-app), and a WhatsApp AI assistant.
+### Inventory Control & ERP Platform
 
-Monorepo with a **NestJS 11** API (`apps/api`), **React 18 + Vite** web app (`apps/web`), **Expo (React Native)** warehouse mobile app (`apps/mobile`), **PostgreSQL 15**, **Prisma** migrations (including DB triggers for stock), **Redis + BullMQ** for async jobs, and **Docker** compose for local dependencies.
+**SoftdigitIMS** is a multi-tenant inventory and ERP platform for managing procurement, stock, sales, finance workflows, documents, reporting, and operational automation from one system.
 
-## Repository layout
+> Built for real inventory operations — with tenant isolation, stock integrity, auditability, and production-safe deployment practices as first-class concerns.
 
-| Path | Contents |
-|------|----------|
-| `apps/api` | NestJS API — modules per domain, Prisma schema & migrations, PDF pipeline (Puppeteer) |
-| `apps/web` | React SPA (Vite, Tailwind, TanStack Query) |
-| `apps/mobile` | Expo warehouse app (login, stock lookup, goods issues) |
-| `packages/shared-types` | Types shared between API and clients |
-| `docker/` | Local Postgres + Redis compose |
-| `deploy/`, `scripts/` | Deployment, backup, and ops scripts (`scripts/deploy.sh`) |
-| `fixtures/` | Frozen invoice fixtures used by the PDF gate harness |
-| `docs/`, `RUNBOOK.md`, `DEPLOYMENT.md` | Operational documentation (see below) |
+## ✨ What it does
 
-## Prerequisites
+| Area | Capabilities |
+|---|---|
+| **Procurement** | Purchase orders, approvals, goods receipts, returns, supplier workflows |
+| **Inventory** | Stock ledger, transfers, batch & expiry tracking, FEFO, low-stock alerts |
+| **Sales** | Sales orders, goods issues, returns, payments, customer workflows |
+| **Documents** | GST-ready invoice PDFs, POs, GRs, quotations, receipts |
+| **Analytics** | KPIs, reports, trends, inventory health, operational metrics |
+| **Automation** | Notifications, workflows, approvals, webhooks, scheduled/background jobs |
+| **Channels** | Email, WhatsApp, in-app notifications, warehouse mobile workflows |
+| **Security** | RBAC, shop/tenant isolation, audit trails, secure authentication |
 
-- **Node.js 20+** (CI uses 20; Node 24 also works)
-- **PostgreSQL 15+** and **Redis** — via **Docker Compose** in `docker/` *or* installed locally
-- **npm 10+** (or **pnpm** if you prefer)
+## 🏗️ Architecture
 
-## Environment variables
-
-Put API secrets in **`apps/api/.env`**. The **`npm run dev`** script starts the API via **`scripts/run-api-dev.cjs`**, which runs Nest with **`cwd` = `apps/api`** so **`.env`**, Prisma, and JWT load correctly. If you start the API manually, run commands from **`apps/api`** (or export the same env vars).
-
-To generate a local env file with secure random auth secrets automatically:
-
-```bash
-npm run setup:credentials
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                       SoftdigitIMS                          │
+├───────────────────────┬───────────────────┬─────────────────┤
+│ Web · React + Vite    │ Mobile · Expo     │ API · NestJS    │
+│ Tailwind + Query      │ Warehouse flows   │ REST + Swagger  │
+└───────────────────────┴───────────────────┴─────────────────┘
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+              PostgreSQL 15        Redis + BullMQ
+              Prisma + triggers     async workloads
+                    │
+                    └─────────┬─────────┘
+                              │
+                    Docker · Deploy · CI
 ```
 
-This creates `apps/api/.env` from `apps/api/.env.example` and auto-generates strong values for `JWT_SECRET`, `REFRESH_SECRET`, and `COOKIE_SECRET`.
+### Stack
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `NODE_ENV` | Runtime mode | `development` |
-| `API_PORT` | HTTP port for API | `3000` |
-| `DATABASE_URL` | PostgreSQL connection string | **`localhost:5432`** for a normal local Postgres install. Use **`localhost:5433`** only when you run Postgres via this repo’s Docker Compose (host port **5433** → container **5432**). |
-| `JWT_SECRET` | Access token signing secret (min 16 chars) | `change_me_minimum_16_chars` |
-| `REFRESH_SECRET` | Refresh token signing secret (min 16 chars) | `change_me_refresh_16` |
-| `JWT_ACCESS_EXPIRES` | Access JWT TTL | `15m` |
-| `JWT_REFRESH_EXPIRES` | Refresh JWT TTL | `7d` |
-| `REFRESH_COOKIE_NAME` | httpOnly cookie name | `refreshToken` |
-| `WEB_ORIGIN` | CORS origins for the SPA (comma-separated) | Include **5173** and **5200** hosts if you use the default Vite setup in this repo |
-| `REDIS_HOST` | Redis host | `127.0.0.1` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `EXPORT_STORAGE_DIR` | PDF/XLSX output directory | `./storage/exports` |
-| `VITE_API_URL` | API base URL for Vite dev | `http://localhost:3000` |
-| `EXPO_PUBLIC_API_URL` | API origin for mobile (no `/api/v1` suffix) | `http://localhost:3000` or `https://softdigitconsulting.com` |
-| `MAIL_FROM` | Sender for RFQ supplier invites | `office@softdigitconsulting.com` |
-| `PUBLIC_WEB_URL` | SPA URL embedded in supplier portal emails | `http://localhost:5173` |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | SMTP for RFQ invite emails (required to **Send** an RFQ) | e.g. `smtp.office365.com` |
+- **Web:** React 18, Vite, TypeScript, Tailwind CSS, TanStack Query
+- **API:** NestJS 11, TypeScript, Prisma
+- **Mobile:** Expo / React Native
+- **Data:** PostgreSQL 15
+- **Async:** Redis + BullMQ
+- **Documents:** Puppeteer-based PDF pipeline
+- **Infrastructure:** Docker, GitHub Actions, production deployment scripts
 
-## One-command setup (npm)
+## 📁 Repository structure
 
-From `retail-ims/`:
+```text
+Inventory-control/
+├── apps/
+│   ├── api/                 # NestJS API, Prisma, domain modules
+│   ├── web/                 # React web application
+│   └── mobile/              # Expo warehouse application
+├── packages/
+│   └── shared-types/        # Shared client/API types
+├── docker/                  # Local PostgreSQL + Redis
+├── deploy/                  # Deployment configuration
+├── scripts/                 # Setup, deployment, validation & operations
+├── docs/                    # Architecture, testing & operational docs
+└── fixtures/                # Frozen document/PDF test fixtures
+```
+
+## 🚀 Quick start
+
+### Requirements
+
+- Node.js **20+**
+- npm **10+** or pnpm
+- Docker Desktop with Compose
+
+### One-command setup
 
 ```bash
 npm run setup:new-machine
 ```
 
-This single task does all setup steps in order:
+For provisioning without starting the dev servers:
 
-- installs dependencies
-- creates `apps/api/.env` if missing (`setup:credentials`)
-- starts Docker Postgres + Redis
-- runs Prisma migrations
-- seeds data (including `admin@retailims.com` / `Admin@123`)
-- starts API + web dev servers
-
-If you only want provisioning (without launching dev servers), run:
-
-```bash
+```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1 -SkipStart
 ```
 
-If you use **local** Postgres/Redis instead of Docker, set **`DATABASE_URL`** (usually port **5432**) and **`REDIS_*`** in `apps/api/.env`, then migrate + seed as above.
-
-This starts **both** the API (port 3000) and the Vite app in one terminal via `concurrently` (Vite is usually **5173**; **`vite.config.ts` may use 5200** if the default dev port is blocked on Windows). To run them separately, use `npm run dev:api` and `npm run dev:web` in two terminals.
-
-## Mobile app (Expo — warehouse MVP)
-
-Native app at **`apps/mobile`** (Expo SDK **54**, matches current Expo Go): login, dashboard KPIs, products/stock lookup, goods issues (create + post), and low-stock alerts. Uses the same NestJS API with **body-based refresh tokens** (no browser cookies).
-
-### Setup
+Then start the application with:
 
 ```bash
-cd retail-ims
-npm install
-cp apps/mobile/.env.example apps/mobile/.env
-# Edit EXPO_PUBLIC_API_URL (see below)
+npm run dev
 ```
 
-### Run locally
+This runs the API and web application together. See the environment section below before connecting to a local or remote database.
+
+## 🧪 Quality & validation
+
+Run the checks relevant to your change before opening a PR:
 
 ```bash
-# Terminal 1 — API
-npm run dev:api
-
-# Terminal 2 — Expo
-npm run dev:mobile
-```
-
-Then press **`a`** (Android emulator), **`i`** (iOS simulator, macOS only), or scan the QR code with **Expo Go** on a physical device.
-
-| Environment | `EXPO_PUBLIC_API_URL` |
-|-------------|------------------------|
-| API on same PC, Android emulator | `http://10.0.2.2:3000` |
-| API on same PC, physical phone (same Wi‑Fi) | `http://<your-pc-lan-ip>:3000` |
-| Production | `https://softdigitconsulting.com` |
-
-### Mobile auth endpoints
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/v1/auth/mobile/login` | Returns `{ accessToken, refreshToken, user }` |
-| POST | `/api/v1/auth/mobile/refresh` | Body `{ refreshToken }` — no CSRF cookie |
-| POST | `/api/v1/auth/mobile/logout` | Bearer + body `{ refreshToken }` revokes session |
-
-Web cookie login (`POST /auth/login`, `POST /auth/refresh`) is unchanged.
-
-### EAS builds (optional)
-
-From `apps/mobile` after `npm install -g eas-cli` and `eas login`:
-
-```bash
-cd apps/mobile
-eas build --profile preview --platform android
-```
-
-Profiles are defined in `apps/mobile/eas.json` (`development`, `preview`, `production`).
-
-**pnpm equivalent** (if you use pnpm):
-
-```bash
-cp apps/api/.env.example apps/api/.env
-pnpm install
-docker compose -f docker/docker-compose.yml up -d postgres redis
-# or from retail-ims: pnpm run docker:deps
-pnpm --filter api exec prisma migrate deploy
-pnpm --filter api exec prisma db seed
-pnpm dev
-```
-
-## Default credentials (seed)
-
-- **Admin:** `admin@retailims.com` / `Admin@123`
-- **Shop users:** `shop1@retailims.com`, `shop2@retailims.com` / `Admin@123`
-- **Inventory manager:** `inventory@retailims.com` / `Admin@123`
-
-## API documentation
-
-With the API running: **http://localhost:3000/api/docs** (Swagger).
-
-All JSON endpoints are under **`/api/v1`** and use the standard `{ success, data, meta? }` envelope unless marked with raw HTML/file responses (print + export downloads).
-
-## Tests
-
-**API (Jest + Supertest):**
-
-```bash
-cd apps/api
-set DATABASE_URL=postgresql://...   # Windows PowerShell: $env:DATABASE_URL="..."
+npm run lint
+npm run build
 npm test
-```
-
-**Business workflow e2e** (Master Data → Procurement → Sales → Security → scenarios; requires migrated DB + seed):
-
-```bash
 npm run test:workflows
-```
-
-See [docs/business-workflow-testing.md](docs/business-workflow-testing.md) for the full phase map and manual checks.
-
-**Playwright (Phase 8 UI — mobile sidebar, PO tables, reports):**
-
-```bash
-npx playwright install chromium
 npm run test:playwright
 ```
 
-Requires API (`:3000`) and web (`:5200`) running, or use CI `integration-tests` workflow.
-
-**Web (Vitest + RTL):**
+Additional operational gates are available through:
 
 ```bash
-cd apps/web
-npm test
+npm run check:runtime-health
+npm run check:bundle-budget
+npm run check:api-slo
 ```
 
-## Production build
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull-request and engineering workflow.
+
+## 🔐 Configuration & security
+
+Local API configuration lives in `apps/api/.env`. Generate secure local authentication secrets with:
 
 ```bash
-npm run build --workspace=api
-npm run build --workspace=web
+npm run setup:credentials
 ```
 
-### API build scripts (team usage)
+Never commit `.env` files, credentials, API keys, database dumps, production data, or generated secrets.
 
-In `apps/api`:
+For production:
 
-- `npm run build`
-  - Runs `nest build` only.
-  - Use for day-to-day compile checks and CI where Prisma Client is already generated.
-  - Preferred on Windows when Prisma engine file locks can occur.
+- use `prisma migrate deploy` rather than `prisma db push`
+- use strong JWT/refresh secrets
+- restrict allowed web origins
+- use secure cookies in production
+- keep Redis available for background jobs
+- persist exported files or use object storage
 
-- `npm run prisma:generate`
-  - Runs `prisma generate` only.
-  - Use after Prisma schema/client changes, dependency refresh, or fresh setup.
+See [SECURITY.md](SECURITY.md) for the security policy.
 
-- `npm run build:full`
-  - Runs `prisma generate && nest build`.
-  - Use when you explicitly need both Prisma client regeneration and API compile in one command.
+## 🗄️ Database & inventory integrity
 
-Run API with `node apps/api/dist/main.js` after `DATABASE_URL` and Redis are configured.
+Inventory is deliberately enforced at the data layer as well as in application code:
 
-### Web production (important)
+- stock movements are posted through transactional services
+- PostgreSQL triggers maintain stock balances and summaries
+- negative stock is blocked at the database layer
+- document numbering uses transactional advisory locking
+- batch/expiry inventory supports FEFO consumption
+- tenant/shop isolation is treated as a core invariant
 
-The live site must serve the **built** SPA, not the Vite dev server and not the raw `index.html` from the repo root.
+**Production schema changes must go through reviewed Prisma migrations.**
 
-```bash
-cd retail-ims
-npm run build --workspace=web
-```
-
-Deploy the contents of **`apps/web/dist/`** (static files). The built `index.html` loads hashed files under `/assets/` (for example `/assets/page-products-*.js`). If the browser tries to load `/src/pages/ProductsPage.tsx`, production is pointing at dev mode or the wrong folder.
-
-- Do **not** run `npm run dev --workspace=web` on the public domain.
-- After each deploy, hard-refresh or clear cache once so old JS chunks are not reused.
-
-## Deployment notes
-
-- Run **`prisma migrate deploy`** (not `db push`) in production.
-- Set strong `JWT_SECRET` / `REFRESH_SECRET`, enable `secure` cookies (`NODE_ENV=production`), and restrict `WEB_ORIGIN`.
-- Ensure **Redis** is reachable for BullMQ workers (same process as API in this repo’s default setup).
-- Persist **`EXPORT_STORAGE_DIR`** or replace file URLs with object storage (S3) in a follow-up.
-
-## Architecture notes
-
-- **Stock movements** go through `StockService.postMovement()` inside Prisma transactions; PostgreSQL triggers maintain `stock_ledger.balance_qty` and `stock_summary`.
-- **Negative stock** is blocked in the DB on outbound `stock_ledger` inserts.
-- **Document numbers** use `document_sequences` + `pg_advisory_xact_lock(hashtext(...))` for concurrency safety.
-
-- **Stock ledger is fully automatic:** users never create ledger entries manually. GR, goods issue, goods return, and stock transfer flows post ledger movements inside backend transactions.
-- **Inventory lots:** batch/expiry tracking with FEFO consumption; expiry scanning surfaces health exceptions.
-- **PDF documents** (invoices, POs, GRs, quotations, receipts) render via a template registry + Puppeteer pipeline in `apps/api/src/common/pdf/`.
-
-## Operational documentation
+## 📚 Documentation
 
 | Document | Purpose |
-|----------|---------|
-| [RUNBOOK.md](RUNBOOK.md) | On-call diagnosis tree, restart/recovery procedures, incident log |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment guide (pushes to `main` auto-deploy production via `.github/workflows/deploy.yml`) |
-| [docs/deployment-safety-checklist.md](docs/deployment-safety-checklist.md) | Pre-deploy checks |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development and PR standards |
+| [SECURITY.md](SECURITY.md) | Security policy and reporting guidance |
+| [RUNBOOK.md](RUNBOOK.md) | Operations, diagnosis and recovery |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment procedures |
+| [docs/deployment-safety-checklist.md](docs/deployment-safety-checklist.md) | Pre-deployment validation |
 | [docs/deploy-rollback-demo.md](docs/deploy-rollback-demo.md) | Rollback walkthrough |
-| [docs/hardening-operations-runbook.md](docs/hardening-operations-runbook.md) | Security/ops hardening |
-| [docs/BACKUP-RECOVERY-GUIDE.md](docs/BACKUP-RECOVERY-GUIDE.md), [docs/postgres-backup-recovery.md](docs/postgres-backup-recovery.md) | Backup & restore |
-| [docs/business-workflow-testing.md](docs/business-workflow-testing.md) | E2E business workflow test map |
+| [docs/hardening-operations-runbook.md](docs/hardening-operations-runbook.md) | Security and operations hardening |
+| [docs/business-workflow-testing.md](docs/business-workflow-testing.md) | End-to-end business workflow tests |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
-> **Deploy warning:** merging or pushing to `main` triggers an automatic production deployment. Use feature branches + PRs; CI (quality gate, unit + integration tests, Playwright) runs on every PR without deploying.
+## 📱 Mobile application
+
+The Expo app in `apps/mobile` provides warehouse-focused workflows including authentication, dashboards, stock lookup, goods issues, and low-stock alerts.
+
+```bash
+npm run dev:mobile
+```
+
+For Android/iOS builds, see the mobile documentation and Expo configuration under `apps/mobile`.
+
+## 🔌 API
+
+When running locally, Swagger documentation is available at:
+
+```text
+http://localhost:3000/api/docs
+```
+
+API endpoints use the `/api/v1` namespace and the standard `{ success, data, meta? }` response envelope where applicable.
+
+## 🚢 Deployment
+
+Changes merged into `main` can trigger the production deployment pipeline. **Use feature branches and pull requests for all changes.**
+
+Before production promotion, validate migrations, application health, business workflows, inventory reconciliation, and rollback readiness.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) and [RUNBOOK.md](RUNBOOK.md).
+
+## 🤝 Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), follow the pull-request template, and keep changes focused and testable.
+
+## 📄 License
+
+See the repository's license file for licensing terms.
+
+---
+
+**SoftdigitIMS** · Inventory Control & ERP Platform
