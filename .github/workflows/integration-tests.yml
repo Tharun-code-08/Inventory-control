@@ -52,6 +52,11 @@ jobs:
       WEB_ORIGIN: http://127.0.0.1:5200
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
+      # E2E suites intentionally exercise many authenticated requests from one
+      # process/IP. Keep production throttling intact while preventing the
+      # shared Redis test bucket from masking business-workflow assertions.
+      RATE_LIMIT_GLOBAL_LIMIT: 10000
+      RATE_LIMIT_AUTH_LIMIT: 1000
       EXPORT_STORAGE_DIR: ./storage/exports
       MAIL_TRANSPORT: json
     steps:
@@ -118,6 +123,8 @@ jobs:
       WEB_ORIGIN: http://127.0.0.1:5200
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
+      RATE_LIMIT_GLOBAL_LIMIT: 10000
+      RATE_LIMIT_AUTH_LIMIT: 1000
       EXPORT_STORAGE_DIR: ./storage/exports
       MAIL_TRANSPORT: json
       CI: true
