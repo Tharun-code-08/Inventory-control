@@ -1,34 +1,46 @@
-# dependencies
+# Dependencies
 node_modules/
 **/node_modules/
+.pnpm-store/
 
-# build output
+# Build and test output
 dist/
 **/dist/
 coverage/
+**/coverage/
 playwright-report/
 test-results/
 apps/api/coverage/
 apps/web/playwright-report/
 apps/web/test-results/
-apps/web/node_modules/
 apps/api/dist/
 apps/web/dist/
 
-# env files
+# Environment and secrets
 .env
 .env.*
+!.env.example
 
-# logs
+# Logs
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+*.log
 
-# OS / editor
+# OS and editor files
 .DS_Store
+Thumbs.db
 .vscode/
+.idea/
+*.swp
+*.swo
 
-# Backups and temporary files
+# Local application state
+.expo/
+.deploy/
+.claude/worktrees/
+
+# Backups and generated data
 *.bak
 *.sql.gz
 *.json.gz
@@ -39,12 +51,10 @@ apps/api/storage/backups/
 **/dist.bak*/
 **/dist.backup*/
 
-# Local tooling state
-.expo/
+# Local databases / runtime data
+*.sqlite
+*.sqlite3
 
-# Accidental files
-q
-
-# Deploy artifacts & local worktrees
-.deploy/
-.claude/worktrees/
+# Temporary files
+*.tmp
+*.temp

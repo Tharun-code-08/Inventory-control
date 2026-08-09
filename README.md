@@ -1,264 +1,289 @@
-# SoftdigitIMS — Inventory Control ERP
+# SoftdigitIMS
 
-Multi-tenant inventory and ERP SaaS covering the full procure-to-pay and order-to-cash cycle: purchase orders and approvals, goods receipt/issue/return, batch & expiry tracking (FEFO), sales orders, GST-compliant invoice PDFs, payments, reports & analytics, role-based access, notifications (email / WhatsApp / in-app), and a WhatsApp AI assistant.
+<p align="center">
+  <strong>Inventory Control & ERP Platform</strong><br />
+  Multi-tenant operations software for procurement, inventory, sales, documents, analytics, and automation.
+</p>
 
-Monorepo with a **NestJS 11** API (`apps/api`), **React 18 + Vite** web app (`apps/web`), **Expo (React Native)** warehouse mobile app (`apps/mobile`), **PostgreSQL 15**, **Prisma** migrations (including DB triggers for stock), **Redis + BullMQ** for async jobs, and **Docker** compose for local dependencies.
+<p align="center">
+  <a href="https://github.com/Tharun-code-08/Inventory-control/actions"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/ci.yml?branch=main&label=CI&logo=github" alt="CI" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control"><img src="https://img.shields.io/github/repo-size/Tharun-code-08/Inventory-control?label=repo%20size" alt="Repository size" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/issues"><img src="https://img.shields.io/github/issues/Tharun-code-08/Inventory-control" alt="Issues" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/pulls"><img src="https://img.shields.io/github/issues-pr/Tharun-code-08/Inventory-control" alt="Pull requests" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/Tharun-code-08/Inventory-control" alt="License" /></a>
+</p>
 
-## Repository layout
+<p align="center">
+  <a href="./docs/README.md">Documentation</a> ·
+  <a href="./CONTRIBUTING.md">Contributing</a> ·
+  <a href="./SECURITY.md">Security</a> ·
+  <a href="./DEPLOYMENT.md">Deployment</a>
+</p>
 
-| Path | Contents |
-|------|----------|
-| `apps/api` | NestJS API — modules per domain, Prisma schema & migrations, PDF pipeline (Puppeteer) |
-| `apps/web` | React SPA (Vite, Tailwind, TanStack Query) |
-| `apps/mobile` | Expo warehouse app (login, stock lookup, goods issues) |
-| `packages/shared-types` | Types shared between API and clients |
-| `docker/` | Local Postgres + Redis compose |
-| `deploy/`, `scripts/` | Deployment, backup, and ops scripts (`scripts/deploy.sh`) |
-| `fixtures/` | Frozen invoice fixtures used by the PDF gate harness |
-| `docs/`, `RUNBOOK.md`, `DEPLOYMENT.md` | Operational documentation (see below) |
+---
 
-## Prerequisites
+## Overview
 
-- **Node.js 20+** (CI uses 20; Node 24 also works)
-- **PostgreSQL 15+** and **Redis** — via **Docker Compose** in `docker/` *or* installed locally
-- **npm 10+** (or **pnpm** if you prefer)
+**SoftdigitIMS** is a full-stack inventory and ERP platform designed around real operational workflows. It connects procurement, warehouse inventory, sales, documents, reporting, notifications, and background processing through a single system.
 
-## Environment variables
+The platform is built with production-oriented guarantees around **shop/tenant isolation, stock integrity, authorization, auditability, transactional consistency, and controlled deployments**.
 
-Put API secrets in **`apps/api/.env`**. The **`npm run dev`** script starts the API via **`scripts/run-api-dev.cjs`**, which runs Nest with **`cwd` = `apps/api`** so **`.env`**, Prisma, and JWT load correctly. If you start the API manually, run commands from **`apps/api`** (or export the same env vars).
+## Core capabilities
 
-To generate a local env file with secure random auth secrets automatically:
+| Domain | Capabilities |
+| --- | --- |
+| **Procurement** | Purchase orders, approvals, goods receipts, returns, suppliers |
+| **Inventory** | Stock ledger, transfers, batches, expiry, FEFO, low-stock monitoring |
+| **Sales** | Sales orders, goods issues, returns, payments, customer workflows |
+| **Documents** | Invoices, purchase orders, goods receipts, quotations, receipts |
+| **Analytics** | KPIs, reports, trends, inventory health, operational metrics |
+| **Automation** | Notifications, approvals, background jobs, scheduled workflows |
+| **Integrations** | Email, WhatsApp, in-app notifications, payment workflows |
+| **Mobile** | Warehouse-focused stock lookup and goods issue workflows |
+| **Security** | RBAC, shop/tenant isolation, audit trails, secure authentication |
 
-```bash
-npm run setup:credentials
+---
+
+## Architecture
+
+```text
+                         ┌───────────────────────┐
+                         │      SoftdigitIMS      │
+                         │ Inventory + ERP Core  │
+                         └───────────┬───────────┘
+                                     │
+               ┌─────────────────────┼─────────────────────┐
+               │                     │                     │
+        ┌──────▼──────┐       ┌──────▼──────┐       ┌──────▼──────┐
+        │ Web Client  │       │ Mobile App  │       │   REST API  │
+        │ React/Vite  │       │ Expo/RN     │       │   NestJS    │
+        └──────┬──────┘       └──────┬──────┘       └──────┬──────┘
+               │                     │                     │
+               └─────────────────────┼─────────────────────┘
+                                     │
+                          ┌──────────▼──────────┐
+                          │   Business Domain   │
+                          │ Auth · Stock · PO   │
+                          │ Sales · Documents   │
+                          └──────────┬──────────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    │                │                │
+             ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
+             │ PostgreSQL  │ │    Redis    │ │   BullMQ    │
+             │ Prisma + DB │ │ Cache       │ │ Background  │
+             │ constraints │ │             │ │ Jobs        │
+             └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
-This creates `apps/api/.env` from `apps/api/.env.example` and auto-generates strong values for `JWT_SECRET`, `REFRESH_SECRET`, and `COOKIE_SECRET`.
+### Technology
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `NODE_ENV` | Runtime mode | `development` |
-| `API_PORT` | HTTP port for API | `3000` |
-| `DATABASE_URL` | PostgreSQL connection string | **`localhost:5432`** for a normal local Postgres install. Use **`localhost:5433`** only when you run Postgres via this repo’s Docker Compose (host port **5433** → container **5432**). |
-| `JWT_SECRET` | Access token signing secret (min 16 chars) | `change_me_minimum_16_chars` |
-| `REFRESH_SECRET` | Refresh token signing secret (min 16 chars) | `change_me_refresh_16` |
-| `JWT_ACCESS_EXPIRES` | Access JWT TTL | `15m` |
-| `JWT_REFRESH_EXPIRES` | Refresh JWT TTL | `7d` |
-| `REFRESH_COOKIE_NAME` | httpOnly cookie name | `refreshToken` |
-| `WEB_ORIGIN` | CORS origins for the SPA (comma-separated) | Include **5173** and **5200** hosts if you use the default Vite setup in this repo |
-| `REDIS_HOST` | Redis host | `127.0.0.1` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `EXPORT_STORAGE_DIR` | PDF/XLSX output directory | `./storage/exports` |
-| `VITE_API_URL` | API base URL for Vite dev | `http://localhost:3000` |
-| `EXPO_PUBLIC_API_URL` | API origin for mobile (no `/api/v1` suffix) | `http://localhost:3000` or `https://softdigitconsulting.com` |
-| `MAIL_FROM` | Sender for RFQ supplier invites | `office@softdigitconsulting.com` |
-| `PUBLIC_WEB_URL` | SPA URL embedded in supplier portal emails | `http://localhost:5173` |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | SMTP for RFQ invite emails (required to **Send** an RFQ) | e.g. `smtp.office365.com` |
+| Layer | Technology |
+| --- | --- |
+| Web | React 18, Vite, TypeScript, Tailwind CSS, TanStack Query |
+| API | NestJS 11, TypeScript, Prisma |
+| Mobile | Expo, React Native |
+| Database | PostgreSQL 15 |
+| Cache / jobs | Redis, BullMQ |
+| Documents | Puppeteer PDF pipeline |
+| Local infrastructure | Docker Compose |
+| CI/CD | GitHub Actions |
 
-## One-command setup (npm)
+---
 
-From `retail-ims/`:
+## Repository structure
+
+```text
+Inventory-control/
+├── apps/
+│   ├── api/                 # NestJS API, Prisma and domain modules
+│   ├── web/                 # React web application
+│   └── mobile/              # Expo warehouse application
+├── packages/
+│   └── shared-types/        # Shared API/client types
+├── docker/                  # Local PostgreSQL and Redis services
+├── deploy/                  # Deployment configuration
+├── scripts/                 # Setup, validation and operational tooling
+├── docs/                    # Engineering and operational documentation
+├── fixtures/                # Test fixtures for document/PDF validation
+├── .github/                 # CI, issue templates and repository governance
+├── CONTRIBUTING.md          # Engineering contribution standards
+├── SECURITY.md              # Security policy
+├── DEPLOYMENT.md            # Deployment procedures
+└── RUNBOOK.md               # Operational runbook
+```
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js **20+**
+- pnpm **9.15+** (repository package manager)
+- Docker Desktop with Docker Compose
+
+### 1. Clone
+
+```bash
+git clone https://github.com/Tharun-code-08/Inventory-control.git
+cd Inventory-control
+```
+
+### 2. Provision
 
 ```bash
 npm run setup:new-machine
 ```
 
-This single task does all setup steps in order:
+To provision without starting development servers:
 
-- installs dependencies
-- creates `apps/api/.env` if missing (`setup:credentials`)
-- starts Docker Postgres + Redis
-- runs Prisma migrations
-- seeds data (including `admin@retailims.com` / `Admin@123`)
-- starts API + web dev servers
-
-If you only want provisioning (without launching dev servers), run:
-
-```bash
+```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1 -SkipStart
 ```
 
-If you use **local** Postgres/Redis instead of Docker, set **`DATABASE_URL`** (usually port **5432**) and **`REDIS_*`** in `apps/api/.env`, then migrate + seed as above.
-
-This starts **both** the API (port 3000) and the Vite app in one terminal via `concurrently` (Vite is usually **5173**; **`vite.config.ts` may use 5200** if the default dev port is blocked on Windows). To run them separately, use `npm run dev:api` and `npm run dev:web` in two terminals.
-
-## Mobile app (Expo — warehouse MVP)
-
-Native app at **`apps/mobile`** (Expo SDK **54**, matches current Expo Go): login, dashboard KPIs, products/stock lookup, goods issues (create + post), and low-stock alerts. Uses the same NestJS API with **body-based refresh tokens** (no browser cookies).
-
-### Setup
+### 3. Develop
 
 ```bash
-cd retail-ims
-npm install
-cp apps/mobile/.env.example apps/mobile/.env
-# Edit EXPO_PUBLIC_API_URL (see below)
+npm run dev
 ```
 
-### Run locally
+Or start services independently:
 
 ```bash
-# Terminal 1 — API
 npm run dev:api
-
-# Terminal 2 — Expo
+npm run dev:web
 npm run dev:mobile
 ```
 
-Then press **`a`** (Android emulator), **`i`** (iOS simulator, macOS only), or scan the QR code with **Expo Go** on a physical device.
+> Keep local secrets in environment files. Never commit production credentials, tokens, customer data, or database dumps.
 
-| Environment | `EXPO_PUBLIC_API_URL` |
-|-------------|------------------------|
-| API on same PC, Android emulator | `http://10.0.2.2:3000` |
-| API on same PC, physical phone (same Wi‑Fi) | `http://<your-pc-lan-ip>:3000` |
-| Production | `https://softdigitconsulting.com` |
+---
 
-### Mobile auth endpoints
+## Quality engineering
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/v1/auth/mobile/login` | Returns `{ accessToken, refreshToken, user }` |
-| POST | `/api/v1/auth/mobile/refresh` | Body `{ refreshToken }` — no CSRF cookie |
-| POST | `/api/v1/auth/mobile/logout` | Bearer + body `{ refreshToken }` revokes session |
-
-Web cookie login (`POST /auth/login`, `POST /auth/refresh`) is unchanged.
-
-### EAS builds (optional)
-
-From `apps/mobile` after `npm install -g eas-cli` and `eas login`:
+Run the checks relevant to your change before opening a pull request.
 
 ```bash
-cd apps/mobile
-eas build --profile preview --platform android
-```
-
-Profiles are defined in `apps/mobile/eas.json` (`development`, `preview`, `production`).
-
-**pnpm equivalent** (if you use pnpm):
-
-```bash
-cp apps/api/.env.example apps/api/.env
-pnpm install
-docker compose -f docker/docker-compose.yml up -d postgres redis
-# or from retail-ims: pnpm run docker:deps
-pnpm --filter api exec prisma migrate deploy
-pnpm --filter api exec prisma db seed
-pnpm dev
-```
-
-## Default credentials (seed)
-
-- **Admin:** `admin@retailims.com` / `Admin@123`
-- **Shop users:** `shop1@retailims.com`, `shop2@retailims.com` / `Admin@123`
-- **Inventory manager:** `inventory@retailims.com` / `Admin@123`
-
-## API documentation
-
-With the API running: **http://localhost:3000/api/docs** (Swagger).
-
-All JSON endpoints are under **`/api/v1`** and use the standard `{ success, data, meta? }` envelope unless marked with raw HTML/file responses (print + export downloads).
-
-## Tests
-
-**API (Jest + Supertest):**
-
-```bash
-cd apps/api
-set DATABASE_URL=postgresql://...   # Windows PowerShell: $env:DATABASE_URL="..."
+npm run lint
+npm run build
 npm test
-```
-
-**Business workflow e2e** (Master Data → Procurement → Sales → Security → scenarios; requires migrated DB + seed):
-
-```bash
 npm run test:workflows
-```
-
-See [docs/business-workflow-testing.md](docs/business-workflow-testing.md) for the full phase map and manual checks.
-
-**Playwright (Phase 8 UI — mobile sidebar, PO tables, reports):**
-
-```bash
-npx playwright install chromium
 npm run test:playwright
 ```
 
-Requires API (`:3000`) and web (`:5200`) running, or use CI `integration-tests` workflow.
-
-**Web (Vitest + RTL):**
+Operational gates:
 
 ```bash
-cd apps/web
-npm test
+npm run check:runtime-health
+npm run check:bundle-budget
+npm run check:api-slo
 ```
 
-## Production build
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete engineering workflow.
 
-```bash
-npm run build --workspace=api
-npm run build --workspace=web
+---
+
+## Data integrity & security
+
+Inventory is treated as a financial and operational system, not a simple CRUD application.
+
+Key invariants include:
+
+- Stock movements are processed transactionally.
+- PostgreSQL maintains critical stock balances and summaries.
+- Negative stock is blocked at the database layer.
+- Document numbers use concurrency-safe sequencing.
+- Batch and expiry workflows support FEFO consumption.
+- Shop/tenant isolation is enforced as a core boundary.
+- Sensitive operations remain auditable.
+- Production schema changes use reviewed Prisma migrations.
+
+### Production rules
+
+- Use `prisma migrate deploy` for production migrations.
+- Never use `prisma db push` against production.
+- Use strong, unique authentication secrets.
+- Restrict CORS / web origins to trusted applications.
+- Use secure cookies in production.
+- Do not commit credentials, tokens, customer data, database dumps, or generated secrets.
+
+See [SECURITY.md](SECURITY.md).
+
+---
+
+## API
+
+Local Swagger/OpenAPI documentation:
+
+```text
+http://localhost:3000/api/docs
 ```
 
-### API build scripts (team usage)
+API routes are versioned under:
 
-In `apps/api`:
-
-- `npm run build`
-  - Runs `nest build` only.
-  - Use for day-to-day compile checks and CI where Prisma Client is already generated.
-  - Preferred on Windows when Prisma engine file locks can occur.
-
-- `npm run prisma:generate`
-  - Runs `prisma generate` only.
-  - Use after Prisma schema/client changes, dependency refresh, or fresh setup.
-
-- `npm run build:full`
-  - Runs `prisma generate && nest build`.
-  - Use when you explicitly need both Prisma client regeneration and API compile in one command.
-
-Run API with `node apps/api/dist/main.js` after `DATABASE_URL` and Redis are configured.
-
-### Web production (important)
-
-The live site must serve the **built** SPA, not the Vite dev server and not the raw `index.html` from the repo root.
-
-```bash
-cd retail-ims
-npm run build --workspace=web
+```text
+/api/v1
 ```
 
-Deploy the contents of **`apps/web/dist/`** (static files). The built `index.html` loads hashed files under `/assets/` (for example `/assets/page-products-*.js`). If the browser tries to load `/src/pages/ProductsPage.tsx`, production is pointing at dev mode or the wrong folder.
+---
 
-- Do **not** run `npm run dev --workspace=web` on the public domain.
-- After each deploy, hard-refresh or clear cache once so old JS chunks are not reused.
+## Deployment
 
-## Deployment notes
+Production changes should go through a feature branch and pull request.
 
-- Run **`prisma migrate deploy`** (not `db push`) in production.
-- Set strong `JWT_SECRET` / `REFRESH_SECRET`, enable `secure` cookies (`NODE_ENV=production`), and restrict `WEB_ORIGIN`.
-- Ensure **Redis** is reachable for BullMQ workers (same process as API in this repo’s default setup).
-- Persist **`EXPORT_STORAGE_DIR`** or replace file URLs with object storage (S3) in a follow-up.
+Before promotion, validate:
 
-## Architecture notes
+1. CI and application build
+2. Database migrations
+3. Runtime health
+4. Core procurement and sales workflows
+5. Inventory reconciliation
+6. Shop/tenant isolation
+7. Rollback readiness
 
-- **Stock movements** go through `StockService.postMovement()` inside Prisma transactions; PostgreSQL triggers maintain `stock_ledger.balance_qty` and `stock_summary`.
-- **Negative stock** is blocked in the DB on outbound `stock_ledger` inserts.
-- **Document numbers** use `document_sequences` + `pg_advisory_xact_lock(hashtext(...))` for concurrency safety.
+See [DEPLOYMENT.md](DEPLOYMENT.md) and [RUNBOOK.md](RUNBOOK.md).
 
-- **Stock ledger is fully automatic:** users never create ledger entries manually. GR, goods issue, goods return, and stock transfer flows post ledger movements inside backend transactions.
-- **Inventory lots:** batch/expiry tracking with FEFO consumption; expiry scanning surfaces health exceptions.
-- **PDF documents** (invoices, POs, GRs, quotations, receipts) render via a template registry + Puppeteer pipeline in `apps/api/src/common/pdf/`.
+---
 
-## Operational documentation
+## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [RUNBOOK.md](RUNBOOK.md) | On-call diagnosis tree, restart/recovery procedures, incident log |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment guide (pushes to `main` auto-deploy production via `.github/workflows/deploy.yml`) |
-| [docs/deployment-safety-checklist.md](docs/deployment-safety-checklist.md) | Pre-deploy checks |
-| [docs/deploy-rollback-demo.md](docs/deploy-rollback-demo.md) | Rollback walkthrough |
-| [docs/hardening-operations-runbook.md](docs/hardening-operations-runbook.md) | Security/ops hardening |
-| [docs/BACKUP-RECOVERY-GUIDE.md](docs/BACKUP-RECOVERY-GUIDE.md), [docs/postgres-backup-recovery.md](docs/postgres-backup-recovery.md) | Backup & restore |
-| [docs/business-workflow-testing.md](docs/business-workflow-testing.md) | E2E business workflow test map |
+| Resource | Purpose |
+| --- | --- |
+| [Documentation Index](docs/README.md) | Central documentation hub |
+| [Contributing](CONTRIBUTING.md) | Development and PR standards |
+| [Security](SECURITY.md) | Security policy |
+| [Runbook](RUNBOOK.md) | Operations and recovery |
+| [Deployment](DEPLOYMENT.md) | Deployment procedures |
+| [Business Workflow Testing](docs/business-workflow-testing.md) | End-to-end validation |
+| [Deployment Safety Checklist](docs/deployment-safety-checklist.md) | Release validation |
+| [Rollback Guide](docs/deploy-rollback-demo.md) | Rollback walkthrough |
+| [Changelog](CHANGELOG.md) | Release history |
 
-> **Deploy warning:** merging or pushing to `main` triggers an automatic production deployment. Use feature branches + PRs; CI (quality gate, unit + integration tests, Playwright) runs on every PR without deploying.
+---
+
+## Contributing
+
+1. Create a focused feature or fix branch.
+2. Keep changes scoped and reviewable.
+3. Add or update tests for behavior changes.
+4. Run the relevant quality checks locally.
+5. Document migrations, configuration changes, and deployment impact.
+6. Open a pull request using the repository template.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change.
+
+## Project status
+
+SoftdigitIMS is under active development. Features, APIs, operational procedures, and deployment architecture continue to evolve toward production maturity.
+
+## License
+
+See the repository's license file for the applicable terms.
+
+---
+
+<p align="center">
+  <strong>SoftdigitIMS</strong><br />
+  Inventory Control & ERP Platform
+</p>
