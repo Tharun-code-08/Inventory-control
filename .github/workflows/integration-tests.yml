@@ -57,7 +57,7 @@ jobs:
       EXPORT_STORAGE_DIR: ./storage/exports
       MAIL_TRANSPORT: json
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -127,7 +127,7 @@ jobs:
       CI: true
       PLAYWRIGHT_SKIP_WEBSERVER: '1'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 22
