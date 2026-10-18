@@ -170,7 +170,7 @@ jobs:
           echo "❌ Services did not become ready within 120s"
           exit 1
       - run: npm run test:e2e --workspace=web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
