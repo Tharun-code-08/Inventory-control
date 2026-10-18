@@ -73,7 +73,7 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         <label className="text-sm font-medium text-foreground">Issue reason</label>
         <input
           type="text"
-          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-hidden transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={issueReason}
           onChange={(e) => setIssueReason(e.target.value)}
           placeholder="Reason for this goods issue"
@@ -84,7 +84,7 @@ export function GoodsIssueForm({ shopId, available, onSubmit, submitting = false
         <label className="text-sm font-medium text-foreground">Quantity</label>
         <input
           type="number"
-          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-hidden transition focus:border-primary focus:ring-4 focus:ring-primary/20"
           value={qty || ''}
           onChange={(e) => setQty(Number(e.target.value))}
           data-testid="qty-input"

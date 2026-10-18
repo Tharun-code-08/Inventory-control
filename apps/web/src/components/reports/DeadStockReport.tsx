@@ -63,26 +63,26 @@ export default function DeadStockReport({ shopId }: Props) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-red-500">
           <p className="text-sm font-medium text-muted-foreground">Total Items</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.totalDeadItems}</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-orange-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-orange-500">
           <p className="text-sm font-medium text-muted-foreground">Total Quantity</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.totalDeadQty.toLocaleString()}</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-yellow-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-yellow-500">
           <p className="text-sm font-medium text-muted-foreground">Locked Value</p>
           <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalDeadValue / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-purple-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-purple-500">
           <p className="text-sm font-medium text-muted-foreground">Risk Level</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.theme}</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg shadow p-4 space-y-4">
+      <div className="bg-card rounded-lg shadow-sm p-4 space-y-4">
         <h3 className="font-semibold text-foreground">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -118,7 +118,7 @@ export default function DeadStockReport({ shopId }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted border-b border-border">

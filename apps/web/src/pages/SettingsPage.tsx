@@ -276,7 +276,7 @@ function ProfileTab() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${avatar.bgClass}`}>
+                <div className={`flex h-full w-full items-center justify-center bg-linear-to-br ${avatar.bgClass}`}>
                   <span aria-label={`${avatar.kind} avatar`} role="img" className="text-2xl">
                     {avatar.emoji}
                   </span>
@@ -326,7 +326,7 @@ function ProfileTab() {
                         }`}
                         title={`Use ${kind} avatar`}
                       >
-                        <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${a.bgClass}`}>
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br ${a.bgClass}`}>
                           <span role="img" aria-label={`${kind} avatar`}>
                             {a.emoji}
                           </span>

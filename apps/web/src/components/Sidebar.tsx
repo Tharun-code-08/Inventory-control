@@ -222,7 +222,7 @@ export function Sidebar({
           if (isAutoHide) setAutoHideExpanded(false);
         }}
         className={cn(
-          'sidebar-item relative z-[1] flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
+          'sidebar-item relative z-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
           itemActive
             ? 'active'
             : 'text-muted-foreground hover:text-foreground dark:text-muted-foreground dark:hover:text-slate-100',
@@ -255,13 +255,13 @@ export function Sidebar({
     <>
       {showLogoutSplash && (
         <div className={cn(
-          "fixed inset-0 z-[100] flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
+          "fixed inset-0 z-100 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
           logoutFadeOut ? 'opacity-0' : 'opacity-100',
         )}>
           <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-card/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
             <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
-            <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br', avatar.bgClass)}>
+            <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-linear-to-br', avatar.bgClass)}>
               <div className="absolute inset-0 animate-ping rounded-full bg-card/20" />
               {avatarUrl ? (
                 <img src={avatarUrl} alt={`${user?.name ?? 'User'} avatar`} className="h-24 w-24 rounded-full object-cover" />
@@ -458,7 +458,7 @@ export function Sidebar({
             onClick={() => setDropdownOpen((open) => !open)}
             className="sidebar-item flex w-full items-center gap-3 rounded-lg px-3 py-2.5"
           >
-            <div className={cn('avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm', avatar.bgClass)}>
+            <div className={cn('avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-sm', avatar.bgClass)}>
               {avatarUrl ? (
                 <img src={avatarUrl} alt={`${user?.name ?? 'User'} avatar`} className="h-8 w-8 rounded-full object-cover" />
               ) : (

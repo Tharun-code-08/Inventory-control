@@ -29,7 +29,7 @@ export function ThemeToggle({ collapsed, className }: ThemeToggleProps) {
         aria-label={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         title="Toggle theme"
         className={cn(
-          'mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
           className,
         )}
       >
@@ -60,9 +60,9 @@ export function ThemeToggle({ collapsed, className }: ThemeToggleProps) {
             onClick={() => setMode(m)}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               active
-                ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
+                ? 'bg-card text-foreground shadow-xs ring-1 ring-border'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

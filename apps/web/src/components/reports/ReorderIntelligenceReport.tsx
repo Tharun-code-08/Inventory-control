@@ -59,22 +59,22 @@ export default function ReorderIntelligenceReport({ shopId }: Props) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-red-500">
           <p className="text-sm font-medium text-muted-foreground">🔴 Urgent</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.urgent.count}</p>
           <p className="text-xs text-muted-foreground mt-1">Order {data.summary.urgent.totalOrderQty.toLocaleString()} units</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-yellow-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-yellow-500">
           <p className="text-sm font-medium text-muted-foreground">🟡 Warning</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.warning.count}</p>
           <p className="text-xs text-muted-foreground mt-1">Order {data.summary.warning.totalOrderQty.toLocaleString()} units</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-green-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-green-500">
           <p className="text-sm font-medium text-muted-foreground">🟢 Normal</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.normal.count}</p>
           <p className="text-xs text-muted-foreground mt-1">Stock is healthy</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
           <p className="text-sm font-medium text-muted-foreground">Total Products</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.totalProducts}</p>
           <p className="text-xs text-muted-foreground mt-1">In this shop</p>
@@ -82,7 +82,7 @@ export default function ReorderIntelligenceReport({ shopId }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg shadow p-4 space-y-4">
+      <div className="bg-card rounded-lg shadow-sm p-4 space-y-4">
         <h3 className="font-semibold text-foreground">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -101,7 +101,7 @@ export default function ReorderIntelligenceReport({ shopId }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted border-b border-border">

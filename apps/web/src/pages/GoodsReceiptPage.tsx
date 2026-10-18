@@ -744,7 +744,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
         </div>
 
         {/* Table Card */}
-        <div className="surface-1 rounded-xl shadow-sm">
+        <div className="surface-1 rounded-xl shadow-xs">
           {isLoading ? (
             <div className="p-6 space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (

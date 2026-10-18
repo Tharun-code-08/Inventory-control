@@ -20,7 +20,7 @@ export function AttentionCard({ data }: AttentionCardProps) {
 
   if (data.length === 0) {
     return (
-      <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+      <div className="bg-card rounded-lg shadow-sm p-6 hover:shadow-lg transition">
         <h3 className="text-lg font-semibold text-foreground mb-4">What should I do now?</h3>
         <div className="text-center py-8">
           <p className="text-green-600 dark:text-green-400 font-medium text-lg">All clear ✓</p>
@@ -30,7 +30,7 @@ export function AttentionCard({ data }: AttentionCardProps) {
   }
 
   return (
-    <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+    <div className="bg-card rounded-lg shadow-sm p-6 hover:shadow-lg transition">
       <h3 className="text-lg font-semibold text-foreground mb-6">What should I do now?</h3>
 
       <div className="space-y-4">
@@ -50,7 +50,7 @@ export function AttentionCard({ data }: AttentionCardProps) {
               </div>
               <button
                 onClick={() => handleItemResolution(item)}
-                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex-shrink-0 whitespace-nowrap"
+                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 shrink-0 whitespace-nowrap"
               >
                 Act
               </button>

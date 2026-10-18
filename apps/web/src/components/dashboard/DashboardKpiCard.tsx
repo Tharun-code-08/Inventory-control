@@ -77,14 +77,14 @@ export function DashboardKpiCard({
         'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-18px_rgba(15,23,42,0.18)] ring-1 ring-transparent',
         'transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_40px_-16px_rgba(15,23,42,0.28)]',
         a.ring,
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
       )}
     >
       {/* soft accent glow */}
       <span
         aria-hidden
         className={cn(
-          'pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br opacity-[0.10] blur-2xl transition-opacity duration-300 group-hover:opacity-25',
+          'pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-linear-to-br opacity-[0.10] blur-2xl transition-opacity duration-300 group-hover:opacity-25',
           a.glow,
         )}
       />
@@ -99,7 +99,7 @@ export function DashboardKpiCard({
         />
       </div>
 
-      <p className="mt-4 truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <p className="mt-4 truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </p>
 
@@ -130,7 +130,7 @@ export function DashboardKpiCard({
 
 export function DashboardKpiCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
       <div className="flex items-center justify-between">
         <Skeleton className="h-11 w-11 rounded-xl" />
         <Skeleton className="h-4 w-4 rounded" />

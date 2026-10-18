@@ -31,7 +31,7 @@ export function MarketingStats() {
             <Reveal
               key={stat.label}
               delay={80 + index * 70}
-              className="relative text-center lg:text-left lg:[&:not(:first-child)]:border-l lg:[&:not(:first-child)]:border-slate-200 lg:[&:not(:first-child)]:pl-6"
+              className="relative text-center lg:text-left lg:not-first:border-l lg:not-first:border-slate-200 lg:not-first:pl-6"
             >
               <dd>
                 <StatValue stat={stat} />

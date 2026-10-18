@@ -31,7 +31,7 @@ export function MarketingWorkflow() {
 
             return (
               <Reveal key={step.id} delay={80 + index * 80} as="li" className="relative">
-                <div className="group h-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                <div className="group h-full rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
                   <div className="flex items-center justify-between">
                     <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
                       <Icon className="h-5 w-5" aria-hidden />
@@ -44,7 +44,7 @@ export function MarketingWorkflow() {
 
                 {/* Connector arrow between steps (desktop only) */}
                 {!isLast ? (
-                  <span className="pointer-events-none absolute -right-3 top-12 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm lg:flex">
+                  <span className="pointer-events-none absolute -right-3 top-12 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-xs lg:flex">
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                   </span>
                 ) : null}

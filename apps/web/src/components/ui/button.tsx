@@ -6,18 +6,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(15_23_42_/_0.08)] hover:bg-primary-hover hover:shadow-[0_2px_4px_rgb(15_23_42_/_0.12)]",
+          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(15_23_42/0.08)] hover:bg-primary-hover hover:shadow-[0_2px_4px_rgb(15_23_42/0.12)]",
         destructive:
-          "border border-rose-300/70 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-rose-100 hover:text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-950/70",
+          "border border-rose-300/70 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 shadow-[0_1px_2px_rgb(15_23_42/0.04)] hover:bg-rose-100 hover:text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-950/70",
         outline:
-          "border border-input bg-background text-foreground shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-accent hover:text-accent-foreground hover:border-input/80",
+          "border border-input bg-background text-foreground shadow-[0_1px_2px_rgb(15_23_42/0.04)] hover:bg-accent hover:text-accent-foreground hover:border-input/80",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-[0_1px_2px_rgb(15_23_42_/_0.04)] hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground shadow-[0_1px_2px_rgb(15_23_42/0.04)] hover:bg-secondary/80",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },

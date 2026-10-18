@@ -23,7 +23,7 @@ export function TrialUpgradeBanner({ subscription }: Props) {
         </div>
         <Link
           to="/upgrade"
-          className="mt-2 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-amber-500 sm:mt-0"
+          className="mt-2 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 sm:mt-0"
         >
           Upgrade now <ArrowRight className="h-4 w-4" />
         </Link>

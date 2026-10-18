@@ -17,7 +17,7 @@ type MarketingIntegrationsStripProps = {
 function IntegrationTile({ item }: { item: MarketingIntegration }) {
   const Icon = ICONS[item.id] ?? FileText;
   return (
-    <div className="inline-flex shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+    <div className="inline-flex shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-xs">
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-primary">
         <Icon className="h-5 w-5" aria-hidden />
       </div>

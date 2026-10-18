@@ -2,7 +2,7 @@ import { MARKETING_BADGES } from '@/lib/marketing-content';
 
 function BadgePill({ label }: { label: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs">
       {label}
     </span>
   );

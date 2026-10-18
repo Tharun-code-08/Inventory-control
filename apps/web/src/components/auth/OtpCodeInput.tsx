@@ -67,7 +67,7 @@ export function OtpCodeInput({
           autoFocus={autoFocus && index === 0}
           maxLength={1}
           inputMode="numeric"
-          className={`h-14 w-11 rounded-xl border-2 bg-card text-center text-xl font-bold text-foreground outline-none transition sm:w-12 ${
+          className={`h-14 w-11 rounded-xl border-2 bg-card text-center text-xl font-bold text-foreground outline-hidden transition sm:w-12 ${
             hasError
               ? 'border-red-500'
               : digit

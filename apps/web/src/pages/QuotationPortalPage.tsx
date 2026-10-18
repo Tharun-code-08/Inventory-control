@@ -168,7 +168,7 @@ export function QuotationPortalPage() {
 
   return (
     <div className="min-h-screen bg-muted">
-      <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
+      <header className="bg-linear-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2.5">
             <span className="text-sm font-bold text-white">SoftdigitIMS</span>
@@ -185,7 +185,7 @@ export function QuotationPortalPage() {
         )}
 
         {token && loading && (
-          <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground shadow-xs">
             Loading quotation…
           </div>
         )}
@@ -198,7 +198,7 @@ export function QuotationPortalPage() {
 
         {quote && (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-primary">
                   <FileText className="h-6 w-6" />
@@ -239,7 +239,7 @@ export function QuotationPortalPage() {
               )}
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted">
@@ -281,7 +281,7 @@ export function QuotationPortalPage() {
             </div>
 
             {quote.remarks && (
-              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-xs">
                 <p className="mb-1 font-medium text-foreground">Notes</p>
                 <p className="whitespace-pre-wrap">{quote.remarks}</p>
               </div>

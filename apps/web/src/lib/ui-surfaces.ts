@@ -1,6 +1,6 @@
 /** Shared surface classes — use with `cn()` for consistent light/dark styling. */
 export const uiSurfaces = {
-  pageCard: 'border-border bg-card text-card-foreground shadow-sm',
+  pageCard: 'border-border bg-card text-card-foreground shadow-xs',
   mutedPanel: 'border-border bg-muted/40',
   tableShell: 'overflow-hidden rounded-lg border border-border bg-card',
   tableHeadRow: 'border-border bg-muted/50 hover:bg-muted/50',

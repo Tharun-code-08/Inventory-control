@@ -226,7 +226,7 @@ export function SettingsBackupTab() {
   }
 
   return (
-    <div className="max-w-4xl space-y-4 rounded-2xl bg-card p-6 text-foreground shadow-sm ring-1 ring-border">
+    <div className="max-w-4xl space-y-4 rounded-2xl bg-card p-6 text-foreground shadow-xs ring-1 ring-border">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">

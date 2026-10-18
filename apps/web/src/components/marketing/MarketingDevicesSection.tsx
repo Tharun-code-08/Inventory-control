@@ -31,7 +31,7 @@ export function MarketingDevicesSection() {
                 id={`devices-tab-${tab.id}`}
                 className={cn(
                   'rounded-full px-5 py-2 text-sm font-medium transition',
-                  activeId === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900',
+                  activeId === tab.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900',
                 )}
                 onClick={() => setActiveId(tab.id)}
               >

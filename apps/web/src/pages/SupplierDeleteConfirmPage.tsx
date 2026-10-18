@@ -54,7 +54,7 @@ export function SupplierDeleteConfirmPage() {
       </header>
 
       <main className="mx-auto max-w-md px-4 py-12">
-        <div className="rounded-xl border border-border bg-card p-8 shadow-sm text-center">
+        <div className="rounded-xl border border-border bg-card p-8 shadow-xs text-center">
           {state === 'loading' && (
             <>
               <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-slate-200" />

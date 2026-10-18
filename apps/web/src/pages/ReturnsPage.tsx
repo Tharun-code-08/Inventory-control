@@ -795,7 +795,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                                     {detailReturn.status === 'DRAFT' ? (
                                       <button
                                         type="button"
-                                        className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"
+                                        className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow-sm"
                                         onClick={() => onDeleteImage(detailReturn.id, image.id)}
                                       >
                                         <Trash2 className="h-3 w-3 text-rose-600 dark:text-rose-400" />

@@ -49,7 +49,7 @@ export function OrganisationIdBadge({ className }: OrganisationIdBadgeProps) {
       onClick={copyId}
       title={fullUuid ? `Organisation UUID: ${fullUuid} (click to copy)` : displayCode}
       className={cn(
-        'group flex flex-col items-center rounded-md outline-none transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2',
+        'group flex flex-col items-center rounded-md outline-hidden transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2',
         className,
       )}
     >
@@ -57,7 +57,7 @@ export function OrganisationIdBadge({ className }: OrganisationIdBadgeProps) {
         Organisation ID
       </span>
       <span
-        className="mt-0.5 min-w-[4.5rem] rounded px-3 py-0.5 font-mono text-base font-bold leading-tight tracking-[0.12em] text-white shadow-sm sm:text-lg"
+        className="mt-0.5 min-w-18 rounded px-3 py-0.5 font-mono text-base font-bold leading-tight tracking-[0.12em] text-white shadow-xs sm:text-lg"
         style={{ backgroundColor: '#16a34a' }}
       >
         {displayCode}

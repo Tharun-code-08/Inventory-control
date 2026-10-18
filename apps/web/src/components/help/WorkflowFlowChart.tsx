@@ -48,7 +48,7 @@ export function WorkflowFlowChart({ workflow }: WorkflowFlowChartProps) {
           <div key={step.id} className="flex flex-col items-center md:flex-row">
             <div
               className={cn(
-                'w-full min-w-[9.5rem] rounded-xl border-2 px-4 py-3 text-center shadow-sm md:w-auto',
+                'w-full min-w-38 rounded-xl border-2 px-4 py-3 text-center shadow-xs md:w-auto',
                 styles.node,
               )}
             >

@@ -1757,7 +1757,7 @@ export function ReportsPage() {
         />
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="flex h-auto w-full gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="flex h-auto w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
             <TabsTrigger value="executive-summary" className="shrink-0">Executive Summary</TabsTrigger>
             <TabsTrigger value="purchase-orders" className="shrink-0">PO Reports</TabsTrigger>
             <TabsTrigger value="sales-orders" className="shrink-0">Sales Reports</TabsTrigger>

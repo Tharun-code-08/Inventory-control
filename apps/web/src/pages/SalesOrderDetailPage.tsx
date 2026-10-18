@@ -68,7 +68,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border-border/90 shadow-sm">
+    <Card className="border-border/90 shadow-xs">
       <CardContent className="p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="mt-1 text-base font-semibold text-foreground">{value}</p>
@@ -283,7 +283,7 @@ export function SalesOrderDetailPage() {
           />
         )}
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Line Items</CardTitle>
           </CardHeader>
@@ -371,7 +371,7 @@ export function SalesOrderDetailPage() {
         </Card>
 
         {notesDisplay ? (
-          <Card className="border-border/90 shadow-sm">
+          <Card className="border-border/90 shadow-xs">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Notes</CardTitle>
             </CardHeader>

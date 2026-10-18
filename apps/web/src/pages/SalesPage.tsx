@@ -190,7 +190,7 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-xs transition-shadow duration-300 hover:shadow-lg">
       <CardContent className="flex items-center gap-3.5 p-4">
         <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
@@ -745,7 +745,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
           />
         </div>
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardContent className="p-4 pt-4">
             <Tabs value={tab} onValueChange={(v) => setTab(v as SoTab)}>
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

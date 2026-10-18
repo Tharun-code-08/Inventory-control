@@ -121,7 +121,7 @@ export function UpgradePage() {
             <CardContent className="p-6 text-sm text-muted-foreground">Loading plan details…</CardContent>
           ) : data ? (
             <div className="grid gap-0 md:grid-cols-[1.1fr_1fr]">
-              <div className="relative flex flex-col gap-4 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-6 text-white">
+              <div className="relative flex flex-col gap-4 bg-linear-to-br from-slate-900 via-slate-900 to-indigo-950 p-6 text-white">
                 <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary/20 blur-2xl" />
                 <div className="pointer-events-none absolute -bottom-6 left-10 h-20 w-20 rounded-full bg-cyan-400/20 blur-2xl" />
                 <div className="relative flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300">
@@ -156,7 +156,7 @@ export function UpgradePage() {
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-card/15">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-primary to-cyan-300 transition-all"
+                        className="h-full rounded-full bg-linear-to-r from-primary to-cyan-300 transition-all"
                         style={{ width: `${data.trialProgressPct}%` }}
                       />
                     </div>
