@@ -95,7 +95,23 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "$USER@$HOST" \
-            "git -C /opt/Inventory-control-prod pull origin main --quiet && /opt/Inventory-control-prod/scripts/deploy.sh prod"
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/Inventory-control-prod
+          # Local edits to tracked files on the server make `git pull` abort
+          # (run 91: a hand-edited apps/api/prisma/schema.prisma). Stash them
+          # instead of discarding, so they stay recoverable with `git stash list`,
+          # and log exactly what was set aside.
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "⚠️  Uncommitted changes to tracked files on the server:"
+            git status --short --untracked-files=no
+            git diff --stat
+            git stash push -m "deploy-autostash $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "   Saved as $(git stash list -1 --format=%gd). Inspect: git -C $PWD stash show -p stash@{0}"
+          fi
+          git pull origin main --quiet
+          ./scripts/deploy.sh prod
+          REMOTE
 
       - name: Post-deployment verification
         # Runs scripts/verify-deployment.sh — four checks:
