@@ -1,10 +1,32 @@
 version: 2
+
+# apps/mobile is an Expo SDK 54 app: expo modules, react, react-native and
+# react-navigation must match the versions the SDK pins, or the native app
+# breaks at runtime even when type-checks pass. Update those deliberately with
+# `npx expo install --fix` / an SDK upgrade, not through Dependabot.
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # The root manifest covers the workspaces, so Expo-managed packages
+      # surface here too (see the mobile entry below).
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-navigation/*"
+      # React is shared by web (18) and mobile (19.1, Expo-pinned); major and
+      # minor React upgrades are deliberate migrations.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: npm
     directory: "/apps/api"
     schedule:
@@ -20,6 +42,18 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "@types/react"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-navigation/*"
+      - dependency-name: "babel-preset-expo"
+      - dependency-name: "typescript"
   - package-ecosystem: docker
     directory: "/docker"
     schedule:
