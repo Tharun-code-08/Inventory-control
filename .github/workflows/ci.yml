@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run ShellCheck
         # shellcheck is pre-installed on ubuntu-latest runners.
         # SC2086 (word-splitting on unquoted vars) is left enabled — we want it.
@@ -34,9 +34,9 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -46,7 +46,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
