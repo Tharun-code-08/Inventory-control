@@ -82,7 +82,9 @@ jobs:
         run: mkdir -p ./storage/exports ./storage/uploads
       - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
       - run: npx prisma db seed --schema apps/api/prisma/schema.prisma
-      - run: npm run test:e2e:workflows --workspace=api -- --runInBand
+      # All API e2e suites (workflows plus auth/CSRF, idempotency, PO listing,
+      # OpenAPI). Running only the workflow specs let the others go stale.
+      - run: npm run test:e2e --workspace=api -- --runInBand --forceExit
 
   playwright-mobile:
     name: Playwright (Phase 8 mobile)
