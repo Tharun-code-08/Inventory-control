@@ -32,8 +32,24 @@ describe('idempotency helpers', () => {
       expect(result).toEqual({ ok: true });
       expect(findUnique).toHaveBeenCalledWith({
         where: { key: 'payment:create:k1' },
-        select: { result: true },
+        select: { result: true, expiresAt: true },
       });
+    });
+
+    it('ignores an expired key', async () => {
+      const findUnique = jest
+        .fn()
+        .mockResolvedValue({ result: { ok: true }, expiresAt: new Date(Date.now() - 1000) });
+      const result = await getIdempotentResult(makeTx({ findUnique }), 'k1', 'payment:create');
+      expect(result).toBeNull();
+    });
+
+    it('replays a key that has not expired yet', async () => {
+      const findUnique = jest
+        .fn()
+        .mockResolvedValue({ result: { ok: true }, expiresAt: new Date(Date.now() + 60_000) });
+      const result = await getIdempotentResult(makeTx({ findUnique }), 'k1', 'payment:create');
+      expect(result).toEqual({ ok: true });
     });
 
     it('returns null when nothing is stored', async () => {

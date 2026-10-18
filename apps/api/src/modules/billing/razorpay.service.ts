@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 type RazorpayClient = {
   orders: {
@@ -16,6 +16,13 @@ type RazorpayCtor = new (config: { key_id: string; key_secret: string }) => Razo
 
  
 const Razorpay = require('razorpay') as RazorpayCtor;
+
+/** Constant-time comparison of two hex HMAC digests. */
+function hexDigestEquals(expected: string, given: string): boolean {
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(String(given), 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 @Injectable()
 export class RazorpayService {
@@ -79,14 +86,14 @@ export class RazorpayService {
     if (!secret) return false;
     const body = `${args.orderId}|${args.paymentId}`;
     const expected = createHmac('sha256', secret).update(body).digest('hex');
-    return expected === args.signature;
+    return hexDigestEquals(expected, args.signature);
   }
 
   verifyWebhookSignature(body: string | Buffer, signature: string): boolean {
     const secret = this.config.get<string>('RAZORPAY_WEBHOOK_SECRET')?.trim();
     if (!secret || !signature) return false;
     const expected = createHmac('sha256', secret).update(body).digest('hex');
-    return expected === signature;
+    return hexDigestEquals(expected, signature);
   }
 
   /** Phase 4: create Razorpay subscription for auto-renewal (stub). */
