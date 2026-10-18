@@ -32,18 +32,15 @@ updates:
       # @types/node tracks the Node runtime (22 LTS), not the newest release.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      # TypeScript majors (7 is the native compiler) are a deliberate migration;
-      # mobile's TypeScript is also pinned by Expo.
+      # Workspaces declare these at different versions (React: web 19.3, mobile
+      # 19.1.0 pinned by Expo; TypeScript: api 6.x, the rest 5.x), but
+      # Dependabot sets a dependency to one version in every workspace that
+      # declares it: a React "patch" PR moved mobile off Expo's pin and
+      # downgraded web to 19.1. Upgrade these by hand, per workspace.
       - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-      # React is shared by web (19.3) and mobile (19.1, Expo-pinned); major and
-      # minor React upgrades are deliberate migrations.
       - dependency-name: "react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "react-dom"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
