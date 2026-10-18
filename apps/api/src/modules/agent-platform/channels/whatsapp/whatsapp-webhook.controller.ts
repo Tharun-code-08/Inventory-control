@@ -45,9 +45,6 @@ type MetaWebhookPayload = {
 /** Types that are non-text but deserve a friendly acknowledgment. */
 const MEDIA_TYPES = new Set(['audio', 'image', 'video', 'document', 'sticker', 'location', 'contacts']);
 
-const MEDIA_REPLY =
-  '🤖 I can only process text messages right now. Please type your question and I\'ll answer right away!';
-
 @ApiTags('Agent Platform')
 @Controller('agent-platform/whatsapp')
 export class WhatsAppWebhookController {
