@@ -43,7 +43,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
-    "react": "19.1.0",
+    "react": "19.3.1",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
-    "@types/react": "~19.1.10",
+    "@types/react": "~19.3.0",
     "babel-plugin-module-resolver": "^5.0.2",
     "typescript": "^5.7.3"
   }
