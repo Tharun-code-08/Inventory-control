@@ -59,6 +59,6 @@
     ]
   },
   "transformIgnorePatterns": [
-    "node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib)/)"
+    "node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib|@apidevtools)/)"
   ]
 }
