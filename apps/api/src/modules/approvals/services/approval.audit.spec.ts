@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuditAction, ApprovalStatus } from '@prisma/client';
 import { ApprovalService } from './approval.service';
 
@@ -41,7 +41,12 @@ function makeHarness() {
     $transaction: jest.fn(async (cb: unknown) =>
       typeof cb === 'function' ? (cb as (c: unknown) => Promise<unknown>)(mockTx) : cb,
     ),
-    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue({ id: 'user-9' }),
+    },
+    approvalRequest: { findFirst: jest.fn() },
+    approvalComment: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     approvalEscalation: { count: jest.fn().mockResolvedValue(0) },
     notification: { create: jest.fn().mockResolvedValue({}) },
   };
@@ -57,7 +62,12 @@ function makeHarness() {
 
   return { service, prisma, tx: mockTx, audit } as {
     service: ApprovalService;
-    prisma: { $transaction: Mock };
+    prisma: {
+      $transaction: Mock;
+      user: { findUnique: Mock; findFirst: Mock };
+      approvalRequest: { findFirst: Mock };
+      approvalComment: { create: Mock; findMany: Mock };
+    };
     tx: typeof mockTx;
     audit: { log: Mock };
   };
@@ -116,7 +126,7 @@ describe('ApprovalService audit logging (Day 5)', () => {
     jest.spyOn(service, 'getApproval').mockResolvedValue(makeApproval() as never);
     tx.approvalEscalation.create.mockResolvedValue({});
 
-    await service.escalateApproval('appr-1', 'user-9', 'user-1');
+    await service.escalateApproval('appr-1', 'company-1', 'user-9', 'user-1');
 
     expect(tx.approvalEscalation.create).toHaveBeenCalled();
     expect(audit.log).toHaveBeenCalledTimes(1);
@@ -160,8 +170,83 @@ describe('ApprovalService audit logging (Day 5)', () => {
     const { service, prisma, audit } = makeHarness();
     jest.spyOn(service, 'getApproval').mockResolvedValue(makeApproval() as never);
 
-    await service.escalateApproval('appr-1');
+    await service.escalateApproval('appr-1', 'company-1');
 
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalled();
+  });
+});
+
+describe('ApprovalService tenant isolation', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('getApproval filters by company and never selects full user rows', async () => {
+    const { service, prisma } = makeHarness();
+    prisma.approvalRequest.findFirst.mockResolvedValue(makeApproval());
+
+    await service.getApproval('appr-1', 'company-1');
+
+    const args = prisma.approvalRequest.findFirst.mock.calls[0][0];
+    expect(args.where).toEqual({ id: 'appr-1', companyId: 'company-1' });
+    expect(args.include.comments.include.user).toEqual({
+      select: { id: true, name: true, email: true },
+    });
+  });
+
+  it('getApproval rejects an approval owned by another company', async () => {
+    const { service, prisma } = makeHarness();
+    prisma.approvalRequest.findFirst.mockResolvedValue(null);
+
+    await expect(service.getApproval('appr-1', 'company-2')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('addComment does not write when the approval is outside the company', async () => {
+    const { service, prisma } = makeHarness();
+    prisma.approvalRequest.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.addComment('appr-1', 'user-1', 'company-2', 'hello'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.approvalComment.create).not.toHaveBeenCalled();
+  });
+
+  it('getComments does not read when the approval is outside the company', async () => {
+    const { service, prisma } = makeHarness();
+    prisma.approvalRequest.findFirst.mockResolvedValue(null);
+
+    await expect(service.getComments('appr-1', 'company-2')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.approvalComment.findMany).not.toHaveBeenCalled();
+  });
+
+  it('createApprovalRequest rejects an approver from another company', async () => {
+    const { service, prisma } = makeHarness();
+    prisma.user.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createApprovalRequest(
+        { approvalType: 'GOODS_RECEIPT', referenceId: 'gr-1', assignedTo: 'user-x' } as never,
+        'user-1',
+        'company-1',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { id: 'user-x', shop: { companyId: 'company-1' } },
+      select: { id: true },
+    });
+  });
+
+  it('escalateApproval rejects a target user from another company', async () => {
+    const { service, prisma, audit } = makeHarness();
+    jest.spyOn(service, 'getApproval').mockResolvedValue(makeApproval() as never);
+    prisma.user.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.escalateApproval('appr-1', 'company-1', 'user-x', 'user-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(audit.log).not.toHaveBeenCalled();
   });

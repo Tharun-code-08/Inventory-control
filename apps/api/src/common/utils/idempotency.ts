@@ -15,9 +15,12 @@ export async function getIdempotentResult<T>(
   const composed = compose(scope, key);
   const found = await tx.idempotencyKey.findUnique({
     where: { key: composed },
-    select: { result: true },
+    select: { result: true, expiresAt: true },
   });
-  return (found?.result as T | undefined) ?? null;
+  // An expired key no longer replays; the caller's setIdempotentResult upsert
+  // then overwrites it with the fresh result.
+  if (!found || (found.expiresAt && found.expiresAt.getTime() <= Date.now())) return null;
+  return (found.result as T | undefined) ?? null;
 }
 
 export async function setIdempotentResult(

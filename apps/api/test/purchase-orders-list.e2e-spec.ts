@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createE2eApp, E2E_DB_ENABLED } from './helpers/e2e-bootstrap';
-import { authed, tomorrowDateString, unwrap } from './helpers/e2e-http';
+import { authed, todayDateString, unwrap } from './helpers/e2e-http';
 import { seedWorkflowMasterData } from './helpers/workflow-fixture';
 
 type PoShape = {
@@ -29,7 +29,8 @@ describe('Purchase orders listing & filters (e2e)', () => {
     if (!E2E_DB_ENABLED) return;
     const ctx = await seedWorkflowMasterData(app);
     const api = authed(app, ctx.token);
-    const poDate = tomorrowDateString();
+    // The API rejects future PO dates (assertNotFuture), so use today.
+    const poDate = todayDateString();
 
     // Confirmed PO
     const confirmedRes = await api.post('/api/v1/purchase-orders').send({

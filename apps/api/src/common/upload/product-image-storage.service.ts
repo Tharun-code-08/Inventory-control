@@ -2,7 +2,11 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import sharp from 'sharp';
+
+// sharp's `types` field points at its ESM declarations (default export), while
+// `require('sharp')` returns the function itself. A default import therefore
+// type-checks but is undefined at runtime without esModuleInterop.
+const sharp = require('sharp') as typeof import('sharp').default;
 
 export const PRODUCT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 export const PRODUCT_IMAGE_ALLOWED_MIME = new Set([

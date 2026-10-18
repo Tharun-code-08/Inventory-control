@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   CreateApprovalRequestDto,
@@ -16,6 +17,9 @@ import {
   buildRejectAudit,
   buildEscalateAudit,
 } from '../../../common/state-machines/approval-audit';
+
+/** Public-safe user fields for embedding in approval responses (never the full row). */
+const USER_SUMMARY_SELECT = { id: true, name: true, email: true } satisfies Prisma.UserSelect;
 
 @Injectable()
 export class ApprovalService {
@@ -45,10 +49,8 @@ export class ApprovalService {
     requestedBy: string,
     companyId: string,
   ): Promise<ApprovalRequestResponseDto> {
-    // Validate assignee exists
-    const assignee = await this.prisma.user.findUnique({
-      where: { id: dto.assignedTo },
-    });
+    // Validate assignee exists and belongs to the requester's organisation.
+    const assignee = await this.findCompanyUser(dto.assignedTo, companyId);
 
     if (!assignee) {
       throw new NotFoundException('Approver user not found');
@@ -142,12 +144,12 @@ export class ApprovalService {
   /**
    * Get a single approval request
    */
-  async getApproval(approvalId: string): Promise<ApprovalRequestResponseDto> {
-    const approval = await this.prisma.approvalRequest.findUnique({
-      where: { id: approvalId },
+  async getApproval(approvalId: string, companyId: string): Promise<ApprovalRequestResponseDto> {
+    const approval = await this.prisma.approvalRequest.findFirst({
+      where: { id: approvalId, companyId },
       include: {
         comments: {
-          include: { user: true },
+          include: { user: { select: USER_SUMMARY_SELECT } },
         },
         escalations: true,
       },
@@ -169,7 +171,7 @@ export class ApprovalService {
     companyId: string,
     dto: ApproveApprovalDto,
   ): Promise<ApprovalRequestResponseDto> {
-    const approval = await this.getApproval(approvalId);
+    const approval = await this.getApproval(approvalId, companyId);
 
     if (approval.assignedTo !== approverId) {
       throw new BadRequestException('Not authorized to approve this request');
@@ -207,7 +209,7 @@ export class ApprovalService {
 
     // Add comment if provided
     if (dto.comment) {
-      await this.addComment(approvalId, approverId, dto.comment);
+      await this.addComment(approvalId, approverId, companyId, dto.comment);
     }
 
     // Send notification to requester
@@ -249,7 +251,7 @@ export class ApprovalService {
     companyId: string,
     dto: RejectApprovalDto,
   ): Promise<ApprovalRequestResponseDto> {
-    const approval = await this.getApproval(approvalId);
+    const approval = await this.getApproval(approvalId, companyId);
 
     if (approval.assignedTo !== approverId) {
       throw new BadRequestException('Not authorized to reject this request');
@@ -288,7 +290,7 @@ export class ApprovalService {
 
     // Add comment if provided
     if (dto.comment) {
-      await this.addComment(approvalId, approverId, dto.comment);
+      await this.addComment(approvalId, approverId, companyId, dto.comment);
     }
 
     // Send notification to requester
@@ -318,8 +320,13 @@ export class ApprovalService {
   /**
    * Add comment to approval
    */
-  async addComment(approvalId: string, userId: string, comment: string): Promise<ApprovalComment> {
-    this.getApproval(approvalId);
+  async addComment(
+    approvalId: string,
+    userId: string,
+    companyId: string,
+    comment: string,
+  ): Promise<ApprovalComment> {
+    await this.getApproval(approvalId, companyId);
 
     return this.prisma.approvalComment.create({
       data: {
@@ -333,10 +340,11 @@ export class ApprovalService {
   /**
    * Get comments for an approval
    */
-  async getComments(approvalId: string): Promise<ApprovalComment[]> {
+  async getComments(approvalId: string, companyId: string): Promise<ApprovalComment[]> {
+    await this.getApproval(approvalId, companyId);
     return this.prisma.approvalComment.findMany({
       where: { approvalId },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: USER_SUMMARY_SELECT } },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -344,8 +352,8 @@ export class ApprovalService {
   /**
    * Check if approval requires escalation
    */
-  async checkEscalation(approvalId: string): Promise<void> {
-    const approval = await this.getApproval(approvalId);
+  async checkEscalation(approvalId: string, companyId: string, actorId?: string): Promise<void> {
+    const approval = await this.getApproval(approvalId, companyId);
 
     if (approval.status !== ApprovalStatus.PENDING) {
       return;
@@ -357,7 +365,7 @@ export class ApprovalService {
 
     if (requireDate && now > requireDate) {
       // Escalate to higher authority
-      await this.escalateApproval(approvalId);
+      await this.escalateApproval(approvalId, companyId, undefined, actorId);
     }
   }
 
@@ -366,10 +374,17 @@ export class ApprovalService {
    */
   async escalateApproval(
     approvalId: string,
+    companyId: string,
     escalatedTo?: string,
     actorId?: string,
   ): Promise<void> {
-    const approval = await this.getApproval(approvalId);
+    const approval = await this.getApproval(approvalId, companyId);
+    if (escalatedTo) {
+      const target = await this.findCompanyUser(escalatedTo, companyId);
+      if (!target) {
+        throw new NotFoundException('Escalation target user not found');
+      }
+    }
 
     // Count existing escalations for this approval
     const escalationCount = await this.prisma.approvalEscalation.count({
@@ -461,6 +476,14 @@ export class ApprovalService {
     ]);
 
     return { pending, approved, rejected };
+  }
+
+  /** Look up a user only if they belong to the given organisation. */
+  private findCompanyUser(userId: string, companyId: string) {
+    return this.prisma.user.findFirst({
+      where: { id: userId, shop: { companyId } },
+      select: { id: true },
+    });
   }
 
   /**
