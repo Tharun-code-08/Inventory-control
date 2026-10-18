@@ -4,7 +4,7 @@ Thank you for contributing to SoftdigitIMS.
 
 ## Before you start
 
-- Use Node.js 20+.
+- Use Node.js 22+.
 - Install dependencies with `npm install` (or the repository's supported pnpm workflow).
 - Never commit secrets, `.env` files, generated build output, database dumps, or production data.
 - Read `README.md`, `DEPLOYMENT.md`, and `RUNBOOK.md` before making infrastructure or production-facing changes.
