@@ -119,10 +119,19 @@ _validate_json() {
 }
 
 # extract <json> <field>
-# Reads a top-level string field from a JSON body via Node.
+# Reads a string field from a JSON body via Node. Health responses use the API
+# envelope { success, data: { status, database, commit, ... } }, so the field is
+# read from `data` first, falling back to the top level.
 extract() {
   local json="$1" field="$2"
-  node -e "process.stdin.on('data',d=>process.stdout.write(JSON.parse(d)['$field']??''))" <<< "$json"
+  FIELD="$field" node -e "
+    let s='';
+    process.stdin.on('data',d=>s+=d).on('end',()=>{
+      const j=JSON.parse(s);
+      const src=j && typeof j.data==='object' && j.data!==null ? j.data : j;
+      process.stdout.write(String(src[process.env.FIELD] ?? ''));
+    })
+  " <<< "$json"
 }
 
 # ── Checks ───────────────────────────────────────────────────────────────────
