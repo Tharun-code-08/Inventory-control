@@ -858,9 +858,26 @@ model User {
   whatsAppLinkTokens     WhatsAppLinkToken[]
   whatsAppDevices        WhatsAppDevice[]
   whatsAppDevicesRevoked WhatsAppDevice[]    @relation("WhatsAppDeviceRevoker")
+  consents               UserConsent[]
 
   @@index([deletedAt])
   @@map("users")
+}
+
+/// Record of a user accepting the Terms of Service and Privacy Policy at signup.
+model UserConsent {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  acceptedAt           DateTime @map("accepted_at") @db.Timestamptz(6)
+  termsVersion         String   @map("terms_version") @db.VarChar(20)
+  privacyPolicyVersion String   @map("privacy_policy_version") @db.VarChar(20)
+  ipAddress            String?  @map("ip_address") @db.VarChar(45)
+  userAgent            String?  @map("user_agent") @db.VarChar(512)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_consents")
 }
 
 model Session {

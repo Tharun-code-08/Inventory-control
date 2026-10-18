@@ -34,6 +34,9 @@ function makePrisma() {
     userBackupCode: {
       createMany: jest.fn(),
     },
+    userConsent: {
+      create: jest.fn(),
+    },
     signupVerification: {
       update: jest.fn(),
     },
@@ -138,6 +141,24 @@ describe('SignupService staged signup flow', () => {
     jest.clearAllMocks();
     (bcrypt.hash as Mock).mockImplementation(async (value: string) => `hash:${value}`);
     (bcrypt.compare as Mock).mockImplementation(async (value: string, hash: string) => hash === `hash:${value}`);
+  });
+
+  it('rejects a signup request that has not accepted the terms', async () => {
+    const prisma = makePrisma();
+    const svc = new SignupService(
+      prisma as never,
+      makeConfig(),
+      makeMail() as never,
+      makeAuth() as never,
+      makeRazorpay() as never,
+      makeLifecycle() as never,
+      { isConfigured: () => false, sendTemplate: jest.fn() } as never,
+    );
+
+    await expect(
+      svc.requestSignup({ agreedToTerms: false } as never, { ip: '203.0.113.7', userAgent: 'jest' }),
+    ).rejects.toThrow('You must accept the Terms of Service and Privacy Policy to continue.');
+    expect(prisma.signupVerification.create).not.toHaveBeenCalled();
   });
 
   it('keeps a trial signup staged after OTP verification without creating user records', async () => {
@@ -313,6 +334,11 @@ describe('SignupService staged signup flow', () => {
         mfaMethod: 'totp',
         mfaVerifiedAt: '2099-05-25T10:10:00.000Z',
         backupCodeHashes: ['hash:CODE-1', 'hash:CODE-2'],
+        consentAcceptedAt: '2099-05-25T09:59:00.000Z',
+        termsVersion: '1.0',
+        privacyPolicyVersion: '1.0',
+        consentIp: '203.0.113.7',
+        consentUserAgent: 'jest',
       },
       otpHash: 'hash:654321',
       sessionTokenHash: 'hash:token',
@@ -356,6 +382,16 @@ describe('SignupService staged signup flow', () => {
         ]),
       }),
     );
+    expect(prisma.__tx.userConsent.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-1',
+        acceptedAt: new Date('2099-05-25T09:59:00.000Z'),
+        termsVersion: '1.0',
+        privacyPolicyVersion: '1.0',
+        ipAddress: '203.0.113.7',
+        userAgent: 'jest',
+      },
+    });
     expect(prisma.__tx.signupVerification.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'pending-finalize' },
@@ -438,6 +474,8 @@ describe('SignupService staged signup flow', () => {
       }),
     );
     expect(prisma.__tx.userBackupCode.createMany).not.toHaveBeenCalled();
+    // Pending signup staged before consent capture shipped: no consent fields, no record.
+    expect(prisma.__tx.userConsent.create).not.toHaveBeenCalled();
     expect(auth.issueSessionForUser).toHaveBeenCalledWith('user-1', {});
     expect(result).toEqual(
       expect.objectContaining({

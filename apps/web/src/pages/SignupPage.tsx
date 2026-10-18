@@ -117,6 +117,7 @@ export function SignupPage() {
   const [mfaSkipped, setMfaSkipped] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const steps = [
     { id: 'details', label: 'Account' },
@@ -218,6 +219,10 @@ export function SignupPage() {
   async function requestOtp(e: React.FormEvent) {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!agreedToTerms) {
+      setErr('You must accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     setIsSubmitting(true);
     setErr('');
     setInfo('');
@@ -240,6 +245,7 @@ export function SignupPage() {
         confirmPassword,
         plan: selectedPlan,
         billing: isPaidPlan ? billing : undefined,
+        agreedToTerms: true,
         ...(turnstileToken ? { turnstileToken } : {}),
       });
       const reqData = (reqRes.data?.data ?? reqRes.data) as { phoneOtpSent?: boolean; phoneMasked?: string };
@@ -697,7 +703,40 @@ export function SignupPage() {
                   <TurnstileField siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                 ) : null}
 
-                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || paying || (Boolean(turnstileSiteKey) && !turnstileToken)}>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => {
+                      setAgreedToTerms(e.target.checked);
+                      if (e.target.checked) setErr('');
+                    }}
+                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-primary"
+                  />
+                  <span className="text-sm text-muted-foreground leading-snug">
+                    I have read and agree to the{' '}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Terms of Service
+                    </a>
+                    {' '}and{' '}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Privacy Policy
+                    </a>
+                    .
+                  </span>
+                </label>
+
+                <Button className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" type="submit" disabled={isSubmitting || paying || !agreedToTerms || (Boolean(turnstileSiteKey) && !turnstileToken)}>
                   {isSubmitting ? 'Sending verification code...' : 'Create account and verify email'}
                 </Button>
 

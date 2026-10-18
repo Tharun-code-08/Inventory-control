@@ -36,6 +36,9 @@ import { SignupVerifyDto } from './dto/signup-verify.dto';
 
 const SIGNUP_SESSION_WINDOW_MS = 60 * 60 * 1000;
 
+const DEFAULT_TERMS_VERSION = '1.0';
+const DEFAULT_PRIVACY_POLICY_VERSION = '1.0';
+
 export type SignupPendingPayload = {
   companyName: string;
   companyAddress?: string;
@@ -47,6 +50,11 @@ export type SignupPendingPayload = {
   passwordHash: string;
   plan: PlanId;
   billing: BillingInterval;
+  consentAcceptedAt: string;
+  termsVersion: string;
+  privacyPolicyVersion: string;
+  consentIp?: string;
+  consentUserAgent?: string;
   otpVerifiedAt?: string;
   paymentVerifiedAt?: string;
   paymentOrderId?: string;
@@ -348,6 +356,20 @@ export class SignupService {
         });
       }
 
+      // Signups started before consent capture shipped have no consent fields.
+      if (payload.consentAcceptedAt) {
+        await tx.userConsent.create({
+          data: {
+            userId: user.id,
+            acceptedAt: new Date(payload.consentAcceptedAt),
+            termsVersion: payload.termsVersion,
+            privacyPolicyVersion: payload.privacyPolicyVersion,
+            ipAddress: payload.consentIp?.slice(0, 45) ?? null,
+            userAgent: payload.consentUserAgent ?? null,
+          },
+        });
+      }
+
       await tx.signupVerification.update({
         where: { id: pendingId },
         data: {
@@ -413,9 +435,13 @@ export class SignupService {
     }
   }
 
-  async requestSignup(dto: SignupRequestDto) {
+  async requestSignup(dto: SignupRequestDto, ctx?: { ip?: string | null; userAgent?: string | null }) {
     this.assertSignupEnabled();
     await this.verifyTurnstile(dto.turnstileToken);
+
+    if (dto.agreedToTerms !== true) {
+      throw new BadRequestException('You must accept the Terms of Service and Privacy Policy to continue.');
+    }
 
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException('Password and confirmation do not match');
@@ -445,6 +471,11 @@ export class SignupService {
       passwordHash,
       plan,
       billing,
+      consentAcceptedAt: new Date().toISOString(),
+      termsVersion: this.config.get<string>('TERMS_VERSION', DEFAULT_TERMS_VERSION),
+      privacyPolicyVersion: this.config.get<string>('PRIVACY_POLICY_VERSION', DEFAULT_PRIVACY_POLICY_VERSION),
+      consentIp: ctx?.ip ?? undefined,
+      consentUserAgent: ctx?.userAgent?.slice(0, 512) ?? undefined,
     };
 
     const otp = this.generateOtp();
