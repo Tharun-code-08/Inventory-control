@@ -48,3 +48,11 @@ q
 # Deploy artifacts & local worktrees
 .deploy/
 .claude/worktrees/
+# Runtime data (user uploads, exports, local Redis snapshots)
+storage/
+apps/api/storage/
+dump.rdb
+
+# Editor/backup leftovers
+*.fix
+*.bak-*

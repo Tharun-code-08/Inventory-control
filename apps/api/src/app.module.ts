@@ -1,7 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ExecutionContext, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import { TenantRlsInterceptor } from './common/tenant/tenant-rls.interceptor';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -67,6 +67,23 @@ import { AgentPlatformModule } from './modules/agent-platform/agent-platform.mod
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
+const reflector = new Reflector();
+
+/**
+ * Named throttlers apply to every route by default. The strict `auth` budget is
+ * meant only for routes that opt in with `@Throttle({ auth: ... })` (login,
+ * signup, password reset, MFA); without this, every other endpoint was capped
+ * at RATE_LIMIT_AUTH_LIMIT requests per minute per client.
+ */
+function routeOptsIntoAuthThrottle(context: ExecutionContext): boolean {
+  return (
+    reflector.getAllAndOverride<number | undefined>('THROTTLER:LIMITauth', [
+      context.getHandler(),
+      context.getClass(),
+    ]) !== undefined
+  );
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -126,6 +143,7 @@ const envFileCandidates = resolveEnvFilePaths(__dirname);
             name: 'auth',
             ttl: Number(config.get<string | number>('RATE_LIMIT_AUTH_TTL') ?? 60) * 1000,
             limit: Number(config.get<string | number>('RATE_LIMIT_AUTH_LIMIT') ?? 10),
+            skipIf: (context: ExecutionContext) => !routeOptsIntoAuthThrottle(context),
           },
         ],
       }),

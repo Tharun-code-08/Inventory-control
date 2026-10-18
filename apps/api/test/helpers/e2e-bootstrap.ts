@@ -3,6 +3,7 @@ import '../../src/load-env';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import { getOptionsToken } from '@nestjs/throttler';
 import cookieParser = require('cookie-parser');
 import { AppModule } from '../../src/app.module';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
@@ -22,7 +23,12 @@ export async function getSharedE2eApp(): Promise<INestApplication> {
 
 export async function createE2eApp(): Promise<INestApplication> {
   restoreExplicitEnv();
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  // The suites share one client IP and log in far more often than the per-IP
+  // brute-force limits allow, so rate limiting is disabled for e2e apps.
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(getOptionsToken())
+    .useValue({ throttlers: [{ name: 'global', ttl: 60_000, limit: 1 }], skipIf: () => true })
+    .compile();
   const app = moduleRef.createNestApplication();
   app.use(cookieParser(process.env.COOKIE_SECRET ?? 'test-secret-key-for-e2e-only'));
   app.use(requestContextMiddleware());

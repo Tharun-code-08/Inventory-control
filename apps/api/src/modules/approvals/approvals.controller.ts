@@ -13,6 +13,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { requireCompanyId } from '@/common/utils/shop-scope';
+import type { RequestUser } from '@/common/types/request-user';
 import { ApprovalService } from './services';
 import {
   CreateApprovalRequestDto,
@@ -40,10 +42,10 @@ export class ApprovalController {
   @ApiResponse({ status: 201, type: ApprovalRequestResponseDto })
   async createApprovalRequest(
     @Body() dto: CreateApprovalRequestDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalRequestResponseDto> {
     this.logger.debug(`Creating approval request for reference ${dto.referenceId}`);
-    return this.approvalService.createApprovalRequest(dto, user.id, user.companyId!);
+    return this.approvalService.createApprovalRequest(dto, user.id, requireCompanyId(user));
   }
 
   @Get()
@@ -57,9 +59,9 @@ export class ApprovalController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   async getApprovals(
     @Query() filter: ApprovalFilterDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalListResponseDto> {
-    const { data, total, pendingCount } = await this.approvalService.getApprovals(user.id, user.companyId!, filter);
+    const { data, total, pendingCount } = await this.approvalService.getApprovals(user.id, requireCompanyId(user), filter);
 
     const page = filter.page || 1;
     const limit = filter.limit || 20;
@@ -79,18 +81,18 @@ export class ApprovalController {
   @ApiOperation({ summary: 'Get approval stats for company' })
   @ApiResponse({ status: 200 })
   async getApprovalStats(
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ pending: number; approved: number; rejected: number }> {
-    return this.approvalService.getApprovalStats(user.companyId!);
+    return this.approvalService.getApprovalStats(requireCompanyId(user));
   }
 
   @Get('/count/pending')
   @ApiOperation({ summary: 'Get pending approval count' })
   @ApiResponse({ status: 200, schema: { properties: { count: { type: 'number' } } } })
   async getPendingCount(
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ count: number }> {
-    const count = await this.approvalService.getPendingApprovalsCount(user.companyId!);
+    const count = await this.approvalService.getPendingApprovalsCount(requireCompanyId(user));
     return { count };
   }
 
@@ -99,8 +101,9 @@ export class ApprovalController {
   @ApiResponse({ status: 200, type: ApprovalRequestResponseDto })
   async getApproval(
     @Param('approvalId') approvalId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalRequestResponseDto> {
-    return this.approvalService.getApproval(approvalId);
+    return this.approvalService.getApproval(approvalId, requireCompanyId(user));
   }
 
   @Post(':approvalId/approve')
@@ -110,10 +113,10 @@ export class ApprovalController {
   async approveApproval(
     @Param('approvalId') approvalId: string,
     @Body() dto: ApproveApprovalDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalRequestResponseDto> {
     this.logger.debug(`Approving approval request ${approvalId}`);
-    return this.approvalService.approve(approvalId, user.id, user.companyId!, dto);
+    return this.approvalService.approve(approvalId, user.id, requireCompanyId(user), dto);
   }
 
   @Post(':approvalId/reject')
@@ -123,10 +126,10 @@ export class ApprovalController {
   async rejectApproval(
     @Param('approvalId') approvalId: string,
     @Body() dto: RejectApprovalDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalRequestResponseDto> {
     this.logger.debug(`Rejecting approval request ${approvalId}`);
-    return this.approvalService.reject(approvalId, user.id, user.companyId!, dto);
+    return this.approvalService.reject(approvalId, user.id, requireCompanyId(user), dto);
   }
 
   // ========== COMMENTS ENDPOINTS ==========
@@ -136,8 +139,9 @@ export class ApprovalController {
   @ApiResponse({ status: 200, type: [ApprovalCommentResponseDto] })
   async getComments(
     @Param('approvalId') approvalId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalCommentResponseDto[]> {
-    return this.approvalService.getComments(approvalId);
+    return this.approvalService.getComments(approvalId, requireCompanyId(user));
   }
 
   @Post(':approvalId/comments')
@@ -147,9 +151,9 @@ export class ApprovalController {
   async addComment(
     @Param('approvalId') approvalId: string,
     @Body() dto: AddApprovalCommentDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<ApprovalCommentResponseDto> {
-    return this.approvalService.addComment(approvalId, user.id, dto.comment);
+    return this.approvalService.addComment(approvalId, user.id, requireCompanyId(user), dto.comment);
   }
 
   // ========== ESCALATION ENDPOINTS ==========
@@ -161,9 +165,14 @@ export class ApprovalController {
   async escalateApproval(
     @Param('approvalId') approvalId: string,
     @Body() body: { escalatedTo: string },
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ success: boolean }> {
-    await this.approvalService.escalateApproval(approvalId, body.escalatedTo, user.id);
+    await this.approvalService.escalateApproval(
+      approvalId,
+      requireCompanyId(user),
+      body.escalatedTo,
+      user.id,
+    );
     return { success: true };
   }
 
@@ -173,8 +182,9 @@ export class ApprovalController {
   @ApiResponse({ status: 200 })
   async checkEscalation(
     @Param('approvalId') approvalId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ checked: boolean }> {
-    await this.approvalService.checkEscalation(approvalId);
+    await this.approvalService.checkEscalation(approvalId, requireCompanyId(user), user.id);
     return { checked: true };
   }
 }

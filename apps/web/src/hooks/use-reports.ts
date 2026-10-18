@@ -20,11 +20,6 @@ export type ReportFilters = {
   agingBucket?: string;
 };
 
-export type ExportReportPayload = ReportFilters & {
-  reportType: string;
-  format?: 'csv' | 'xlsx' | 'pdf';
-};
-
 export const reportKeys = {
   all: ['reports'] as const,
   inventory: (filters: ReportFilters) => [...reportKeys.all, 'inventory', filters] as const,
@@ -324,15 +319,6 @@ export function useDeleteSavedFilter() {
     mutationFn: async (id: string) => {
       const res = await api.delete(`/reports/saved-filters/${id}`);
       return res.data.data;
-    },
-  });
-}
-
-export function useExportReport() {
-  return useMutation({
-    mutationFn: async (payload: ExportReportPayload) => {
-      const res = await api.post('/reports/export', payload, { responseType: 'blob' });
-      return res.data;
     },
   });
 }
