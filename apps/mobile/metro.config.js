@@ -102,10 +102,24 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
-  if (defaultResolveRequest) {
-    return defaultResolveRequest(context, moduleName, platform);
+  try {
+    if (defaultResolveRequest) {
+      return defaultResolveRequest(context, moduleName, platform);
+    }
+    return context.resolveRequest(context, moduleName, platform);
+  } catch (err) {
+    // disableHierarchicalLookup also hides a package's own nested node_modules
+    // (whatwg-url-without-unicode needs its nested webidl-conversions@5, while
+    // the root copy is jsdom's v7). Retry from the importing file's directory.
+    try {
+      return {
+        type: 'sourceFile',
+        filePath: require.resolve(moduleName, { paths: [path.dirname(context.originModulePath)] }),
+      };
+    } catch {
+      throw err;
+    }
   }
-  return context.resolveRequest(context, moduleName, platform);
 };
 
 module.exports = config;
