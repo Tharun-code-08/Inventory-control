@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install
         run: npm ci
@@ -36,7 +36,7 @@ jobs:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
           # so a dependency bump or runtime upgrade forces regeneration.
-          key: prisma-node20-${{ hashFiles('apps/api/prisma/schema.prisma', 'package-lock.json') }}
+          key: prisma-node22-${{ hashFiles('apps/api/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Generate Prisma client
         # Tests and build both consume types from @prisma/client; ensure they

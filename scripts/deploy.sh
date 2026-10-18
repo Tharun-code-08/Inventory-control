@@ -115,6 +115,8 @@ trap 'rollback' ERR
 echo "=== Deployment Start ($ENVIRONMENT) ==="
 echo "Time: $(date)"
 echo "Dir:  $APP_DIR | App: $PM2_APP | Port: $HEALTH_PORT | Branch: $DEPLOY_BRANCH"
+# Runtime versions on this host (the API needs Node >= 22; PM2 may pin its own).
+echo "Node: $(node -v) | npm: $(npm -v) | PM2 app runtime: $(pm2 describe "$PM2_APP" 2>/dev/null | grep -i 'node.js version' | awk -F'│' '{gsub(/ /,"",$3); print $3}' || true)"
 
 # Save current running commit (rollback point) BEFORE any changes.
 RUNNING_COMMIT=$(git rev-parse HEAD)

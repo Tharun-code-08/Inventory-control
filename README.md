@@ -119,7 +119,7 @@ Inventory-control/
 
 ### Prerequisites
 
-- Node.js **20+**
+- Node.js **22+** (LTS; CI and production run 22)
 - pnpm **9.15+** (repository package manager)
 - Docker Desktop with Docker Compose
 
