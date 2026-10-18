@@ -119,8 +119,8 @@ Inventory-control/
 
 ### Prerequisites
 
-- Node.js **22+** (LTS; CI and production run 22)
-- pnpm **9.15+** (repository package manager)
+- Node.js **22.19+** (LTS; CI and production run 22)
+- npm **10+** (the repository package manager; `package-lock.json` is the lockfile)
 - Docker Desktop with Docker Compose
 
 ### 1. Clone

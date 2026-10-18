@@ -422,7 +422,7 @@ Your infrastructure is production-ready for:
 ### You've Done Well
 
 Building an ERP SaaS with:
-- Vite + React frontend (Vercel)
+- Vite + React frontend (served by nginx on the VPS)
 - NestJS API backend (VPS)
 - PostgreSQL database
 - Automated CI/CD

@@ -39,7 +39,7 @@
     "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "@sentry/node": "^10.51.0",
+    "@sentry/node": "^10.76.2",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.79.0",
     "class-transformer": "^0.5.1",

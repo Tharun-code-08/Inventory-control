@@ -73,3 +73,9 @@ dump.rdb
 # Editor/backup leftovers
 *.fix
 *.bak-*
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Legacy API upload folder (uploads live in storage/uploads)
+apps/api/uploads/

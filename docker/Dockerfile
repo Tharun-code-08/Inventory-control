@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Install dependencies (including dev deps for build)
 FROM base AS deps
-COPY package*.json pnpm-workspace.yaml ./
+COPY package*.json ./
 COPY apps/api/package*.json apps/api/
 COPY apps/web/package*.json apps/web/
 COPY packages/shared-types/package*.json packages/shared-types/
