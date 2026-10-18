@@ -104,7 +104,7 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-xs transition-shadow duration-300 hover:shadow-lg">
       <CardContent className="flex items-center gap-3.5 p-4">
         <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
@@ -716,7 +716,7 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
           />
         </div>
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardContent className="p-4 pt-4">
             <Tabs value={tab} onValueChange={(v) => setTab(v as RfqTab)}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -838,14 +838,14 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
                               </TableCell>
                               <TableCell className="max-w-[200px] truncate">{r.title}</TableCell>
                               <TableCell className="text-center">
-                                <span className="inline-flex min-w-[2rem] justify-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
+                                <span className="inline-flex min-w-8 justify-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
                                   {supplierCount}
                                 </span>
                               </TableCell>
                               <TableCell className="text-center">
                                 <span
                                   className={cn(
-                                    'inline-flex min-w-[2rem] justify-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums',
+                                    'inline-flex min-w-8 justify-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums',
                                     responseCount > 0
                                       ? 'bg-muted text-primary'
                                       : 'bg-muted text-muted-foreground',

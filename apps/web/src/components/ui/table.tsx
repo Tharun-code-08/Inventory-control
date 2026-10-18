@@ -55,7 +55,7 @@ const TableHeader = React.forwardRef<
       ref={ref}
       className={cn(
         "[&_tr]:border-b",
-        stickyHeader && "sticky top-0 z-10 bg-card shadow-sm",
+        stickyHeader && "sticky top-0 z-10 bg-card shadow-xs",
         className,
       )}
       {...props}
@@ -83,7 +83,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+      "border-t bg-muted/50 font-medium last:[&>tr]:border-b-0",
       className
     )}
     {...props}
@@ -98,7 +98,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "table-row-interactive border-b border-border transition-[background-color,transform,box-shadow] duration-200 ease-out hover:bg-muted/50 hover:shadow-sm data-[state=selected]:bg-accent",
+      "table-row-interactive border-b border-border transition-[background-color,transform,box-shadow] duration-200 ease-out hover:bg-muted/50 hover:shadow-xs data-[state=selected]:bg-accent",
       className
     )}
     {...props}
@@ -113,7 +113,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-11 bg-inherit px-3 text-left align-middle font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted/40 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "h-11 bg-inherit px-3 text-left align-middle font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted/40 has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
       className
     )}
     {...props}
@@ -128,7 +128,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-3 align-middle text-foreground transition-colors duration-200 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "p-3 align-middle text-foreground transition-colors duration-200 has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
       className
     )}
     {...props}

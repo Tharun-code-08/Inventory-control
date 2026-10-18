@@ -11,7 +11,7 @@ export function HelpGuideAccordion({ guides }: HelpGuideAccordionProps) {
   const [openId, setOpenId] = useState<string | null>(guides[0]?.id ?? null);
 
   return (
-    <section className="rounded-2xl border border-border/90 bg-card shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <section className="rounded-2xl border border-border/90 bg-card shadow-xs dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center gap-2 border-b border-border px-5 py-4 dark:border-slate-800">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-800/50 dark:text-slate-300">
           <Play className="h-4 w-4 fill-current" />

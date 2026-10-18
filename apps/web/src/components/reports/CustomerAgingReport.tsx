@@ -62,31 +62,31 @@ export default function CustomerAgingReport({ shopId }: Props) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
           <p className="text-sm font-medium text-muted-foreground">Total Customers</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.totalCustomers}</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-green-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-green-500">
           <p className="text-sm font-medium text-muted-foreground">Outstanding</p>
           <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalOutstanding / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-red-500">
           <p className="text-sm font-medium text-muted-foreground">Overdue</p>
           <p className="text-2xl font-bold text-red-600 dark:text-red-400">₹{(data.summary.totalOverdue / 100000).toFixed(1)}L</p>
           <p className="text-xs text-muted-foreground mt-1">{overduePct.toFixed(0)}% of total</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-orange-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-orange-500">
           <p className="text-sm font-medium text-muted-foreground">Overdue Customers</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.overdueCustomers}</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-purple-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-purple-500">
           <p className="text-sm font-medium text-muted-foreground">Avg Collection Days</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.avgCollectionDays}</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg shadow p-4 space-y-4">
+      <div className="bg-card rounded-lg shadow-sm p-4 space-y-4">
         <h3 className="font-semibold text-foreground">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -116,7 +116,7 @@ export default function CustomerAgingReport({ shopId }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted border-b border-border">

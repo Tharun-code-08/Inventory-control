@@ -54,7 +54,7 @@ type SummaryCardProps = {
 
 function SummaryCard({ title, value, sub, accent, icon }: SummaryCardProps) {
   return (
-    <Card className="overflow-hidden border-border/90 shadow-sm">
+    <Card className="overflow-hidden border-border/90 shadow-xs">
       <CardContent className="flex items-center gap-3 p-4">
         <div className={cn('w-1 self-stretch rounded-full', accent)} aria-hidden />
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -359,19 +359,19 @@ export function RfqComparePage() {
                           </TableCell>
                           <TableCell className="text-primary">{leadDisplay}</TableCell>
                           <TableCell className="text-center">
-                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
+                            <span className="inline-flex min-w-10 justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
                               {row.priceScore}
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="inline-flex min-w-[2.5rem] justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
+                            <span className="inline-flex min-w-10 justify-center rounded border bg-card px-2 py-0.5 text-xs font-medium tabular-nums">
                               {row.leadTimeScore}
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
                             <span
                               className={cn(
-                                'inline-flex min-w-[2.5rem] justify-center rounded px-2 py-0.5 text-xs font-bold tabular-nums text-white',
+                                'inline-flex min-w-10 justify-center rounded px-2 py-0.5 text-xs font-bold tabular-nums text-white',
                                 isTop ? 'bg-emerald-600' : 'bg-slate-500',
                               )}
                             >

@@ -9,7 +9,7 @@ function DateBadge() {
 
   return (
     <div
-      className="hidden items-center gap-2 rounded-lg border border-border/90 bg-gradient-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-sm sm:flex"
+      className="hidden items-center gap-2 rounded-lg border border-border/90 bg-linear-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-xs sm:flex"
       title={now.toLocaleDateString(undefined, { dateStyle: 'full' })}
     >
       <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-primary text-white leading-none">
@@ -78,7 +78,7 @@ export function AppShellControls({ onOpenSpotlight }: AppShellControlsProps) {
       <button
         type="button"
         onClick={toggleFullscreen}
-        className="rounded-xl border border-border/90 bg-card/80 p-2 text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
+        className="rounded-xl border border-border/90 bg-card/80 p-2 text-muted-foreground shadow-xs transition hover:bg-muted hover:text-foreground"
         aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
       >

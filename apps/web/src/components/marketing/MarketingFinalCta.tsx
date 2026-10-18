@@ -7,17 +7,17 @@ export function MarketingFinalCta() {
   const [primaryImage, secondaryImage] = MARKETING_FINAL_CTA.images;
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 py-16 sm:py-20" aria-labelledby="final-cta-heading">
+    <section className="relative overflow-hidden bg-linear-to-br from-slate-600 via-slate-700 to-slate-800 py-16 sm:py-20" aria-labelledby="final-cta-heading">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/0.12),transparent_50%)]" />
 
       {primaryImage ? (
         <div className="pointer-events-none absolute -right-8 top-8 hidden w-[42%] max-w-md rotate-3 md:block lg:-right-4 lg:top-6">
-          <MarketingImagePlaceholder slot={primaryImage} className="shadow-2xl shadow-slate-950/30" aspectClassName="aspect-[4/3]" />
+          <MarketingImagePlaceholder slot={primaryImage} className="shadow-2xl shadow-slate-950/30" aspectClassName="aspect-4/3" />
         </div>
       ) : null}
       {secondaryImage ? (
         <div className="pointer-events-none absolute bottom-4 left-[8%] hidden w-[22%] max-w-[180px] -rotate-6 lg:block">
-          <MarketingImagePlaceholder slot={secondaryImage} className="shadow-xl shadow-slate-950/25" aspectClassName="aspect-[9/16]" />
+          <MarketingImagePlaceholder slot={secondaryImage} className="shadow-xl shadow-slate-950/25" aspectClassName="aspect-9/16" />
         </div>
       ) : null}
 

@@ -612,7 +612,7 @@ export function RfqDetailPage() {
                   {rfq.suppliers.map((s) => (
                     <li
                       key={s.supplierId}
-                      className="flex min-h-[2.75rem] items-center rounded-lg border border-border bg-muted/80 px-4 py-2.5 text-sm font-medium text-foreground"
+                      className="flex min-h-11 items-center rounded-lg border border-border bg-muted/80 px-4 py-2.5 text-sm font-medium text-foreground"
                     >
                       {formatSupplierReference(s.supplier)}
                     </li>

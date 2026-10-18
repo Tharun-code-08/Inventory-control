@@ -17,13 +17,13 @@ export function MarketingHero() {
 
   return (
     <section
-      className="relative overflow-hidden bg-gradient-to-b from-white via-slate-50 to-white"
+      className="relative overflow-hidden bg-linear-to-b from-white via-slate-50 to-white"
       aria-labelledby="hero-heading"
     >
       {/* Animated gradient mesh + aurora + grid for layered depth */}
       <div className="mk-mesh pointer-events-none absolute inset-0" />
       <div className="mk-aurora pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full opacity-70" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgb(15_23_42/0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgb(15_23_42/0.03)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgb(15_23_42/0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgb(15_23_42/0.03)_1px,transparent_1px)] bg-size-[56px_56px] mask-[radial-gradient(ellipse_at_top,black,transparent_70%)]" />
 
       <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.02fr_1fr] lg:items-center lg:py-24">
         <Reveal>
@@ -72,9 +72,9 @@ export function MarketingHero() {
         </Reveal>
 
         <Reveal delay={120}>
-          <div className="relative [perspective:1600px]">
+          <div className="relative perspective-[1600px]">
             {/* Glow pad behind the device */}
-            <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.5rem] bg-gradient-to-tr from-primary/20 via-sky-300/20 to-emerald-200/10 blur-3xl" />
+            <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.5rem] bg-linear-to-tr from-primary/20 via-sky-300/20 to-emerald-200/10 blur-3xl" />
 
             <Tilt3D className="relative">
               {/* Browser chrome frame holding the generated dashboard */}

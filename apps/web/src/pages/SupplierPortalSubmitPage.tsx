@@ -194,7 +194,7 @@ export function SupplierPortalSubmitPage() {
 
   return (
     <div className="min-h-screen bg-muted">
-      <header className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
+      <header className="bg-linear-to-r from-slate-800 to-slate-900 px-4 py-4 text-white shadow-md">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2.5">
             <span className="text-sm font-bold text-white">SoftdigitIMS</span>
@@ -207,7 +207,7 @@ export function SupplierPortalSubmitPage() {
 
       <main className="mx-auto max-w-2xl px-4 pb-12">
         {step === 1 && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
             <div className="mb-6 flex flex-col items-center text-center">
               <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary">
                 <ShieldCheck className="h-7 w-7" />
@@ -241,7 +241,7 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 2 && rfq && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
             <div className="mb-4 flex flex-col items-center text-center">
               <FileText className="mb-2 h-10 w-10 text-primary" />
               <h1 className="text-xl font-semibold">Review RFQ details</h1>
@@ -288,7 +288,7 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 3 && rfq && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
             <div className="mb-4 flex flex-col items-center text-center">
               <Send className="mb-2 h-10 w-10 text-primary" />
               <h1 className="text-xl font-semibold">Submit your quote</h1>
@@ -374,7 +374,7 @@ export function SupplierPortalSubmitPage() {
         )}
 
         {step === 4 && confirmation && (
-          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-xs">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <Check className="h-8 w-8" />
             </div>

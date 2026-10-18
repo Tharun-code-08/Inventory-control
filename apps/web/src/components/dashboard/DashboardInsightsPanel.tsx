@@ -40,8 +40,8 @@ function InsightTile({
       type="button"
       onClick={onClick}
       className={cn(
-        'motion-kpi-card flex w-full flex-col rounded-xl border border-border bg-card p-4 text-left shadow-sm',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        'motion-kpi-card flex w-full flex-col rounded-xl border border-border bg-card p-4 text-left shadow-xs',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
       )}
       aria-label={`${label}: ${value}. ${hint}`}
     >

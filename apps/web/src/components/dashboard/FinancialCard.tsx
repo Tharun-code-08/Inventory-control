@@ -9,7 +9,7 @@ interface FinancialCardProps {
 
 export function FinancialCard({ data }: FinancialCardProps) {
   return (
-    <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+    <div className="bg-card rounded-lg shadow-sm p-6 hover:shadow-lg transition">
       <h3 className="text-lg font-semibold text-foreground mb-6">Am I making money?</h3>
 
       <div className="space-y-6">

@@ -54,7 +54,7 @@ export function WorkflowCards() {
 
   return (
     <>
-      <section className="rounded-2xl border border-border/90 bg-card shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <section className="rounded-2xl border border-border/90 bg-card shadow-xs dark:border-slate-700 dark:bg-slate-900">
         <div className="border-b border-border px-5 py-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary dark:bg-slate-800/50 dark:text-slate-300">
@@ -80,7 +80,7 @@ export function WorkflowCards() {
                 type="button"
                 onClick={() => setActive(workflow)}
                 className={cn(
-                  'group flex flex-col items-center rounded-xl border border-border/90 border-t-4 bg-card px-4 py-5 text-center shadow-sm transition hover:border-border hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600',
+                  'group flex flex-col items-center rounded-xl border border-border/90 border-t-4 bg-card px-4 py-5 text-center shadow-xs transition hover:border-border hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600',
                   meta.border,
                 )}
               >

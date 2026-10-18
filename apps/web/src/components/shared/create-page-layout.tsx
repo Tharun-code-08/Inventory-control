@@ -57,7 +57,7 @@ export function CreatePageLayout({
         </div>
       </div>
       {actionBar && (
-        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:px-6">
+        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-3 backdrop-blur-sm supports-backdrop-filter:bg-card/85 sm:px-6">
           <div className="flex flex-wrap items-center justify-end gap-2">{actionBar}</div>
         </div>
       )}

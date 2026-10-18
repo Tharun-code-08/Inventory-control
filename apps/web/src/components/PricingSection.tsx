@@ -101,7 +101,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   return (
     <section
       id="pricing"
-      className={lightSurface ? 'border-y border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50' : 'bg-white'}
+      className={lightSurface ? 'border-y border-slate-200 bg-linear-to-b from-slate-50 via-white to-slate-50' : 'bg-white'}
     >
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
         <Reveal className="text-center">
@@ -118,8 +118,8 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
           <div
             className={
               lightSurface
-                ? 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm'
-                : 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm'
+                ? 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs'
+                : 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs'
             }
           >
             <button
@@ -128,7 +128,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'monthly'
-                  ? 'bg-white text-slate-900 shadow'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : lightSurface
                     ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white',
@@ -142,7 +142,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'yearly'
-                  ? 'bg-white text-slate-900 shadow'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white',
               )}
             >
@@ -165,8 +165,8 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
             const isDowngrade =
               activeTier != null && subscriptionPlanTier(planId) < activeTier;
             const cardBase = lightSurface
-              ? 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm'
-              : 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm';
+              ? 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs'
+              : 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs';
             const borderClass =
               planId === 'pro'
                 ? 'border-emerald-200 shadow-[0_12px_30px_rgba(16,185,129,0.12)]'
@@ -278,7 +278,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
             {UPGRADE_HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"
               >
                 <h4 className="font-semibold text-slate-900">{item.title}</h4>
                 <p className="mt-2 text-sm leading-relaxed text-slate-700">

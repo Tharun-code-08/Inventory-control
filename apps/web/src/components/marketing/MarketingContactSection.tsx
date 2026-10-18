@@ -14,7 +14,7 @@ export function MarketingContactSection() {
           <p className="mt-4 text-lg text-slate-600">{MARKETING_CONTACT.body}</p>
         </Reveal>
         <Reveal delay={100}>
-          <address className="mx-auto mt-10 max-w-md not-italic rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center shadow-sm">
+          <address className="mx-auto mt-10 max-w-md not-italic rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center shadow-xs">
             <p className="text-sm font-semibold text-slate-900">{MARKETING_CONTACT.companyName}</p>
             <p className="mt-2 text-sm text-slate-600">
               Web:{' '}

@@ -78,7 +78,7 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-xs transition-shadow duration-300 hover:shadow-lg">
       <CardContent className="flex items-center gap-3.5 p-4">
         <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
@@ -167,7 +167,7 @@ function CompanyCard({ company, plants, onEdit, onDeactivate }: CompanyCardProps
   const activePlants = plants.filter((p) => p.isActive);
 
   return (
-    <Card className="flex flex-col border-border/90 shadow-sm">
+    <Card className="flex flex-col border-border/90 shadow-xs">
       <CardContent className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">

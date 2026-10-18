@@ -101,7 +101,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-start justify-center px-3 pt-[10vh] sm:px-6"
+      className="fixed inset-0 z-80 flex items-start justify-center px-3 pt-[10vh] sm:px-6"
       role="dialog"
       aria-modal="true"
       aria-label="Jump to"
@@ -117,7 +117,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
         className="motion-spotlight-panel relative flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         onKeyDown={onKeyDown}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-400 via-slate-500 to-slate-400" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-linear-to-r from-slate-400 via-slate-500 to-slate-400" />
 
         <div className="flex items-center gap-3 border-b border-border/90 px-4 py-3 dark:border-slate-700">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-md">
@@ -128,7 +128,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Jump to a page or action…"
-            className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none dark:text-slate-100 dark:placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-hidden dark:text-slate-100 dark:placeholder:text-muted-foreground"
           />
           <kbd className="hidden rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline dark:border-slate-600 dark:bg-slate-800 dark:text-muted-foreground">
             esc

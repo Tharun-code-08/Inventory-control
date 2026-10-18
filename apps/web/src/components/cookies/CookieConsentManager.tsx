@@ -135,7 +135,7 @@ export function CookieConsentManager() {
     <>
       {!preferences.decided ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 px-4 sm:px-6">
-          <div className="pointer-events-auto mx-auto max-w-4xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#101010] text-white shadow-[0_28px_80px_rgba(2,6,23,0.45)]">
+          <div className="pointer-events-auto mx-auto max-w-4xl overflow-hidden rounded-4xl border border-white/10 bg-[#101010] text-white shadow-[0_28px_80px_rgba(2,6,23,0.45)]">
             <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_240px] md:p-8">
               <div className="space-y-5">
                 <div className="space-y-2">
@@ -194,7 +194,7 @@ export function CookieConsentManager() {
                   </Button>
                 </div>
               </div>
-              <div className="relative hidden min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_35%,transparent_36%),radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.04)_16%,transparent_17%)] md:flex md:items-center md:justify-center">
+              <div className="relative hidden min-h-[180px] overflow-hidden rounded-3xl bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_35%,transparent_36%),radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.04)_16%,transparent_17%)] md:flex md:items-center md:justify-center">
                 <div className="absolute inset-0 opacity-40 [background:radial-gradient(circle_at_center,transparent_0,transparent_34%,rgba(255,255,255,0.06)_35%,transparent_36%,transparent_64%,rgba(255,255,255,0.04)_65%,transparent_66%)]" />
                 <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-card/5">
                   <ShieldCheck className="h-6 w-6 text-slate-200" />

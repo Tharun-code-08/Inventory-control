@@ -35,7 +35,7 @@ function mockupFor(id: string): { variant: MockupVariant; title: string } {
 export function MarketingImagePlaceholder({
   slot,
   className,
-  aspectClassName = 'aspect-[16/10]',
+  aspectClassName = 'aspect-16/10',
 }: MarketingImagePlaceholderProps) {
   const { variant, title } = mockupFor(slot.id);
   const isMobile = variant === 'mobile';
@@ -45,7 +45,7 @@ export function MarketingImagePlaceholder({
       className={cn(
         'relative overflow-hidden rounded-2xl',
         !isMobile && 'border border-slate-200 bg-slate-50 shadow-lg shadow-slate-900/5',
-        isMobile ? 'aspect-[4/3]' : aspectClassName,
+        isMobile ? 'aspect-4/3' : aspectClassName,
         className,
       )}
       aria-label={slot.alt}

@@ -67,23 +67,23 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
           <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
           <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalRevenue / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-orange-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-orange-500">
           <p className="text-sm font-medium text-muted-foreground">Total COGS</p>
           <p className="text-2xl font-bold text-foreground">₹{(data.summary.totalCogs / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-green-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-green-500">
           <p className="text-sm font-medium text-muted-foreground">Total Profit</p>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400">₹{(data.summary.totalProfit / 100000).toFixed(1)}L</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-purple-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-purple-500">
           <p className="text-sm font-medium text-muted-foreground">Avg Margin</p>
           <p className="text-2xl font-bold text-foreground">{data.summary.avgMargin}%</p>
         </div>
-        <div className="bg-card rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div className="bg-card rounded-lg shadow-sm p-4 border-l-4 border-red-500">
           <p className="text-sm font-medium text-muted-foreground">Loss-Making</p>
           <p className="text-2xl font-bold text-red-600 dark:text-red-400">{data.summary.lossMakingProducts}</p>
           <p className="text-xs text-muted-foreground mt-1">₹{(data.summary.unprofitableValue / 100000).toFixed(2)}L loss</p>
@@ -91,7 +91,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg shadow p-4 space-y-4">
+      <div className="bg-card rounded-lg shadow-sm p-4 space-y-4">
         <h3 className="font-semibold text-foreground">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -121,7 +121,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted border-b border-border">

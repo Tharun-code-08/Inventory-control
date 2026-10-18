@@ -77,7 +77,7 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-xs transition-shadow duration-300 hover:shadow-lg">
       <CardContent className="flex items-center gap-3.5 p-4">
         <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <div className="min-w-0 flex-1">
@@ -283,7 +283,7 @@ export function GoodsIssuePage() {
         />
       </div>
 
-      <Card className="mb-4 border-border/90 p-4 shadow-sm">
+      <Card className="mb-4 border-border/90 p-4 shadow-xs">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-1.5 sm:col-span-2">
             <Label className="text-xs text-muted-foreground">Search</Label>
@@ -368,7 +368,7 @@ export function GoodsIssuePage() {
         </div>
       </Card>
 
-      <Card className="overflow-hidden border-border/90 shadow-sm">
+      <Card className="overflow-hidden border-border/90 shadow-xs">
         {giQuery.isLoading ? (
           <div className="space-y-3 p-4">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -463,7 +463,7 @@ export function GoodsIssuePage() {
                         <GiStatusPill status={gi.status} />
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="inline-flex min-w-[1.75rem] items-center justify-center rounded border border-border bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-foreground">
+                        <span className="inline-flex min-w-7 items-center justify-center rounded border border-border bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-foreground">
                           {giItemCount(gi)}
                         </span>
                       </TableCell>

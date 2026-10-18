@@ -82,7 +82,7 @@ function GstPercentSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={compact ? 'h-8 w-[4.5rem] text-xs' : 'h-8 w-20 text-xs'}>
+      <SelectTrigger className={compact ? 'h-8 w-18 text-xs' : 'h-8 w-20 text-xs'}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -220,7 +220,7 @@ export function SalesOrderLineItemsEditor({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/80">
-              <TableHead className="min-w-[10rem] text-xs">Product</TableHead>
+              <TableHead className="min-w-40 text-xs">Product</TableHead>
               <TableHead className="text-xs">Qty</TableHead>
               <TableHead className="text-xs">UOM</TableHead>
               <TableHead className="text-xs">Rate</TableHead>

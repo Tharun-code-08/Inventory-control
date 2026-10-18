@@ -48,7 +48,7 @@ export function SupplierPortalManagePage() {
         />
 
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-          <Card className="border-border shadow-sm">
+          <Card className="border-border shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Link2 className="h-5 w-5 text-primary" />

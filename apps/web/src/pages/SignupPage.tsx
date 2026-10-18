@@ -425,7 +425,7 @@ export function SignupPage() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(99,102,241,0.2),transparent_36%),radial-gradient(circle_at_84%_4%,rgba(56,189,248,0.16),transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_50%,#f1f5f9_100%)]">
       <a
         href={`https://${DOMAINS.MARKETING}`}
-        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-muted hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
+        className="group absolute left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-md ring-1 ring-slate-900/5 transition hover:-translate-x-0.5 hover:bg-muted hover:shadow-lg focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-6 sm:top-6"
         aria-label="Back to home page"
       >
         <ArrowLeft className="h-4 w-4 text-muted-foreground transition group-hover:text-foreground" />
@@ -443,7 +443,7 @@ export function SignupPage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden overflow-hidden rounded-[2rem] border border-border/70 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
+          <section className="relative hidden overflow-hidden rounded-4xl border border-border/70 bg-linear-to-br from-slate-800 via-slate-900 to-slate-950 p-10 text-white shadow-[0_30px_70px_rgba(15,23,42,0.38)] lg:block">
             <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-slate-400/30 blur-2xl" />
             <div className="pointer-events-none absolute -left-8 bottom-8 h-36 w-36 rounded-full bg-cyan-300/25 blur-2xl" />
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-card/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
@@ -453,19 +453,19 @@ export function SignupPage() {
             <h1 className="mt-7 text-4xl font-semibold leading-tight">{heroTitle}</h1>
             <p className="mt-4 max-w-md text-sm text-white/80">{heroDescription}</p>
             <div className="mt-10 grid max-w-md gap-3 text-sm">
-              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-xs">
                 Verified admin email before access
               </div>
-              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-xs">
                 {mfaSkipped ? 'MFA can be enabled later in settings' : 'Authenticator app required for sign-in'}
               </div>
-              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/20 bg-card/10 px-4 py-3 backdrop-blur-xs">
                 {mfaSkipped ? 'Workspace can be entered without MFA for now' : 'Backup codes generated and stored securely'}
               </div>
             </div>
           </section>
 
-          <Reveal as="section" className="relative overflow-hidden rounded-[2rem] border border-border/90 bg-card/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
+          <Reveal as="section" className="relative overflow-hidden rounded-4xl border border-border/90 bg-card/95 p-6 shadow-[0_24px_56px_rgba(15,23,42,0.16)] backdrop-blur-sm sm:p-8">
             <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-muted blur-2xl" aria-hidden="true" />
             <div className="pointer-events-none absolute -left-8 bottom-10 h-24 w-24 rounded-full bg-cyan-100 dark:bg-cyan-500/15 blur-2xl" aria-hidden="true" />
 
@@ -575,7 +575,7 @@ export function SignupPage() {
                       id="companyAddress"
                       value={companyAddress}
                       onChange={(event) => setCompanyAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
+                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-hidden transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
                       placeholder="12 Industrial Estate, Mumbai"
                     />
                   </div>
@@ -589,7 +589,7 @@ export function SignupPage() {
                       id="plantAddress"
                       value={plantAddress}
                       onChange={(event) => setPlantAddress(event.target.value)}
-                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
+                      className="min-h-[92px] w-full rounded-xl border border-border bg-muted px-10 py-3 text-sm text-foreground outline-hidden transition focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/20"
                       placeholder="Main warehouse or head office address"
                     />
                   </div>
@@ -758,7 +758,7 @@ export function SignupPage() {
                     type="button"
                     onClick={() => void beginMfaSetup(signupChallengeToken)}
                     disabled={isSubmitting}
-                    className="rounded-2xl border border-border bg-muted p-5 text-left shadow-sm transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-70"
+                    className="rounded-2xl border border-border bg-muted p-5 text-left shadow-xs transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
@@ -822,11 +822,11 @@ export function SignupPage() {
                 <div className="rounded-2xl border border-border bg-muted p-5">
                   <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
                     {mfaSetup.qrCodeDataUrl ? (
-                      <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+                      <div className="rounded-2xl border border-border bg-card p-3 shadow-xs">
                         <img src={mfaSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-36 w-36 rounded-lg" />
                       </div>
                     ) : (
-                      <div className="flex h-42 w-42 items-center justify-center rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground shadow-sm">
+                      <div className="flex h-42 w-42 items-center justify-center rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground shadow-xs">
                         QR preview is unavailable right now. Enter the manual code below in your authenticator app.
                       </div>
                     )}

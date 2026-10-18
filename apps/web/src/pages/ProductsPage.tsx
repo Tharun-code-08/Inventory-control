@@ -281,7 +281,7 @@ type KpiCardProps = {
 
 function KpiCard({ label, value, accent, icon }: KpiCardProps) {
   return (
-    <Card interactive className="group overflow-hidden border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg">
+    <Card interactive className="group overflow-hidden border-border bg-card shadow-xs transition-shadow duration-300 hover:shadow-lg">
       <CardContent className="flex items-center gap-3.5 p-4">
         <span className={cn('h-11 w-1.5 shrink-0 rounded-full', accent)} aria-hidden />
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border transition-transform duration-300 group-hover:scale-105">
@@ -299,14 +299,14 @@ function KpiCard({ label, value, accent, icon }: KpiCardProps) {
 function StockCell({ stock, min }: { stock: number; min: number }) {
   if (isOutOfStock(stock)) {
     return (
-      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 text-sm font-medium tabular-nums text-red-700 dark:text-red-300">
+      <span className="inline-flex min-w-9 justify-center rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 text-sm font-medium tabular-nums text-red-700 dark:text-red-300">
         {stock}
       </span>
     );
   }
   if (isLowStock(stock, min)) {
     return (
-      <span className="inline-flex min-w-[2.25rem] justify-center rounded-md bg-orange-100 dark:bg-orange-500/15 px-2 py-0.5 text-sm font-medium tabular-nums text-orange-800 dark:text-orange-300">
+      <span className="inline-flex min-w-9 justify-center rounded-md bg-orange-100 dark:bg-orange-500/15 px-2 py-0.5 text-sm font-medium tabular-nums text-orange-800 dark:text-orange-300">
         {stock}
       </span>
     );
@@ -1626,7 +1626,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               GST portal ({gstHsnQuery.data!.length} result
               {gstHsnQuery.data!.length === 1 ? '' : 's'})
             </p>
-          <ul className="max-h-64 overflow-y-auto rounded-md border border-border bg-card text-xs shadow-sm">
+          <ul className="max-h-64 overflow-y-auto rounded-md border border-border bg-card text-xs shadow-xs">
             {gstHsnQuery.data!.map((row) => (
               <li key={row.code} className="border-b border-border last:border-0">
                 <button
@@ -2149,7 +2149,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         ) : null}
 
         {lastImportReport ? (
-          <Card className="border-border/90 shadow-sm">
+          <Card className="border-border/90 shadow-xs">
             <CardContent className="space-y-3 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
@@ -2212,7 +2212,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
           />
         </div>
 
-        <Card className={cn('border-border/90 shadow-sm', pulseClass)}>
+        <Card className={cn('border-border/90 shadow-xs', pulseClass)}>
           <CardContent className="space-y-4 p-4 pt-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <SearchInput

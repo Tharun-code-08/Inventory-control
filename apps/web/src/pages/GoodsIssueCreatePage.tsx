@@ -302,7 +302,7 @@ export function GoodsIssueCreatePage() {
           </Button>
         </div>
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Issue Details</CardTitle>
           </CardHeader>
@@ -368,7 +368,7 @@ export function GoodsIssueCreatePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Issue Location</CardTitle>
           </CardHeader>
@@ -417,7 +417,7 @@ export function GoodsIssueCreatePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/90 shadow-sm">
+        <Card className="border-border/90 shadow-xs">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Items</CardTitle>
             {!showSoTable && (
@@ -508,7 +508,7 @@ export function GoodsIssueCreatePage() {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="relative max-w-[7rem]">
+                        <div className="relative max-w-28">
                           <Input
                             type="number"
                             min={0}

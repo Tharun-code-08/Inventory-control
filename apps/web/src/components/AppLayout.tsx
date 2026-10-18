@@ -174,13 +174,13 @@ export function AppLayout({ children, active }: AppLayoutProps) {
       <CommandSpotlight open={spotlightOpen} onOpenChange={setSpotlightOpen} />
       {showLogoutSplash && (
         <div className={cn(
-          "fixed inset-0 z-[100] flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
+          "fixed inset-0 z-100 flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(99,102,241,0.32),transparent_35%),radial-gradient(circle_at_70%_90%,rgba(56,189,248,0.22),transparent_40%),rgba(2,6,23,0.94)] transition-opacity duration-300",
           logoutFadeOut ? 'opacity-0' : 'opacity-100',
         )}>
           <div className="relative flex min-w-[280px] max-w-sm flex-col items-center gap-5 rounded-3xl border border-white/20 bg-card/10 px-8 py-8 text-center shadow-[0_28px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
             <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/10 blur-2xl" />
             <div className="pointer-events-none absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-cyan-300/35 blur-2xl" />
-            <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br', avatar.bgClass)}>
+            <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full bg-linear-to-br', avatar.bgClass)}>
               <div className="absolute inset-0 animate-ping rounded-full bg-card/20" />
               {avatarUrl ? (
                 <img
@@ -219,7 +219,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
           !isMobile && (sidebarCollapsed || sidebarPinMode === 'auto-hide' ? 'md:ml-[72px]' : 'md:ml-[240px]'),
         )}
       >
-        <header className="sticky top-0 z-30 border-b border-border/90 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/90 dark:border-slate-800 dark:bg-slate-950/90 dark:shadow-slate-950/50">
+        <header className="sticky top-0 z-30 border-b border-border/90 bg-card/95 shadow-xs backdrop-blur-sm supports-backdrop-filter:bg-card/90 dark:border-slate-800 dark:bg-slate-950/90 dark:shadow-slate-950/50">
           <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
@@ -362,7 +362,7 @@ export function AppLayout({ children, active }: AppLayoutProps) {
                   onClick={() => setProfileOpen((open) => !open)}
                   className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-muted dark:hover:bg-slate-800"
                 >
-                  <div className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-sm shadow-md', avatar.bgClass)}>
+                  <div className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br text-sm shadow-md', avatar.bgClass)}>
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}

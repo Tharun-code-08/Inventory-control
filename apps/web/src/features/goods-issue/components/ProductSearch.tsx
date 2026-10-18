@@ -49,7 +49,7 @@ export function ProductSearch({
   return (
     <div className="relative">
       <input
-        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground outline-hidden transition focus:border-primary focus:ring-4 focus:ring-primary/20"
         placeholder="Search product code..."
         value={q}
         onChange={(e) => setQ(e.target.value)}

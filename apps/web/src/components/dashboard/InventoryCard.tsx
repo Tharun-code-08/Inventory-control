@@ -9,7 +9,7 @@ interface InventoryCardProps {
 
 export function InventoryCard({ data }: InventoryCardProps) {
   return (
-    <div className="bg-card rounded-lg shadow p-6 hover:shadow-lg transition">
+    <div className="bg-card rounded-lg shadow-sm p-6 hover:shadow-lg transition">
       <h3 className="text-lg font-semibold text-foreground mb-6">Is my money stuck?</h3>
 
       <div className="space-y-6">
