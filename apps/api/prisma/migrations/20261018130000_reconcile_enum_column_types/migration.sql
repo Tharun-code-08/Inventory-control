@@ -12,8 +12,9 @@
 -- Safe on every environment:
 --   * enum types are created only if missing;
 --   * a column is converted only while it is still TEXT and every stored value
---     is a valid label of the target enum; otherwise it is left untouched and a
---     NOTICE names it for manual reconciliation (the migration does not fail);
+--     is a valid label of the target enum; otherwise, or if converting it fails
+--     for any other reason, it is left untouched and a NOTICE names it for
+--     manual reconciliation (the migration does not fail);
 --   * databases that already have the enum columns (schemas accreted by
 --     `db push`) are not changed at all.
 
@@ -70,26 +71,33 @@ BEGIN
       WHERE table_schema = 'public' AND table_name = c.tbl AND column_name = c.col
         AND data_type = 'text');
 
-    EXECUTE format(
-      'SELECT count(*) FROM public.%I WHERE %I IS NOT NULL AND %I NOT IN (
-         SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-         JOIN pg_namespace n ON n.oid = t.typnamespace
-         WHERE n.nspname = ''public'' AND t.typname = %L)',
-      c.tbl, c.col, c.col, c.enum_type)
-    INTO invalid;
+    -- Each column converts in its own subtransaction: if anything fails (an
+    -- unexpected view, policy or index on the column), only that column is
+    -- rolled back and skipped, so a failed migration can never block deploys.
+    BEGIN
+      EXECUTE format(
+        'SELECT count(*) FROM public.%I WHERE %I IS NOT NULL AND %I NOT IN (
+           SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = ''public'' AND t.typname = %L)',
+        c.tbl, c.col, c.col, c.enum_type)
+      INTO invalid;
 
-    IF invalid > 0 THEN
-      RAISE NOTICE 'Skipped %.%: % row(s) hold values that are not % labels; reconcile manually.',
-        c.tbl, c.col, invalid, c.enum_type;
-      CONTINUE;
-    END IF;
-
-    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', c.tbl, c.col);
-    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE public.%I USING %I::public.%I',
-      c.tbl, c.col, c.enum_type, c.col, c.enum_type);
-    IF c.default_label IS NOT NULL THEN
-      EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT %L::public.%I',
-        c.tbl, c.col, c.default_label, c.enum_type);
-    END IF;
+      IF invalid > 0 THEN
+        RAISE NOTICE 'Skipped %.%: % row(s) hold values that are not % labels; reconcile manually.',
+          c.tbl, c.col, invalid, c.enum_type;
+      ELSE
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', c.tbl, c.col);
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE public.%I USING %I::public.%I',
+          c.tbl, c.col, c.enum_type, c.col, c.enum_type);
+        IF c.default_label IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT %L::public.%I',
+            c.tbl, c.col, c.default_label, c.enum_type);
+        END IF;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Skipped %.%: % (SQLSTATE %); reconcile manually.',
+        c.tbl, c.col, SQLERRM, SQLSTATE;
+    END;
   END LOOP;
 END $$;
