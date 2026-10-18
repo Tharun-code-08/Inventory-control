@@ -19,6 +19,12 @@ updates:
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
       - dependency-name: "@react-navigation/*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "@react-native-async-storage/*"
+      # @types/node tracks the Node runtime (22 LTS), not the newest release.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
       # React is shared by web (18) and mobile (19.1, Expo-pinned); major and
       # minor React upgrades are deliberate migrations.
       - dependency-name: "react"
@@ -32,6 +38,9 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: "/apps/web"
     schedule:
@@ -52,6 +61,9 @@ updates:
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
       - dependency-name: "@react-navigation/*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "@react-native-async-storage/*"
       - dependency-name: "babel-preset-expo"
       - dependency-name: "typescript"
   - package-ecosystem: docker
