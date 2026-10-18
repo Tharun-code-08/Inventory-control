@@ -102,6 +102,22 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // Expo's URL polyfill (whatwg-url-without-unicode) needs its nested
+  // webidl-conversions@5. jsdom 30 (web tests) hoists webidl-conversions@8 to
+  // the root, which nodeModulesPaths would pick first; v8 calls
+  // String.prototype.toWellFormed, which Hermes lacks. Resolve it from the
+  // importing package instead.
+  if (moduleName === 'webidl-conversions') {
+    try {
+      return {
+        type: 'sourceFile',
+        filePath: require.resolve(moduleName, { paths: [path.dirname(context.originModulePath)] }),
+      };
+    } catch {
+      // fall through
+    }
+  }
+
   try {
     if (defaultResolveRequest) {
       return defaultResolveRequest(context, moduleName, platform);

@@ -65,7 +65,7 @@ jobs:
         # Only runs when DATABASE_URL is exported — Nest test bootstrap exits
         # without it. Skipped on standard CI; runs in integration environments.
         if: env.DATABASE_URL != ''
-        run: npm run test:e2e --workspace=api -- --testPathPattern openapi.e2e-spec
+        run: npm run test:e2e --workspace=api -- --testPathPatterns openapi.e2e-spec
       - name: Upload API coverage artifact
         if: always()
         uses: actions/upload-artifact@v7
