@@ -1,5 +1,6 @@
 ﻿/* eslint-disable no-console */
 import { PrismaClient, RoleName, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { createPgAdapter } from '../src/prisma/pg-adapter';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -140,7 +141,7 @@ const ROLE_DEFINITIONS: Array<{ name: RoleName; permissions: string[] }> = [
 ];
 
 async function main() {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({ adapter: createPgAdapter() });
   try {
     if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PROD_SEED !== 'true') {
       console.warn('[seed] Skipping production seed: set ALLOW_PROD_SEED=true to override.');

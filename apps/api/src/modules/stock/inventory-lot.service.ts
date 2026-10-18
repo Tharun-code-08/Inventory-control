@@ -1,7 +1,10 @@
 import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Decimal } from '@prisma/client/runtime/library';
+
+// Prisma 7 no longer exposes '@prisma/client/runtime/library'; Prisma.Decimal is the public export.
+const { Decimal } = Prisma;
+type Decimal = Prisma.Decimal;
 
 interface AllocationResult {
   lotId: string;

@@ -6,9 +6,12 @@
   PurchaseOrderStatus,
   TransactionType,
 } from '@prisma/client';
+import { createPgAdapter } from '../src/prisma/pg-adapter';
+// Prisma 7's client no longer loads .env on its own.
+import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: createPgAdapter() });
 const DEMO_PASSWORD = 'Admin@123';
 
 type DemoProductInput = {

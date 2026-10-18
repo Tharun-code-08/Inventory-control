@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
 import { PrismaClient, RoleName } from '@prisma/client';
+import { createPgAdapter } from '../src/prisma/pg-adapter';
+// Prisma 7's client no longer loads .env on its own.
+import 'dotenv/config';
 
 /** Only the seed default plant is kept; all E2E / demo plants are removed. */
 const KEEP_SHOP_NUMBERS = ['HQ-001'];
@@ -98,7 +101,7 @@ async function purgeBusinessData(prisma: PrismaClient) {
 }
 
 async function main() {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({ adapter: createPgAdapter() });
   try {
     if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DB_PURGE !== 'true') {
       console.error('[purge] Refusing production purge. Set ALLOW_DB_PURGE=true to override.');

@@ -65,18 +65,19 @@ echo "  ✓ history at head (no failed, no pending)."
 echo -e "${GREEN}» Post-verify (2/2): live DB matches migrations...${NC}"
 if [ -n "${PRISMA_SHADOW_DATABASE_URL:-}" ]; then
   set +e
+  # Prisma 7: the live DB and the shadow DB both come from prisma.config.ts
+  # (datasource.url / datasource.shadowDatabaseUrl ← PRISMA_SHADOW_DATABASE_URL).
   npx prisma migrate diff \
     --from-migrations prisma/migrations \
-    --to-schema-datasource "$SCHEMA" \
-    --shadow-database-url "$PRISMA_SHADOW_DATABASE_URL" \
+    --to-config-datasource \
     --exit-code >/dev/null 2>&1
   DIFF_RC=$?
   set -e
   case "$DIFF_RC" in
     0) echo "  ✓ live DB exactly reproduces the migrations." ;;
     2) echo -e "${RED}✗ Live DB DRIFTS from the migrations (hand-edit / partial apply). Investigate.${NC}"
-       echo "  Reproduce: npx prisma migrate diff --from-migrations prisma/migrations \\"
-       echo "    --to-schema-datasource $SCHEMA --shadow-database-url \$PRISMA_SHADOW_DATABASE_URL --script"
+       echo "  Reproduce (from apps/api, with PRISMA_SHADOW_DATABASE_URL set):"
+       echo "    npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --script"
        exit 1 ;;
     *) echo -e "${YELLOW}  ⚠ shadow diff could not run (rc $DIFF_RC); relying on the head check above.${NC}" ;;
   esac
