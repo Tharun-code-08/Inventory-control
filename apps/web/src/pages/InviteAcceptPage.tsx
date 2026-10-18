@@ -40,7 +40,7 @@ function TurnstileField({
   onToken: (token: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const widgetIdRef = useRef<string | undefined>();
+  const widgetIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!siteKey) return;
