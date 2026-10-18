@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, type ProxyOptions } from 'vite';
@@ -66,19 +67,24 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks(id) {
-          // Stable vendor libs — split so browser can cache them across app deploys
-          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'vendor-react';
-          if (id.includes('node_modules/react-router')) return 'vendor-router';
-          if (id.includes('node_modules/@tanstack/react-query')) return 'vendor-query';
-          if (id.includes('node_modules/@radix-ui/')) return 'vendor-radix';
-          // Heavy optional libs — lazy-loaded pages pull these in on demand
-          if (id.includes('node_modules/jspdf')) return 'jspdf';
-          if (id.includes('node_modules/xlsx')) return 'xlsx';
-          if (id.includes('node_modules/recharts')) return 'recharts';
-          if (id.includes('/src/pages/ProductsPage')) return 'page-products';
+        // Vite 8 bundles with Rolldown, whose manualChunks shim no longer
+        // splits these out; codeSplitting groups are the supported form.
+        // Higher priority wins when a module matches several groups.
+        codeSplitting: {
+          groups: [
+            // Stable vendor libs — split so browser can cache them across app deploys
+            { name: 'vendor-react', test: /node_modules[\\/]react(-dom)?[\\/]/, priority: 20 },
+            { name: 'vendor-router', test: /node_modules[\\/]react-router/, priority: 20 },
+            { name: 'vendor-query', test: /node_modules[\\/]@tanstack[\\/]react-query/, priority: 20 },
+            { name: 'vendor-radix', test: /node_modules[\\/]@radix-ui[\\/]/, priority: 20 },
+            // Heavy optional libs — lazy-loaded pages pull these in on demand
+            { name: 'jspdf', test: /node_modules[\\/]jspdf/, priority: 20 },
+            { name: 'xlsx', test: /node_modules[\\/]xlsx/, priority: 20 },
+            { name: 'recharts', test: /node_modules[\\/]recharts/, priority: 20 },
+            { name: 'page-products', test: /[\\/]src[\\/]pages[\\/]ProductsPage/, priority: 10 },
+          ],
         },
       },
     },

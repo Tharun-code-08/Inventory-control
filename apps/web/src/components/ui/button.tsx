@@ -53,7 +53,7 @@ function textFromNode(node: React.ReactNode): string {
     }
     return "";
   }
-  if (React.isValidElement(node)) {
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
     return textFromNode(node.props.children);
   }
   return "";
