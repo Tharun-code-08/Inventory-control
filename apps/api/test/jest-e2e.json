@@ -1,19 +1,64 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
   "rootDir": "..",
   "globalSetup": "<rootDir>/test/global-setup-e2e.ts",
   "globalTeardown": "<rootDir>/test/global-teardown-e2e.ts",
-  "setupFilesAfterEnv": ["<rootDir>/test/helpers/reset-throttle.ts"],
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/helpers/reset-throttle.ts"
+  ],
   "forceExit": true,
   "testEnvironment": "node",
-  "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
+  "testMatch": [
+    "<rootDir>/test/**/*.e2e-spec.ts"
+  ],
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/src/$1"
   },
   "transform": {
-    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": { "isolatedModules": true, "paths": { "@/*": ["src/*"] } } }]
+    "^.+\\.ts$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "isolatedModules": true,
+          "paths": {
+            "@/*": [
+              "src/*"
+            ]
+          }
+        }
+      }
+    ],
+    "^.+\\.js$": [
+      "babel-jest",
+      {
+        "babelrc": false,
+        "configFile": false,
+        "presets": [
+          [
+            "@babel/preset-env",
+            {
+              "targets": {
+                "node": "current"
+              }
+            }
+          ]
+        ],
+        "plugins": [
+          [
+            "babel-plugin-transform-import-meta",
+            {
+              "module": "ES6"
+            }
+          ]
+        ]
+      }
+    ]
   },
   "transformIgnorePatterns": [
-    "node_modules/(?!(@scure|@noble|otplib|@otplib)/)"
+    "node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib)/)"
   ]
 }
