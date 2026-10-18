@@ -161,9 +161,13 @@ npm run build --quiet
 echo "✓ Build complete"
 
 # Step 4: Migrate database
+# Delegates to migrate-deploy.sh: drift pre-check → migrate deploy → post-verify
+# that the live schema matches the codebase (guards against the schema-drift 503
+# class of incident). A failure here trips the ERR trap → rollback of source+dist
+# (DB migrations are additive and persist; see the header note).
 CURRENT_STEP="prisma-migrate"
 echo -e "\n${GREEN}Running migrations...${NC}"
-( cd apps/api && npx prisma migrate deploy )
+bash "$APP_DIR/scripts/migrate-deploy.sh"
 echo "✓ Migrations applied"
 
 # Step 5: Restart API (build identity is exported so the app can log what it is)

@@ -390,25 +390,25 @@ model Company {
   notificationAuditLogs   NotificationAuditLog[]
 
   // Device & Security (Backend)
-  devices                 UserDevice[]
-  pushSubscriptions       NotificationSubscription[]
-  auditLogs               AuditLog[]
-  lowStockAlerts          LowStockAlert[]
+  devices           UserDevice[]
+  pushSubscriptions NotificationSubscription[]
+  auditLogs         AuditLog[]
+  lowStockAlerts    LowStockAlert[]
 
   // Document Generation (Phase 1)
-  documentRegistry        DocumentRegistry[]
-  pdfJobs                 PdfJob[]
+  documentRegistry DocumentRegistry[]
+  pdfJobs          PdfJob[]
 
   // Agent Platform (WhatsApp assistant)
-  channelAccounts         ChannelAccount[]
-  userChannelLinks        UserChannelLink[]
-  whatsAppLinkTokens      WhatsAppLinkToken[]
-  whatsAppDevices         WhatsAppDevice[]
-  conversations           Conversation[]
-  aiSettings              AiSettings?
-  aiPromptHistory         AiPromptHistory[]
-  aiUsageLogs             AiUsageLog[]
-  agentTasks              AgentTask[]
+  channelAccounts    ChannelAccount[]
+  userChannelLinks   UserChannelLink[]
+  whatsAppLinkTokens WhatsAppLinkToken[]
+  whatsAppDevices    WhatsAppDevice[]
+  conversations      Conversation[]
+  aiSettings         AiSettings?
+  aiPromptHistory    AiPromptHistory[]
+  aiUsageLogs        AiUsageLog[]
+  agentTasks         AgentTask[]
 
   @@map("companies")
 }
@@ -479,14 +479,14 @@ model MediaAsset {
 }
 
 model DocumentBranding {
-  id            String       @id @default(uuid()) @db.Uuid
-  companyId     String       @map("company_id") @db.Uuid
-  documentType  DocumentType @map("document_type")
-  settings      Json         @map("settings")
-  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById   String?      @map("created_by") @db.Uuid
-  updatedById   String?      @map("updated_by") @db.Uuid
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String       @map("company_id") @db.Uuid
+  documentType DocumentType @map("document_type")
+  settings     Json         @map("settings")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById  String?      @map("created_by") @db.Uuid
+  updatedById  String?      @map("updated_by") @db.Uuid
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -842,23 +842,23 @@ model User {
   notifications            Notification[]
   deviceRegistrations      DeviceRegistration[]
   notificationPreference   NotificationPreference?
-  approvalRequestsCreated  ApprovalRequest[] @relation("ApprovalRequestsCreated")
-  approvalRequestsAssigned ApprovalRequest[] @relation("ApprovalRequestsAssigned")
+  approvalRequestsCreated  ApprovalRequest[]       @relation("ApprovalRequestsCreated")
+  approvalRequestsAssigned ApprovalRequest[]       @relation("ApprovalRequestsAssigned")
   approvalComments         ApprovalComment[]
   approvalEscalations      ApprovalEscalation[]
   notificationAuditLogs    NotificationAuditLog[]
 
   // Device & Security (Backend)
-  devices                  UserDevice[]
-  pushSubscriptions        NotificationSubscription[]
+  devices           UserDevice[]
+  pushSubscriptions NotificationSubscription[]
 
   // Agent Platform (WhatsApp assistant)
-  channelLinks             UserChannelLink[]
-  agentTasksRequested      AgentTask[] @relation("AgentTasksRequested")
-  agentTasksApproved       AgentTask[] @relation("AgentTasksApproved")
-  whatsAppLinkTokens       WhatsAppLinkToken[]
-  whatsAppDevices          WhatsAppDevice[]
-  whatsAppDevicesRevoked   WhatsAppDevice[] @relation("WhatsAppDeviceRevoker")
+  channelLinks           UserChannelLink[]
+  agentTasksRequested    AgentTask[]         @relation("AgentTasksRequested")
+  agentTasksApproved     AgentTask[]         @relation("AgentTasksApproved")
+  whatsAppLinkTokens     WhatsAppLinkToken[]
+  whatsAppDevices        WhatsAppDevice[]
+  whatsAppDevicesRevoked WhatsAppDevice[]    @relation("WhatsAppDeviceRevoker")
 
   @@index([deletedAt])
   @@map("users")
@@ -898,28 +898,28 @@ model ReportSavedFilter {
 }
 
 model Product {
-  id               String        @id @default(uuid()) @db.Uuid
-  productCode      String        @unique @map("product_code")
+  id               String         @id @default(uuid()) @db.Uuid
+  productCode      String         @unique @map("product_code")
   description      String
   uom              String
   category         String
-  hsnCode          String?       @map("hsn_code")
-  materialGroup    String?       @map("material_group")
-  drawingReference String?       @map("drawing_reference")
+  hsnCode          String?        @map("hsn_code")
+  materialGroup    String?        @map("material_group")
+  drawingReference String?        @map("drawing_reference")
   brand            String?
-  taxPreference    TaxPreference @default(TAXABLE) @map("tax_preference")
-  gstRate          Decimal       @default(0) @map("gst_rate") @db.Decimal(7, 4)
-  purchasePrice    Decimal       @map("purchase_price") @db.Decimal(12, 2)
-  sellingPrice     Decimal       @map("selling_price") @db.Decimal(12, 2)
-  imageUrl         String?       @map("image_url")
-  thumbnailUrl     String?       @map("thumbnail_url")
-  shelfLifeDays    Int?          @map("shelf_life_days")
+  taxPreference    TaxPreference  @default(TAXABLE) @map("tax_preference")
+  gstRate          Decimal        @default(0) @map("gst_rate") @db.Decimal(7, 4)
+  purchasePrice    Decimal        @map("purchase_price") @db.Decimal(12, 2)
+  sellingPrice     Decimal        @map("selling_price") @db.Decimal(12, 2)
+  imageUrl         String?        @map("image_url")
+  thumbnailUrl     String?        @map("thumbnail_url")
+  shelfLifeDays    Int?           @map("shelf_life_days")
   expiryTracking   ExpiryTracking @default(OPTIONAL) @map("expiry_tracking")
-  isActive         Boolean       @default(true) @map("is_active")
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById      String?       @map("created_by") @db.Uuid
-  updatedById      String?       @map("updated_by") @db.Uuid
+  isActive         Boolean        @default(true) @map("is_active")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById      String?        @map("created_by") @db.Uuid
+  updatedById      String?        @map("updated_by") @db.Uuid
 
   plants                 ProductPlant[]
   specifications         ProductSpecification[]
@@ -1191,9 +1191,9 @@ model Supplier {
   rfqLinks        RfqSupplier[]
   contracts       ContractHeader[]
   quotations      SupplierQuotationHeader[]
-  supplierReturns  SupplierReturn[]
-  supplierBills    SupplierBillHeader[]
-  productBarcodes  ProductBarcode[]
+  supplierReturns SupplierReturn[]
+  supplierBills   SupplierBillHeader[]
+  productBarcodes ProductBarcode[]
 
   @@index([companyId])
   @@index([supplierName])
@@ -1473,8 +1473,8 @@ model GoodsIssueItem {
   createdById            String?  @map("created_by") @db.Uuid
   updatedById            String?  @map("updated_by") @db.Uuid
 
-  header GoodsIssueHeader    @relation(fields: [giHeaderId], references: [id], onDelete: Cascade)
-  product Product            @relation(fields: [productId], references: [id])
+  header  GoodsIssueHeader    @relation(fields: [giHeaderId], references: [id], onDelete: Cascade)
+  product Product             @relation(fields: [productId], references: [id])
   lots    GoodsIssueItemLot[]
 
   @@index([giHeaderId])
@@ -2204,74 +2204,74 @@ model PaymentReceipt {
 }
 
 model EwayBill {
-  id              String               @id @default(uuid()) @db.Uuid
-  ewayBillNumber  String               @unique @map("eway_bill_number")
-  shopId          String               @map("shop_id") @db.Uuid
-  invoiceId       String?              @map("invoice_id") @db.Uuid
-  salesOrderId    String?              @map("sales_order_id") @db.Uuid
-  customerId      String?              @map("customer_id") @db.Uuid
-  status          EwayBillStatus       @default(DRAFT)
+  id             String         @id @default(uuid()) @db.Uuid
+  ewayBillNumber String         @unique @map("eway_bill_number")
+  shopId         String         @map("shop_id") @db.Uuid
+  invoiceId      String?        @map("invoice_id") @db.Uuid
+  salesOrderId   String?        @map("sales_order_id") @db.Uuid
+  customerId     String?        @map("customer_id") @db.Uuid
+  status         EwayBillStatus @default(DRAFT)
 
   // Transaction
-  supplyType      EwaySupplyType       @default(OUTWARD)      @map("supply_type")
-  subType         EwaySubType          @default(SUPPLY)       @map("sub_type")
-  transactionType EwayTransactionType  @default(REGULAR)      @map("transaction_type")
-  documentType    EwayDocumentType     @default(TAX_INVOICE)  @map("document_type")
-  documentNumber  String               @map("document_number")
-  documentDate    DateTime             @map("document_date") @db.Date
+  supplyType      EwaySupplyType      @default(OUTWARD) @map("supply_type")
+  subType         EwaySubType         @default(SUPPLY) @map("sub_type")
+  transactionType EwayTransactionType @default(REGULAR) @map("transaction_type")
+  documentType    EwayDocumentType    @default(TAX_INVOICE) @map("document_type")
+  documentNumber  String              @map("document_number")
+  documentDate    DateTime            @map("document_date") @db.Date
 
   // Dispatch From (seller / from)
-  fromGstin       String?              @map("from_gstin")
-  fromName        String               @map("from_name")
-  fromAddress1    String?              @map("from_address1")
-  fromAddress2    String?              @map("from_address2")
-  fromPlace       String?              @map("from_place")
-  fromPincode     String?              @map("from_pincode")
-  fromStateCode   String?              @map("from_state_code")
+  fromGstin     String? @map("from_gstin")
+  fromName      String  @map("from_name")
+  fromAddress1  String? @map("from_address1")
+  fromAddress2  String? @map("from_address2")
+  fromPlace     String? @map("from_place")
+  fromPincode   String? @map("from_pincode")
+  fromStateCode String? @map("from_state_code")
 
   // Ship To (buyer / to)
-  toGstin         String?              @map("to_gstin")
-  toName          String               @map("to_name")
-  toAddress1      String?              @map("to_address1")
-  toAddress2      String?              @map("to_address2")
-  toPlace         String?              @map("to_place")
-  toPincode       String?              @map("to_pincode")
-  toStateCode     String?              @map("to_state_code")
+  toGstin     String? @map("to_gstin")
+  toName      String  @map("to_name")
+  toAddress1  String? @map("to_address1")
+  toAddress2  String? @map("to_address2")
+  toPlace     String? @map("to_place")
+  toPincode   String? @map("to_pincode")
+  toStateCode String? @map("to_state_code")
 
   // Transport
-  transporterGstin  String?              @map("transporter_gstin")
-  transporterName   String?              @map("transporter_name")
-  transporterId     String?              @map("transporter_id")
-  transportMode     EwayTransportMode    @default(ROAD) @map("transport_mode")
-  transDocNumber    String?              @map("trans_doc_number")
-  transDocDate      DateTime?            @map("trans_doc_date") @db.Date
-  vehicleNumber     String?              @map("vehicle_number")
-  vehicleType       EwayVehicleType      @default(REGULAR) @map("vehicle_type")
-  distanceKm        Int?                 @map("distance_km")
+  transporterGstin String?           @map("transporter_gstin")
+  transporterName  String?           @map("transporter_name")
+  transporterId    String?           @map("transporter_id")
+  transportMode    EwayTransportMode @default(ROAD) @map("transport_mode")
+  transDocNumber   String?           @map("trans_doc_number")
+  transDocDate     DateTime?         @map("trans_doc_date") @db.Date
+  vehicleNumber    String?           @map("vehicle_number")
+  vehicleType      EwayVehicleType   @default(REGULAR) @map("vehicle_type")
+  distanceKm       Int?              @map("distance_km")
 
   // Summary values (auto-calculated from items)
-  taxableValue    Decimal              @default(0) @map("taxable_value") @db.Decimal(14, 2)
-  cgstValue       Decimal              @default(0) @map("cgst_value") @db.Decimal(14, 2)
-  sgstValue       Decimal              @default(0) @map("sgst_value") @db.Decimal(14, 2)
-  igstValue       Decimal              @default(0) @map("igst_value") @db.Decimal(14, 2)
-  cessValue       Decimal              @default(0) @map("cess_value") @db.Decimal(14, 2)
-  totalValue      Decimal              @default(0) @map("total_value") @db.Decimal(14, 2)
+  taxableValue Decimal @default(0) @map("taxable_value") @db.Decimal(14, 2)
+  cgstValue    Decimal @default(0) @map("cgst_value") @db.Decimal(14, 2)
+  sgstValue    Decimal @default(0) @map("sgst_value") @db.Decimal(14, 2)
+  igstValue    Decimal @default(0) @map("igst_value") @db.Decimal(14, 2)
+  cessValue    Decimal @default(0) @map("cess_value") @db.Decimal(14, 2)
+  totalValue   Decimal @default(0) @map("total_value") @db.Decimal(14, 2)
 
   // EWB lifecycle
-  validUpto       DateTime?            @map("valid_upto") @db.Timestamptz(6)
-  generatedAt     DateTime?            @map("generated_at") @db.Timestamptz(6)
-  cancelledAt     DateTime?            @map("cancelled_at") @db.Timestamptz(6)
-  cancelReason    String?              @map("cancel_reason")
-  remarks         String?
+  validUpto    DateTime? @map("valid_upto") @db.Timestamptz(6)
+  generatedAt  DateTime? @map("generated_at") @db.Timestamptz(6)
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason String?   @map("cancel_reason")
+  remarks      String?
 
-  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById     String?              @map("created_by") @db.Uuid
-  updatedById     String?              @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+  updatedById String?  @map("updated_by") @db.Uuid
 
-  shop     Shop           @relation(fields: [shopId], references: [id])
-  invoice  InvoiceHeader? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  items    EwayBillItem[]
+  shop    Shop           @relation(fields: [shopId], references: [id])
+  invoice InvoiceHeader? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  items   EwayBillItem[]
 
   @@index([shopId, documentDate])
   @@index([shopId, status])
@@ -2281,21 +2281,21 @@ model EwayBill {
 }
 
 model EwayBillItem {
-  id              String   @id @default(uuid()) @db.Uuid
-  ewayBillId      String   @map("eway_bill_id") @db.Uuid
-  productId       String?  @map("product_id") @db.Uuid
-  productName     String   @map("product_name")
-  description     String?
-  hsnCode         String   @map("hsn_code")
-  quantity        Decimal  @db.Decimal(14, 3)
-  unit            String   @default("PCS")
-  taxableAmount   Decimal  @map("taxable_amount") @db.Decimal(14, 2)
-  gstRate         Decimal  @map("gst_rate") @db.Decimal(5, 2)
-  cgst            Decimal  @default(0) @db.Decimal(14, 2)
-  sgst            Decimal  @default(0) @db.Decimal(14, 2)
-  igst            Decimal  @default(0) @db.Decimal(14, 2)
-  cess            Decimal  @default(0) @db.Decimal(14, 2)
-  total           Decimal  @db.Decimal(14, 2)
+  id            String  @id @default(uuid()) @db.Uuid
+  ewayBillId    String  @map("eway_bill_id") @db.Uuid
+  productId     String? @map("product_id") @db.Uuid
+  productName   String  @map("product_name")
+  description   String?
+  hsnCode       String  @map("hsn_code")
+  quantity      Decimal @db.Decimal(14, 3)
+  unit          String  @default("PCS")
+  taxableAmount Decimal @map("taxable_amount") @db.Decimal(14, 2)
+  gstRate       Decimal @map("gst_rate") @db.Decimal(5, 2)
+  cgst          Decimal @default(0) @db.Decimal(14, 2)
+  sgst          Decimal @default(0) @db.Decimal(14, 2)
+  igst          Decimal @default(0) @db.Decimal(14, 2)
+  cess          Decimal @default(0) @db.Decimal(14, 2)
+  total         Decimal @db.Decimal(14, 2)
 
   ewayBill EwayBill @relation(fields: [ewayBillId], references: [id], onDelete: Cascade)
 
@@ -2634,30 +2634,30 @@ model SupplierPayment {
 }
 
 model StockTransferHeader {
-  id                    String         @id @default(uuid()) @db.Uuid
-  transferNumber        String         @unique @map("transfer_number")
-  transferDate          DateTime       @map("transfer_date") @db.Date
-  fromShopId            String         @map("from_shop_id") @db.Uuid
-  toShopId              String         @map("to_shop_id") @db.Uuid
-  fromStorageLocationId String?        @map("from_storage_location_id") @db.Uuid
-  toStorageLocationId   String?        @map("to_storage_location_id") @db.Uuid
-  status                DocumentStatus @default(DRAFT)
+  id                    String                  @id @default(uuid()) @db.Uuid
+  transferNumber        String                  @unique @map("transfer_number")
+  transferDate          DateTime                @map("transfer_date") @db.Date
+  fromShopId            String                  @map("from_shop_id") @db.Uuid
+  toShopId              String                  @map("to_shop_id") @db.Uuid
+  fromStorageLocationId String?                 @map("from_storage_location_id") @db.Uuid
+  toStorageLocationId   String?                 @map("to_storage_location_id") @db.Uuid
+  status                DocumentStatus          @default(DRAFT)
   notes                 String?
   createdVia            StockTransferCreatedVia @default(MANUAL) @map("created_via")
-  dispatchedAt          DateTime?      @map("dispatched_at") @db.Timestamptz(6)
-  receivedAt            DateTime?      @map("received_at") @db.Timestamptz(6)
-  dispatchedById        String?        @map("dispatched_by") @db.Uuid
-  receivedById          String?        @map("received_by") @db.Uuid
-  postedAt              DateTime?      @map("posted_at") @db.Timestamptz(6)
-  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById           String?        @map("created_by") @db.Uuid
-  updatedById           String?        @map("updated_by") @db.Uuid
+  dispatchedAt          DateTime?               @map("dispatched_at") @db.Timestamptz(6)
+  receivedAt            DateTime?               @map("received_at") @db.Timestamptz(6)
+  dispatchedById        String?                 @map("dispatched_by") @db.Uuid
+  receivedById          String?                 @map("received_by") @db.Uuid
+  postedAt              DateTime?               @map("posted_at") @db.Timestamptz(6)
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById           String?                 @map("created_by") @db.Uuid
+  updatedById           String?                 @map("updated_by") @db.Uuid
 
-  fromShop            Shop                        @relation("StockTransferFromShop", fields: [fromShopId], references: [id])
-  toShop              Shop                        @relation("StockTransferToShop", fields: [toShopId], references: [id])
-  fromStorageLocation StorageLocation?            @relation("StockTransferFromLocation", fields: [fromStorageLocationId], references: [id])
-  toStorageLocation   StorageLocation?            @relation("StockTransferToLocation", fields: [toStorageLocationId], references: [id])
+  fromShop            Shop                         @relation("StockTransferFromShop", fields: [fromShopId], references: [id])
+  toShop              Shop                         @relation("StockTransferToShop", fields: [toShopId], references: [id])
+  fromStorageLocation StorageLocation?             @relation("StockTransferFromLocation", fields: [fromStorageLocationId], references: [id])
+  toStorageLocation   StorageLocation?             @relation("StockTransferToLocation", fields: [toStorageLocationId], references: [id])
   items               StockTransferItem[]
   statusHistory       StockTransferStatusHistory[]
 
@@ -2674,7 +2674,7 @@ model StockTransferItem {
   quantity   Decimal @db.Decimal(12, 3)
   uom        String
 
-  header StockTransferHeader     @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  header  StockTransferHeader    @relation(fields: [transferId], references: [id], onDelete: Cascade)
   product Product                @relation(fields: [productId], references: [id])
   lots    StockTransferItemLot[]
 
@@ -2703,10 +2703,10 @@ model InventoryLot {
   createdById       String?            @map("created_by") @db.Uuid
   updatedById       String?            @map("updated_by") @db.Uuid
 
-  shop            Shop                 @relation(fields: [shopId], references: [id])
-  product         Product              @relation(fields: [productId], references: [id])
-  storageLocation StorageLocation?     @relation(fields: [storageLocationId], references: [id])
-  grItem          GoodsReceiptItem?    @relation(fields: [grItemId], references: [id])
+  shop                Shop                   @relation(fields: [shopId], references: [id])
+  product             Product                @relation(fields: [productId], references: [id])
+  storageLocation     StorageLocation?       @relation(fields: [storageLocationId], references: [id])
+  grItem              GoodsReceiptItem?      @relation(fields: [grItemId], references: [id])
   issueAllocations    GoodsIssueItemLot[]
   transferAllocations StockTransferItemLot[]
   alerts              InventoryLotAlert[]
@@ -2746,13 +2746,13 @@ model StockTransferItemLot {
 }
 
 model StockTransferStatusHistory {
-  id         String         @id @default(uuid()) @db.Uuid
-  transferId String         @map("transfer_id") @db.Uuid
-  fromStatus DocumentStatus? @map("from_status")
-  toStatus   DocumentStatus  @map("to_status")
-  changedById String?        @map("changed_by") @db.Uuid
-  changedAt  DateTime       @default(now()) @map("changed_at") @db.Timestamptz(6)
-  remarks    String?
+  id          String          @id @default(uuid()) @db.Uuid
+  transferId  String          @map("transfer_id") @db.Uuid
+  fromStatus  DocumentStatus? @map("from_status")
+  toStatus    DocumentStatus  @map("to_status")
+  changedById String?         @map("changed_by") @db.Uuid
+  changedAt   DateTime        @default(now()) @map("changed_at") @db.Timestamptz(6)
+  remarks     String?
 
   header StockTransferHeader @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
@@ -2894,15 +2894,15 @@ model CompanySetting {
 }
 
 model BarcodeAuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  companyId  String   @map("company_id") @db.Uuid
-  barcodeId  String?  @map("barcode_id") @db.Uuid
-  barcode    String
-  productId  String?  @map("product_id") @db.Uuid
-  action     String   @map("action")
-  detail     Json?
-  userId     String   @map("user_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  barcodeId String?  @map("barcode_id") @db.Uuid
+  barcode   String
+  productId String?  @map("product_id") @db.Uuid
+  action    String   @map("action")
+  detail    Json?
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -2977,24 +2977,24 @@ enum DevicePlatform {
 }
 
 model Notification {
-  id               String                 @id @default(uuid()) @db.Uuid
-  userId           String                 @map("user_id") @db.Uuid
-  companyId        String                 @map("company_id") @db.Uuid
-  title            String
-  message          String
-  type             AlertType              @map("type")
-  priority         NotificationPriority   @default(NORMAL)
-  module           NotificationModule     @map("module")
-  status           NotificationStatus     @default(UNREAD)
-  referenceType    String?                @map("reference_type")
-  referenceId      String?                @map("reference_id")
-  deepLink         String?                @map("deep_link")
-  actionUrl        String?                @map("action_url")
-  isRead           Boolean                @default(false) @map("is_read")
-  readAt           DateTime?              @map("read_at") @db.Timestamptz(6)
-  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  expiresAt        DateTime?              @map("expires_at") @db.Timestamptz(6)
-  createdById      String?                @map("created_by") @db.Uuid
+  id            String               @id @default(uuid()) @db.Uuid
+  userId        String               @map("user_id") @db.Uuid
+  companyId     String               @map("company_id") @db.Uuid
+  title         String
+  message       String
+  type          AlertType            @map("type")
+  priority      NotificationPriority @default(NORMAL)
+  module        NotificationModule   @map("module")
+  status        NotificationStatus   @default(UNREAD)
+  referenceType String?              @map("reference_type")
+  referenceId   String?              @map("reference_id")
+  deepLink      String?              @map("deep_link")
+  actionUrl     String?              @map("action_url")
+  isRead        Boolean              @default(false) @map("is_read")
+  readAt        DateTime?            @map("read_at") @db.Timestamptz(6)
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt     DateTime?            @map("expires_at") @db.Timestamptz(6)
+  createdById   String?              @map("created_by") @db.Uuid
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -3031,25 +3031,25 @@ model DeviceRegistration {
 }
 
 model NotificationPreference {
-  id                  String    @id @default(uuid()) @db.Uuid
-  userId              String    @unique @map("user_id") @db.Uuid
-  companyId           String    @map("company_id") @db.Uuid
-  grCreated           Boolean   @default(true) @map("gr_created")
-  grApproved          Boolean   @default(true) @map("gr_approved")
-  grRejected          Boolean   @default(true) @map("gr_rejected")
-  poApprovalRequired  Boolean   @default(true) @map("po_approval_required")
-  poApproved          Boolean   @default(true) @map("po_approved")
-  poRejected          Boolean   @default(true) @map("po_rejected")
-  lowStockAlert       Boolean   @default(true) @map("low_stock_alert")
-  transferCompleted   Boolean   @default(true) @map("transfer_completed")
-  inventoryAdjustment Boolean   @default(true) @map("inventory_adjustment")
-  loginAlert          Boolean   @default(true) @map("login_alert")
-  deviceAlert         Boolean   @default(true) @map("device_alert")
-  pushEnabled         Boolean   @default(true) @map("push_enabled")
-  emailEnabled        Boolean   @default(false) @map("email_enabled")
-  whatsappEnabled     Boolean   @default(false) @map("whatsapp_enabled")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @unique @map("user_id") @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  grCreated           Boolean  @default(true) @map("gr_created")
+  grApproved          Boolean  @default(true) @map("gr_approved")
+  grRejected          Boolean  @default(true) @map("gr_rejected")
+  poApprovalRequired  Boolean  @default(true) @map("po_approval_required")
+  poApproved          Boolean  @default(true) @map("po_approved")
+  poRejected          Boolean  @default(true) @map("po_rejected")
+  lowStockAlert       Boolean  @default(true) @map("low_stock_alert")
+  transferCompleted   Boolean  @default(true) @map("transfer_completed")
+  inventoryAdjustment Boolean  @default(true) @map("inventory_adjustment")
+  loginAlert          Boolean  @default(true) @map("login_alert")
+  deviceAlert         Boolean  @default(true) @map("device_alert")
+  pushEnabled         Boolean  @default(true) @map("push_enabled")
+  emailEnabled        Boolean  @default(false) @map("email_enabled")
+  whatsappEnabled     Boolean  @default(false) @map("whatsapp_enabled")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -3059,28 +3059,28 @@ model NotificationPreference {
 }
 
 model ApprovalRequest {
-  id               String           @id @default(uuid()) @db.Uuid
-  companyId        String           @map("company_id") @db.Uuid
-  requestedBy      String           @map("requested_by") @db.Uuid
-  assignedTo       String           @map("assigned_to") @db.Uuid
-  approvalType     ApprovalType     @map("approval_type")
-  referenceId      String           @map("reference_id")
-  status           ApprovalStatus   @default(PENDING)
-  documentNumber   String?          @map("document_number")
-  amount           Decimal?         @db.Decimal(14, 2)
-  description      String?
-  rejectionReason  String?          @map("rejection_reason")
-  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
-  rejectedAt       DateTime?        @map("rejected_at") @db.Timestamptz(6)
-  requiredAt       DateTime?        @map("required_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @map("company_id") @db.Uuid
+  requestedBy     String         @map("requested_by") @db.Uuid
+  assignedTo      String         @map("assigned_to") @db.Uuid
+  approvalType    ApprovalType   @map("approval_type")
+  referenceId     String         @map("reference_id")
+  status          ApprovalStatus @default(PENDING)
+  documentNumber  String?        @map("document_number")
+  amount          Decimal?       @db.Decimal(14, 2)
+  description     String?
+  rejectionReason String?        @map("rejection_reason")
+  approvedAt      DateTime?      @map("approved_at") @db.Timestamptz(6)
+  rejectedAt      DateTime?      @map("rejected_at") @db.Timestamptz(6)
+  requiredAt      DateTime?      @map("required_at") @db.Timestamptz(6)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  requester      User                @relation("ApprovalRequestsCreated", fields: [requestedBy], references: [id])
-  approver       User                @relation("ApprovalRequestsAssigned", fields: [assignedTo], references: [id])
-  comments       ApprovalComment[]
-  escalations    ApprovalEscalation[]
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requester   User                 @relation("ApprovalRequestsCreated", fields: [requestedBy], references: [id])
+  approver    User                 @relation("ApprovalRequestsAssigned", fields: [assignedTo], references: [id])
+  comments    ApprovalComment[]
+  escalations ApprovalEscalation[]
 
   @@index([companyId, status, createdAt])
   @@index([assignedTo, status])
@@ -3089,11 +3089,11 @@ model ApprovalRequest {
 }
 
 model ApprovalComment {
-  id              String    @id @default(uuid()) @db.Uuid
-  approvalId      String    @map("approval_id") @db.Uuid
-  userId          String    @map("user_id") @db.Uuid
-  comment         String
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id         String   @id @default(uuid()) @db.Uuid
+  approvalId String   @map("approval_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  comment    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   approval ApprovalRequest @relation(fields: [approvalId], references: [id], onDelete: Cascade)
   user     User            @relation(fields: [userId], references: [id])
@@ -3103,13 +3103,13 @@ model ApprovalComment {
 }
 
 model ApprovalEscalation {
-  id              String    @id @default(uuid()) @db.Uuid
-  approvalId      String    @map("approval_id") @db.Uuid
-  escalatedTo     String    @map("escalated_to") @db.Uuid
-  escalatedAt     DateTime  @default(now()) @map("escalated_at") @db.Timestamptz(6)
-  level           Int       @default(1)
-  reason          String?
-  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  id          String    @id @default(uuid()) @db.Uuid
+  approvalId  String    @map("approval_id") @db.Uuid
+  escalatedTo String    @map("escalated_to") @db.Uuid
+  escalatedAt DateTime  @default(now()) @map("escalated_at") @db.Timestamptz(6)
+  level       Int       @default(1)
+  reason      String?
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
 
   approval ApprovalRequest @relation(fields: [approvalId], references: [id], onDelete: Cascade)
   user     User            @relation(fields: [escalatedTo], references: [id])
@@ -3119,14 +3119,14 @@ model ApprovalEscalation {
 }
 
 model NotificationAuditLog {
-  id            String   @id @default(uuid()) @db.Uuid
-  companyId     String   @map("company_id") @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  action        String   @map("action")
-  notificationId String? @map("notification_id") @db.Uuid
-  approvalId    String?  @map("approval_id") @db.Uuid
-  details       Json?
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  action         String   @map("action")
+  notificationId String?  @map("notification_id") @db.Uuid
+  approvalId     String?  @map("approval_id") @db.Uuid
+  details        Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
@@ -3141,17 +3141,17 @@ model NotificationAuditLog {
 // ============================================
 
 model UserDevice {
-  id            String    @id @default(uuid()) @db.Uuid
-  userId        String    @map("user_id") @db.Uuid
-  companyId     String    @map("company_id") @db.Uuid
-  deviceId      String    @unique @map("device_id")
-  deviceName    String    @map("device_name")
-  platform      String    // "iOS", "Android", "Web"
-  osVersion     String?   @map("os_version")
-  lastLoginAt   DateTime  @default(now()) @map("last_login_at") @db.Timestamptz(6)
-  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  deviceId    String    @unique @map("device_id")
+  deviceName  String    @map("device_name")
+  platform    String // "iOS", "Android", "Web"
+  osVersion   String?   @map("os_version")
+  lastLoginAt DateTime  @default(now()) @map("last_login_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -3171,7 +3171,7 @@ model NotificationSubscription {
   userId    String   @map("user_id") @db.Uuid
   companyId String   @map("company_id") @db.Uuid
   pushToken String   @map("push_token")
-  platform  String   // "ios", "android", "web"
+  platform  String // "ios", "android", "web"
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -3190,22 +3190,22 @@ model NotificationSubscription {
 // ============================================
 
 model AuditLog {
-  id           String       @id @default(uuid()) @db.Uuid
-  companyId    String?      @map("company_id") @db.Uuid
-  userId       String?      @map("user_id") @db.Uuid
-  action       AuditAction
-  entityType   String?      @map("entity_type")
-  entityId     String?      @map("entity_id")
-  oldValues    Json?        @map("old_values")
-  newValues    Json?        @map("new_values")
-  ipAddress    String?      @map("ip_address")
-  userAgent    String?      @map("user_agent") @db.Text
-  deviceId     String?      @map("device_id")
-  metadata     Json?
-  reason       String?      // Flexible string instead of enum for easier evolution
-  severity     AuditSeverity?
-  requestId    String?      @map("request_id")
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  id         String         @id @default(uuid()) @db.Uuid
+  companyId  String?        @map("company_id") @db.Uuid
+  userId     String?        @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String?        @map("entity_type")
+  entityId   String?        @map("entity_id")
+  oldValues  Json?          @map("old_values")
+  newValues  Json?          @map("new_values")
+  ipAddress  String?        @map("ip_address")
+  userAgent  String?        @map("user_agent") @db.Text
+  deviceId   String?        @map("device_id")
+  metadata   Json?
+  reason     String? // Flexible string instead of enum for easier evolution
+  severity   AuditSeverity?
+  requestId  String?        @map("request_id")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User?    @relation(fields: [userId], references: [id])
@@ -3232,7 +3232,7 @@ model LowStockAlert {
   currentStock Int       @map("current_stock")
   minStock     Int       @map("min_stock")
   reorderPoint Int       @map("reorder_point")
-  alertLevel   String    // "WARNING", "CRITICAL", "EMERGENCY"
+  alertLevel   String // "WARNING", "CRITICAL", "EMERGENCY"
   notified     Boolean   @default(false)
   notifiedAt   DateTime? @map("notified_at") @db.Timestamptz(6)
   resolved     Boolean   @default(false)
@@ -3254,35 +3254,35 @@ model LowStockAlert {
 // ============================================
 
 model DocumentRegistry {
-  id               String    @id @default(uuid()) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  documentType     String    @map("document_type")
-  referenceId      String?   @map("reference_id") @db.Uuid // Optional: for report-type PDFs without single entity
-  templateVersion  String    @default("1.0") @map("template_version")
+  id              String  @id @default(uuid()) @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  documentType    String  @map("document_type")
+  referenceId     String? @map("reference_id") @db.Uuid // Optional: for report-type PDFs without single entity
+  templateVersion String  @default("1.0") @map("template_version")
 
-  storageKey       String    @map("storage_key")
-  storageProvider  String    @default("local") @map("storage_provider")
-  fileSizeBytes    BigInt?   @map("file_size_bytes")
-  checksum         String?
-  mimeType         String    @default("application/pdf") @map("mime_type") // application/pdf, image/png, text/csv, etc
+  storageKey      String  @map("storage_key")
+  storageProvider String  @default("local") @map("storage_provider")
+  fileSizeBytes   BigInt? @map("file_size_bytes")
+  checksum        String?
+  mimeType        String  @default("application/pdf") @map("mime_type") // application/pdf, image/png, text/csv, etc
 
-  jobId            String?   @map("job_id")
-  status           String    @default("pending")  // pending, processing, completed, failed, expired
+  jobId  String? @map("job_id")
+  status String  @default("pending") // pending, processing, completed, failed, expired
 
-  metadata         Json?                           // For storing contextual data (warehouseId, categoryId, filters, etc)
-  generatedBy      String?   @map("generated_by") @db.Uuid
-  generatedAt      DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
-  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  metadata    Json? // For storing contextual data (warehouseId, categoryId, filters, etc)
+  generatedBy String?   @map("generated_by") @db.Uuid
+  generatedAt DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
 
   downloadCount    Int       @default(0) @map("download_count")
   lastDownloadedAt DateTime? @map("last_downloaded_at") @db.Timestamptz(6)
 
-  renderDurationMs Int?      @map("render_duration_ms")    // PDF rendering time in milliseconds
+  renderDurationMs Int?      @map("render_duration_ms") // PDF rendering time in milliseconds
   renderedAt       DateTime? @map("rendered_at") @db.Timestamptz(6)
-  storageLatencyMs Int?      @map("storage_latency_ms")    // Storage upload time in milliseconds
+  storageLatencyMs Int?      @map("storage_latency_ms") // Storage upload time in milliseconds
 
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -3299,14 +3299,14 @@ model DocumentRegistry {
 }
 
 model PdfJob {
-  id          String    @id
-  tenantId    String    @map("tenant_id") @db.Uuid
-  documentId  String?   @map("document_id") @db.Uuid
-  jobType     String    @map("job_type")
-  status      String
-  progress    Int       @default(0)
-  result      Json?
-  errorMessage String?  @map("error_message") @db.Text
+  id           String  @id
+  tenantId     String  @map("tenant_id") @db.Uuid
+  documentId   String? @map("document_id") @db.Uuid
+  jobType      String  @map("job_type")
+  status       String
+  progress     Int     @default(0)
+  result       Json?
+  errorMessage String? @map("error_message") @db.Text
 
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
@@ -3614,8 +3614,6 @@ model AiUsageLog {
   @@map("ai_usage_logs")
 }
 
-
-
 enum AgentTaskStatus {
   DRAFT
   WAITING_APPROVAL
@@ -3661,10 +3659,10 @@ model AgentTask {
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  requestedBy  User          @relation("AgentTasksRequested", fields: [requestedById], references: [id], onDelete: Cascade)
-  approvedBy   User?         @relation("AgentTasksApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  requestedBy  User            @relation("AgentTasksRequested", fields: [requestedById], references: [id], onDelete: Cascade)
+  approvedBy   User?           @relation("AgentTasksApproved", fields: [approvedById], references: [id], onDelete: SetNull)
   steps        AgentTaskStep[]
 
   @@index([conversationId, status])
@@ -3810,17 +3808,17 @@ model NotificationDelivery {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model NotificationRule {
-  id             String              @id @default(uuid()) @db.Uuid
-  companyId      String              @map("company_id") @db.Uuid
-  eventType      String              @map("event_type")
+  id             String               @id @default(uuid()) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  eventType      String               @map("event_type")
   /// RoleName values (e.g. "OWNER"). Empty = fall back to the code default.
-  recipientRoles String[]            @map("recipient_roles")
+  recipientRoles String[]             @map("recipient_roles")
   channels       DeliveryChannel[]
   priority       NotificationPriority @default(NORMAL)
-  slaSeconds     Int                 @map("sla_seconds")
-  enabled        Boolean             @default(true)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  slaSeconds     Int                  @map("sla_seconds")
+  enabled        Boolean              @default(true)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([companyId, eventType])
   @@index([companyId])
@@ -3851,31 +3849,333 @@ model NotificationTemplate {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Workflow / Notification Engine — explainability decision log (Phase 1, Step 4)
+// One row per delivery decision recording *why*: the chosen channel, priority,
+// outcome and reason. Append-only observability sidecar; the engine writes it
+// best-effort and never lets a log failure break notification delivery.
+// Written via guarded raw SQL today; typed model kept in sync for future use +
+// drift detection.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkflowDecisionLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  /// Envelope eventId — trace back to the source event.
+  eventId         String   @map("event_id") @db.Uuid
+  correlationId   String   @map("correlation_id") @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  eventType       String   @map("event_type")
+  /// Null for event-level decisions (e.g. NO_RECIPIENTS); set per recipient otherwise.
+  recipientUserId String?  @map("recipient_user_id") @db.Uuid
+  /// DeliveryChannel name, kept as text so the log is decoupled from the enum.
+  channel         String
+  /// NotificationPriority name at decision time.
+  priority        String
+  /// Reserved for numeric priority scoring (Phase 3).
+  priorityScore   Int?     @map("priority_score")
+  /// DELIVERED | SUPPRESSED_DUPLICATE | NO_RECIPIENTS | FAILED.
+  outcome         String
+  reason          String
+  /// Which rule drove this (e.g. "code-default" or a NotificationRule id).
+  matchedRule     String?  @map("matched_rule")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, createdAt])
+  @@index([eventId])
+  @@index([correlationId])
+  @@map("workflow_decision_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer follow-up / dunning (Phase 2)
+// Consent is required before any outbound customer message (WhatsApp policy +
+// legal). FollowupThread is the durable dunning FSM state per invoice. States
+// are stored as text (documented allowed values) so the models stay decoupled
+// from generated Prisma enums and safe to add without a client regen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CustomerContactChannel {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  /// WHATSAPP | EMAIL
+  channel       String
+  /// E.164 without "+" for WhatsApp, or an email address.
+  address       String
+  /// PENDING | OPTED_IN | OPTED_OUT
+  consentState  String    @default("PENDING") @map("consent_state")
+  consentAt     DateTime? @map("consent_at") @db.Timestamptz(6)
+  lastEngagedAt DateTime? @map("last_engaged_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([customerId, channel])
+  @@index([companyId, consentState])
+  @@map("customer_contact_channels")
+}
+
+model FollowupThread {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  /// The dunned entity, e.g. "invoice".
+  entityType      String    @map("entity_type")
+  entityId        String    @map("entity_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  /// Highest completed ladder index; -1 = none yet.
+  ladderStep      Int       @default(-1) @map("ladder_step")
+  /// Reserved for the compiled WorkflowGraph node id (Phase 5).
+  currentNodeId   String?   @map("current_node_id")
+  /// Pins the workflow version a running thread executes.
+  workflowVersion Int       @default(1) @map("workflow_version")
+  /// ACTIVE | PAUSED | RESOLVED | ESCALATED | STOPPED | WAITING_APPROVAL
+  state           String    @default("ACTIVE")
+  nextActionAt    DateTime? @map("next_action_at") @db.Timestamptz(6)
+  lastEventId     String?   @map("last_event_id") @db.Uuid
+  stopReason      String?   @map("stop_reason")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entityType, entityId])
+  @@index([companyId, state, nextActionAt])
+  @@index([customerId])
+  @@map("followup_threads")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow & Automation Engine — Phase 3–5 models
+// (RecipientEngagement, NotificationPolicy, WorkflowGraph/Version/Node,
+//  NotificationTimeline, AiMemory). NotificationDecisionLog already exists above
+//  as WorkflowDecisionLog. String+comment enums match the newer dunning models.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Per-recipient/channel engagement counters + cached reliability score (§8).
+model RecipientEngagement {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  /// WHATSAPP | EMAIL
+  channel       String
+  sent          Int       @default(0)
+  delivered     Int       @default(0)
+  opened        Int       @default(0)
+  replied       Int       @default(0)
+  paid          Int       @default(0)
+  disputed      Int       @default(0)
+  ignored       Int       @default(0)
+  /// Cached 0..100 reliability score (computeReliabilityScore()).
+  reliability   Int       @default(50)
+  /// Learned best local hour-of-day to reach this recipient.
+  preferredHour Int?      @map("preferred_hour")
+  lastSignalAt  DateTime? @map("last_signal_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([customerId, channel])
+  @@index([companyId, reliability])
+  @@map("recipient_engagements")
+}
+
+/// Tenant business rule: condition -> action, evaluated by the policy engine (§7).
+model NotificationPolicy {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  /// dunning | notification | * — which pipeline the policy applies to.
+  scope     String   @default("dunning")
+  enabled   Boolean  @default(true)
+  /// Lower runs first; ties broken by createdAt.
+  priority  Int      @default(100)
+  /// Serialized PolicyCondition (see policy-types.ts).
+  condition Json     @default("{}")
+  /// Serialized PolicyAction (see policy-types.ts).
+  action    Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([companyId, scope, enabled, priority])
+  @@map("notification_policies")
+}
+
+/// A named, versioned workflow graph (§6). companyId null = system default.
+model WorkflowGraph {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String?           @map("company_id") @db.Uuid
+  /// Stable key, e.g. "invoice-dunning".
+  key           String
+  name          String
+  latestVersion Int               @default(0) @map("latest_version")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  versions      WorkflowVersion[]
+
+  @@unique([companyId, key])
+  @@map("workflow_graphs")
+}
+
+/// An immutable published (or draft) version of a graph. Running threads pin to a
+/// version and never change mid-execution (§6, §"Workflow Versioning").
+model WorkflowVersion {
+  id          String         @id @default(uuid()) @db.Uuid
+  graphId     String         @map("graph_id") @db.Uuid
+  version     Int
+  /// DRAFT | PUBLISHED | ARCHIVED
+  status      String         @default("DRAFT")
+  /// Compiled + validated graph document (nodes + edges) frozen at publish.
+  document    Json
+  publishedAt DateTime?      @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  graph       WorkflowGraph  @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  nodes       WorkflowNode[]
+
+  @@unique([graphId, version])
+  @@map("workflow_versions")
+}
+
+/// A denormalised node of a WorkflowVersion (queryable; canonical copy lives in
+/// WorkflowVersion.document).
+model WorkflowNode {
+  id        String          @id @default(uuid()) @db.Uuid
+  versionId String          @map("version_id") @db.Uuid
+  /// Stable id within the graph.
+  nodeKey   String          @map("node_key")
+  /// ENTRY | ACTION | CONDITION | WAIT | ESCALATE | TERMINAL
+  kind      String
+  config    Json            @default("{}")
+  version   WorkflowVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, nodeKey])
+  @@map("workflow_nodes")
+}
+
+/// Human-/machine-readable timeline of everything that happened to a followup /
+/// notification (§10 "Timeline"). Simulation writes here with kind=SIMULATED.
+model NotificationTimeline {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  threadId      String?  @map("thread_id") @db.Uuid
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  correlationId String?  @map("correlation_id") @db.Uuid
+  /// STEP_PLANNED | SENT | DELIVERED | READ | REPLIED | PAID | ESCALATED | STOPPED | SIMULATED
+  kind          String
+  channel       String?
+  nodeKey       String?  @map("node_key")
+  detail        Json     @default("{}")
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([companyId, entityType, entityId, occurredAt])
+  @@index([threadId, occurredAt])
+  @@map("notification_timeline")
+}
+
+/// What the AI advisor has learned/recommended (§8). Advisory only.
+model AiMemory {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  /// customer | company | thread
+  scope      String
+  /// customerId / companyId / threadId depending on scope.
+  refId      String   @map("ref_id")
+  /// e.g. "channel-preference", "tone", "send-hour".
+  key        String
+  value      Json     @default("{}")
+  /// 0..100 confidence in this memory.
+  confidence Int      @default(50)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([scope, refId, key])
+  @@index([companyId, scope])
+  @@map("ai_memory")
+}
+
+/// Autonomous-assistant proposal awaiting human approval (Plan Phase 7). Nothing
+/// the assistant proposes executes until a human APPROVES it here.
+model AssistantAction {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  /// DRAFT | SUMMARY | ESCALATION_SUGGESTION
+  kind      String
+  /// customer | thread | invoice
+  scope     String
+  refId     String    @map("ref_id")
+  content   String
+  rationale String?
+  /// PENDING | APPROVED | REJECTED | EXECUTED
+  status    String    @default("PENDING")
+  createdBy String?   @map("created_by") @db.Uuid
+  decidedBy String?   @map("decided_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, status, kind])
+  @@map("assistant_actions")
+}
+
+/// A low-priority customer send accumulated for digest batching (Plan Phase 3).
+/// The dispatch queue flushes all PENDING items for a customer as one message.
+model DispatchBatchItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  invoiceId     String   @map("invoice_id") @db.Uuid
+  invoiceNumber String   @map("invoice_number")
+  balanceDue    Float    @map("balance_due")
+  tone          String
+  eventId       String   @map("event_id") @db.Uuid
+  correlationId String   @map("correlation_id") @db.Uuid
+  /// PENDING | SENT
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, customerId, status])
+  @@map("dispatch_batch_items")
+}
+
+/// Internal CRM activity log (Plan §1 "CRM Update" action). A durable, queryable
+/// record of customer interactions the workflow engine (and staff) append to —
+/// the in-ERP CRM, no external system required.
+model CustomerActivity {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  /// e.g. dunning-contact | note | call | email
+  type       String
+  note       String
+  refType    String?  @map("ref_type")
+  refId      String?  @map("ref_id")
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, customerId, createdAt])
+  @@map("customer_activities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Inventory Health — Exception Engine + Health Score (Phase 2.5)
 // ─────────────────────────────────────────────────────────────────────────────
 
 model InventoryException {
-  id               String            @id @default(uuid()) @db.Uuid
-  companyId        String            @map("company_id") @db.Uuid
-  type             ExceptionType
-  severity         ExceptionSeverity
-  entityType       EntityType        @map("entity_type")
-  entityId         String            @map("entity_id") @db.Uuid
-  title            String
-  description      String?
-  status           ExceptionStatus   @default(OPEN)
-  metadata         Json              @default("{}")
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  type        ExceptionType
+  severity    ExceptionSeverity
+  entityType  EntityType        @map("entity_type")
+  entityId    String            @map("entity_id") @db.Uuid
+  title       String
+  description String?
+  status      ExceptionStatus   @default(OPEN)
+  metadata    Json              @default("{}")
 
-  firstDetectedAt  DateTime          @default(now()) @map("first_detected_at") @db.Timestamptz(6)
-  lastDetectedAt   DateTime          @default(now()) @updatedAt @map("last_detected_at") @db.Timestamptz(6)
+  firstDetectedAt DateTime @default(now()) @map("first_detected_at") @db.Timestamptz(6)
+  lastDetectedAt  DateTime @default(now()) @updatedAt @map("last_detected_at") @db.Timestamptz(6)
 
-  acknowledgedAt   DateTime?         @map("acknowledged_at") @db.Timestamptz(6)
-  acknowledgedBy   String?           @map("acknowledged_by") @db.Uuid
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedBy String?   @map("acknowledged_by") @db.Uuid
 
-  resolvedAt       DateTime?         @map("resolved_at") @db.Timestamptz(6)
-  resolvedBy       String?           @map("resolved_by") @db.Uuid
-  resolutionType   ResolutionType?   @map("resolution_type")
-  resolutionNotes  String?           @map("resolution_notes")
+  resolvedAt      DateTime?       @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy      String?         @map("resolved_by") @db.Uuid
+  resolutionType  ResolutionType? @map("resolution_type")
+  resolutionNotes String?         @map("resolution_notes")
 
   @@unique([companyId, type, entityType, entityId, status])
   @@index([companyId, status, type])
@@ -3889,7 +4189,7 @@ model CompanyHealthScoreConfig {
   companyId String @unique @map("company_id") @db.Uuid
 
   /// JSON structure with schemaVersion and weight configuration
-  config    Json   @default("{\"schemaVersion\": 1, \"weights\": {}}")
+  config Json @default("{\"schemaVersion\": 1, \"weights\": {}}")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)

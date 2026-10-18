@@ -6,6 +6,10 @@
     "apps/*",
     "packages/*"
   ],
+  "dependencies": {
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "openapi-typescript": "^7.13.0"
