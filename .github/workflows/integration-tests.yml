@@ -67,7 +67,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
@@ -137,7 +137,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
