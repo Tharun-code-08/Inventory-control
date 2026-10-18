@@ -52,7 +52,7 @@
     "joi": "^17.13.3",
     "nestjs-pino": "^4.6.1",
     "nodemailer": "^10.1.2",
-    "otplib": "^13.4.0",
+    "otplib": "^13.5.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino": "^10.3.1",
