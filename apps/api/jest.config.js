@@ -28,7 +28,7 @@ module.exports = {
       },
     ],
   },
-  transformIgnorePatterns: ['/node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib|@apidevtools)/)'],
+  transformIgnorePatterns: ['/node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib|@apidevtools|puppeteer|puppeteer-core|chromium-bidi|@puppeteer)/)'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.module.ts',

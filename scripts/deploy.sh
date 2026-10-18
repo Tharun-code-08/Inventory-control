@@ -118,6 +118,20 @@ echo "Dir:  $APP_DIR | App: $PM2_APP | Port: $HEALTH_PORT | Branch: $DEPLOY_BRAN
 # Runtime versions on this host (the API needs Node >= 22; PM2 may pin its own).
 echo "Node: $(node -v) | npm: $(npm -v) | PM2 app runtime: $(pm2 describe "$PM2_APP" 2>/dev/null | grep -i 'node.js version' | awk -F'│' '{gsub(/ /,"",$3); print $3}' || true)"
 
+# Refuse to deploy onto a Node older than apps/api/package.json#engines.node
+# (undici 8 and puppeteer 25 need >= 22.19). Checked before install/build, so
+# the running app is left untouched; upgrade Node on the host and redeploy.
+REQUIRED_NODE="$(node -p "require('./apps/api/package.json').engines.node.replace(/^>=\\s*/, '')")"
+if ! node -e '
+  const cur = process.versions.node.split(".").map(Number);
+  const req = process.argv[1].split(".").map(Number);
+  const cmp = cur[0] - req[0] || cur[1] - req[1] || (cur[2] ?? 0) - (req[2] ?? 0);
+  process.exit(cmp < 0 ? 1 : 0);
+' "$REQUIRED_NODE"; then
+  echo -e "${RED}✗ Node $(node -v) is older than the required >= ${REQUIRED_NODE}. Upgrade Node on this host, then redeploy. Nothing was changed.${NC}"
+  exit 1
+fi
+
 # Save current running commit (rollback point) BEFORE any changes.
 RUNNING_COMMIT=$(git rev-parse HEAD)
 echo "Running commit: $RUNNING_COMMIT"

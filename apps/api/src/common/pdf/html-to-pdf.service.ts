@@ -4,12 +4,13 @@ import type { Browser } from 'puppeteer';
 
 let browserPromise: Promise<Browser> | null = null;
 
-function resolveExecutablePath(): string | undefined {
+async function resolveExecutablePath(): Promise<string | undefined> {
   const configured = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
   if (configured && existsSync(configured)) return configured;
 
   try {
-    const bundled = puppeteer.executablePath?.();
+    // puppeteer 25 resolves the bundled browser path asynchronously.
+    const bundled = await puppeteer.executablePath?.();
     if (bundled && existsSync(bundled)) return bundled;
   } catch {
     // Fall through to OS-specific candidates.
@@ -28,7 +29,7 @@ function resolveExecutablePath(): string | undefined {
 }
 
 async function launchBrowser(): Promise<Browser> {
-  const executablePath = resolveExecutablePath();
+  const executablePath = await resolveExecutablePath();
   try {
     return await puppeteer.launch({
       headless: true,
