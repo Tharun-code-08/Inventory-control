@@ -1,10 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
   IsString,
+  Equals,
   Matches,
   MaxLength,
   MinLength,
@@ -96,4 +98,9 @@ export class SignupRequestDto {
   @IsOptional()
   @IsString()
   turnstileToken?: string;
+
+  @ApiProperty({ description: 'User must explicitly accept Terms of Service and Privacy Policy' })
+  @IsBoolean()
+  @Equals(true, { message: 'You must accept the Terms of Service and Privacy Policy to continue.' })
+  agreedToTerms!: boolean;
 }

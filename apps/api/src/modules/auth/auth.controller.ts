@@ -184,8 +184,9 @@ export class AuthController {
   @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   @Post('signup/request')
   @ApiOperation({ summary: 'Start organisation signup — sends email OTP' })
-  async signupRequest(@Body() dto: SignupRequestDto) {
-    return this.signup.requestSignup(dto);
+  async signupRequest(@Req() req: any, @Body() dto: SignupRequestDto) {
+    const { ip, userAgent } = this.loginCtx(req);
+    return this.signup.requestSignup(dto, { ip, userAgent });
   }
 
   @Public()
