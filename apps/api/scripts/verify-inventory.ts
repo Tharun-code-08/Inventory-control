@@ -14,8 +14,9 @@
 
 import 'dotenv/config';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { createPgAdapter } from '../src/prisma/pg-adapter';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: createPgAdapter() });
 
 async function main() {
   const shopId = process.argv

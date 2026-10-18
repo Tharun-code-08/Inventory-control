@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { Prisma, PrismaClient } from '@prisma/client';
 import { RequestContextStore } from '../common/context/request-context';
 import { TenantContext } from '../common/tenant/tenant-context';
+import { createPgAdapter } from './pg-adapter';
 
 /**
  * Models that maintain a `deletedAt` timestamp instead of being hard-deleted.
@@ -24,6 +25,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor() {
     super({
+      adapter: createPgAdapter(),
       log: [
         { emit: 'event', level: 'query' },
         { emit: 'event', level: 'warn' },
