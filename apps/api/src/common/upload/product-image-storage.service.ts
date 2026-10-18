@@ -3,10 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-// sharp's `types` field points at its ESM declarations (default export), while
-// `require('sharp')` returns the function itself. A default import therefore
-// type-checks but is undefined at runtime without esModuleInterop.
-const sharp = require('sharp') as typeof import('sharp').default;
+// sharp ships ESM declarations (default export) via `types` and CommonJS ones
+// (`export =`) via `exports`. TypeScript 5.9 (root: ts-jest, CI typecheck) and
+// 6 (nest build) pick different ones, so take the callable either way; at
+// runtime require('sharp') is the function itself.
+type SharpModule = typeof import('sharp');
+type SharpFn = SharpModule extends { default: infer D } ? D : SharpModule;
+const sharp = require('sharp') as SharpFn;
 
 export const PRODUCT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 export const PRODUCT_IMAGE_ALLOWED_MIME = new Set([

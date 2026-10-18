@@ -12,8 +12,23 @@ module.exports = {
   // The e2e suite has its own config (test/jest-e2e.json) and runs separately.
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '\\.e2e-spec\\.ts$'],
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: { isolatedModules: true, paths: { '@/*': ['src/*'] } } }],
+    '^.+\\.ts$': ['ts-jest', { tsconfig: { isolatedModules: true, paths: { '@/*': ['src/*'] } } }],
+    // NestJS 12 ships ESM only. Jest 29 loads CommonJS, so its .js files are
+    // transpiled to CJS; createRequire(import.meta.url) becomes __filename.
+    '^.+\\.js$': [
+      'babel-jest',
+      {
+        babelrc: false,
+        configFile: false,
+        presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+        // module: 'ES6' emits `import { pathToFileURL } from 'url'` (hoisted by
+        // preset-env); the default CJS form collides with files that declare
+        // their own `const require = createRequire(import.meta.url)`.
+        plugins: [['babel-plugin-transform-import-meta', { module: 'ES6' }]],
+      },
+    ],
   },
+  transformIgnorePatterns: ['/node_modules/(?!(@nestjs|@scure|@noble|otplib|@otplib)/)'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.module.ts',

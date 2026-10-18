@@ -41,7 +41,9 @@ describe('avatarMulterOptions', () => {
   });
 
   it('hard caps fileSize at 2MB and limits to 1 file', () => {
-    expect(avatarMulterOptions.limits?.fileSize).toBe(AVATAR_MAX_BYTES);
-    expect(avatarMulterOptions.limits?.files).toBe(1);
+    // platform-express 12 types `limits` as an object or a per-request function.
+    const limits = avatarMulterOptions.limits as { fileSize?: number; files?: number } | undefined;
+    expect(limits?.fileSize).toBe(AVATAR_MAX_BYTES);
+    expect(limits?.files).toBe(1);
   });
 });

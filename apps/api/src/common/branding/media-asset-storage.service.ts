@@ -2,10 +2,13 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { MediaAssetType } from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 
-// sharp's `types` field points at its ESM declarations (default export), while
-// `require('sharp')` returns the function itself. A default import therefore
-// type-checks but is undefined at runtime without esModuleInterop.
-const sharp = require('sharp') as typeof import('sharp').default;
+// sharp ships ESM declarations (default export) via `types` and CommonJS ones
+// (`export =`) via `exports`. TypeScript 5.9 (root: ts-jest, CI typecheck) and
+// 6 (nest build) pick different ones, so take the callable either way; at
+// runtime require('sharp') is the function itself.
+type SharpModule = typeof import('sharp');
+type SharpFn = SharpModule extends { default: infer D } ? D : SharpModule;
+const sharp = require('sharp') as SharpFn;
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_BYTES = 1 * 1024 * 1024;
