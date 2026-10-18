@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -31,7 +31,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
@@ -68,7 +68,7 @@ jobs:
         run: npm run test:e2e --workspace=api -- --testPathPattern openapi.e2e-spec
       - name: Upload API coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-coverage
           # Path is relative to the repo root inside the runner checkout.

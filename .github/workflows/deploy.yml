@@ -24,8 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy API to VPS
     timeout-minutes: 30
-    # Only proceed when the upstream Quality Gate actually succeeded.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only proceed when the upstream Quality Gate actually succeeded on a push
+    # to main in this repository. CI Quality Gate also runs on pull requests,
+    # and `branches: [main]` matches the head branch *name*: without the event
+    # and repository checks, a fork's PR from its own `main` branch would
+    # trigger this job, check out the fork's commit and run its
+    # scripts/verify-deployment.sh with DEPLOY_KEY in the environment.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
 
     # GitHub Environment: enables required reviewers, wait timers, deployment
     # history, and environment-scoped secrets on GitHub.
@@ -34,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           # Check out the exact commit that passed CI, not whatever HEAD is now.
           ref: ${{ github.event.workflow_run.head_sha }}

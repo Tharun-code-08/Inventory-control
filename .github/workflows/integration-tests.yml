@@ -57,8 +57,8 @@ jobs:
       EXPORT_STORAGE_DIR: ./storage/exports
       MAIL_TRANSPORT: json
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -67,7 +67,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
@@ -127,8 +127,8 @@ jobs:
       CI: true
       PLAYWRIGHT_SKIP_WEBSERVER: '1'
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -137,7 +137,7 @@ jobs:
 
       - name: Restore Prisma client cache
         id: prisma-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/api/node_modules/.prisma
           # Key includes lockfile (captures Prisma CLI version) and Node version
@@ -170,7 +170,7 @@ jobs:
           echo "❌ Services did not become ready within 120s"
           exit 1
       - run: npm run test:e2e --workspace=web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
