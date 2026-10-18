@@ -158,6 +158,7 @@ export class SupplierBillsService {
         const supplier = await tx.supplier.findFirst({
           where: {
             companyId,
+            deletedAt: null,
             supplierName: { equals: supplierName, mode: 'insensitive' },
           },
           select: { id: true },

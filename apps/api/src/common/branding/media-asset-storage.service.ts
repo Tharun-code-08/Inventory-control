@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MediaAssetType } from '@prisma/client';
-import * as sharp from 'sharp';
 import { StorageService } from '../storage/storage.service';
+
+// sharp's `types` field points at its ESM declarations (default export), while
+// `require('sharp')` returns the function itself. A default import therefore
+// type-checks but is undefined at runtime without esModuleInterop.
+const sharp = require('sharp') as typeof import('sharp').default;
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_BYTES = 1 * 1024 * 1024;

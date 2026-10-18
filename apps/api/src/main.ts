@@ -32,11 +32,22 @@ function defaultWebOrigins(): string[] {
   ];
 }
 
+function envFlag(name: string): boolean {
+  const flag = String(process.env[name] ?? '').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+}
+
+// Explicit opt-in only (matches .env.example and env.validation). Credentialed
+// CORS for any *.trycloudflare.com page must never be on by default, including
+// on staging where NODE_ENV is not 'production'.
 function tunnelOriginsAllowed(): boolean {
-  const flag = String(process.env.ALLOW_TUNNEL_ORIGINS ?? '').toLowerCase();
-  if (flag === '1' || flag === 'true' || flag === 'yes') return true;
-  // Auto-allow for non-production unless explicitly disabled.
-  return process.env.NODE_ENV !== 'production' && flag !== 'false';
+  return envFlag('ALLOW_TUNNEL_ORIGINS');
+}
+
+// Swagger UI and the OpenAPI document are on by default outside production.
+// In production they are only served when ENABLE_SWAGGER=true.
+function swaggerEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' || envFlag('ENABLE_SWAGGER');
 }
 
 function corsOptions(): CorsOptions {
@@ -99,7 +110,14 @@ async function bootstrap() {
   // Path matches AvatarStorageService.store() output. Kept outside `api/v1`
   // because these are user-generated static assets, not API endpoints.
   const uploadDir = path.resolve(process.env.UPLOAD_STORAGE_DIR ?? './storage/uploads');
-  app.useStaticAssets(uploadDir, { prefix: '/uploads/' });
+  app.useStaticAssets(uploadDir, {
+    prefix: '/uploads/',
+    index: false,
+    dotfiles: 'deny',
+    // Registered before helmet, so set nosniff here: uploads are validated as
+    // PNG/JPEG/WebP and must never be sniffed into an executable type.
+    setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+  });
 
   app.setGlobalPrefix('api/v1');
 
@@ -156,14 +174,16 @@ async function bootstrap() {
     new ResponseEnvelopeInterceptor(reflector),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('SoftdigitIMS API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addCookieAuth('refresh')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  if (swaggerEnabled()) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('SoftdigitIMS API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addCookieAuth('refresh')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   // Prefer platform-provided PORT, fall back to API_PORT/.env and default 3000.
   // Bind 0.0.0.0 so phones/emulators on the LAN can reach the API (not only 127.0.0.1).

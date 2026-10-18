@@ -5,30 +5,17 @@ import { TenantContext } from '../common/tenant/tenant-context';
 
 /**
  * Models that maintain a `deletedAt` timestamp instead of being hard-deleted.
- * Reads on these models are auto-filtered to `deletedAt: null` via the Prisma
- * client extension installed below. Callers can opt out by passing an explicit
- * `where: { deletedAt: ... }` clause.
+ * Reads are NOT auto-filtered: callers filter `deletedAt: null` explicitly
+ * (supplier duplicate detection and code numbering need to see archived rows).
  */
-const SOFT_DELETE_MODELS = new Set<Prisma.ModelName>(['User', 'Supplier']);
-
-const READ_OPS = new Set([
-  'findFirst',
-  'findFirstOrThrow',
-  'findMany',
-  'count',
-  'aggregate',
-  'groupBy',
-]);
-
 type SoftDeleteModelLower = 'user' | 'supplier';
 
-function applyDeletedAtFilter(rawArgs: unknown): Record<string, unknown> {
-  const args = (rawArgs ?? {}) as Record<string, unknown>;
-  const existingWhere = (args.where ?? {}) as Record<string, unknown>;
-  if (Object.prototype.hasOwnProperty.call(existingWhere, 'deletedAt')) {
-    return args;
-  }
-  return { ...args, where: { ...existingWhere, deletedAt: null } };
+/** Own members of PrismaService (and its instance state) that must not be routed to the extended client. */
+const SERVICE_MEMBERS = new Set<PropertyKey>(['logger', 'softDelete', 'onModuleInit', 'onModuleDestroy']);
+
+/** Scope `app.current_company_id` (read by the RLS policies) to the current transaction. */
+function setTenantConfig(client: Pick<PrismaClient, '$executeRaw'>, companyId: string) {
+  return client.$executeRaw`SELECT set_config('app.current_company_id', ${companyId}, true)`;
 }
 
 @Injectable()
@@ -59,52 +46,70 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
     });
 
-    // Build a soft-delete-aware extended client and proxy delegate access on
-    // `this` to it so existing `prisma.user.findMany(...)` calls transparently
-    // pick up the filter. We keep `$transaction`, `$queryRaw`, `$executeRaw`,
-    // `$on`, `$connect`, `$disconnect` on the underlying client because the
-    // extended client preserves those methods unchanged.
-    // Capture a reference to the base client for use inside the extension.
-    // The extension itself cannot call this.$transaction — it needs the base client.
+    // Build a tenant-aware extended client and proxy model access on `this` to
+    // it so existing `prisma.shop.findMany(...)` calls run with the RLS company
+    // context. The extension itself uses the base client to avoid recursion.
     const base = this as unknown as PrismaClient;
 
     const extended = base.$extends({
       query: {
         $allModels: {
-          async $allOperations({ model, operation, args, query }) {
-            // Apply soft-delete filter first.
-            let resolvedArgs = args;
-            if (model && SOFT_DELETE_MODELS.has(model as Prisma.ModelName) && READ_OPS.has(operation)) {
-              resolvedArgs = applyDeletedAtFilter(args) as typeof args;
-            }
-
+          async $allOperations({ args, query }) {
             const ctx = TenantContext.get();
             // Skip RLS wrap when: no company context, or already inside the
             // wrapping transaction (prevents infinite recursion).
             if (!ctx?.companyId || ctx.inRLSTx) {
-              return query(resolvedArgs);
+              return query(args);
             }
 
-            const companyId = ctx.companyId;
-            // Use SET LOCAL so the setting is scoped to this transaction only,
-            // which is safe with connection pooling — it resets on commit/rollback.
-            return base.$transaction(async () => {
-              await base.$executeRaw`SELECT set_config('app.current_company_id', ${companyId}, true)`;
-              return TenantContext.run({ companyId, inRLSTx: true }, () => query(resolvedArgs));
-            });
+            // Standalone query: send set_config and the query as one batch
+            // transaction so both run on the same connection. set_config(..., true)
+            // is transaction-local, which is safe with connection pooling.
+            const [, result] = await base.$transaction([
+              setTenantConfig(base, ctx.companyId),
+              query(args),
+            ]);
+            return result;
           },
         },
       },
     });
 
+    // Interactive and batch transactions set the tenant on their own connection
+    // up front and mark the context so the per-query wrapper above does not open
+    // a second transaction (and a second pooled connection) for each query.
+    const extendedTransaction = (extended.$transaction as (...a: unknown[]) => Promise<unknown>).bind(
+      extended,
+    );
+    const tenantTransaction = (arg: unknown, options?: unknown): Promise<unknown> => {
+      const ctx = TenantContext.get();
+      if (!ctx?.companyId || ctx.inRLSTx) {
+        return extendedTransaction(arg, options);
+      }
+      const inner = { companyId: ctx.companyId, inRLSTx: true };
+      if (typeof arg === 'function') {
+        return extendedTransaction(async (tx: PrismaClient) => {
+          await setTenantConfig(tx, inner.companyId);
+          return TenantContext.run(inner, () => (arg as (t: PrismaClient) => unknown)(tx));
+        }, options);
+      }
+      return TenantContext.run(inner, () =>
+        extendedTransaction([setTenantConfig(base, inner.companyId), ...(arg as unknown[])], options),
+      ).then((results) => (results as unknown[]).slice(1));
+    };
+
     return new Proxy(this, {
       get: (target, prop, receiver) => {
-        // Methods/state defined directly on PrismaService take precedence.
-        if (Reflect.has(target, prop)) {
+        if (prop === '$transaction') {
+          return tenantTransaction;
+        }
+        // PrismaService's own members, and anything the extended client lacks
+        // (e.g. `$on`), come from the base instance. Model delegates must NOT:
+        // PrismaClient defines them on the instance too, so a plain
+        // `Reflect.has(target, prop)` check would silently bypass the extension.
+        if (SERVICE_MEMBERS.has(prop) || !Reflect.has(extended as object, prop)) {
           return Reflect.get(target, prop, receiver);
         }
-        // Everything else (model delegates, $transaction, etc.) goes through
-        // the extended client so soft-delete filters apply.
         const value = Reflect.get(extended as object, prop);
         if (typeof value === 'function') {
           return (value as (...a: unknown[]) => unknown).bind(extended);
@@ -114,10 +119,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
   }
 
-  /**
-   * Soft-delete a row by writing `deletedAt = now()`. Type-safe over the
-   * SOFT_DELETE_MODELS set.
-   */
+  /** Soft-delete a row by writing `deletedAt = now()`. */
   async softDelete(model: SoftDeleteModelLower, where: { id: string }): Promise<void> {
     const delegate = (this as unknown as Record<string, unknown>)[model] as {
       update: (args: { where: { id: string }; data: { deletedAt: Date } }) => Promise<unknown>;

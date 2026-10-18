@@ -1,6 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import request = require('supertest');
+import { CSRF_COOKIE_NAME } from '../src/common/guards/csrf.guard';
 import { createE2eApp, E2E_DB_ENABLED } from './helpers/e2e-bootstrap';
+
+// Same defaults the app uses (env.validation / auth.controller).
+const REFRESH_COOKIE = process.env.REFRESH_COOKIE_NAME ?? 'session_id';
 
 /**
  * Login → refresh → logout including the double-submit CSRF check.
@@ -40,8 +44,8 @@ describe('Auth + CSRF (e2e)', () => {
       .expect(201);
 
     const cookies = parseCookies(login.get('Set-Cookie') as string[] | undefined);
-    expect(cookies.refreshToken || cookies['refreshToken']).toBeDefined();
-    expect(cookies.csrfToken).toBeDefined();
+    expect(cookies[REFRESH_COOKIE]).toBeDefined();
+    expect(cookies[CSRF_COOKIE_NAME]).toBeDefined();
 
     const cookieJar = (login.get('Set-Cookie') as string[] | undefined) ?? [];
     const cookieHeader = cookieJar
@@ -60,7 +64,7 @@ describe('Auth + CSRF (e2e)', () => {
     const refreshOk = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', cookieHeader)
-      .set('X-CSRF-Token', cookies.csrfToken)
+      .set('X-CSRF-Token', cookies[CSRF_COOKIE_NAME])
       .expect((res) => {
         // 201 on success, 401 if cookies were already rotated by another run.
         expect([201, 401]).toContain(res.status);
@@ -76,7 +80,7 @@ describe('Auth + CSRF (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', cookieHeader)
-      .set('X-CSRF-Token', cookies.csrfToken)
+      .set('X-CSRF-Token', cookies[CSRF_COOKIE_NAME])
       .expect((res) => {
         expect([401, 403]).toContain(res.status);
       });
@@ -85,7 +89,7 @@ describe('Auth + CSRF (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
       .set('Cookie', newCookieHeader)
-      .set('X-CSRF-Token', newCookies.csrfToken)
+      .set('X-CSRF-Token', newCookies[CSRF_COOKIE_NAME])
       .expect((res) => {
         expect([200, 201, 401]).toContain(res.status);
       });

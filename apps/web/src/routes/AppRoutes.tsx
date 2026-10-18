@@ -29,6 +29,7 @@ const GoodsIssueCreatePage = lazyPage(
 );
 const PurchaseOrdersPage = lazyPage(() => import('@/pages/PurchaseOrdersPage'), 'PurchaseOrdersPage');
 const ReportsPage = lazyPage(() => import('@/pages/ReportsPage'), 'ReportsPage');
+const WorkflowEnginePage = lazyPage(() => import('@/pages/WorkflowEnginePage'), 'WorkflowEnginePage');
 const BarcodePrintPage = lazyPage(() => import('@/pages/BarcodePrintPage'), 'BarcodePrintPage');
 const CompaniesPage = lazyPage(() => import('@/pages/CompaniesPage'), 'CompaniesPage');
 const PlantsPage = lazyPage(() => import('@/pages/PlantsPage'), 'PlantsPage');
@@ -429,6 +430,7 @@ export function AppRoutes() {
               </Protected>
             }
           />
+          <Route path="/workflow-engine" element={<Protected><WorkflowEnginePage /></Protected>} />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />
           <Route

@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { RequirePermission } from '@/common/decorators/require-permission.decorator';
 import type { RequestUser } from '@/common/types/request-user';
 import { EwayBillsService } from './eway-bills.service';
 import {
@@ -29,6 +30,7 @@ import {
 @ApiTags('E-Way Bills')
 @Controller('eway-bills')
 @UseGuards(JwtAuthGuard)
+@RequirePermission('shop:read')
 @ApiBearerAuth()
 export class EwayBillsController {
   constructor(private readonly service: EwayBillsService) {}
@@ -66,6 +68,7 @@ export class EwayBillsController {
   }
 
   @Post()
+  @RequirePermission('shop:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a draft e-way bill' })
   create(@Body() dto: CreateEwayBillDto, @CurrentUser() user: RequestUser) {
@@ -73,6 +76,7 @@ export class EwayBillsController {
   }
 
   @Post('from-invoice')
+  @RequirePermission('shop:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a draft e-way bill prefilled from an invoice' })
   createFromInvoice(@Body() dto: GenerateFromInvoiceDto, @CurrentUser() user: RequestUser) {
@@ -80,6 +84,7 @@ export class EwayBillsController {
   }
 
   @Patch(':id')
+  @RequirePermission('shop:write')
   @ApiOperation({ summary: 'Edit a draft e-way bill' })
   update(
     @Param('id') id: string,
@@ -90,6 +95,7 @@ export class EwayBillsController {
   }
 
   @Post(':id/generate')
+  @RequirePermission('shop:write')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Generate (issue) the e-way bill number' })
   generate(@Param('id') id: string, @CurrentUser() user: RequestUser) {
@@ -97,6 +103,7 @@ export class EwayBillsController {
   }
 
   @Post(':id/cancel')
+  @RequirePermission('shop:write')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel an e-way bill' })
   cancel(

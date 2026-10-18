@@ -1,8 +1,10 @@
 name: CI Quality Gate
 
 on:
+  # Pushes to main only: PR branches are covered by pull_request, so building
+  # them on push as well ran every job twice per commit.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 # Least-privilege: this workflow only reads the repository.

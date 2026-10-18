@@ -1,13 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { createHash } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import type { RequestUser } from '../../common/types/request-user';
-import { ExportReportDto } from './dto/export-report.dto';
 import { CreateSavedFilterDto } from './dto/create-saved-filter.dto';
 import { ReportsService } from './reports.service';
 
@@ -15,10 +11,7 @@ import { ReportsService } from './reports.service';
 @ApiBearerAuth()
 @Controller('reports')
 export class ReportsController {
-  constructor(
-    private readonly reports: ReportsService,
-    @InjectQueue('exports') private readonly exportsQueue: Queue,
-  ) {}
+  constructor(private readonly reports: ReportsService) {}
 
   @RequirePermission('report:view')
   @Get('analytics/overview')
@@ -352,24 +345,5 @@ export class ReportsController {
   @Delete('saved-filters/:id')
   deleteSavedFilter(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.reports.deleteSavedFilter(user, id);
-  }
-
-  @RequirePermission('report:export')
-  @Post('export')
-  async export(@CurrentUser() user: RequestUser, @Body() body: ExportReportDto) {
-    // Stable jobId so a duplicate click within the dedup window does not
-    // generate two reports. We hash filters so different inputs do not collide.
-    const filtersHash = createHash('sha1')
-      .update(JSON.stringify(body.filters ?? {}))
-      .digest('hex')
-      .slice(0, 12);
-    const shopId = user.shopId ?? 'global';
-    const jobId = `exp:${shopId}:${body.reportType}:${filtersHash}`;
-    const job = await this.exportsQueue.add(
-      'report-xlsx',
-      { type: 'report-xlsx', reportType: body.reportType, filters: body.filters },
-      { jobId },
-    );
-    return { jobId: job.id };
   }
 }

@@ -21,6 +21,8 @@ export const envValidationSchema = Joi.object({
   /** Public SPA base URL for links in outbound emails (defaults to first WEB_ORIGIN). */
   PUBLIC_WEB_URL: Joi.string().uri().optional(),
   ALLOW_TUNNEL_ORIGINS: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
+  /** Serve Swagger UI at /api/docs in production (always on in other environments). */
+  ENABLE_SWAGGER: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
 
   // SMTP — required to email suppliers when an RFQ is sent.
   SMTP_HOST: Joi.string().optional(),
