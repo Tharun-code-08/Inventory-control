@@ -72,7 +72,7 @@
     "@apidevtools/swagger-parser": "^12.1.0",
     "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^12.0.8",
-    "@nestjs/schematics": "^11.0.2",
+    "@nestjs/schematics": "^12.0.7",
     "@nestjs/testing": "^11.2.7",
     "@types/bcrypt": "^5.0.2",
     "@types/cookie-parser": "^1.4.8",
