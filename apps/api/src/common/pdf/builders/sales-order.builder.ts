@@ -113,10 +113,10 @@ export async function buildSalesOrderPdfViewModel(
 
   const subtotal = Number(order.subtotalBeforeTax ?? 0) ||
     order.items.reduce((sum, item) => sum + Number(item.lineValue) - Number(item.taxAmount), 0);
-  const discount = Number(order.discountAmount);
+  // subtotalBeforeTax is already net of line discounts (sum of taxable values).
   const tax = Number(order.taxAmount);
   const storedTotal = order.totalValue != null ? Number(order.totalValue) : null;
-  const computedTotal = subtotal - discount + tax;
+  const computedTotal = subtotal + tax;
   const grandTotal = storedTotal != null && storedTotal > 0 ? storedTotal : computedTotal;
 
   const cgstTotal = Number(order.totalCgst ?? 0) || (isInterState ? 0 : tax / 2);
@@ -158,7 +158,7 @@ export async function buildSalesOrderPdfViewModel(
     subject: parsedRemarks.subject,
     lines,
     padRowCount: Math.max(0, MIN_ROWS - lines.length),
-    subtotal: formatDocumentAmount(subtotal - discount),
+    subtotal: formatDocumentAmount(subtotal),
     cgstTotal: formatDocumentAmount(cgstTotal),
     sgstTotal: formatDocumentAmount(sgstTotal),
     igstTotal: formatDocumentAmount(igstTotal),

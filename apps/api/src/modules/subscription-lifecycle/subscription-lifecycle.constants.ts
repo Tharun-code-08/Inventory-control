@@ -1,7 +1,8 @@
 export const SUBSCRIPTION_LIFECYCLE_QUEUE = 'subscription-lifecycle';
 
 export const SOFTDIGIT_PLATFORM = {
-  gstNumber: process.env.PLATFORM_GSTIN?.trim() || '29XXXXX0000X1Z5',
+  // Set PLATFORM_GSTIN in production; never print a made-up tax ID.
+  gstNumber: process.env.PLATFORM_GSTIN?.trim() || null,
   companyName: 'Softdigit Consulting',
   email: 'office@softdigitconsulting.com',
 } as const;

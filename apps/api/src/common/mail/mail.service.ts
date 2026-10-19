@@ -294,8 +294,10 @@ export class MailService implements OnModuleInit {
       text: args.text,
       html: args.html,
       attachments: args.attachments,
+      // An explicit envelope must list every recipient: nodemailer uses it
+      // verbatim for RCPT TO, so cc/bcc left out of it are never delivered.
       ...(useEnvelopeFrom
-        ? { envelope: { from: authUser, to: args.to } }
+        ? { envelope: { from: authUser, to: envelopeRecipients(args.to, args.cc, (args.bcc ?? bcc) || undefined) } }
         : {}),
     });
 
@@ -919,4 +921,8 @@ export class MailService implements OnModuleInit {
       html: supplierDeletionHtml(content),
     }).then(() => undefined);
   }
+}
+
+function envelopeRecipients(...lists: Array<string | string[] | null | undefined>): string[] {
+  return lists.flatMap((v) => (v == null ? [] : Array.isArray(v) ? v : [v])).filter(Boolean);
 }

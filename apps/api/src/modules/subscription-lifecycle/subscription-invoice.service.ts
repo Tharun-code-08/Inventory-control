@@ -7,7 +7,6 @@ import {
 } from '../../common/pdf/builders/subscription-invoice.builder';
 import { renderHtmlToPdfBuffer } from '../../common/pdf/html-to-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SOFTDIGIT_PLATFORM } from './subscription-lifecycle.constants';
 
 @Injectable()
 export class SubscriptionInvoiceService {
@@ -53,7 +52,8 @@ export class SubscriptionInvoiceService {
           amountPaise: args.amountPaise,
           taxPaise,
           totalPaise,
-          gstNumber: args.billingAddress?.gstNumber ?? SOFTDIGIT_PLATFORM.gstNumber,
+          // The buyer's GSTIN; the platform's own GSTIN belongs in the seller block.
+          gstNumber: args.billingAddress?.gstNumber ?? null,
           billingAddressSnapshot: args.billingAddress ?? undefined,
           issuedAt,
         },

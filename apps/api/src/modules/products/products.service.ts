@@ -564,15 +564,17 @@ export class ProductsService {
     });
     if (!existing) throw new NotFoundException('Product not found');
 
+    // The caller must already reach the product through one of its shops,
+    // also when it sends new plant assignments (otherwise it could attach its
+    // own shop to another tenant's product and rewrite it).
+    const tenantShopIds = shopIdsForUser(user);
+    if (tenantShopIds) {
+      const tenantShopSet = new Set(tenantShopIds);
+      const accessible = existing.plants.some((plant) => tenantShopSet.has(plant.shopId));
+      if (!accessible) throw new NotFoundException('Product not found');
+    }
     if (dto.plants) {
       await this.validateAssignments(user, dto.plants);
-    } else {
-      const tenantShopIds = shopIdsForUser(user);
-      if (tenantShopIds) {
-        const tenantShopSet = new Set(tenantShopIds);
-        const accessible = existing.plants.some((plant) => tenantShopSet.has(plant.shopId));
-        if (!accessible) throw new NotFoundException('Product not found');
-      }
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -1152,6 +1154,12 @@ export class ProductsService {
       incomingCode ??
       (await this.resolveGeneratedProductCode(tx, companyId, shop.id, row.category, reservedCodes));
     const existing = incomingCode ? productByCode.get(incomingCode) : undefined;
+    // Product codes are globally unique, so a code may belong to another tenant.
+    // Only products already stocked in one of the caller's shops can be updated;
+    // the message is the same whether or not the code exists elsewhere.
+    if (existing && !existing.plants.some((plant) => shops.some((s) => s.id === plant.shopId))) {
+      throw new Error(`Product code ${incomingCode} is not available`);
+    }
     const action: 'create' | 'update' = existing ? 'update' : 'create';
     // locationsByShop is pre-filtered to active; no secondary filter needed.
     const rowLocations = locationsByShop.get(shop.id) ?? [];

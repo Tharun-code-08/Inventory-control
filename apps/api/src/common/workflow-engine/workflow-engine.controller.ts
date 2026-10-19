@@ -29,6 +29,10 @@ import { PolicyService, PolicyInput } from './policy/policy.service';
 @ApiTags('Workflow Engine')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+// Analytics, predictions, timelines and policies expose company-wide
+// receivables data, so the whole surface is limited to org admins (handler
+// level @Roles still take precedence).
+@Roles(RoleName.OWNER, RoleName.ADMIN)
 @Controller('workflow-engine')
 export class WorkflowEngineController {
   constructor(
