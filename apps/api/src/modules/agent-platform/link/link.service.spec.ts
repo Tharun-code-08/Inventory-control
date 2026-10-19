@@ -43,6 +43,12 @@ function buildPrismaMock() {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       upsert: jest.fn(),
     },
+    conversation: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    agentTask: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     user: {
       findUnique: jest.fn(),
     },
@@ -154,6 +160,37 @@ describe('LinkService.redeemLinkToken', () => {
     );
     expect(prisma.userChannelLink.upsert.mock.calls[0][0].create.status).toBe(ChannelLinkStatus.ACTIVE);
     expect(redis.del).toHaveBeenCalledWith(`wa:auth:${PHONE}`);
+  });
+
+  it('closes the previous owner\'s conversations when the number moves to another user', async () => {
+    const { service, prisma } = buildService();
+    prisma.whatsAppLinkToken.findUnique.mockResolvedValue(activeToken());
+    prisma.whatsAppDevice.create.mockResolvedValue({ id: 'device-1', userId: user.id, companyId: user.companyId, phoneNumber: PHONE, linkedAt: new Date() });
+    prisma.userChannelLink.findUnique.mockResolvedValue({ id: 'link-old', userId: 'someone-else', companyId: user.companyId });
+    prisma.userChannelLink.upsert.mockResolvedValue({ id: 'link-old' });
+    prisma.user.findUnique.mockResolvedValue({ email: 'user@example.com', name: 'U' });
+
+    await service.redeemLinkToken(PHONE, RAW);
+
+    const open = { userChannelLinkId: 'link-old', status: { not: 'CLOSED' } };
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith({ where: open, data: { status: 'CLOSED' } });
+    expect(prisma.agentTask.updateMany).toHaveBeenCalledWith({
+      where: { status: { in: ['DRAFT', 'WAITING_APPROVAL'] }, conversation: open },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
+  it('keeps the conversation when the same user re-links their number', async () => {
+    const { service, prisma } = buildService();
+    prisma.whatsAppLinkToken.findUnique.mockResolvedValue(activeToken());
+    prisma.whatsAppDevice.create.mockResolvedValue({ id: 'device-1', userId: user.id, companyId: user.companyId, phoneNumber: PHONE, linkedAt: new Date() });
+    prisma.userChannelLink.findUnique.mockResolvedValue({ id: 'link-1', userId: user.id, companyId: user.companyId });
+    prisma.userChannelLink.upsert.mockResolvedValue({ id: 'link-1' });
+    prisma.user.findUnique.mockResolvedValue({ email: 'user@example.com', name: 'U' });
+
+    await service.redeemLinkToken(PHONE, RAW);
+
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
   });
 
   it('accepts the bare token without the V1- prefix', async () => {

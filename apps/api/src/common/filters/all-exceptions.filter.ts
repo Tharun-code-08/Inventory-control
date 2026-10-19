@@ -91,6 +91,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return 'A record with the same values already exists';
   }
 
+  /** Log and report a server-side failure that is answered with a sanitized error. */
+  private reportServerError(
+    exception: unknown,
+    request: Request & { user?: { id?: string; shopId?: string | null } },
+    requestId: string,
+  ) {
+    const meta = {
+      requestId,
+      method: request.method,
+      path: request.originalUrl,
+      userId: request.user?.id ?? null,
+      shopId: request.user?.shopId ?? null,
+    };
+    const message = exception instanceof Error ? exception.message : 'Unhandled error';
+    this.logger.error(`${message} | ${JSON.stringify(meta)}`, exception instanceof Error ? exception.stack : undefined);
+    captureServerError(exception, {
+      requestId,
+      route: request.originalUrl ?? null,
+      userId: request.user?.id ?? null,
+    });
+  }
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -123,6 +145,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const message = Array.isArray(payload.message)
         ? payload.message.join(', ')
         : (payload.message ?? exception.message);
+
+      if (status >= 500) this.reportServerError(exception, request, requestId);
 
       return response.status(status).json({
         success: false,
@@ -229,6 +253,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         });
       }
 
+      // P2034: write conflict or deadlock. The client can safely retry.
+      if (exception.code === 'P2034') {
+        return response.status(409).json({
+          success: false,
+          error: {
+            code: 'TRANSACTION_CONFLICT',
+            message: 'The record was changed by another request. Please retry.',
+            requestId,
+          },
+        });
+      }
+
       const schemaMessage = this.schemaDriftMessage(exception);
       if (schemaMessage) {
         return response.status(503).json({
@@ -236,6 +272,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
           error: {
             code: 'SCHEMA_OUT_OF_DATE',
             message: schemaMessage,
+            requestId,
+          },
+        });
+      }
+
+      this.reportServerError(exception, request, requestId);
+
+      // P2024 (connection pool timeout) and P2028 (transaction API error) are
+      // server-side capacity problems, not bad input.
+      if (exception.code === 'P2024' || exception.code === 'P2028') {
+        return response.status(503).json({
+          success: false,
+          error: {
+            code: 'DATABASE_BUSY',
+            message: 'The database is busy. Please retry shortly.',
             requestId,
           },
         });
@@ -264,6 +315,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         });
       }
 
+      this.reportServerError(exception, request, requestId);
       return response.status(400).json({
         success: false,
         error: {
@@ -286,6 +338,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof Prisma.PrismaClientInitializationError) {
+      this.reportServerError(exception, request, requestId);
       return response.status(503).json({
         success: false,
         error: {

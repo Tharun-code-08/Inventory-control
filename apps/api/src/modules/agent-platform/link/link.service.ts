@@ -8,10 +8,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AgentTaskStatus,
   AlertType,
   AuditAction,
   ChannelLinkStatus,
   ChatChannel,
+  ConversationStatus,
   LinkTokenStatus,
   NotificationModule,
   NotificationPriority,
@@ -196,6 +198,26 @@ export class LinkService {
                   lastSeenAt: now,
                 },
               });
+
+          // A number moving to another user (or company) must not carry over the
+          // previous owner's conversation history, summary or pending drafts.
+          const previousLink = await tx.userChannelLink.findUnique({
+            where: { channel_phoneNumber: { channel: ChatChannel.WHATSAPP, phoneNumber } },
+          });
+          if (
+            previousLink &&
+            (previousLink.userId !== token.userId || previousLink.companyId !== token.companyId)
+          ) {
+            const open = { userChannelLinkId: previousLink.id, status: { not: ConversationStatus.CLOSED } };
+            await tx.agentTask.updateMany({
+              where: {
+                status: { in: [AgentTaskStatus.DRAFT, AgentTaskStatus.WAITING_APPROVAL] },
+                conversation: open,
+              },
+              data: { status: AgentTaskStatus.CANCELLED },
+            });
+            await tx.conversation.updateMany({ where: open, data: { status: ConversationStatus.CLOSED } });
+          }
 
           const link = await tx.userChannelLink.upsert({
             where: { channel_phoneNumber: { channel: ChatChannel.WHATSAPP, phoneNumber } },
