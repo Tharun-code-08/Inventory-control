@@ -430,7 +430,7 @@ export function AppRoutes() {
               </Protected>
             }
           />
-          <Route path="/workflow-engine" element={<Protected><WorkflowEnginePage /></Protected>} />
+          <Route path="/workflow-engine" element={<Protected><AdminOnly><WorkflowEnginePage /></AdminOnly></Protected>} />
           <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />
           <Route

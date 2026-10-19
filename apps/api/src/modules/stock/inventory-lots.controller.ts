@@ -38,6 +38,7 @@ export class InventoryLotsController {
     @Query('shop_id') shopId: string,
   ) {
     assertCompanyId(user);
+    if (!shopId) throw new BadRequestException('shop_id is required');
     assertShopScope(user, shopId);
 
     // Get ledger balance per product
@@ -109,6 +110,7 @@ export class InventoryLotsController {
     @Query('as_of') asOf?: string,
   ) {
     assertCompanyId(user);
+    if (!shopId) throw new BadRequestException('shop_id is required');
     assertShopScope(user, shopId);
 
     const qty = new Prisma.Decimal(quantity);
@@ -172,6 +174,7 @@ export class InventoryLotsController {
     @Query('shop_id') shopId: string,
   ) {
     assertCompanyId(user);
+    if (!shopId) throw new BadRequestException('shop_id is required');
     assertShopScope(user, shopId);
 
     const today = new Date();
@@ -264,6 +267,7 @@ export class InventoryLotsController {
     @Query('expired') expired?: string,
   ) {
     assertCompanyId(user);
+    if (!shopId) throw new BadRequestException('shop_id is required');
     assertShopScope(user, shopId);
 
     const where: Prisma.InventoryLotWhereInput = { shopId };

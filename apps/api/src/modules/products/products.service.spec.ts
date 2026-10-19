@@ -203,6 +203,51 @@ describe('ProductsService bulk workflow', () => {
     expect(stock.postMovement).not.toHaveBeenCalled();
   });
 
+  it("refuses to update another tenant's product that shares the SKU", async () => {
+    const prisma = makePrisma();
+    prisma.shop.findMany.mockResolvedValue([{ id: 'shop-1', shopNumber: 'S1', shopName: 'Main' }]);
+    // SKU1 exists, but only in a shop of another company.
+    prisma.__tx.product.findMany.mockResolvedValue([
+      makeProduct({ plants: [makePlant({ shopId: 'other-tenant-shop' })] }),
+    ]);
+    prisma.__tx.storageLocation.findMany.mockResolvedValue([]);
+    prisma.__tx.stockSummary.findMany.mockResolvedValue([]);
+    prisma.__tx.stockLedger.groupBy.mockResolvedValue([]);
+    const stock = { postMovement: jest.fn(), buildStockBalanceMap: jest.fn().mockResolvedValue(new Map()) };
+    const service = new ProductsService(
+      prisma as never,
+      stock as never,
+      { assertSkuLimit: jest.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { log: jest.fn() } as never,
+    );
+
+    const result = await service.bulkUpsert(makeUser(), {
+      validateOnly: false,
+      rows: [
+        {
+          productCode: 'SKU1',
+          description: 'Hijacked',
+          category: 'Pump',
+          uom: 'pcs',
+          purchasePrice: 1,
+          sellingPrice: 0.01,
+          openingStock: 0,
+          minStockLevel: 0,
+          shopNumber: 'S1',
+        },
+      ],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ updated: 0, created: 0, failed: 1 }));
+    expect(result.results[0].message).toBe('Product code SKU1 is not available');
+    expect(prisma.__tx.product.update).not.toHaveBeenCalled();
+    expect(prisma.__tx.product.create).not.toHaveBeenCalled();
+    expect(stock.postMovement).not.toHaveBeenCalled();
+  });
+
   it('updates an existing SKU and synchronizes stock during commit mode', async () => {
     const prisma = makePrisma();
     prisma.shop.findMany.mockResolvedValue([{ id: 'shop-1', shopNumber: 'S1', shopName: 'Main' }]);

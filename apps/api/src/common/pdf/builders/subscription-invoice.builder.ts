@@ -9,14 +9,17 @@ import {
   type DocumentLayoutViewModel,
 } from '../templates/document-layout.template';
 
-const SOFTDIGIT_COMPANY = {
-  name: 'Softdigit Consulting',
-  lines: [
+const SOFTDIGIT_COMPANY_NAME = 'Softdigit Consulting';
+
+/** Seller block; the GSTIN line appears only when PLATFORM_GSTIN is configured. */
+function softdigitCompanyLines(): string[] {
+  const gstin = process.env.PLATFORM_GSTIN?.trim();
+  return [
     'Bangalore, Karnataka, India',
     'Email: office@softdigitconsulting.com',
-    'GSTIN: 29XXXXX0000X1Z5',
-  ],
-};
+    ...(gstin ? [`GSTIN: ${gstin}`] : []),
+  ];
+}
 
 function planDisplayName(plan: SubscriptionPlan): string {
   if (plan === 'PLUS') return 'Plus';
@@ -58,8 +61,8 @@ export function buildSubscriptionInvoicePdfViewModel(
     documentTitle: 'SUBSCRIPTION INVOICE',
     documentNumber: invoice.invoiceNumber,
     documentDate: formatDocumentDate(invoice.issuedAt),
-    companyName: SOFTDIGIT_COMPANY.name,
-    companyLines: SOFTDIGIT_COMPANY.lines,
+    companyName: SOFTDIGIT_COMPANY_NAME,
+    companyLines: softdigitCompanyLines(),
     partyLabel: 'Bill To',
     partyName: billingSnapshot?.companyName ?? invoice.company.companyName,
     partyLines,
