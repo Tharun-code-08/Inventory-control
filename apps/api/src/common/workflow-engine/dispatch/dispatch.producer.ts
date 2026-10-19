@@ -34,8 +34,10 @@ export class DispatchProducer {
         // adds don't create duplicate flushes.
         jobId: `flush:${companyId}:${customerId}`,
         delay: BATCH_WINDOW_MS,
-        removeOnComplete: 100,
-        removeOnFail: 100,
+        // Must be freed when the job ends: a retained completed job keeps the
+        // jobId taken, so the customer's next digest would never be scheduled.
+        removeOnComplete: true,
+        removeOnFail: true,
       },
     );
   }

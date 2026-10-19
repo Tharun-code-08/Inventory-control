@@ -570,7 +570,7 @@ export class AuthController {
     @Body() dto: UpdateProfileDto,
     @UploadedFile() avatar?: Express.Multer.File,
   ) {
-    return this.auth.updateProfile(user.id, dto, avatar);
+    return this.auth.updateProfile(user.id, dto, avatar, user.permissions);
   }
 
   @ApiBearerAuth()

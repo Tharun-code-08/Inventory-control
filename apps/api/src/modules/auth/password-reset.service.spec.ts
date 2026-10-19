@@ -145,7 +145,9 @@ describe('PasswordResetService', () => {
       expiresAt: new Date(Date.now() + 5 * 60_000),
       user: { id: 'user-1', isActive: true },
     });
-    tx.passwordResetRequest.update.mockResolvedValue({});
+    tx.passwordResetRequest.updateMany
+      .mockResolvedValueOnce({ count: 1 }) // attempt reserved
+      .mockResolvedValueOnce({ count: 1 }); // limit reached: request consumed
 
     await expect(
       service.completeOtp(
@@ -158,13 +160,34 @@ describe('PasswordResetService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(tx.passwordResetRequest.update).toHaveBeenCalledWith({
-      where: { id: 'otp-1' },
-      data: {
-        attemptCount: { increment: 1 },
-        consumedAt: expect.any(Date),
-      },
+    expect(tx.passwordResetRequest.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'otp-1', consumedAt: null, attemptCount: { lt: 5 } },
+      data: { attemptCount: { increment: 1 } },
     });
+    expect(tx.passwordResetRequest.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 'otp-1', consumedAt: null, attemptCount: { gte: 5 } },
+      data: { consumedAt: expect.any(Date) },
+    });
+  });
+
+  it('rejects an OTP attempt when a parallel guess already used the last attempt', async () => {
+    const { service, tx } = makeService();
+    tx.passwordResetRequest.findFirst.mockResolvedValue({
+      id: 'otp-3',
+      userId: 'user-1',
+      email: 'user@example.com',
+      otpHash: await bcrypt.hash('654321', 10),
+      attemptCount: 4,
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+      user: { id: 'user-1', isActive: true },
+    });
+    tx.passwordResetRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      service.completeOtp({ email: 'user@example.com', otp: '654321', newPassword: 'NewSecure123!' }, {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.user.update).not.toHaveBeenCalled();
   });
 
   it('consumes the OTP reset, revokes sessions, and signs in after success', async () => {
@@ -186,6 +209,7 @@ describe('PasswordResetService', () => {
       isActive: true,
     });
     tx.passwordResetRequest.updateMany
+      .mockResolvedValueOnce({ count: 1 }) // attempt reserved
       .mockResolvedValueOnce({ count: 1 })
       .mockResolvedValueOnce({ count: 0 });
     tx.user.update.mockResolvedValue({});

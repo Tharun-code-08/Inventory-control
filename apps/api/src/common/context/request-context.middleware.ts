@@ -27,9 +27,17 @@ export type RequestContextFinishHook = (info: {
  * `onFinish` hook lets callers add environment-specific concerns (e.g. the
  * production HTTP access log) without forking the core logic.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function requestContextMiddleware(onFinish?: RequestContextFinishHook) {
   return (req: RequestContextRequest, res: Response, next: NextFunction) => {
-    const requestId = String(req.headers['x-request-id'] ?? randomUUID());
+    // requestId becomes the outbox correlation_id (uuid column), so only a
+    // well-formed UUID from the client is accepted; anything else is replaced.
+    const inboundRequestId = req.headers['x-request-id'];
+    const requestId =
+      typeof inboundRequestId === 'string' && UUID_RE.test(inboundRequestId)
+        ? inboundRequestId
+        : randomUUID();
     // W3C traceparent: accept as-is when valid so downstream calls (and Sentry
     // breadcrumbs) can reuse the same trace id. Otherwise drop it; we don't
     // synthesize a fake trace just to mirror back.

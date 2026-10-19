@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { ThrottlerStorage } from '@nestjs/throttler';
 import type Redis from 'ioredis';
 
@@ -37,6 +38,8 @@ return {count, hitsPttl, 0}
 `;
 
 export class ThrottlerRedisStorage implements ThrottlerStorage {
+  private readonly logger = new Logger(ThrottlerRedisStorage.name);
+
   constructor(private readonly redis: Redis) {}
 
   async increment(
@@ -50,7 +53,9 @@ export class ThrottlerRedisStorage implements ThrottlerStorage {
     const blockKey = `throttle:${throttlerName}:blocked:${key}`;
     const blockMs = blockDuration > 0 ? blockDuration : ttl;
 
-    const result = (await this.redis.eval(
+    let result: [number, number, number];
+    try {
+      result = (await this.redis.eval(
       INCREMENT_SCRIPT,
       2,
       hitsKey,
@@ -59,6 +64,11 @@ export class ThrottlerRedisStorage implements ThrottlerStorage {
       String(limit),
       String(blockMs),
     )) as [number, number, number];
+    } catch (err) {
+      // Fail open: a Redis outage must not turn every request into a 500.
+      this.logger.warn(`Throttler storage unavailable, skipping rate limit: ${(err as Error).message}`);
+      return { totalHits: 0, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 };
+    }
 
     const totalHits = result[0];
     const hitsPttl = result[1];

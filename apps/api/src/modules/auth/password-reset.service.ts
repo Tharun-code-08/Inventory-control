@@ -319,17 +319,24 @@ export class PasswordResetService {
       throw new BadRequestException('Too many attempts. Request a new reset code.');
     }
 
+    // Reserve the attempt atomically before comparing, so parallel guesses
+    // cannot all pass the cap check above and each get a try.
+    const max = this.maxOtpAttempts();
+    const reserved = await this.prisma.passwordResetRequest.updateMany({
+      where: { id: reset.id, consumedAt: null, attemptCount: { lt: max } },
+      data: { attemptCount: { increment: 1 } },
+    });
+    if (reserved.count !== 1) {
+      throw new BadRequestException('Too many attempts. Request a new reset code.');
+    }
+
     const otpOk = await bcrypt.compare(dto.otp, reset.otpHash);
     if (!otpOk) {
-      const reachedLimit = reset.attemptCount + 1 >= this.maxOtpAttempts();
-      await this.prisma.passwordResetRequest.update({
-        where: { id: reset.id },
-        data: {
-          attemptCount: { increment: 1 },
-          consumedAt: reachedLimit ? new Date() : undefined,
-        },
+      const exhausted = await this.prisma.passwordResetRequest.updateMany({
+        where: { id: reset.id, consumedAt: null, attemptCount: { gte: max } },
+        data: { consumedAt: new Date() },
       });
-      if (reachedLimit) {
+      if (exhausted.count > 0) {
         throw new BadRequestException('Too many attempts. Request a new reset code.');
       }
       throw new BadRequestException('Invalid or expired reset code.');
