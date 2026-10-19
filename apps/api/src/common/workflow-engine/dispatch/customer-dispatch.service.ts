@@ -218,12 +218,21 @@ export class CustomerDispatchService {
   // ── queue callbacks (Plan §11) ──────────────────────────────────────────────
   /** Perform a deferred send whose quiet-hours window has now opened. */
   async sendDeferred(job: DispatchJobData): Promise<void> {
+    // The invoice may have been paid or voided while the send waited.
+    const balanceDue = await this.liveBalanceDue(job.invoiceId);
+    if (balanceDue === null) return;
     const consent = await this.loadConsent(job.customerId);
-    await this.sendVia(job, consent);
+    await this.sendVia({ ...job, balanceDue }, consent);
   }
 
   /** Send a customer's batched invoices as one coalesced digest. */
-  async sendDigest(companyId: string, customerId: string, items: readonly BatchItem[]): Promise<void> {
+  async sendDigest(companyId: string, customerId: string, batched: readonly BatchItem[]): Promise<void> {
+    // Drop invoices settled since they were batched and use live balances.
+    const items: BatchItem[] = [];
+    for (const item of batched) {
+      const balanceDue = await this.liveBalanceDue(item.invoiceId);
+      if (balanceDue !== null) items.push({ ...item, balanceDue });
+    }
     if (items.length === 0) return;
     const { summary, total } = composeDigest(items);
     const consent = await this.loadConsent(customerId);
@@ -278,8 +287,26 @@ export class CustomerDispatchService {
       balanceDue: job.balanceDue,
       channels: job.channels,
     };
-    const channels = job.channels.length ? [...job.channels] : (['WHATSAPP', 'EMAIL'] as SendableChannel[]);
+    // Re-check consent at send time: it may have been withdrawn while queued.
+    const allowed = this.consentChannels(consent);
+    const channels = job.channels.filter((c) => allowed.includes(c));
+    if (channels.length === 0) {
+      this.logger.log(`Queued send for invoice ${job.invoiceId} dropped: no consented channel`);
+      return;
+    }
     await this.dispatch(envelope, payload, channels, consent, `queued:${job.priority}`);
+  }
+
+  /** Outstanding balance of an invoice still open for dunning, or null if it no longer is. */
+  private async liveBalanceDue(invoiceId: string): Promise<number | null> {
+    const invoice = await this.prisma.invoiceHeader.findUnique({
+      where: { id: invoiceId },
+      select: { status: true, totalValue: true, paidValue: true },
+    });
+    if (!invoice) return null;
+    if (invoice.status !== 'ISSUED' && invoice.status !== 'PARTIALLY_PAID') return null;
+    const balanceDue = Number(invoice.totalValue) - Number(invoice.paidValue);
+    return balanceDue > 0 ? balanceDue : null;
   }
 
   private consentChannels(consent: { whatsapp: boolean; email: boolean }): SendableChannel[] {

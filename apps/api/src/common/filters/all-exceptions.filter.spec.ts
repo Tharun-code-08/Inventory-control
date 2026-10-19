@@ -1,4 +1,9 @@
-import { ArgumentsHost, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { InsufficientStockException } from '../exceptions/domain.exceptions';
@@ -148,6 +153,44 @@ describe('AllExceptionsFilter', () => {
     } finally {
       delete process.env.APP_DEBUG;
     }
+  });
+
+  it('logs unexpected Prisma errors instead of answering silently', () => {
+    const err = new Prisma.PrismaClientKnownRequestError('boom', { code: 'P2010', clientVersion: 't' });
+    const { host, status, json } = fakeHost();
+    filter.catch(err, host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json.mock.calls[0][0].error.code).toBe('DATABASE_ERROR');
+    expect((filter as any).logger.error).toHaveBeenCalled();
+  });
+
+  it('maps a pool timeout (P2024) to 503 DATABASE_BUSY', () => {
+    const err = new Prisma.PrismaClientKnownRequestError('timeout', { code: 'P2024', clientVersion: 't' });
+    const { host, status, json } = fakeHost();
+    filter.catch(err, host);
+    expect(status).toHaveBeenCalledWith(503);
+    expect(json.mock.calls[0][0].error.code).toBe('DATABASE_BUSY');
+  });
+
+  it('maps a write conflict (P2034) to 409 TRANSACTION_CONFLICT without logging it', () => {
+    const err = new Prisma.PrismaClientKnownRequestError('conflict', { code: 'P2034', clientVersion: 't' });
+    const { host, status, json } = fakeHost();
+    filter.catch(err, host);
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json.mock.calls[0][0].error.code).toBe('TRANSACTION_CONFLICT');
+    expect((filter as any).logger.error).not.toHaveBeenCalled();
+  });
+
+  it('logs HttpExceptions with a 5xx status', () => {
+    const { host } = fakeHost();
+    filter.catch(new ServiceUnavailableException('down'), host);
+    expect((filter as any).logger.error).toHaveBeenCalled();
+  });
+
+  it('does not log 4xx HttpExceptions', () => {
+    const { host } = fakeHost();
+    filter.catch(new BadRequestException('bad'), host);
+    expect((filter as any).logger.error).not.toHaveBeenCalled();
   });
 
   it('passes a 404 NotFoundException through unchanged', () => {

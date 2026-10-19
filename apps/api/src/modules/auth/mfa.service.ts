@@ -18,6 +18,9 @@ import { MfaSettingsVerifyDto } from './dto/mfa-settings-verify.dto';
 import type { SignupPendingPayload } from './signup.service';
 
 type ChallengeRecord = Awaited<ReturnType<MfaService['findValidChallenge']>>;
+
+/** Window in which failed login MFA codes add up across fresh challenges. */
+const MFA_FAILURE_WINDOW_MS = 30 * 60_000;
 type SignupSessionRecord = Awaited<ReturnType<MfaService['findValidSignupSession']>>;
 
 @Injectable()
@@ -255,6 +258,51 @@ export class MfaService {
     });
     let lockedUntil: Date | null = null;
     if (remainingAttempts === 0 && challenge.purpose === AuthChallengePurpose.LOGIN_MFA_VERIFY) {
+      lockedUntil = await this.auth.lockAccountForMfa(challenge.userId);
+    }
+    return { remainingAttempts, lockedUntil };
+  }
+
+  /**
+   * Reserve one login MFA attempt before the code is checked, so parallel
+   * guesses on one challenge cannot exceed the cap.
+   */
+  private async reserveLoginAttempt(challenge: ChallengeRecord) {
+    const reserved = await this.prisma.authChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, attemptCount: { lt: this.loginMaxAttempts() } },
+      data: { attemptCount: { increment: 1 } },
+    });
+    if (reserved.count !== 1) {
+      await this.auth.lockAccountForMfa(challenge.userId);
+      throw new BadRequestException(
+        'Too many MFA attempts. Your account is temporarily locked. Try signing in again later.',
+      );
+    }
+  }
+
+  /**
+   * Record a failed login MFA attempt (already counted by reserveLoginAttempt).
+   * Failures are summed across every challenge since the user's last full
+   * login, so signing in again for a fresh challenge does not reset the cap.
+   */
+  private async failLoginAttempt(challenge: ChallengeRecord) {
+    const since = new Date(Math.max(Date.now() - MFA_FAILURE_WINDOW_MS, challenge.user.lastLoginAt?.getTime() ?? 0));
+    const recent = await this.prisma.authChallenge.aggregate({
+      where: {
+        userId: challenge.userId,
+        purpose: AuthChallengePurpose.LOGIN_MFA_VERIFY,
+        createdAt: { gt: since },
+      },
+      _sum: { attemptCount: true },
+    });
+    const failures = Math.max(recent._sum.attemptCount ?? 0, challenge.attemptCount + 1);
+    const remainingAttempts = this.attemptsRemaining(failures);
+    let lockedUntil: Date | null = null;
+    if (remainingAttempts === 0) {
+      await this.prisma.authChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: new Date() },
+      });
       lockedUntil = await this.auth.lockAccountForMfa(challenge.userId);
     }
     return { remainingAttempts, lockedUntil };
@@ -635,6 +683,8 @@ export class MfaService {
       throw new BadRequestException('Enter an authenticator code or a backup code.');
     }
 
+    await this.reserveLoginAttempt(challenge);
+
     let matchedBackupCodeId: string | null = null;
 
     if (usingBackupCode) {
@@ -654,7 +704,7 @@ export class MfaService {
       }
 
       if (!matchedBackupCodeId) {
-        const failure = await this.failChallenge(challenge);
+        const failure = await this.failLoginAttempt(challenge);
         if (failure.lockedUntil) {
           throw new BadRequestException(
             'Too many MFA attempts. Your account is temporarily locked. Try signing in again later.',
@@ -677,7 +727,7 @@ export class MfaService {
         epochTolerance: 30,
       });
       if (!verification.valid) {
-        const failure = await this.failChallenge(challenge);
+        const failure = await this.failLoginAttempt(challenge);
         if (failure.lockedUntil) {
           throw new BadRequestException(
             'Too many MFA attempts. Your account is temporarily locked. Try signing in again later.',

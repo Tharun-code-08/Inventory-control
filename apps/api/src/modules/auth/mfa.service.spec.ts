@@ -51,7 +51,8 @@ function makePrisma() {
       findUnique: jest.fn(),
     },
     authChallenge: {
-      updateMany: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { attemptCount: 0 } }),
       create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -82,6 +83,7 @@ function makePrisma() {
     };
     authChallenge: {
       updateMany: Mock;
+      aggregate: Mock;
       create: Mock;
       findFirst: Mock;
       update: Mock;
@@ -583,15 +585,65 @@ describe('MfaService', () => {
       svc.verifyLogin({ challengeToken: 'challenge-token', code: '111111' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.authChallenge.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'challenge-4' },
-        data: expect.objectContaining({
-          attemptCount: { increment: 1 },
-        }),
-      }),
-    );
+    expect(prisma.authChallenge.updateMany).toHaveBeenCalledWith({
+      where: { id: 'challenge-4', consumedAt: null, attemptCount: { lt: 5 } },
+      data: { attemptCount: { increment: 1 } },
+    });
     expect(auth.lockAccountForMfa).not.toHaveBeenCalled();
+  });
+
+  it('locks the account when failures across fresh login challenges reach the cap', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig(), auth as never);
+    const encrypted = (svc as unknown as { encryptSecret: (value: string) => string }).encryptSecret(
+      'JBSWY3DPEHPK3PXP',
+    );
+    prisma.authChallenge.findFirst.mockResolvedValue({
+      id: 'challenge-6',
+      userId: 'user-1',
+      purpose: 'LOGIN_MFA_VERIFY',
+      tokenHash: 'hash',
+      totpSecretEncrypted: null,
+      attemptCount: 0,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
+      consumedAt: null,
+      createdAt: new Date('2026-05-25T10:00:00.000Z'),
+      user: { id: 'user-1', email: 'owner@example.com', isActive: true, mfaEnabled: true, mfaSecretEncrypted: encrypted },
+    });
+    // Four failures on earlier challenges plus this one.
+    prisma.authChallenge.aggregate.mockResolvedValue({ _sum: { attemptCount: 5 } });
+    (verifySync as Mock).mockReturnValueOnce({ valid: false, delta: null });
+
+    await expect(
+      svc.verifyLogin({ challengeToken: 'challenge-token', code: '111111' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(auth.lockAccountForMfa).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rejects and locks when a parallel guess already used the last attempt', async () => {
+    const prisma = makePrisma();
+    const auth = makeAuth();
+    const svc = new MfaService(prisma as never, makeConfig(), auth as never);
+    prisma.authChallenge.findFirst.mockResolvedValue({
+      id: 'challenge-7',
+      userId: 'user-1',
+      purpose: 'LOGIN_MFA_VERIFY',
+      tokenHash: 'hash',
+      totpSecretEncrypted: null,
+      attemptCount: 4,
+      expiresAt: new Date('2026-05-25T10:15:00.000Z'),
+      consumedAt: null,
+      createdAt: new Date('2026-05-25T10:00:00.000Z'),
+      user: { id: 'user-1', email: 'owner@example.com', isActive: true, mfaEnabled: true, mfaSecretEncrypted: 'x' },
+    });
+    prisma.authChallenge.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      svc.verifyLogin({ challengeToken: 'challenge-token', code: '111111' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(verifySync).not.toHaveBeenCalledWith(expect.objectContaining({ token: '111111', secret: 'x' }));
+    expect(auth.lockAccountForMfa).toHaveBeenCalledWith('user-1');
   });
 
   it('locks the account after exhausting MFA challenge attempts', async () => {
