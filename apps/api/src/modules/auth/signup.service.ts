@@ -295,10 +295,13 @@ export class SignupService {
       }
 
       if (payload.paymentOrderId) {
-        const payment = await tx.subscriptionPayment.findUnique({
-          where: { razorpayOrderId: payload.paymentOrderId },
+        // Atomic claim: concurrent completions of the same payment cannot both
+        // pass. Rolled back with the transaction if workspace creation fails.
+        const claimed = await tx.subscriptionPayment.updateMany({
+          where: { razorpayOrderId: payload.paymentOrderId, consumedAt: null },
+          data: { consumedAt: new Date() },
         });
-        if (!payment || payment.consumedAt) {
+        if (claimed.count !== 1) {
           throw new BadRequestException('Payment can no longer be used for signup completion.');
         }
       }
@@ -386,7 +389,6 @@ export class SignupService {
             razorpayPaymentId: payload.paymentPaymentId ?? undefined,
             status: 'paid',
             verifiedAt: payload.paymentVerifiedAt ? new Date(payload.paymentVerifiedAt) : new Date(),
-            consumedAt: new Date(),
           },
         });
       }

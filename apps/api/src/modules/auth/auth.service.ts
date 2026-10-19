@@ -500,7 +500,12 @@ export class AuthService {
     return this.toSessionUser(user as SessionUserRecord);
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto, avatar?: Express.Multer.File) {
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+    avatar?: Express.Multer.File,
+    permissions: string[] = [],
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { role: true, shop: true },
@@ -511,6 +516,10 @@ export class AuthService {
 
     const nextName = dto.name?.trim() || undefined;
     const nextShopName = dto.shopName?.trim() || undefined;
+    // Renaming the shop is a shop:write action, not a personal-profile one.
+    if (nextShopName && !permissions.includes('shop:write') && !permissions.includes('*')) {
+      throw new ForbiddenException('Missing permission: shop:write');
+    }
     const nextAvatarUrl = avatar ? await this.avatarStorage.store(userId, avatar) : undefined;
 
     const hasChange = !!(nextName || nextShopName || avatar);
