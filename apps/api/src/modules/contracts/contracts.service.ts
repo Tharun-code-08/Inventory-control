@@ -92,21 +92,31 @@ export class ContractsService {
   async update(user: RequestUser, id: string, dto: UpdateContractDto) {
     const existing = await this.get(user, id);
     await this.subscriptions.assertFeatureForShop(existing.shopId, 'contracts');
+    // Activated contracts carry agreed prices and must not be rewritten.
+    if (existing.status !== DocumentStatus.DRAFT) {
+      throw new BadRequestException('Only draft contracts can be edited');
+    }
+    if (dto.items && dto.items.length === 0) {
+      throw new BadRequestException('A contract needs at least one item');
+    }
+    // PATCH semantics: omitted fields keep their value; send null to clear one.
     return this.prisma.$transaction(async (tx) => {
-      await tx.contractItem.deleteMany({ where: { contractId: id } });
+      if (dto.items !== undefined) {
+        await tx.contractItem.deleteMany({ where: { contractId: id } });
+      }
       return tx.contractHeader.update({
         where: { id },
         data: {
           supplierId: dto.supplierId ?? existing.supplierId,
           rfqId: dto.rfqId ?? existing.rfqId,
           title: dto.title ?? existing.title,
-          paymentTerms: dto.paymentTerms ?? null,
+          paymentTerms: dto.paymentTerms !== undefined ? dto.paymentTerms : undefined,
           startDate: dto.startDate ? new Date(dto.startDate) : existing.startDate,
-          endDate: dto.endDate ? new Date(dto.endDate) : null,
-          notes: dto.notes ?? null,
+          endDate: dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : null) : undefined,
+          notes: dto.notes !== undefined ? dto.notes : undefined,
           updatedById: user.id,
-          items: {
-            create: (dto.items ?? []).map((item: CreateContractItemDto) => ({
+          items: dto.items === undefined ? undefined : {
+            create: dto.items.map((item: CreateContractItemDto) => ({
               productId: item.productId ?? null,
               description: item.description ?? null,
               quantity: new Prisma.Decimal(item.quantity ?? 0),

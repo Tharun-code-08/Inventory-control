@@ -197,7 +197,7 @@ export function ContractsPage({ createOnly = false }: { createOnly?: boolean }) 
         supplierId: editForm.supplierId,
         title: editForm.title.trim(),
         startDate: editForm.startDate || undefined,
-        endDate: editForm.endDate || undefined,
+        endDate: editForm.endDate || null,
         items: [
           {
             description: editForm.title.trim(),

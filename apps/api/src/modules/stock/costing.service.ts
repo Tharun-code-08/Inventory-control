@@ -38,12 +38,16 @@ export class CostingService {
       where: { shopId_productId: { shopId: args.shopId, productId: args.productId } },
     });
 
-    const oldQty = summary?.currentStock ?? new Prisma.Decimal(0);
+    // Callers post the ledger movement first, and the stock_ledger trigger has
+    // already added this inflow to current_stock. Weight the old average by
+    // the balance from before the movement.
+    const totalQty = summary?.currentStock ?? args.qty;
+    const oldQty = totalQty.sub(args.qty);
     const oldAvg = summary?.avgCost ?? new Prisma.Decimal(0);
-    const totalQty = oldQty.add(args.qty);
-    const newAvg = totalQty.gt(0)
-      ? oldQty.mul(oldAvg).add(args.qty.mul(args.unitCost)).div(totalQty)
-      : args.unitCost;
+    const newAvg =
+      oldQty.gt(0) && totalQty.gt(0)
+        ? oldQty.mul(oldAvg).add(args.qty.mul(args.unitCost)).div(totalQty)
+        : args.unitCost;
 
     if (summary) {
       await tx.stockSummary.update({
