@@ -57,7 +57,8 @@ export class InvoicesService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      // Newest first; id is the unique tiebreaker that keeps cursor paging stable.
+      orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,
         invoiceNumber: true,

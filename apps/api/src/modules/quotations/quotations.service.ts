@@ -112,17 +112,24 @@ export class QuotationsService {
 
   async update(user: RequestUser, id: string, dto: UpdateQuotationDto) {
     const row = await this.get(user, id);
+    // Posted quotations already feed contracts, POs and GR drafts.
+    if (row.status !== DocumentStatus.DRAFT) {
+      throw new BadRequestException('Only draft quotations can be edited');
+    }
+    // PATCH semantics: omitted items and notes are kept.
     return this.prisma.$transaction(async (tx) => {
-      await tx.supplierQuotationItem.deleteMany({ where: { quoteHeaderId: id } });
+      if (dto.items !== undefined) {
+        await tx.supplierQuotationItem.deleteMany({ where: { quoteHeaderId: id } });
+      }
       return tx.supplierQuotationHeader.update({
         where: { id },
         data: {
           quoteDate: dto.quoteDate ? new Date(dto.quoteDate) : row.quoteDate,
           supplierId: dto.supplierId ?? row.supplierId,
-          notes: dto.notes ?? null,
+          notes: dto.notes !== undefined ? dto.notes : undefined,
           updatedById: user.id,
-          items: {
-            create: (dto.items ?? []).map((item: CreateQuotationItemDto) => ({
+          items: dto.items === undefined ? undefined : {
+            create: dto.items.map((item: CreateQuotationItemDto) => ({
               rfqItemId: item.rfqItemId ?? null,
               productId: item.productId ?? null,
               description: item.description ?? null,

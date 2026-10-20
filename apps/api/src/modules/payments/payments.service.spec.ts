@@ -217,7 +217,7 @@ describe('PaymentsService.create', () => {
       },
       paymentReceipt: {
         create: jest.fn(),
-        findUnique: jest.fn().mockResolvedValue({ id: 'pay-old' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'pay-old', invoiceId: 'inv-1', shopId: 'shop-1' }),
       },
     });
     const prisma = makePrismaWithTx(tx);
@@ -229,9 +229,29 @@ describe('PaymentsService.create', () => {
       idempotencyKey: 'idem-replay',
     } as any);
 
-    expect(result).toEqual({ id: 'pay-old' });
+    expect(result).toEqual({ id: 'pay-old', invoiceId: 'inv-1', shopId: 'shop-1' });
     expect(tx.invoiceHeader.findUnique).not.toHaveBeenCalled();
     expect(tx.paymentReceipt.create).not.toHaveBeenCalled();
+    // Keys are namespaced per tenant.
+    expect(tx.idempotencyKey.findUnique.mock.calls[0][0].where.key).toContain('company:');
+  });
+
+  it('rejects a replayed idempotency key that belonged to a different payment', async () => {
+    const tx = buildTx({
+      idempotencyKey: {
+        findUnique: jest.fn().mockResolvedValue({ result: { paymentId: 'pay-old' } }),
+        upsert: jest.fn(),
+      },
+      paymentReceipt: {
+        create: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ id: 'pay-old', invoiceId: 'inv-other', shopId: 'shop-1' }),
+      },
+    });
+    const service = makePaymentsService(makePrismaWithTx(tx));
+
+    await expect(
+      service.create(adminUser, { invoiceId: 'inv-1', amount: 50, idempotencyKey: 'idem-replay' } as any),
+    ).rejects.toThrow('Idempotency key was already used for a different payment');
   });
 
   it('blocks shop users from paying invoices in another shop', async () => {
