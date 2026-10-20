@@ -24,7 +24,8 @@ export type Contract = {
   items?: ContractItem[];
 };
 
-export type UpdateContractPayload = Partial<CreateContractPayload>;
+// endDate: null clears it; omitted fields are left unchanged by the API.
+export type UpdateContractPayload = Partial<Omit<CreateContractPayload, 'endDate'>> & { endDate?: string | null };
 
 export type CreateContractPayload = {
   shopId?: string;

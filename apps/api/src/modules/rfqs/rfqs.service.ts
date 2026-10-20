@@ -187,21 +187,27 @@ export class RfqsService {
         }
       }
 
-      await tx.rfqSupplier.deleteMany({ where: { rfqId: id } });
-      await tx.rfqItem.deleteMany({ where: { rfqHeaderId: id } });
+      // PATCH semantics: only replace the supplier and item lists that were
+      // sent, and keep omitted scalars (send null to clear one).
+      if (dto.suppliers !== undefined) {
+        await tx.rfqSupplier.deleteMany({ where: { rfqId: id } });
+      }
+      if (dto.items !== undefined) {
+        await tx.rfqItem.deleteMany({ where: { rfqHeaderId: id } });
+      }
       const updated = await tx.rfqHeader.update({
         where: { id },
         data: {
           rfqDate: dto.rfqDate ? new Date(dto.rfqDate) : existing.rfqDate,
-          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          deadline: dto.deadline !== undefined ? (dto.deadline ? new Date(dto.deadline) : null) : undefined,
           title: dto.title ?? existing.title,
-          notes: dto.notes ?? null,
+          notes: dto.notes !== undefined ? dto.notes : undefined,
           updatedById: user.id,
-          suppliers: {
-            create: (dto.suppliers ?? []).map((supplierId: string) => ({ supplierId })),
+          suppliers: dto.suppliers === undefined ? undefined : {
+            create: dto.suppliers.map((supplierId: string) => ({ supplierId })),
           },
-          items: {
-            create: (dto.items ?? []).map((item: CreateRfqItemDto) => ({
+          items: dto.items === undefined ? undefined : {
+            create: dto.items.map((item: CreateRfqItemDto) => ({
               productId: item.productId ?? null,
               description: item.description ?? null,
               quantity: new Prisma.Decimal(item.quantity ?? 0),

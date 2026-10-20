@@ -106,7 +106,9 @@ describe('CostingService', () => {
   it('rolls up weighted-average cost on inflow', async () => {
     const svc = new CostingService();
     const { tx, seedSummary, summary } = buildTx();
-    seedSummary(SHOP, PRODUCT, 10, 5); // 10 units @ $5 = $50
+    // The stock_ledger trigger has already added the 10 incoming units:
+    // 10 on hand @ $5 before the receipt, 20 after.
+    seedSummary(SHOP, PRODUCT, 20, 5);
 
     await svc.recordInflow(tx as any, {
       shopId: SHOP,
@@ -124,7 +126,7 @@ describe('CostingService', () => {
   it('uses unit cost when summary starts empty', async () => {
     const svc = new CostingService();
     const { tx, seedSummary, summary } = buildTx();
-    seedSummary(SHOP, PRODUCT, 0, 0);
+    seedSummary(SHOP, PRODUCT, 5, 0); // first receipt of 5, already applied by the trigger
 
     await svc.recordInflow(tx as any, {
       shopId: SHOP,
@@ -135,6 +137,27 @@ describe('CostingService', () => {
     });
     const row = summary.get(`${SHOP}:${PRODUCT}`);
     expect(row!.avgCost.toFixed(4)).toBe('8.0000');
+  });
+
+  it('averages two receipts at their real weights (10 @ 100 then 10 @ 200 = 150)', async () => {
+    const svc = new CostingService();
+    const { tx, seedSummary, summary } = buildTx();
+    const receive = async (onHandAfter: number, qty: number, unitCost: number) => {
+      const row = summary.get(`${SHOP}:${PRODUCT}`);
+      seedSummary(SHOP, PRODUCT, onHandAfter, row ? Number(row.avgCost) : 0);
+      await svc.recordInflow(tx as any, {
+        shopId: SHOP,
+        productId: PRODUCT,
+        qty: new Prisma.Decimal(qty),
+        unitCost: new Prisma.Decimal(unitCost),
+        method: CostingMethod.AVERAGE,
+      });
+    };
+
+    await receive(10, 10, 100);
+    expect(summary.get(`${SHOP}:${PRODUCT}`)!.avgCost.toFixed(2)).toBe('100.00');
+    await receive(20, 10, 200);
+    expect(summary.get(`${SHOP}:${PRODUCT}`)!.avgCost.toFixed(2)).toBe('150.00');
   });
 
   it('FIFO: consumes oldest layer first and reports unit cost', async () => {

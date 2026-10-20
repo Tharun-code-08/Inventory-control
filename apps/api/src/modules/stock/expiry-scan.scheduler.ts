@@ -14,7 +14,8 @@ export class ExpiryScanScheduler implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const enabled = this.config.get<boolean>('EXPIRY_SCAN_ENABLED', false);
+    // Env values are strings: 'false' or '0' must disable the scan.
+    const enabled = ['true', '1'].includes(String(this.config.get('EXPIRY_SCAN_ENABLED') ?? '').trim().toLowerCase());
     if (!enabled) {
       this.logger.log('Expiry scan disabled via EXPIRY_SCAN_ENABLED');
       return;
