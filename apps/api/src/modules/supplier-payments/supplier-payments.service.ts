@@ -73,17 +73,24 @@ export class SupplierPaymentsService {
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const idempotencyKey = dto.idempotencyKey;
-      const cached = await getIdempotentResult<{ paymentId: string }>(
-        tx,
-        idempotencyKey,
-        'supplier-payment:create',
-      );
+      // Client-chosen keys are namespaced per tenant, and a replay must still
+      // pass the shop check and match the original request.
+      const idemScope = user.companyId
+        ? `supplier-payment:create:company:${user.companyId}`
+        : `supplier-payment:create:user:${user.id}`;
+      const cached = await getIdempotentResult<{ paymentId: string }>(tx, idempotencyKey, idemScope);
       if (cached?.paymentId) {
         const prior = await tx.supplierPayment.findUnique({
           where: { id: cached.paymentId },
           include: { supplierBill: { include: { supplier: true } }, shop: true },
         });
-        if (prior) return prior;
+        if (prior) {
+          assertShopScope(user, prior.shopId);
+          if (prior.supplierBillId !== dto.supplierBillId) {
+            throw new ConflictException('Idempotency key was already used for a different payment');
+          }
+          return prior;
+        }
       }
 
       const bill = await tx.supplierBillHeader.findUnique({ where: { id: dto.supplierBillId } });
@@ -204,7 +211,7 @@ export class SupplierPaymentsService {
         idempotencyKey,
         { paymentId: payment.id },
         user.id,
-        'supplier-payment:create',
+        idemScope,
       );
 
       return payment;

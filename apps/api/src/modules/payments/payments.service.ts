@@ -39,7 +39,8 @@ export class PaymentsService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      // Newest first; id is the unique tiebreaker that keeps cursor paging stable.
+      orderBy: [{ receiptDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,
         receiptNumber: true,
@@ -64,13 +65,22 @@ export class PaymentsService {
 
     return runSerializableTxWithRetry(this.prisma, async (tx) => {
       const idempotencyKey = dto.idempotencyKey;
-      const cached = await getIdempotentResult<{ paymentId: string }>(tx, idempotencyKey, 'payment:create');
+      // Client-chosen keys are namespaced per tenant, and a replay must still
+      // pass the shop check and match the original request.
+      const idemScope = user.companyId ? `payment:create:company:${user.companyId}` : `payment:create:user:${user.id}`;
+      const cached = await getIdempotentResult<{ paymentId: string }>(tx, idempotencyKey, idemScope);
       if (cached?.paymentId) {
         const prior = await tx.paymentReceipt.findUnique({
           where: { id: cached.paymentId },
           include: { invoice: true, shop: true },
         });
-        if (prior) return prior;
+        if (prior) {
+          assertShopScope(user, prior.shopId);
+          if (prior.invoiceId !== dto.invoiceId) {
+            throw new ConflictException('Idempotency key was already used for a different payment');
+          }
+          return prior;
+        }
       }
 
       // Re-read the invoice INSIDE the transaction so that concurrent payments
@@ -159,7 +169,7 @@ export class PaymentsService {
         idempotencyKey,
         { paymentId: payment.id },
         user.id,
-        'payment:create',
+        idemScope,
       );
 
       return payment;

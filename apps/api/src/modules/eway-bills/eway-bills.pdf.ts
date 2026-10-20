@@ -1,3 +1,13 @@
+/** Escape user-supplied text before it is placed in the HTML that Chromium renders. */
+function esc(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function generateEwayBillHtml(bill: any): string {
   const items = bill.items || [];
   const itemsHtml = items
@@ -5,12 +15,12 @@ export function generateEwayBillHtml(bill: any): string {
       (item: any, idx: number) => `
     <tr>
       <td style="border: 1px solid #ddd; padding: 8px;">${idx + 1}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">${item.productName}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">${item.hsnCode}</td>
-      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.quantity}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">${item.unit}</td>
+      <td style="border: 1px solid #ddd; padding: 8px;">${esc(item.productName)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px;">${esc(item.hsnCode)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${esc(item.quantity)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px;">${esc(item.unit)}</td>
       <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">₹${parseFloat(item.taxableAmount).toFixed(2)}</td>
-      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.gstRate}%</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${esc(item.gstRate)}%</td>
       <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">₹${parseFloat(item.cgst || 0).toFixed(2)}</td>
       <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">₹${parseFloat(item.sgst || 0).toFixed(2)}</td>
       <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">₹${parseFloat(item.igst || 0).toFixed(2)}</td>
@@ -25,7 +35,7 @@ export function generateEwayBillHtml(bill: any): string {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>E-Way Bill ${bill.ewayBillNumber}</title>
+      <title>E-Way Bill ${esc(bill.ewayBillNumber)}</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
@@ -48,8 +58,8 @@ export function generateEwayBillHtml(bill: any): string {
     <body>
       <div class="header">
         <div class="title">E-Way Bill</div>
-        <div class="status">Status: ${bill.status}</div>
-        <div>Bill Number: ${bill.ewayBillNumber}</div>
+        <div class="status">Status: ${esc(bill.status)}</div>
+        <div>Bill Number: ${esc(bill.ewayBillNumber)}</div>
       </div>
 
       <div class="section">
@@ -58,7 +68,7 @@ export function generateEwayBillHtml(bill: any): string {
           <div class="column">
             <div class="row">
               <span class="label">Document Number:</span>
-              <span class="value">${bill.documentNumber}</span>
+              <span class="value">${esc(bill.documentNumber)}</span>
             </div>
             <div class="row">
               <span class="label">Document Date:</span>
@@ -66,11 +76,11 @@ export function generateEwayBillHtml(bill: any): string {
             </div>
             <div class="row">
               <span class="label">Supply Type:</span>
-              <span class="value">${bill.supplyType}</span>
+              <span class="value">${esc(bill.supplyType)}</span>
             </div>
             <div class="row">
               <span class="label">Document Type:</span>
-              <span class="value">${bill.documentType}</span>
+              <span class="value">${esc(bill.documentType)}</span>
             </div>
           </div>
           <div class="column">
@@ -84,7 +94,7 @@ export function generateEwayBillHtml(bill: any): string {
             </div>
             <div class="row">
               <span class="label">Distance:</span>
-              <span class="value">${bill.distanceKm || '-'} km</span>
+              <span class="value">${esc(bill.distanceKm || '-')} km</span>
             </div>
           </div>
         </div>
@@ -96,21 +106,21 @@ export function generateEwayBillHtml(bill: any): string {
           <div class="column">
             <div class="row">
               <span class="label">Name:</span>
-              <span class="value">${bill.fromName}</span>
+              <span class="value">${esc(bill.fromName)}</span>
             </div>
             <div class="row">
               <span class="label">GSTIN:</span>
-              <span class="value">${bill.fromGstin || '-'}</span>
+              <span class="value">${esc(bill.fromGstin || '-')}</span>
             </div>
           </div>
           <div class="column">
             <div class="row">
               <span class="label">Pincode:</span>
-              <span class="value">${bill.fromPincode || '-'}</span>
+              <span class="value">${esc(bill.fromPincode || '-')}</span>
             </div>
             <div class="row">
               <span class="label">State Code:</span>
-              <span class="value">${bill.fromStateCode || '-'}</span>
+              <span class="value">${esc(bill.fromStateCode || '-')}</span>
             </div>
           </div>
         </div>
@@ -122,21 +132,21 @@ export function generateEwayBillHtml(bill: any): string {
           <div class="column">
             <div class="row">
               <span class="label">Name:</span>
-              <span class="value">${bill.toName}</span>
+              <span class="value">${esc(bill.toName)}</span>
             </div>
             <div class="row">
               <span class="label">GSTIN:</span>
-              <span class="value">${bill.toGstin || '-'}</span>
+              <span class="value">${esc(bill.toGstin || '-')}</span>
             </div>
           </div>
           <div class="column">
             <div class="row">
               <span class="label">Pincode:</span>
-              <span class="value">${bill.toPincode || '-'}</span>
+              <span class="value">${esc(bill.toPincode || '-')}</span>
             </div>
             <div class="row">
               <span class="label">State Code:</span>
-              <span class="value">${bill.toStateCode || '-'}</span>
+              <span class="value">${esc(bill.toStateCode || '-')}</span>
             </div>
           </div>
         </div>
@@ -148,21 +158,21 @@ export function generateEwayBillHtml(bill: any): string {
           <div class="column">
             <div class="row">
               <span class="label">Vehicle Number:</span>
-              <span class="value">${bill.vehicleNumber || '-'}</span>
+              <span class="value">${esc(bill.vehicleNumber || '-')}</span>
             </div>
             <div class="row">
               <span class="label">Vehicle Type:</span>
-              <span class="value">${bill.vehicleType || 'REGULAR'}</span>
+              <span class="value">${esc(bill.vehicleType || 'REGULAR')}</span>
             </div>
           </div>
           <div class="column">
             <div class="row">
               <span class="label">Transport Mode:</span>
-              <span class="value">${bill.transportMode || 'ROAD'}</span>
+              <span class="value">${esc(bill.transportMode || 'ROAD')}</span>
             </div>
             <div class="row">
               <span class="label">Transporter:</span>
-              <span class="value">${bill.transporterName || '-'}</span>
+              <span class="value">${esc(bill.transporterName || '-')}</span>
             </div>
           </div>
         </div>
