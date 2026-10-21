@@ -14,13 +14,18 @@ FROM deps AS build
 COPY . .
 RUN npm run prisma:generate --workspace=api
 RUN npm run build --workspace=@retail-ims/shared-types \
-  && npm run build --workspace=api
+  && npm run build --workspace=api \
+  && mkdir -p apps/api/node_modules
 
 # Production image
 FROM base AS runner
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# node_modules from the build stage: it carries the generated Prisma client
+# (node_modules/.prisma), which the deps stage does not have; non-hoisted
+# per-workspace dependencies live in apps/api/node_modules.
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json

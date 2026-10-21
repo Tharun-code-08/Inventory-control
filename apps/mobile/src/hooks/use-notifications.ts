@@ -1,6 +1,8 @@
 import { useEffect, useCallback } from 'react';
 import { useNotificationStore, type Notification } from '@/store/notificationStore';
+import type * as Notifications from 'expo-notifications';
 import { subscribeToNotifications, setupNotifications, registerPushToken } from '@/lib/notifications';
+import { handleNotificationDeepLink } from '@/lib/deep-linking';
 
 export function useNotificationSetup() {
   useEffect(() => {
@@ -16,9 +18,11 @@ export function useNotificationListener() {
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   useEffect(() => {
-    const unsubscribe = subscribeToNotifications((notification) => {
+    const toStore = (notification: Notifications.Notification) => {
       const data = (notification.request.content.data ?? {}) as Record<string, string | undefined>;
-      const id = Math.random().toString(36).substring(7);
+      // The OS identifier is stable across the "received" and "tapped" events.
+      const id = notification.request.identifier || Math.random().toString(36).substring(7);
+      if (useNotificationStore.getState().notifications.some((n) => n.id === id)) return;
       const type = data.type ?? 'ANNOUNCEMENT';
       // expo-notifications returns `date` as epoch milliseconds.
       const sentAt = typeof notification.date === 'number' ? notification.date : Date.now();
@@ -37,6 +41,15 @@ export function useNotificationListener() {
       };
 
       addNotification(notif);
+    };
+
+    const unsubscribe = subscribeToNotifications({
+      onReceive: toStore,
+      onOpen: (notification) => {
+        toStore(notification);
+        const data = (notification.request.content.data ?? {}) as Record<string, string>;
+        handleNotificationDeepLink(data);
+      },
     });
 
     return unsubscribe;

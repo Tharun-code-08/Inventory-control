@@ -6,7 +6,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { ListSkeleton } from '@/components/ListSkeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { StatusBadge } from '@/components/StatusBadge';
-import { usePurchaseOrders, type POFilters } from '@/hooks/use-purchase-orders';
+import { usePurchaseOrdersInfinite, type POFilters } from '@/hooks/use-purchase-orders';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
 import { EmptyState, ListRow, Screen } from '@/components/ui';
@@ -20,19 +20,18 @@ export default function PurchaseOrdersScreen() {
   const shopId = defaultShopId(user);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [page, setPage] = useState(1);
 
   const filters: POFilters = useMemo(
     () => ({
       search: search.trim() || undefined,
       shopId: shopId || undefined,
       status: statusFilter === 'ALL' ? undefined : statusFilter,
-      page,
       limit: 25,
     }),
-    [search, shopId, statusFilter, page],
+    [search, shopId, statusFilter],
   );
-  const query = usePurchaseOrders(filters);
+  const query = usePurchaseOrdersInfinite(filters);
+  const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
 
   return (
     <PermissionGate permission="purchase_order:read">
@@ -44,7 +43,7 @@ export default function PurchaseOrdersScreen() {
               key={tab}
               status={tab === 'ALL' ? 'default' : tab}
               label={tab}
-              onPress={() => { setStatusFilter(tab); setPage(1); }}
+              onPress={() => setStatusFilter(tab)}
               active={statusFilter === tab}
             />
           ))}
@@ -55,7 +54,12 @@ export default function PurchaseOrdersScreen() {
           <ErrorState message="Could not load purchase orders." onRetry={() => query.refetch()} />
         ) : (
           <FlatList
-            data={query.data?.items ?? []}
+            data={items}
+            // Load the next page as the user scrolls.
+            onEndReached={() => {
+              if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+            }}
+            onEndReachedThreshold={0.5}
             keyExtractor={(item) => item.id}
             refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
             ListEmptyComponent={<EmptyState message="No purchase orders found." icon="document-text-outline" />}

@@ -119,20 +119,24 @@ export async function sendLocalNotification(payload: NotificationPayload): Promi
   }
 }
 
-export function subscribeToNotifications(
-  callback: (notification: Notifications.Notification) => void
-): () => void {
-  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    callback(response.notification);
+/**
+ * Foreground arrivals and taps are reported separately: a notification that
+ * arrives in the foreground and is then tapped fires both listeners, so the
+ * caller dedupes by `request.identifier` and only taps navigate.
+ */
+export function subscribeToNotifications(handlers: {
+  onReceive: (notification: Notifications.Notification) => void;
+  onOpen: (notification: Notifications.Notification) => void;
+}): () => void {
+  const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    handlers.onOpen(response.notification);
   });
-
-  // Also handle notifications when app is in foreground
   const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
-    callback(notification);
+    handlers.onReceive(notification);
   });
 
   return () => {
-    subscription.remove();
+    responseSubscription.remove();
     foregroundSubscription.remove();
   };
 }

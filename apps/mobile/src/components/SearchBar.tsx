@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '@/theme';
@@ -17,14 +17,18 @@ export function SearchBar({
   const [text, setText] = useState('');
   const debouncedText = useDebounce(text, debounceMs);
 
-  const prevRef = { current: '' };
-  if (debouncedText !== prevRef.current) {
-    prevRef.current = debouncedText;
+  // Report every change of the debounced term, including back to '' when the
+  // user deletes the text (a plain object here was recreated each render).
+  const lastReported = useRef('');
+  useEffect(() => {
+    if (debouncedText === lastReported.current) return;
+    lastReported.current = debouncedText;
     onSearch(debouncedText);
-  }
+  }, [debouncedText, onSearch]);
 
   const clear = useCallback(() => {
     setText('');
+    lastReported.current = '';
     onSearch('');
   }, [onSearch]);
 

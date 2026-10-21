@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
 import { poKeys, dashboardKeys, alertKeys } from '@/lib/query-keys';
@@ -70,7 +70,7 @@ function normalizePO(raw: unknown): PurchaseOrder {
     status: (p.status as PurchaseOrder['status']) ?? 'DRAFT',
     lifecycleStatus: String(p.lifecycleStatus ?? p.status ?? ''),
     remarks: (p.remarks as string) ?? null,
-    currency: String(p.currency ?? 'USD'),
+    currency: String(p.currency ?? 'INR'),
     totalValue: p.totalValue != null ? Number(p.totalValue) : null,
     createdAt: String(p.createdAt ?? ''),
     updatedAt: String(p.updatedAt ?? ''),
@@ -118,6 +118,25 @@ export function usePurchaseOrders(filters: POFilters = {}) {
       const res = await api.get('/purchase-orders', { params });
       return normalizePOList(res.data, filters);
     },
+    staleTime: QUERY_STALE_TIME.lists,
+  });
+}
+
+/** Page-numbered PO list that appends the next page on demand. */
+export function usePurchaseOrdersInfinite(filters: Omit<POFilters, 'page'> = {}) {
+  return useInfiniteQuery({
+    queryKey: [...poKeys.list(filters), 'infinite'],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const params: Record<string, string | number> = { page: pageParam };
+      params.limit = filters.limit ?? PAGE_SIZE;
+      if (filters.search) params.search = filters.search;
+      if (filters.shopId) params.shop_id = filters.shopId;
+      if (filters.status) params.status = filters.status;
+      const res = await api.get('/purchase-orders', { params });
+      return normalizePOList(res.data, { ...filters, page: pageParam });
+    },
+    getNextPageParam: (last) => (last.meta.page < last.meta.totalPages ? last.meta.page + 1 : undefined),
     staleTime: QUERY_STALE_TIME.lists,
   });
 }

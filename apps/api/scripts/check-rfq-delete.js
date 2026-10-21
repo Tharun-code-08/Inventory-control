@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const p = new PrismaClient();
+const { PrismaPg } = require('@prisma/adapter-pg');
+const p = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 async function main() {
   const r = await p.rfqHeader.findFirst({

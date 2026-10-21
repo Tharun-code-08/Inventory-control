@@ -1,11 +1,11 @@
-/** Format a number as currency (LKR). Falls back to toLocaleString if Intl is limited. */
+/** Format an INR amount with Indian digit grouping (12,34,567.00). Falls back if Intl is limited. */
 export function formatCurrency(value: number | string | null | undefined): string {
   const num = typeof value === 'string' ? Number(value) : (value ?? 0);
-  if (!Number.isFinite(num)) return '0.00';
+  if (!Number.isFinite(num)) return '₹0.00';
   try {
-    return num.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   } catch {
-    return num.toFixed(2);
+    return `₹${num.toFixed(2)}`;
   }
 }
 

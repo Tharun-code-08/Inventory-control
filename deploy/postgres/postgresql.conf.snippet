@@ -5,14 +5,15 @@
 # --- WAL archiving (transaction log backup, near real-time) ---
 wal_level = replica
 archive_mode = on
-archive_timeout = 60s
+# Each forced switch archives a full 16 MB segment; 60s produced up to
+# ~23 GB/day on a busy-but-light server. 5 minutes bounds data loss to 5 min.
+archive_timeout = 300s
 
-# Archive each completed WAL segment immediately to local disk.
+# Archive each completed WAL segment to local disk, gzip-compressed (mostly
+# empty segments shrink to a few KB). Written to a temp name and renamed, so a
+# crash mid-copy can't leave a partial file that blocks archiving forever.
 # The postgres OS user must own /var/backups/postgres/wal
-archive_command = 'test ! -f /var/backups/postgres/wal/%f && cp %p /var/backups/postgres/wal/%f'
-
-# Optional: force WAL switch every 15 minutes even under low write load
-# (archive_timeout above already switches every 60s when idle)
+archive_command = 'test ! -f /var/backups/postgres/wal/%f.gz && gzip -c %p > /var/backups/postgres/wal/%f.gz.tmp && mv /var/backups/postgres/wal/%f.gz.tmp /var/backups/postgres/wal/%f.gz'
 
 # --- Replication settings (required for pg_basebackup) ---
 max_wal_senders = 3

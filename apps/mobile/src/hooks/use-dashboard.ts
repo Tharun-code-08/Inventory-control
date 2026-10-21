@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useAuthStore } from '@/store/authStore';
+import { hasPermission } from '@/lib/permissions';
 
 export type DashboardSummary = {
   totalProducts: number;
@@ -74,7 +76,10 @@ function normalizeSummary(raw: unknown): DashboardSummary {
 }
 
 function useDashboardBase() {
+  // /dashboard/summary requires report:view; don't call it for other roles.
+  const canView = useAuthStore((s) => hasPermission(s.user, 'report:view'));
   return useQuery({
+    enabled: canView,
     queryKey: dashboardKeys.summary(),
     queryFn: async () => {
       const res = await api.get('/dashboard/summary');

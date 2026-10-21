@@ -7,7 +7,7 @@ import { hasPermission } from '@/lib/permissions';
 import { ListSkeleton } from '@/components/ListSkeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { StatusBadge } from '@/components/StatusBadge';
-import { useGoodsReceipts, type GRFilters } from '@/hooks/use-goods-receipts';
+import { useGoodsReceiptsInfinite, type GRFilters } from '@/hooks/use-goods-receipts';
 import { useAuthStore } from '@/store/authStore';
 import { defaultShopId } from '@/lib/shop-scope';
 import { EmptyState, ListRow, Screen } from '@/components/ui';
@@ -28,7 +28,8 @@ export default function GoodsReceiptsScreen() {
     }),
     [shopId, statusFilter],
   );
-  const query = useGoodsReceipts(filters);
+  const query = useGoodsReceiptsInfinite(filters);
+  const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
 
   return (
     <PermissionGate permission="goods_receipt:read">
@@ -50,8 +51,13 @@ export default function GoodsReceiptsScreen() {
           <ErrorState message="Could not load goods receipts." onRetry={() => query.refetch()} />
         ) : (
           <FlatList
-            data={query.data?.items ?? []}
+            data={items}
             keyExtractor={(item) => item.id}
+            // Load older receipts as the user scrolls (the API pages by cursor).
+            onEndReached={() => {
+              if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+            }}
+            onEndReachedThreshold={0.5}
             refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => query.refetch()} />}
             ListEmptyComponent={<EmptyState message="No goods receipts found." icon="enter-outline" />}
             renderItem={({ item }) => (

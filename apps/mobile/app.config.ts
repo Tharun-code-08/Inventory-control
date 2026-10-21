@@ -16,8 +16,9 @@ const config = {
   },
   android: {
     package: 'com.softdigit.retailims',
-    // Allow http:// API URL during local dev (LAN IP or 10.0.2.2).
-    usesCleartextTraffic: true,
+    // http:// API URLs (LAN IP or 10.0.2.2) are for dev/preview builds only;
+    // EAS production builds must talk to the HTTPS API.
+    usesCleartextTraffic: process.env.EAS_BUILD_PROFILE !== 'production',
     adaptiveIcon: {
       backgroundColor: '#4f46e5',
     },

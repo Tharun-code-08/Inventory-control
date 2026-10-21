@@ -64,7 +64,7 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {query.isError ? (
+        {!hasPermission(user, 'report:view') ? null : query.isError ? (
           <EmptyState message="Could not load dashboard. Pull down to retry." icon="cloud-offline-outline" />
         ) : query.isLoading ? (
           <EmptyState message="Loading dashboard…" />
