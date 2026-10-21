@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 import { dashboardKeys } from '@/hooks/use-dashboard';
 
 export type GoodsReceiptStatus = 'DRAFT' | 'POSTED';
@@ -70,41 +71,14 @@ export function useGoodsReceipts(filters: GoodsReceiptFilters = {}) {
   return useQuery({
     queryKey: grKeys.list(filters),
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.limit) params.set('take', String(filters.limit));
-      if (filters.search) params.set('search', filters.search);
-      if (filters.status) params.set('status', filters.status);
-      if (filters.shopId) params.set('shop_id', filters.shopId);
-      const res = await api.get(`/goods-receipts?${params}`);
-      const payload = res.data.data as
-        | GoodsReceipt[]
-        | {
-            data?: GoodsReceipt[];
-            items?: GoodsReceipt[];
-            meta?: {
-              total?: number;
-              page?: number;
-              limit?: number;
-              totalPages?: number;
-              hasMore?: boolean;
-              nextCursor?: string | null;
-            };
-          }
-        | undefined;
-      const envelopeMeta = res.data.meta as
-        | {
-            total?: number;
-            page?: number;
-            limit?: number;
-            totalPages?: number;
-            hasMore?: boolean;
-            nextCursor?: string | null;
-          }
-        | undefined;
-      const itemsRaw = Array.isArray(payload)
-        ? payload
-        : (payload?.items ?? payload?.data ?? []);
-      const items = itemsRaw.map((gr) => {
+      // The API pages by cursor and has no text search, so load every page for
+      // these filters, then search and paginate here with real totals.
+      const rows = await fetchAllCursorPages<GoodsReceipt>(
+        '/goods-receipts',
+        { take: 100, status: filters.status, shop_id: filters.shopId },
+        10,
+      );
+      const all = rows.map((gr) => {
         const safeItems = Array.isArray(gr.items) ? gr.items : [];
         const computedTotal = safeItems.reduce((sum, line) => {
           const lineValue = Number(line?.lineValue ?? 0);
@@ -116,16 +90,27 @@ export function useGoodsReceipts(filters: GoodsReceiptFilters = {}) {
           totalValue: Number(gr.totalValue ?? computedTotal),
         };
       });
-      const meta = Array.isArray(payload) ? envelopeMeta : (payload?.meta ?? envelopeMeta);
+      const term = filters.search?.trim().toLowerCase();
+      const matched = term
+        ? all.filter((gr) =>
+            [gr.grNumber, gr.supplierName, gr.supplierRef].some((v) =>
+              String(v ?? '').toLowerCase().includes(term),
+            ),
+          )
+        : all;
+      const limit = filters.limit ?? 10;
+      const totalPages = Math.max(1, Math.ceil(matched.length / limit));
+      const page = Math.min(Math.max(filters.page ?? 1, 1), totalPages);
+      const items = matched.slice((page - 1) * limit, page * limit);
       return {
         items,
         meta: {
-          total: meta?.total ?? items.length,
-          page: meta?.page ?? 1,
-          limit: meta?.limit ?? (filters.limit ?? 10),
-          totalPages: meta?.totalPages ?? 1,
-          hasMore: meta?.hasMore ?? false,
-          nextCursor: meta?.nextCursor ?? null,
+          total: matched.length,
+          page,
+          limit,
+          totalPages,
+          hasMore: page < totalPages,
+          nextCursor: null,
         },
       };
     },

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 
 export type SalesOrderItem = {
   id: string;
@@ -78,24 +79,16 @@ const keys = {
   detail: (id: string) => [...keys.all, 'detail', id] as const,
 };
 
-function extractRows(payload: unknown): SalesOrder[] {
-  if (Array.isArray(payload)) return payload as SalesOrder[];
-  if (!payload || typeof payload !== 'object') return [];
-  const source = payload as { data?: unknown; items?: unknown[] };
-  if (Array.isArray(source.items)) return source.items as SalesOrder[];
-  if (Array.isArray(source.data)) return source.data as SalesOrder[];
-  return [];
-}
-
 export function useSalesOrders(filters?: { customerId?: string; status?: string }) {
   return useQuery({
     queryKey: [...keys.list(), filters?.customerId ?? 'all', filters?.status ?? 'all'],
     queryFn: async () => {
-      const params: Record<string, string | number> = { take: 100 };
-      if (filters?.customerId) params.customer_id = filters.customerId;
-      if (filters?.status) params.status = filters.status;
-      const res = await api.get('/sales-orders', { params });
-      return extractRows(res.data?.data ?? res.data);
+      // The page filters and searches client-side, so load every page.
+      return fetchAllCursorPages<SalesOrder>('/sales-orders', {
+        take: 100,
+        customer_id: filters?.customerId,
+        status: filters?.status,
+      });
     },
   });
 }

@@ -104,7 +104,7 @@ export function GoodsIssueCreatePage() {
   const productsQuery = useProducts({
     shopId: shopId || undefined,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
   const products = extractProducts(productsQuery.data);

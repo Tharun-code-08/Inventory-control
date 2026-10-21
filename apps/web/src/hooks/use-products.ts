@@ -154,6 +154,9 @@ function normalizePlant(raw: unknown): ProductPlantAssignment {
     minStockLevel: normalizeNumber(plant.minStockLevel),
     maxStockLevel: normalizeNullableNumber(plant.maxStockLevel),
     reorderQty: normalizeNullableNumber(plant.reorderQty),
+    // Kept so the edit form starts from the stored batch/expiry.
+    batchNumber: typeof plant.batchNumber === 'string' ? plant.batchNumber : null,
+    expiryDate: typeof plant.expiryDate === 'string' ? plant.expiryDate.slice(0, 10) : null,
     isActive: plant.isActive !== false,
   };
 }
@@ -258,19 +261,36 @@ function normalizeProductList(payload: unknown, filters: ProductFilters): Produc
   };
 }
 
+function productListParams(filters: ProductFilters) {
+  const params = new URLSearchParams();
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.limit) params.set('limit', String(filters.limit));
+  if (filters.search) params.set('search', filters.search);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.isActive !== undefined) params.set('is_active', String(filters.isActive));
+  if (filters.shopId) params.set('shop_id', filters.shopId);
+  if (filters.companyCatalog) params.set('company_catalog', 'true');
+  return params;
+}
+
+/** Every product matching the filters (500 per request, the API maximum). */
+export async function fetchAllProducts(filters: ProductFilters = {}, maxPages = 20): Promise<Product[]> {
+  const all: Product[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageFilters = { ...filters, page, limit: 500 };
+    const res = await api.get(`/products?${productListParams(pageFilters)}`);
+    const { items } = normalizeProductList(res.data, pageFilters);
+    all.push(...items);
+    if (items.length < 500) break;
+  }
+  return all;
+}
+
 export function useProducts(filters: ProductFilters = {}) {
   return useQuery({
     queryKey: productKeys.list(filters),
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.limit) params.set('limit', String(filters.limit));
-      if (filters.search) params.set('search', filters.search);
-      if (filters.category) params.set('category', filters.category);
-      if (filters.isActive !== undefined) params.set('is_active', String(filters.isActive));
-      if (filters.shopId) params.set('shop_id', filters.shopId);
-      if (filters.companyCatalog) params.set('company_catalog', 'true');
-      const suffix = params.toString();
+      const suffix = productListParams(filters).toString();
       const res = await api.get(`/products${suffix ? `?${suffix}` : ''}`);
       return normalizeProductList(res.data, filters);
     },

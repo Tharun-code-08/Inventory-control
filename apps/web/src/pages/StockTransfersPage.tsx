@@ -66,7 +66,7 @@ export function StockTransfersPage({ createOnly = false }: { createOnly?: boolea
   const { data: productsRaw } = useProducts({
     shopId: fromShopId || undefined,
     isActive: true,
-    limit: 200,
+    limit: 500,
     page: 1,
   });
   const products = useMemo(() => extractProducts(productsRaw), [productsRaw]);

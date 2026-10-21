@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 
 export type SupplierPayment = {
   id: string;
@@ -39,10 +40,10 @@ export function useSupplierPayments(supplierBillId?: string) {
   return useQuery({
     queryKey: keys.list(supplierBillId),
     queryFn: async () => {
-      const params = supplierBillId ? { supplier_bill_id: supplierBillId } : undefined;
-      const res = await api.get('/supplier-payments', { params });
-      const payload = res.data?.data ?? res.data;
-      return (Array.isArray(payload) ? payload : []) as SupplierPayment[];
+      return fetchAllCursorPages<SupplierPayment>('/supplier-payments', {
+        take: 100,
+        supplier_bill_id: supplierBillId,
+      });
     },
   });
 }

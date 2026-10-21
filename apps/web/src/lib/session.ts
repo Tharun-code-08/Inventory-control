@@ -6,11 +6,17 @@ export async function initializeSessionFromAuthResponse(
   payload: unknown,
   queryClient?: import('@tanstack/react-query').QueryClient,
 ) {
-  resetClientSessionState(queryClient);
-
   const authPayload = extractAuthPayload(payload);
   if (!authPayload) {
     throw new Error('Unexpected response from server');
+  }
+
+  // Clear cached data only when a different user signs in. A page reload by
+  // the same user (bootstrap refresh) must keep it, including the product
+  // categories that live only in this browser.
+  const previousUserId = useAuthStore.getState().user?.id;
+  if (previousUserId !== authPayload.user.id) {
+    resetClientSessionState(queryClient);
   }
 
   applyAccessToken(authPayload.accessToken);
