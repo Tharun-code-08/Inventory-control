@@ -3,6 +3,7 @@ import { clearSession, loadSession, saveSession } from '@/lib/secure-storage';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { clearQueryCache } from '@/lib/query-client';
+import { unregisterCurrentDevice } from '@/lib/device-info';
 
 export async function bootstrapSession(): Promise<void> {
   const { accessToken, refreshToken, userJson } = await loadSession();
@@ -60,6 +61,9 @@ export async function loginWithCredentials(email: string, password: string, comp
 
 export async function logoutSession(): Promise<void> {
   const { refreshToken, accessToken } = useAuthStore.getState();
+  // Remove this handset's push registration first, while still authenticated,
+  // so the next user on this phone does not get this account's notifications.
+  if (accessToken) await unregisterCurrentDevice();
   try {
     if (accessToken && refreshToken) {
       await api.post('/auth/mobile/logout', { refreshToken });

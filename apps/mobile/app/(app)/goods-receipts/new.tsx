@@ -8,6 +8,7 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
 import { lookupBarcode } from '@/hooks/use-barcodes';
 import { useCreateGoodsReceipt } from '@/hooks/use-goods-receipts';
+import { newIdempotencyKey } from '@/lib/idempotency';
 import { usePurchaseOrder, usePurchaseOrders } from '@/hooks/use-purchase-orders';
 import { useProducts, type Product } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
@@ -74,6 +75,8 @@ export default function NewGoodsReceiptScreen() {
     page: 1,
   });
   const createGr = useCreateGoodsReceipt();
+  // One key per receipt being entered, reused if the save is retried.
+  const idempotencyKey = useRef(newIdempotencyKey()).current;
 
   // Eligible POs for "receive against a purchase order" (blank mode only).
   const eligiblePosQuery = usePurchaseOrders(
@@ -259,6 +262,7 @@ export default function NewGoodsReceiptScreen() {
         supplierRef: supplierRef.trim() || undefined,
         remarks: remarks.trim() || undefined,
         items,
+        idempotencyKey,
       });
       router.replace(`/goods-receipts/${gr.id}`);
     } catch (err) {

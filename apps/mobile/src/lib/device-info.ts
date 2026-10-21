@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
 import { logDeviceRegistered, logDeviceRevoked } from '@/lib/audit-logging';
+import { useAuthStore } from '@/store/authStore';
 
 // RFC4122-style v4 UUID without a crypto polyfill. React Native does not
 // provide `crypto.getRandomValues`, which the `uuid` package depends on, so we
@@ -118,7 +119,36 @@ export async function revokeDevice(deviceId: string): Promise<void> {
   }
 }
 
+/** Session id (`sid`) carried in this device's refresh token, or null. */
+function currentSessionId(): string | null {
+  const token = useAuthStore.getState().refreshToken;
+  const part = token?.split('.')[1];
+  if (!part || typeof atob !== 'function') return null;
+  try {
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '='));
+    const sid = (JSON.parse(json) as { sid?: unknown }).sid;
+    return typeof sid === 'string' ? sid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Signs out every other device: revokes all of this user's login sessions
+ * except the current one, and removes the other devices' push registrations.
+ */
 export async function logoutAllDevices(): Promise<void> {
+  const currentSid = currentSessionId();
+  if (!currentSid) {
+    throw new Error('Could not identify this device\'s session. Sign in again and retry.');
+  }
+  const res = await api.get('/auth/sessions');
+  const payload = unwrapData<{ sessions?: Array<{ id: string }> }>(res.data);
+  const sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
+  await Promise.all(
+    sessions.filter((s) => s.id !== currentSid).map((s) => api.delete(`/auth/sessions/${s.id}`)),
+  );
+
   const currentDeviceId = await getDeviceId();
   const devices = await getActiveDevices();
   await Promise.all(
@@ -126,4 +156,14 @@ export async function logoutAllDevices(): Promise<void> {
       .filter((d) => d.deviceId && d.deviceId !== currentDeviceId)
       .map((d) => api.delete(`/devices/${d.deviceId}`, { data: { deviceId: d.deviceId } })),
   );
+}
+
+/** Stops push notifications for this account on this device (used at sign-out). */
+export async function unregisterCurrentDevice(): Promise<void> {
+  try {
+    const deviceId = await getDeviceId();
+    await api.delete(`/devices/${deviceId}`, { data: { deviceId } });
+  } catch {
+    // Sign-out must not depend on this succeeding.
+  }
 }

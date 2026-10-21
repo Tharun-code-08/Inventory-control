@@ -43,7 +43,7 @@ export default function ActiveDevicesScreen() {
 
     Alert.alert(
       'Revoke device',
-      `Remove ${device.deviceName}? It will be logged out immediately.`,
+      `Remove ${device.deviceName}? It stops receiving notifications for this account. To sign it out, use "Log out from all other devices".`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

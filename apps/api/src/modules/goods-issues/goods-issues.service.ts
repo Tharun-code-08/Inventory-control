@@ -7,6 +7,7 @@ import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
 import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
+import { tryGetIdempotentResult, trySetIdempotentResult } from '../../common/utils/idempotency';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
 import { InventoryLotService } from '../stock/inventory-lot.service';
@@ -94,7 +95,11 @@ export class GoodsIssuesService {
     return { data: items.map((row) => this.serializeListRow(row)), meta };
   }
 
-  async create(user: RequestUser, params: { giDate: string; shopId: string; issueType?: string; issueReason?: string; otherReason?: string; remarks?: string; items: Line[] }) {
+  async create(
+    user: RequestUser,
+    params: { giDate: string; shopId: string; issueType?: string; issueReason?: string; otherReason?: string; remarks?: string; items: Line[] },
+    idempotencyKey?: string,
+  ) {
     assertShopScope(user, params.shopId);
     const giDate = new Date(params.giDate);
     assertNotFuture(giDate);
@@ -110,7 +115,23 @@ export class GoodsIssuesService {
       throw new BadRequestException('Please provide a reason for Others');
     }
 
+    // A retried create (timeout on a slow connection) replays the first result.
+    const idemKey = idempotencyKey?.trim() ? `goods-issue:create:${idempotencyKey.trim()}` : undefined;
+    const idemScope = user.companyId ? `company:${user.companyId}` : `user:${user.id}`;
+
     return this.prisma.$transaction(async (tx) => {
+      const prior = await tryGetIdempotentResult<{ goodsIssueId: string }>(tx, idemKey, idemScope);
+      if (prior?.goodsIssueId) {
+        const existing = await tx.goodsIssueHeader.findUnique({
+          where: { id: prior.goodsIssueId },
+          include: { items: { include: { product: true } }, shop: true },
+        });
+        if (existing) {
+          assertShopScope(user, existing.shopId);
+          return existing;
+        }
+      }
+
       const giNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: params.shopId,
         docType: 'GI',
@@ -140,7 +161,7 @@ export class GoodsIssuesService {
         });
       }
 
-      return tx.goodsIssueHeader.create({
+      const created = await tx.goodsIssueHeader.create({
         data: {
           giNumber,
           giDate,
@@ -155,6 +176,8 @@ export class GoodsIssuesService {
         },
         include: { items: { include: { product: true } }, shop: true },
       });
+      await trySetIdempotentResult(tx, idemKey, { goodsIssueId: created.id }, user.id, idemScope);
+      return created;
     });
   }
 

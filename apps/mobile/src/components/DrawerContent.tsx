@@ -24,7 +24,8 @@ const SECTIONS: { title: string; items: DrawerItem[] }[] = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', icon: 'home-outline', route: '/(app)/(tabs)' },
-      { label: 'Approval Inbox', icon: 'checkmark-done-outline', route: '/approvals' as any },
+      // The Approval Inbox screen still shows sample data; it is hidden until it
+      // is wired to /approvals.
     ],
   },
   {

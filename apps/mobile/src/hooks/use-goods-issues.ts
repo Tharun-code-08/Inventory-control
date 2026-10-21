@@ -87,8 +87,13 @@ export function useGoodsIssue(id: string) {
 export function useCreateGoodsIssue() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CreateGoodsIssuePayload) => {
-      const res = await api.post('/goods-issues', payload);
+    mutationFn: async ({
+      idempotencyKey,
+      ...payload
+    }: CreateGoodsIssuePayload & { idempotencyKey?: string }) => {
+      const res = await api.post('/goods-issues', payload, {
+        headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : undefined,
+      });
       return unwrapData<GoodsIssue>(res.data);
     },
     onSuccess: () => {
