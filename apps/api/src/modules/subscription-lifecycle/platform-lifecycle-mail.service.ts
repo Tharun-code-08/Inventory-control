@@ -26,6 +26,15 @@ import {
 } from './subscription-lifecycle.constants';
 import { PrismaService } from '../../prisma/prisma.service';
 
+/** Campaigns that repeat every billing period get a per-month dedupe key. */
+function recurringCycle(campaignKey: string): string | undefined {
+  const key = campaignKey.replace(/^platform_/, '');
+  if (key.startsWith('renewal_') || key === 'paid_monthly_update' || key.startsWith('dunning_')) {
+    return new Date().toISOString().slice(0, 7);
+  }
+  return undefined;
+}
+
 @Injectable()
 export class PlatformLifecycleMailService {
   private readonly logger = new Logger(PlatformLifecycleMailService.name);
@@ -47,6 +56,8 @@ export class PlatformLifecycleMailService {
     recipient: string;
     campaignKey: string;
     marketingOptOut?: boolean;
+    /** Period the email belongs to, for campaigns that repeat (e.g. a payment id). */
+    cycleKey?: string;
     context?: Record<string, string | number | undefined>;
   }): Promise<{ sent: boolean; reason?: string }> {
     const campaign = LIFECYCLE_CAMPAIGN_MAP.get(args.campaignKey);
@@ -65,10 +76,13 @@ export class PlatformLifecycleMailService {
       ? args.campaignKey
       : `platform_${args.campaignKey}`;
 
+    // Recurring campaigns are de-duplicated per cycle, one-off ones per company.
+    const cycle = args.cycleKey ?? recurringCycle(args.campaignKey);
+    const dedupeEntityId = cycle ? `${args.companyId}:${cycle}` : args.companyId;
     const alreadySent = await this.emailNotifications.hasDeliveryLog({
       templateId,
       entityType: 'company',
-      entityId: args.companyId,
+      entityId: dedupeEntityId,
       recipient: args.recipient,
     });
     if (alreadySent) return { sent: false, reason: 'Already sent' };
@@ -140,7 +154,7 @@ export class PlatformLifecycleMailService {
     await this.emailNotifications.logDelivery({
       templateId,
       entityType: 'company',
-      entityId: args.companyId,
+      entityId: dedupeEntityId,
       recipient: args.recipient,
     });
 

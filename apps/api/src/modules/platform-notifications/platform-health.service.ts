@@ -154,7 +154,7 @@ export class PlatformHealthService {
         emailDedupe: {
           templateId: 'platform_db_storage_90',
           entityType: 'health',
-          entityId: 'db_storage_90',
+          entityId: `db_storage_90:${new Date().toISOString().slice(0, 10)}`,
         },
       });
       if (!('skipped' in result)) dispatched += 1;
@@ -171,7 +171,7 @@ export class PlatformHealthService {
         emailDedupe: {
           templateId: 'platform_db_storage_80',
           entityType: 'health',
-          entityId: 'db_storage_80',
+          entityId: `db_storage_80:${new Date().toISOString().slice(0, 10)}`,
         },
       });
       if (!('skipped' in result)) dispatched += 1;
@@ -226,7 +226,7 @@ export class PlatformHealthService {
           emailDedupe: {
             templateId: 'platform_disk_low',
             entityType: 'path',
-            entityId: disk.path.replace(/[^a-zA-Z0-9]/g, '_'),
+            entityId: `${disk.path.replace(/[^a-zA-Z0-9]/g, '_')}:${new Date().toISOString().slice(0, 10)}`,
           },
         });
         if (!('skipped' in result)) dispatched += 1;
