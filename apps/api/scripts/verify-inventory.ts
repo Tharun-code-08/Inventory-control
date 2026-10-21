@@ -65,11 +65,21 @@ async function main() {
 }
 
 async function verifyStockIntegrity(shopId?: string) {
-  const rows = await prisma.stockSummary.findMany({
-    where: shopId ? { shopId } : undefined,
-    include: { product: true },
-    take: 10000,
-  });
+  // Page through every summary row: a fixed cap silently skipped rows and
+  // still reported PASS.
+  const rows: Array<Prisma.StockSummaryGetPayload<{ include: { product: true } }>> = [];
+  for (let cursor: string | undefined; ; ) {
+    const page = await prisma.stockSummary.findMany({
+      where: shopId ? { shopId } : undefined,
+      include: { product: true },
+      orderBy: { id: 'asc' },
+      take: 5000,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    rows.push(...page);
+    if (page.length < 5000) break;
+    cursor = page[page.length - 1].id;
+  }
 
   const ledgerSums = await prisma.stockLedger.groupBy({
     by: ['shopId', 'productId'],
@@ -94,6 +104,21 @@ async function verifyStockIntegrity(shopId?: string) {
     ledgerQty: string;
     delta: string;
   }> = [];
+
+  // Ledger movements with no summary row at all are discrepancies too.
+  const summaryKeys = new Set(rows.map((r) => `${r.shopId}:${r.productId}`));
+  for (const [key, ledgerQty] of ledgerMap) {
+    if (summaryKeys.has(key) || ledgerQty.isZero()) continue;
+    const [missingShopId, missingProductId] = key.split(':');
+    discrepancies.push({
+      shopId: missingShopId,
+      productId: missingProductId,
+      productCode: '(no stock summary row)',
+      summaryQty: '0',
+      ledgerQty: ledgerQty.toString(),
+      delta: ledgerQty.neg().toString(),
+    });
+  }
 
   for (const row of rows) {
     const ledgerQty = ledgerMap.get(`${row.shopId}:${row.productId}`) ?? zero;

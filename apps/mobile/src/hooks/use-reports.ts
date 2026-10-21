@@ -3,13 +3,14 @@ import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
 import { reportKeys } from '@/lib/query-keys';
 import { QUERY_STALE_TIME } from '@/lib/constants';
+import { localDateString } from '@/lib/local-date';
 
 /** ISO date (YYYY-MM-DD) for `n` days ago and today. */
 export function lastNDays(n: number): { from: string; to: string } {
   const to = new Date();
   const from = new Date();
   from.setDate(from.getDate() - n);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  return { from: localDateString(from), to: localDateString(to) };
 }
 
 // ---- Dead Stock ----------------------------------------------------------

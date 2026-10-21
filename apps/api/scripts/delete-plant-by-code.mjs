@@ -6,6 +6,7 @@
  *   node scripts/delete-plant-by-code.mjs HQ-002
  */
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const code = process.argv[2]?.trim().toUpperCase().replace(/\s+/g, '');
 if (!code) {
@@ -13,7 +14,12 @@ if (!code) {
   process.exit(1);
 }
 
-const prisma = new PrismaClient();
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is not set');
+  process.exit(1);
+}
+// Prisma 7 needs a driver adapter.
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 async function purgeStorageLocations(shopId) {
   const locations = await prisma.storageLocation.findMany({

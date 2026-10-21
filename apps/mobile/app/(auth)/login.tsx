@@ -130,7 +130,13 @@ export default function LoginScreen() {
         router.replace('/(app)/(tabs)');
       }
     } catch (err) {
-      // Record failed login attempt
+      // Only a rejected login counts towards the local lockout; a network
+      // error, timeout, 429 or server error is not a wrong password.
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status !== 400 && status !== 401 && status !== 403) {
+        Alert.alert('Login failed', getApiErrorMessage(err, 'Could not reach the server. Try again.'));
+        return;
+      }
       await recordFailedLogin(companyCode.trim(), email.trim());
 
       // Check if now locked

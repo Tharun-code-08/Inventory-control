@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { unwrapData } from '@/lib/envelope';
 import { grKeys, poKeys, productKeys, dashboardKeys, alertKeys } from '@/lib/query-keys';
@@ -110,6 +110,27 @@ export function useGoodsReceipts(filters: GRFilters = {}) {
       const res = await api.get('/goods-receipts', { params });
       return normalizeGRList(res.data);
     },
+    staleTime: QUERY_STALE_TIME.lists,
+  });
+}
+
+/** Paged GR list: each page follows the previous page's cursor. */
+export function useGoodsReceiptsInfinite(filters: Omit<GRFilters, 'cursor'> = {}) {
+  return useInfiniteQuery({
+    queryKey: [...grKeys.list(filters), 'infinite'],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params: Record<string, string | number> = {};
+      params.take = filters.take ?? PAGE_SIZE;
+      if (filters.shopId) params.shop_id = filters.shopId;
+      if (filters.status) params.status = filters.status;
+      if (filters.dateFrom) params.date_from = filters.dateFrom;
+      if (filters.dateTo) params.date_to = filters.dateTo;
+      if (pageParam) params.cursor = pageParam;
+      const res = await api.get('/goods-receipts', { params });
+      return normalizeGRList(res.data);
+    },
+    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
     staleTime: QUERY_STALE_TIME.lists,
   });
 }

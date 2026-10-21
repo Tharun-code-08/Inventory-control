@@ -65,7 +65,7 @@ Value: (Private key content from: cat /home/deploy/.ssh/deploy_key)
        (DO NOT delete the file from VPS - it's needed for git pull)
 
 Name: DEPLOY_HOST
-Value: 187.127.173.9
+Value: (the VPS origin IP — keep it out of the repo; the site is behind Cloudflare)
 
 Name: DEPLOY_USER
 Value: deploy

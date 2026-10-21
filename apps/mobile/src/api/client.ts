@@ -8,6 +8,10 @@ export function getApiOrigin(): string {
     process.env.EXPO_PUBLIC_API_URL?.trim() ||
     (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl?.trim();
   if (!configured) return 'http://localhost:3000';
+  if (!__DEV__ && configured.startsWith('http://')) {
+    // Bearer and refresh tokens would travel in clear text.
+    console.warn('EXPO_PUBLIC_API_URL is not HTTPS in a release build');
+  }
   return configured.replace(/\/$/, '');
 }
 

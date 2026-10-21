@@ -19,6 +19,8 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Button, Card, EmptyState, Input, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
 import { spacing } from '@/theme';
+import { localDateString } from '@/lib/local-date';
+import { parseQuantity } from '@/lib/quantity';
 
 type LineDraft = {
   productId: string;
@@ -32,7 +34,7 @@ type LineDraft = {
 };
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 export default function NewGoodsReceiptScreen() {
@@ -219,7 +221,7 @@ export default function NewGoodsReceiptScreen() {
     // Over-receive guard (PO mode). The server re-validates inside the
     // transaction; this just fails fast with a line-level message.
     const overLine = lines.find(
-      (l) => l.remainingQty != null && Number(l.quantity) > l.remainingQty,
+      (l) => l.remainingQty != null && parseQuantity(String(l.quantity)) > l.remainingQty,
     );
     if (overLine) {
       Alert.alert(
@@ -228,15 +230,19 @@ export default function NewGoodsReceiptScreen() {
       );
       return;
     }
-    const items = lines
-      .map((l) => ({
-        productId: l.productId,
-        quantity: Number(l.quantity),
-        uom: l.uom,
-        purchaseRate: Number(l.purchaseRate),
-        storageLocationId: l.storageLocationId || defaultLocationId,
-      }))
-      .filter((l) => l.quantity > 0);
+    // Tell the user about a bad quantity instead of silently dropping the line.
+    const badLine = lines.find((l) => !(parseQuantity(String(l.quantity)) > 0));
+    if (badLine) {
+      Alert.alert('Check quantity', `${badLine.label}: enter a quantity greater than 0.`);
+      return;
+    }
+    const items = lines.map((l) => ({
+      productId: l.productId,
+      quantity: parseQuantity(String(l.quantity)),
+      uom: l.uom,
+      purchaseRate: Number(l.purchaseRate),
+      storageLocationId: l.storageLocationId || defaultLocationId,
+    }));
     if (items.length === 0) {
       Alert.alert('Lines required', 'Add at least one product line.');
       return;

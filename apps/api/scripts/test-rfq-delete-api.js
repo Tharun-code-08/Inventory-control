@@ -1,11 +1,12 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
 
 const API = process.env.API_BASE || 'http://localhost:3000/api/v1';
 const RFQ_ID = process.env.RFQ_ID || '8387ffdf-8938-484b-b847-d0593f57b987';
 
 async function main() {
-  const p = new PrismaClient();
+  const p = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   const admin = await p.user.findFirst({
     where: { role: { name: 'ADMIN' }, isActive: true },
     select: { email: true },

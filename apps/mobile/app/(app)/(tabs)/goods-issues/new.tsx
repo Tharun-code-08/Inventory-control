@@ -15,13 +15,15 @@ import { defaultShopId, isShopOnlyUser } from '@/lib/shop-scope';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Button, Card, EmptyState, Input, Muted, Screen, Subtitle, Title, colors } from '@/components/ui';
+import { localDateString } from '@/lib/local-date';
+import { parseQuantity } from '@/lib/quantity';
 
 const ISSUE_REASONS = ['Sales Order', 'Production', 'Maintenance', 'Transfer', 'Damage'];
 
 type LineDraft = { productId: string; label: string; quantity: string; uom: string };
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 export default function NewGoodsIssueScreen() {
@@ -109,9 +111,13 @@ export default function NewGoodsIssueScreen() {
       Alert.alert('Shop required', 'Select a shop.');
       return;
     }
-    const items = lines
-      .map((l) => ({ productId: l.productId, quantity: Number(l.quantity), uom: l.uom }))
-      .filter((l) => l.quantity > 0);
+    // Tell the user about a bad quantity instead of silently dropping the line.
+    const badLine = lines.find((l) => !(parseQuantity(l.quantity) > 0));
+    if (badLine) {
+      Alert.alert('Check quantity', `${badLine.label}: enter a quantity greater than 0.`);
+      return;
+    }
+    const items = lines.map((l) => ({ productId: l.productId, quantity: parseQuantity(l.quantity), uom: l.uom }));
     if (items.length === 0) {
       Alert.alert('Lines required', 'Add at least one product line.');
       return;
