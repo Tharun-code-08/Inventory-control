@@ -301,6 +301,12 @@ export class UsersService {
       }
     }
 
+    // An accepted invite creates a user, so it counts against the plan limit.
+    const limitCompanyId = await this.subscriptions.resolveCompanyIdForUser(actor);
+    if (limitCompanyId) {
+      await this.subscriptions.assertUserLimit(limitCompanyId);
+    }
+
     const token = randomBytes(32).toString('base64url');
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date(Date.now() + this.inviteTtlMs());

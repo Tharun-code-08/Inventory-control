@@ -8,9 +8,15 @@ export type CsvColumn<T> = {
   value: (row: T) => string | number | null | undefined;
 };
 
+// Text a spreadsheet would run as a formula; negative numbers stay as they are.
+const FORMULA_START = /^(?:[=+@\t\r]|-(?![\d.]))/;
+
 function escapeCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const str = String(value);
+  let str = String(value);
+  if (typeof value === 'string' && FORMULA_START.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

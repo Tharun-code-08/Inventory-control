@@ -58,7 +58,14 @@ fi
 
 while IFS='|' read -r company_id company_code; do
   [[ -z "$company_id" ]] && continue
-  code_safe="${company_code:-$(echo "$company_id" | cut -c1-8)}"
+  # Both values end up in shell commands and file paths: accept only a UUID
+  # and reduce the tenant-chosen code to [A-Za-z0-9_-].
+  if [[ ! "$company_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    log "Skipping company with unexpected id"
+    continue
+  fi
+  code_safe="$(printf '%s' "$company_code" | tr -c 'A-Za-z0-9_-' '_' | cut -c1-40)"
+  [[ -z "$code_safe" || "$code_safe" =~ ^_+$ ]] && code_safe="${company_id:0:8}"
   dest_dir="${COMPANY_DIR}/${code_safe}"
   mkdir -p "$dest_dir"
 
@@ -92,6 +99,7 @@ while IFS='|' read -r company_id company_code; do
   run_dump "payment_receipts" "shop_id in (${SHOP_SUB})" "${TMP_IN_CONTAINER}"
 
   docker_cp_from_container "${TMP_IN_CONTAINER}" "${TARGET}"
+  docker_exec rm -f "${TMP_IN_CONTAINER}"
   checksum_file "${TARGET}"
   ln -sfn "${TARGET}" "${dest_dir}/latest.dump"
 

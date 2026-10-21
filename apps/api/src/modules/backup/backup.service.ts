@@ -46,6 +46,14 @@ export class BackupService {
     @InjectQueue(BACKUP_QUEUE) private readonly backupQueue: Queue,
   ) {}
 
+  /**
+   * The OAuth state travels through Google's redirect, so it is signed with a
+   * key derived from (not equal to) JWT_SECRET and can never pass as an access token.
+   */
+  private oauthStateSecret() {
+    return sha256Hex(Buffer.from(`${this.config.getOrThrow<string>('JWT_SECRET')}:backup-google-oauth-state`));
+  }
+
   private backupDir() {
     return this.config.get<string>('BACKUP_STORAGE_DIR', './storage/backups');
   }
@@ -105,13 +113,18 @@ export class BackupService {
     }
     const state = this.jwt.sign(
       { sub: user.id, purpose: 'backup-google-connect' },
-      { expiresIn: '15m' },
+      { expiresIn: '15m', secret: this.oauthStateSecret() },
     );
     return { url: this.googleDrive.buildAuthUrl(state) };
   }
 
   async completeGoogleConnect(code: string, state: string) {
-    const payload = this.jwt.verify<{ sub: string; purpose?: string }>(state);
+    let payload: { sub: string; purpose?: string };
+    try {
+      payload = this.jwt.verify<{ sub: string; purpose?: string }>(state, { secret: this.oauthStateSecret() });
+    } catch {
+      throw new BadRequestException('Invalid OAuth state');
+    }
     if (payload.purpose !== 'backup-google-connect') {
       throw new BadRequestException('Invalid OAuth state');
     }

@@ -22,6 +22,7 @@ docker_exec sh -c "rm -f '${TMP_IN_CONTAINER}'"
 # Dump inside the container, then copy out
 docker_pg_dump -F c -f "${TMP_IN_CONTAINER}" "${PGDATABASE}"
 docker_cp_from_container "${TMP_IN_CONTAINER}" "${TARGET}"
+docker_exec rm -f "${TMP_IN_CONTAINER}"
 
 checksum_file "${TARGET}"
 ln -sfn "${TARGET}" "${FULL_DIR}/latest.dump"

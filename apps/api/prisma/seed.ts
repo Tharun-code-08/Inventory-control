@@ -36,6 +36,7 @@ const ALL_PERMISSIONS = [
   'stock_transfer:create',
   'damage:read',
   'damage:create',
+  'inventory_lot:manage',
   'report:view',
   'report:export',
   'audit_log:read',
@@ -211,21 +212,29 @@ async function main() {
     const ownerRole = await prisma.role.findFirstOrThrow({ where: { name: RoleName.OWNER } });
 
     const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? 'admin@retailims.com').toLowerCase();
-    const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@123';
+    // The repository is public, so production never falls back to the dev
+    // password and never resets an existing owner's password.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? (isProduction ? undefined : 'Admin@123');
+    if (!adminPassword) {
+      throw new Error('[seed] SEED_ADMIN_PASSWORD is required when seeding production');
+    }
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     await prisma.user.upsert({
       where: { email: adminEmail },
-      update: {
-        name: 'Owner',
-        passwordHash,
-        roleId: ownerRole.id,
-        shopId: defaultShop.id,
-        isActive: true,
-        failedLoginCount: 0,
-        lockedUntil: null,
-        refreshTokenHash: null,
-      },
+      update: isProduction
+        ? { roleId: ownerRole.id, isActive: true }
+        : {
+            name: 'Owner',
+            passwordHash,
+            roleId: ownerRole.id,
+            shopId: defaultShop.id,
+            isActive: true,
+            failedLoginCount: 0,
+            lockedUntil: null,
+            refreshTokenHash: null,
+          },
       create: {
         name: 'Owner',
         email: adminEmail,

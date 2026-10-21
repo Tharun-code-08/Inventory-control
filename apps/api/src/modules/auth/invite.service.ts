@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
 import { request } from 'undici';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { AuthService, type LoginContext } from './auth.service';
 import { InviteAcceptDto } from './dto/invite-accept.dto';
 
@@ -21,6 +22,7 @@ export class InviteService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly auth: AuthService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   private hashToken(token: string): string {
@@ -119,6 +121,15 @@ export class InviteService {
     }
 
     await this.verifyTurnstile(dto.turnstileToken);
+
+    // Several invites can be pending at once, so the plan limit is checked again here.
+    if (invite.shopId) {
+      const shop = await this.prisma.shop.findUnique({
+        where: { id: invite.shopId },
+        select: { companyId: true },
+      });
+      if (shop?.companyId) await this.subscriptions.assertUserLimit(shop.companyId);
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptRounds());
     const user = await this.prisma.$transaction(async (tx) => {

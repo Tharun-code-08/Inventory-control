@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EmailSenderStatus, EmailSenderType, RoleName } from '@prisma/client';
 import { MailService } from '../../common/mail/mail.service';
+import { assertPublicSmtpTarget } from '../../common/utils/public-host';
 import {
   senderVerificationOtpHtml,
   senderVerificationOtpSubject,
@@ -565,6 +566,7 @@ export class EmailSenderService {
     if (sender.status !== EmailSenderStatus.VERIFIED) {
       throw new BadRequestException('Verify this sender before configuring SMTP.');
     }
+    await assertPublicSmtpTarget(dto.host.trim(), dto.port);
 
     const now = new Date();
     const encrypted = encryptSecret(dto.password, getSmtpCredentialsKey());
@@ -609,6 +611,7 @@ export class EmailSenderService {
       }
       smtp = built;
     }
+    await assertPublicSmtpTarget(smtp.host, smtp.port);
 
     await this.mail.sendViaSmtp(smtp, {
       to: sender.email,

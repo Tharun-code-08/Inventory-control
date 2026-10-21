@@ -11,6 +11,15 @@ export class NotificationService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Throws unless the user belongs to one of the company's shops. */
+  async assertUserInCompany(userId: string, companyId: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, shop: { companyId } },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+  }
+
   /**
    * Create and send a notification to a user
    */

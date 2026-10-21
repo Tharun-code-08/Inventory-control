@@ -373,13 +373,18 @@ export class EmailNotificationsService {
     entityId: string;
     recipient: string;
   }) {
-    await this.prisma.emailDeliveryLog.create({
-      data: {
-        templateId: args.templateId,
-        entityType: args.entityType,
-        entityId: args.entityId,
-        recipient: args.recipient.toLowerCase(),
-      },
+    // Resends hit the same unique key; the mail has already gone out by now,
+    // so a duplicate row must not turn the send into a failure and a retry.
+    await this.prisma.emailDeliveryLog.createMany({
+      data: [
+        {
+          templateId: args.templateId,
+          entityType: args.entityType,
+          entityId: args.entityId,
+          recipient: args.recipient.toLowerCase(),
+        },
+      ],
+      skipDuplicates: true,
     });
   }
 
