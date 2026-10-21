@@ -1,30 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { bootstrapSession } from '@/lib/session';
+import { asyncStoragePersister, queryClient } from '@/lib/query-client';
 import { useAuthStore } from '@/store/authStore';
-import { CACHE, QUERY_STALE_TIME } from '@/lib/constants';
 import { colors } from '@/theme';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: QUERY_STALE_TIME.lists,
-      gcTime: CACHE.GC_TIME,
-      retry: 1,
-    },
-  },
-});
-
-const asyncStoragePersister = createAsyncStoragePersister({
-  storage: AsyncStorage,
-  key: 'ims-query-cache',
-});
 
 const PERSISTED_KEYS = ['dashboard', 'products', 'alerts', 'shops'];
 

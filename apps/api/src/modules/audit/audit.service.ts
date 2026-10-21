@@ -266,7 +266,9 @@ export class AuditService {
       .map((row) =>
         row
           .map((cell) => {
-            const str = typeof cell === 'string' ? cell : JSON.stringify(cell);
+            let str = typeof cell === 'string' ? cell : JSON.stringify(cell);
+            // Stop spreadsheets from running user-controlled text as a formula.
+            if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
             return `"${str.replace(/"/g, '""')}"`;
           })
           .join(','),

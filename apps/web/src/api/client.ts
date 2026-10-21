@@ -1,4 +1,4 @@
-import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
+import { AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import axios from 'axios';
 import { readBrowserCookie } from '@/lib/browser-cookies';
 import { CSRF_COOKIE_NAME } from '@/lib/cookie-consent';
@@ -107,6 +107,27 @@ function gatewayErrorMessage(status: number | undefined): string | undefined {
   return undefined;
 }
 
+// The refresh cookie rotates on every use, so concurrent callers (the startup
+// bootstrap and any 401s) must share one refresh call; a second call with the
+// old cookie would revoke the session.
+let refreshInFlight: Promise<AxiosResponse> | null = null;
+
+export function refreshRequestOnce(): Promise<AxiosResponse> {
+  if (!refreshInFlight) {
+    refreshInFlight = api.post('/auth/refresh').finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/** True when a refresh failed because the server rejected the session. */
+export function isSessionRejected(error: unknown): boolean {
+  const failure = error as { isAxiosError?: boolean; response?: { status?: number } };
+  const status = failure.response?.status;
+  return status === 401 || status === 403 || !failure.isAxiosError;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -120,19 +141,20 @@ api.interceptors.response.use(
     if (status === 401 && !original?.__isRetry && requestHadAuthorization(original) && !isPublicAuthEndpoint(original)) {
       original.__isRetry = true;
       try {
-        const refreshResponse = await api.post('/auth/refresh');
-        const refreshed = extractAuthPayload(refreshResponse.data);
-        if (!refreshed) {
-          throw new Error('Unexpected refresh response');
-        }
+        const refreshed = extractAuthPayload((await refreshRequestOnce()).data);
+        if (!refreshed) throw new Error('Unexpected refresh response');
         applyAccessToken(refreshed.accessToken);
         useAuthStore.getState().setSession(refreshed.accessToken, refreshed.user);
         setRequestAuthorization(original, refreshed.accessToken);
         return api.request(original);
-      } catch {
-        applyAccessToken(null);
-        useAuthStore.getState().clear();
-        window.location.href = '/login';
+      } catch (refreshError) {
+        // Only a rejected refresh ends the session; a network error or a
+        // gateway error during a deploy leaves the user signed in.
+        if (isSessionRejected(refreshError)) {
+          applyAccessToken(null);
+          useAuthStore.getState().clear();
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

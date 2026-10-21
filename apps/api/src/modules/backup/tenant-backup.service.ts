@@ -4,6 +4,9 @@ import { gunzipSync, gzipSync } from 'zlib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BACKUP_SCHEMA_VERSION, type DryRunReport, type TenantBackupPayload } from './backup.constants';
 
+/** Largest decompressed backup accepted for upload/restore. */
+const MAX_BACKUP_JSON_BYTES = 256 * 1024 * 1024;
+
 function jsonSafe<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_key, v) => {
@@ -24,11 +27,17 @@ export class TenantBackupService {
   }
 
   parseBackupBuffer(buffer: Buffer): TenantBackupPayload {
-    const raw =
-      buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b
-        ? gunzipSync(buffer)
-        : buffer;
-    const payload = JSON.parse(raw.toString('utf8')) as TenantBackupPayload;
+    let payload: TenantBackupPayload;
+    try {
+      // Cap the inflated size so a small compressed upload cannot exhaust memory.
+      const raw =
+        buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b
+          ? gunzipSync(buffer, { maxOutputLength: MAX_BACKUP_JSON_BYTES })
+          : buffer;
+      payload = JSON.parse(raw.toString('utf8')) as TenantBackupPayload;
+    } catch {
+      throw new BadRequestException('Backup file is invalid or too large');
+    }
     if (!payload?.backupSchemaVersion) {
       throw new BadRequestException('Invalid backup file format');
     }

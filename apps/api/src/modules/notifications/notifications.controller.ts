@@ -15,7 +15,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { RolesGuard } from '@/common/guards/roles.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { requireCompanyId } from '@/common/utils/shop-scope';
+import type { RequestUser } from '@/common/types/request-user';
+import { RoleName } from '@prisma/client';
 import { NotificationService, NotificationPreferenceService } from './services';
 import {
   CreateNotificationDto,
@@ -28,7 +33,7 @@ import {
 
 @ApiTags('Notifications')
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
@@ -39,15 +44,25 @@ export class NotificationController {
   ) {}
 
   @Post()
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create and send a notification' })
   @ApiResponse({ status: 201, type: NotificationResponseDto })
   async createNotification(
     @Body() dto: CreateNotificationDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<NotificationResponseDto> {
     this.logger.debug(`Creating notification for user ${user.id}`);
-    return this.notificationService.create(dto, user.id, user.companyId!);
+    const companyId = requireCompanyId(user);
+    await this.notificationService.assertUserInCompany(dto.userId, companyId);
+    return this.notificationService.create(dto, user.id, companyId);
+  }
+
+  /** Admin preference routes act on the named user, who must be in the caller's company. */
+  private async adminTarget(user: RequestUser, userId: string): Promise<string> {
+    const companyId = requireCompanyId(user);
+    await this.notificationService.assertUserInCompany(userId, companyId);
+    return companyId;
   }
 
   @Get()
@@ -160,9 +175,12 @@ export class NotificationController {
   @Get('preferences/:userId')
   @ApiOperation({ summary: 'Get user notification preferences (admin)' })
   @ApiResponse({ status: 200, type: NotificationPreferenceResponseDto })
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   async getUserPreferences(
     @Param('userId') userId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<NotificationPreferenceResponseDto> {
+    await this.adminTarget(user, userId);
     return this.preferenceService.getPreferences(userId);
   }
 
@@ -181,35 +199,41 @@ export class NotificationController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update user notification preferences (admin)' })
   @ApiResponse({ status: 200, type: NotificationPreferenceResponseDto })
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   async updateUserPreferences(
     @Param('userId') userId: string,
     @Body() dto: UpdateNotificationPreferenceDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.updatePreferences(user.id, user.companyId!, dto);
+    const companyId = await this.adminTarget(user, userId);
+    return this.preferenceService.updatePreferences(userId, companyId, dto);
   }
 
   @Post('preferences/:userId/reset')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset user preferences to defaults' })
   @ApiResponse({ status: 200, type: NotificationPreferenceResponseDto })
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   async resetPreferences(
     @Param('userId') userId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.resetToDefaults(user.id, user.companyId!);
+    const companyId = await this.adminTarget(user, userId);
+    return this.preferenceService.resetToDefaults(userId, companyId);
   }
 
   @Post('preferences/:userId/toggle-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Toggle all preferences for a user' })
   @ApiResponse({ status: 200, type: NotificationPreferenceResponseDto })
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
   async toggleAllPreferences(
     @Param('userId') userId: string,
     @Body() body: { enable: boolean },
-    @CurrentUser() user: any,
+    @CurrentUser() user: RequestUser,
   ): Promise<NotificationPreferenceResponseDto> {
-    return this.preferenceService.bulkToggle(user.id, user.companyId!, body.enable);
+    const companyId = await this.adminTarget(user, userId);
+    return this.preferenceService.bulkToggle(userId, companyId, body.enable);
   }
 }
 

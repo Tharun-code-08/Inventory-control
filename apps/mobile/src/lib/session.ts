@@ -1,6 +1,8 @@
 import { applyAccessToken, extractMobileAuthPayload, api } from '@/api/client';
 import { clearSession, loadSession, saveSession } from '@/lib/secure-storage';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
+import { clearQueryCache } from '@/lib/query-client';
 
 export async function bootstrapSession(): Promise<void> {
   const { accessToken, refreshToken, userJson } = await loadSession();
@@ -30,10 +32,17 @@ export async function bootstrapSession(): Promise<void> {
         JSON.stringify(refreshed.user),
       );
     }
-  } catch {
-    applyAccessToken(null);
-    useAuthStore.getState().clear();
-    await clearSession();
+  } catch (err) {
+    // Offline or a server error keeps the stored session; only a rejected
+    // refresh token signs the user out.
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 401 || status === 403) {
+      applyAccessToken(null);
+      useAuthStore.getState().clear();
+      useNotificationStore.getState().clearNotifications();
+      await clearQueryCache();
+      await clearSession();
+    }
   }
   useAuthStore.getState().setInitialized(true);
 }
@@ -60,5 +69,8 @@ export async function logoutSession(): Promise<void> {
   }
   applyAccessToken(null);
   useAuthStore.getState().clear();
+  // Cached company data and notifications belong to the user signing out.
+  useNotificationStore.getState().clearNotifications();
+  await clearQueryCache();
   await clearSession();
 }

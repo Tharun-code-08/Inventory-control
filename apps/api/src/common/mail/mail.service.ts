@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit, Optional, forwardRef } from '@nestjs/common';
+import { assertPublicSmtpTarget } from '../utils/public-host';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
@@ -348,6 +349,9 @@ export class MailService implements OnModuleInit {
       senderId?: string;
     },
   ): Promise<EmailDeliveryResult> {
+    // Tenant-supplied servers are re-checked on every send (settings saved
+    // before this check existed, or DNS that changed since).
+    await assertPublicSmtpTarget(smtp.host, smtp.port);
     const cacheKey = args.senderId ?? smtp.user;
     const transport = await this.getSenderTransport(cacheKey, smtp);
     return this.sendMail({

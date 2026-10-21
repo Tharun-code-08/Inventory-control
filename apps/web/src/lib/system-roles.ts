@@ -406,6 +406,7 @@ export const PERMISSION_OPTIONS = [
   'goods_issue:create',
   'goods_issue:read',
   'damage:create',
+  'inventory_lot:manage',
   'damage:read',
   'purchase_order:create',
   'purchase_order:read',

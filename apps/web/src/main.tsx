@@ -5,7 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppRoutes } from './routes/AppRoutes';
 import './index.css';
-import { api, applyAccessToken } from './api/client';
+import { applyAccessToken, isSessionRejected, refreshRequestOnce } from './api/client';
 import { GoogleAnalyticsManager } from './components/analytics/GoogleAnalyticsManager';
 import { DocumentTitleManager } from './components/DocumentTitleManager';
 import { CookieConsentManager } from './components/cookies/CookieConsentManager';
@@ -36,12 +36,13 @@ async function bootstrapSession() {
   }
 
   try {
-    const res = await api.post('/auth/refresh');
+    const res = await refreshRequestOnce();
     await initializeSessionFromAuthResponse(res.data);
-  } catch {
+  } catch (err) {
     const currentToken = useAuthStore.getState().accessToken;
     // If login succeeded while refresh was in-flight, don't wipe session.
-    if (!currentToken || currentToken === tokenAtBootstrapStart) {
+    // An outage (network error, 5xx) keeps the stored session for a retry.
+    if (isSessionRejected(err) && (!currentToken || currentToken === tokenAtBootstrapStart)) {
       applyAccessToken(null);
       useAuthStore.getState().clear();
     }

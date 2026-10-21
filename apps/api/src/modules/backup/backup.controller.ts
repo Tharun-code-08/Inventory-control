@@ -96,9 +96,20 @@ export class BackupController {
     @Res() res: Response,
   ) {
     const artifact = await this.backup.getArtifactDownloadPath(user, id);
-    res.setHeader('Content-Type', 'application/gzip');
-    res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
-    return createReadStream(artifact.storagePath).pipe(res);
+    const stream = createReadStream(artifact.storagePath);
+    // A missing or unreadable file must fail this request, not crash the process.
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(404).json({ success: false, error: { message: 'Backup file is not available' } });
+      } else {
+        res.destroy();
+      }
+    });
+    stream.once('open', () => {
+      res.setHeader('Content-Type', 'application/gzip');
+      res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
+      stream.pipe(res);
+    });
   }
 
   @Post('restore/dry-run')
