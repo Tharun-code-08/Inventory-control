@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -8,6 +8,7 @@ import { buildMeta, clampTake } from '../../common/utils/pagination';
 import { assertNotFuture } from '../../common/utils/date-guards';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
+import { CostingService } from '../stock/costing.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 import { buildStockAdjustmentAudit } from '../../common/state-machines/inventory-audit';
@@ -19,6 +20,7 @@ export class DamagedStockService {
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
+    private readonly costing: CostingService,
   ) {}
 
   private async available(tx: Prisma.TransactionClient, shopId: string, productId: string) {
@@ -39,7 +41,7 @@ export class DamagedStockService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      orderBy: [{ damageDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       include: { shop: true, product: true },
     });
     const { items, meta } = buildMeta(rows, take);
@@ -182,6 +184,15 @@ export class DamagedStockService {
         throw new DocumentAlreadyPostedException();
       }
 
+      // Written-off stock leaves at its cost (consumes FIFO layers too).
+      const costShop = await tx.shop.findUnique({ where: { id: fresh.shopId }, select: { costingMethod: true } });
+      const { unitCost } = await this.costing.recordOutflow(tx, {
+        shopId: fresh.shopId,
+        productId: fresh.productId,
+        qty: new Prisma.Decimal(fresh.damagedQuantity),
+        method: costShop?.costingMethod ?? CostingMethod.AVERAGE,
+      });
+
       await this.stock.postMovementOnce(tx, {
         type: TransactionType.DAMAGE,
         ref: fresh.damageNumber,
@@ -190,6 +201,7 @@ export class DamagedStockService {
         productId: fresh.productId,
         inQty: 0,
         outQty: fresh.damagedQuantity,
+        unitRate: Number(unitCost),
         sourceType: 'GOODS_RETURN',
         sourceId: fresh.id,
         idempotencyKey: `dm:${fresh.id}`,

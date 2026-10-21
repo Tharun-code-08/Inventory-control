@@ -27,6 +27,7 @@ function buildTx(overrides: Record<string, unknown> = {}) {
       ]),
     },
     product: { findUnique: jest.fn() },
+    productPlant: { createMany: jest.fn() },
     stockSummary: {
       findUnique: jest.fn().mockResolvedValue({ currentStock: new Prisma.Decimal(10) }),
     },
@@ -53,8 +54,13 @@ function makeService(tx: ReturnType<typeof buildTx>) {
   } as any;
   const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
 
-  const service = new StockTransfersService(prisma, stock, numbers, audit);
-  return { service, prisma, tx, stock, audit, numbers };
+  const costing = {
+    recordOutflow: jest.fn().mockResolvedValue({ totalCost: new Prisma.Decimal(50), unitCost: new Prisma.Decimal(5) }),
+    recordInflow: jest.fn(),
+  } as any;
+
+  const service = new StockTransfersService(prisma, stock, numbers, audit, costing);
+  return { service, prisma, tx, stock, audit, numbers, costing };
 }
 
 describe('StockTransfersService', () => {
@@ -124,7 +130,7 @@ describe('StockTransfersService', () => {
 
   it('posts a draft transfer with OUT and IN stock movements', async () => {
     const tx = buildTx();
-    const { service, tx: transaction, stock, audit } = makeService(tx);
+    const { service, tx: transaction, stock, audit, costing } = makeService(tx);
     const header = {
       id: 'st-1',
       transferNumber: 'ST-202605-00001',
@@ -166,6 +172,12 @@ describe('StockTransfersService', () => {
 
     expect(posted.status).toBe(DocumentStatus.POSTED);
     expect(stock.postMovementOnce).toHaveBeenCalledTimes(2);
+    // Cost leaves the source and arrives at the destination at the same rate.
+    expect(costing.recordOutflow).toHaveBeenCalledWith(transaction, expect.objectContaining({ shopId: 'shop-1' }));
+    expect(costing.recordInflow).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({ shopId: 'shop-2', unitCost: new Prisma.Decimal(5) }),
+    );
     expect(stock.postMovementOnce).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

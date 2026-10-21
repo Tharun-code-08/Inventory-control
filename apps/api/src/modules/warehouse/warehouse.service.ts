@@ -31,6 +31,8 @@ export class WarehouseService {
         },
       },
       orderBy: { header: { postedAt: 'desc' } },
+      // Only the newest line per product/plant/location is used; cap the scan.
+      take: 5000,
       select: {
         productId: true,
         expiryDate: true,

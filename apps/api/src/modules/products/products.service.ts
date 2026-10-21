@@ -46,6 +46,12 @@ type BulkUpsertRowResult = {
   warnings: string[];
 };
 
+/**
+ * Bulk imports run thousands of rows in one transaction; Prisma's default
+ * 5s interactive timeout would close it partway and fail every later row.
+ */
+const BULK_TX_OPTIONS = { timeout: 120_000, maxWait: 10_000 } as const;
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -156,18 +162,18 @@ export class ProductsService {
     reservedCodes: Set<string>,
   ) {
     const prefix = this.skuPrefixForCategory(category);
-    const existing = await tx.product.findMany({
-      where: { productCode: { startsWith: prefix } },
-      select: { productCode: true },
-      orderBy: { productCode: 'desc' },
-      take: 500,
-    });
+    // Highest numeric suffix in SQL: sorting codes as text puts PRE1000 below
+    // PRE999, so a "top N by code" scan would restart the sequence.
+    const [{ max }] = await tx.$queryRaw<Array<{ max: bigint | null }>>`
+      SELECT MAX(CAST(substring(product_code FROM ${prefix.length + 1}) AS bigint)) AS max
+      FROM products
+      WHERE left(product_code, ${prefix.length}) = ${prefix}
+        AND substring(product_code FROM ${prefix.length + 1}) ~ '^[0-9]{1,15}$'
+    `;
     const known = new Set(
-      [...reservedCodes, ...existing.map((row) => row.productCode)]
-        .map((value) => value.trim().toUpperCase())
-        .filter(Boolean),
+      [...reservedCodes].map((value) => value.trim().toUpperCase()).filter(Boolean),
     );
-    let sequence = 1;
+    let sequence = max != null ? Number(max) + 1 : 1;
     for (const code of known) {
       if (!code.startsWith(prefix)) continue;
       const suffix = code.slice(prefix.length);
@@ -951,7 +957,7 @@ export class ProductsService {
           errors.push({ row: rowNumber, message });
         }
       }
-    });
+    }, BULK_TX_OPTIONS);
 
     return { updated, errors, total: dto.rows.length };
   }
@@ -1123,7 +1129,7 @@ export class ProductsService {
           .filter((result) => result.status === 'failed')
           .map((result) => ({ row: result.row, message: result.message })),
       };
-    });
+    }, BULK_TX_OPTIONS);
   }
 
   private async applyBulkUpsertRow(
@@ -1488,7 +1494,8 @@ export class ProductsService {
       },
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      // Chronological, so each row's balance_qty follows the one before it.
+      orderBy: [{ transactionDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     const { items, meta } = buildMeta(rows, take);
     return { data: items, meta };

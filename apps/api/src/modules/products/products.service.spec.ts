@@ -51,6 +51,7 @@ function makeProduct(overrides: Record<string, unknown> = {}) {
 
 function makePrisma() {
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([{ max: null }]),
     product: {
       findMany: jest.fn(),
       create: jest.fn(),
