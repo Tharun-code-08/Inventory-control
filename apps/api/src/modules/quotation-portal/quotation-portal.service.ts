@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { SalesQuotationStatus } from '@prisma/client';
+import { Prisma, SalesQuotationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { asMoney, roundMoney } from '../../common/utils/money';
 import { RequestQuotationRevisionDto } from './dto/request-quotation-revision.dto';
@@ -59,21 +59,41 @@ export class QuotationPortalService {
     return this.toPortalView(row);
   }
 
-  async accept(portalToken: string) {
-    const row = await this.findByToken(portalToken);
+  /** The customer can only answer a SENT quotation that has not expired. */
+  private assertAwaitingResponse(row: { status: SalesQuotationStatus; validUntil: Date | null }) {
     if (row.status !== SalesQuotationStatus.SENT) {
       throw new BadRequestException('This quotation is no longer awaiting your response');
     }
+    if (row.validUntil) {
+      const endOfValidDay = new Date(row.validUntil);
+      endOfValidDay.setUTCHours(23, 59, 59, 999);
+      if (endOfValidDay.getTime() < Date.now()) {
+        throw new BadRequestException('This quotation has expired. Please ask for a new quotation.');
+      }
+    }
+  }
 
-    const updated = await this.prisma.salesQuotationHeader.update({
-      where: { id: row.id },
-      data: {
-        status: SalesQuotationStatus.ACCEPTED,
-        customerRespondedAt: new Date(),
-        customerRequestedTotal: null,
-        customerRequestNote: null,
-      },
-      include: quoteInclude,
+  /** Moves a SENT quotation to its next status; a concurrent answer gets a clear error. */
+  private async respond(id: string, data: Prisma.SalesQuotationHeaderUpdateManyMutationInput) {
+    const claimed = await this.prisma.salesQuotationHeader.updateMany({
+      where: { id, status: SalesQuotationStatus.SENT },
+      data,
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException('This quotation is no longer awaiting your response');
+    }
+    return this.prisma.salesQuotationHeader.findUniqueOrThrow({ where: { id }, include: quoteInclude });
+  }
+
+  async accept(portalToken: string) {
+    const row = await this.findByToken(portalToken);
+    this.assertAwaitingResponse(row);
+
+    const updated = await this.respond(row.id, {
+      status: SalesQuotationStatus.ACCEPTED,
+      customerRespondedAt: new Date(),
+      customerRequestedTotal: null,
+      customerRequestNote: null,
     });
 
     return {
@@ -84,9 +104,7 @@ export class QuotationPortalService {
 
   async requestRevision(portalToken: string, dto: RequestQuotationRevisionDto) {
     const row = await this.findByToken(portalToken);
-    if (row.status !== SalesQuotationStatus.SENT) {
-      throw new BadRequestException('This quotation is no longer awaiting your response');
-    }
+    this.assertAwaitingResponse(row);
 
     const requested = roundMoney(asMoney(dto.requestedTotal));
     const currentTotal = row.totalValue ?? asMoney(0);
@@ -96,15 +114,11 @@ export class QuotationPortalService {
       );
     }
 
-    const updated = await this.prisma.salesQuotationHeader.update({
-      where: { id: row.id },
-      data: {
-        status: SalesQuotationStatus.USER_REQUESTED,
-        customerRequestedTotal: requested,
-        customerRequestNote: dto.note?.trim() || null,
-        customerRespondedAt: new Date(),
-      },
-      include: quoteInclude,
+    const updated = await this.respond(row.id, {
+      status: SalesQuotationStatus.USER_REQUESTED,
+      customerRequestedTotal: requested,
+      customerRequestNote: dto.note?.trim() || null,
+      customerRespondedAt: new Date(),
     });
 
     return {

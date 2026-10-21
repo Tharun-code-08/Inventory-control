@@ -318,6 +318,15 @@ export class SalesOrdersService {
 
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : so.orderDate;
     const customerId = dto.customerId ?? so.customerId;
+    if (dto.customerId && dto.customerId !== so.customerId) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: dto.customerId },
+        select: { shopId: true },
+      });
+      if (!customer || customer.shopId !== so.shopId) {
+        throw new BadRequestException('Customer must belong to the selected shop');
+      }
+    }
     const supplyType = await this.resolveSupplyType(
       so.shopId,
       customerId,

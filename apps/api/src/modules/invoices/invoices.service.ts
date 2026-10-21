@@ -119,7 +119,11 @@ export class InvoicesService {
         if (prior) return { invoice: prior, replayed: true };
       }
 
+      let orderTax: { taxAmount: Prisma.Decimal; discountAmount: Prisma.Decimal; currency: string } | null = null;
       if (dto.salesOrderId) {
+        // Lock the order row so two concurrent invoice requests for the same
+        // order run one after the other; the second then sees the first.
+        await tx.$queryRaw`SELECT id FROM sales_order_header WHERE id = ${dto.salesOrderId}::uuid FOR UPDATE`;
         const so = await tx.salesOrderHeader.findUnique({
           where: { id: dto.salesOrderId },
           include: { invoices: { select: { id: true, status: true } } },
@@ -142,6 +146,9 @@ export class InvoicesService {
         if (hasOpenInvoice) {
           throw new ConflictException('This sales order has already been invoiced');
         }
+        // The invoice carries the order's tax and discount (used by e-way bills
+        // and GST reports), not just a grand total.
+        orderTax = { taxAmount: so.taxAmount, discountAmount: so.discountAmount, currency: so.currency };
       }
 
       const invoiceNumber =
@@ -162,6 +169,7 @@ export class InvoicesService {
           shopId,
           status: InvoiceStatus.ISSUED,
           totalValue,
+          ...(orderTax ?? {}),
           paidValue: new Prisma.Decimal(0),
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
           remarks: dto.remarks ?? null,

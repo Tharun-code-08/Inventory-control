@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentEmailTrigger, Prisma, SalesOrderStatus, SalesQuotationStatus } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -129,6 +129,8 @@ export class SalesQuotationsService {
         ...(customerId ? { customerId } : {}),
       },
       orderBy: { createdAt: 'desc' },
+      // The newest 500 keep one request bounded; older ones stay reachable by id.
+      take: 500,
       include: {
         customer: {
           select: { id: true, customerCode: true, customerName: true, email: true },
@@ -159,6 +161,9 @@ export class SalesQuotationsService {
     if (!customer) throw new NotFoundException('Customer not found');
     const shopId = dto.shopId ?? customer.shopId;
     assertShopScope(user, shopId);
+    if (customer.shopId !== shopId) {
+      throw new BadRequestException('Customer must belong to the selected shop');
+    }
     await this.subscriptions.assertFeatureForShop(shopId, 'sales_quotations');
 
     const quoteDate = dto.quoteDate ? new Date(dto.quoteDate) : new Date();
@@ -382,6 +387,20 @@ export class SalesQuotationsService {
     const orderDate = new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      // Claim the quotation first: a concurrent conversion finds it already
+      // CONVERTED and stops instead of creating a second sales order.
+      const claimed = await tx.salesQuotationHeader.updateMany({
+        where: {
+          id,
+          status: { in: [SalesQuotationStatus.SENT, SalesQuotationStatus.ACCEPTED] },
+          salesOrderId: null,
+        },
+        data: { status: SalesQuotationStatus.CONVERTED, updatedById: user.id },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('Quotation is already converted to a sales order');
+      }
+
       const soNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
         shopId: row.shopId,
         docType: 'SO',

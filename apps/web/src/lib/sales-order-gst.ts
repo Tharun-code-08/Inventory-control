@@ -94,8 +94,10 @@ export function computeSalesLineGst(input: SalesLineGstInput): SalesLineGstCompu
   } else {
     const cgstPercent = Number(input.cgstPercent) || 0;
     const sgstPercent = Number(input.sgstPercent) || 0;
-    cgstAmount = round2((taxable * cgstPercent) / 100);
-    sgstAmount = round2((taxable * sgstPercent) / 100);
+    // Same split as the API: round the combined tax once, SGST takes the remainder.
+    const combined = round2((taxable * (cgstPercent + sgstPercent)) / 100);
+    cgstAmount = Math.min(round2((taxable * cgstPercent) / 100), combined);
+    sgstAmount = round2(combined - cgstAmount);
   }
 
   const taxAmount = round2(cgstAmount + sgstAmount + igstAmount);
