@@ -1,3 +1,5 @@
+import { escapeFields } from './escape-html';
+
 export type PurchaseOrderLine = {
   code: string;
   description: string;
@@ -42,9 +44,12 @@ export function purchaseOrderText(content: PurchaseOrderEmailContent): string {
 }
 
 export function purchaseOrderHtml(content: PurchaseOrderEmailContent): string {
+  content = escapeFields(content);
   const rows = content.lines
     .map(
-      (line) => `
+      (rawLine) => {
+        const line = escapeFields(rawLine);
+        return `
       <tr>
         <td style="padding:8px;border:1px solid #e2e8f0;">${line.code}</td>
         <td style="padding:8px;border:1px solid #e2e8f0;">${line.description}</td>
@@ -53,7 +58,8 @@ export function purchaseOrderHtml(content: PurchaseOrderEmailContent): string {
         <td style="padding:8px;border:1px solid #e2e8f0;text-align:right;">${line.unitPrice}</td>
         <td style="padding:8px;border:1px solid #e2e8f0;text-align:right;">${line.lineValue}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join('');
 

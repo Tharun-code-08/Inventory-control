@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RoleName } from '@prisma/client';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
@@ -26,6 +26,13 @@ import { PolicyService, PolicyInput } from './policy/policy.service';
  * (publish, policy CRUD, feature flags, assistant proposals/approvals) require
  * OWNER/ADMIN via {@link RolesGuard}.
  */
+function parseDateParam(value: string | undefined, name: string): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new BadRequestException(`Invalid date for ${name}`);
+  return date;
+}
+
 @ApiTags('Workflow Engine')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,7 +55,7 @@ export class WorkflowEngineController {
   ) {}
 
   private range(from?: string, to?: string): AnalyticsRange {
-    return { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined };
+    return { from: parseDateParam(from, 'from'), to: parseDateParam(to, 'to') };
   }
 
   @Get('analytics/delivery-funnel')
@@ -132,7 +139,7 @@ export class WorkflowEngineController {
   @Get('optimizer/recommendations')
   @ApiOperation({ summary: 'Template/channel recommendations (advisory)' })
   optimizerRecs(@CurrentUser() user: RequestUser, @Query('since') since?: string) {
-    return this.optimizer.recommend(user.companyId!, since ? new Date(since) : undefined);
+    return this.optimizer.recommend(user.companyId!, parseDateParam(since, 'since'));
   }
 
   // ── Autonomous assistant (Phase 7) — proposals need human approval ──────────

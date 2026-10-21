@@ -1,4 +1,6 @@
-﻿export type SenderVerificationOtpContent = {
+﻿import { escapeFields } from './escape-html';
+
+export type SenderVerificationOtpContent = {
   displayName: string;
   email: string;
   otpCode: string;
@@ -27,6 +29,7 @@ export function senderVerificationOtpText(content: SenderVerificationOtpContent)
 }
 
 export function senderVerificationOtpHtml(content: SenderVerificationOtpContent): string {
+  content = escapeFields(content);
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;">

@@ -17,8 +17,9 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   private getBaseUrl(): string {
-    const apiPort = this.config.get<string>('API_PORT', '3001');
-    return `http://localhost:${apiPort}/uploads`;
+    // Same-origin relative path, like avatars and product images: the API
+    // serves /uploads and the web app proxies it. PDFs inline these files.
+    return '/uploads';
   }
 
   async writeBuffer(

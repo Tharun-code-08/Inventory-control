@@ -31,7 +31,13 @@ export async function buildPaymentReceiptPdfViewModel(
   const customer = invoice.customer;
 
   const invoiceTotal = Number(invoice.totalValue);
-  const paidAfter = Number(invoice.paidValue);
+  // Paid total as of this receipt (it and every earlier one), not today's
+  // running total, so a reprint shows what was true when it was issued.
+  const paidUpTo = await prisma.paymentReceipt.aggregate({
+    where: { invoiceId: invoice.id, createdAt: { lte: payment.createdAt } },
+    _sum: { amount: true },
+  });
+  const paidAfter = Number(paidUpTo._sum.amount ?? payment.amount);
   const amount = Number(payment.amount);
   const balance = Math.max(invoiceTotal - paidAfter, 0);
   const paymentType = balance <= 0 ? 'Full' : 'Partial';

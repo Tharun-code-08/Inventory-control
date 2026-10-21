@@ -55,4 +55,13 @@ export class DedupStore {
       return true;
     }
   }
+
+  /** Give back a claim whose send failed, so a retry is not seen as a duplicate. */
+  async release(hash: string): Promise<void> {
+    try {
+      await this.redis.del(`wf:dedup:${hash}`);
+    } catch (err) {
+      this.logger.warn(`dedup release failed (${(err as Error).message})`);
+    }
+  }
 }

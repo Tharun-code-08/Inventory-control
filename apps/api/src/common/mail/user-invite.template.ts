@@ -1,4 +1,6 @@
-﻿export type UserInviteEmailContent = {
+﻿import { escapeFields } from './escape-html';
+
+export type UserInviteEmailContent = {
   inviteUrl: string;
   companyName: string;
   inviteeEmail: string;
@@ -32,6 +34,7 @@ export function userInviteText(content: UserInviteEmailContent): string {
 }
 
 export function userInviteHtml(content: UserInviteEmailContent): string {
+  content = escapeFields(content);
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;">

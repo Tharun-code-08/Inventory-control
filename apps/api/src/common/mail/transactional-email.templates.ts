@@ -1,4 +1,6 @@
-﻿export type InvoiceCreatedEmailContent = {
+﻿import { escapeFields } from './escape-html';
+
+export type InvoiceCreatedEmailContent = {
   customerName: string;
   invoiceNumber: string;
   invoiceDate: string;
@@ -25,6 +27,7 @@ export function invoiceCreatedText(content: InvoiceCreatedEmailContent): string 
 }
 
 export function invoiceCreatedHtml(content: InvoiceCreatedEmailContent): string {
+  content = escapeFields(content);
   return `<p>Dear ${content.customerName},</p><p>Invoice <strong>${content.invoiceNumber}</strong> dated ${content.invoiceDate} has been raised.</p><p>Due date: ${content.dueDate}<br/>Amount: ${content.totalAmount}</p><p>Thank you,<br/>${content.companyName}</p>`;
 }
 
@@ -56,6 +59,7 @@ export function paymentReceivedText(content: PaymentReceivedEmailContent): strin
 }
 
 export function paymentReceivedHtml(content: PaymentReceivedEmailContent): string {
+  content = escapeFields(content);
   return `<p>Dear ${content.customerName},</p><p>We received ${content.paymentType} payment of ${content.amountPaid} against invoice ${content.invoiceNumber}.</p><p>Receipt: ${content.receiptNumber}<br/>Balance due: ${content.balanceDue}</p><p>Thank you,<br/>${content.companyName}</p>`;
 }
 
@@ -88,6 +92,7 @@ export function salesOrderCustomerText(content: SalesOrderCustomerEmailContent):
 }
 
 export function salesOrderCustomerHtml(content: SalesOrderCustomerEmailContent): string {
+  content = escapeFields(content);
   return `<p>Dear ${content.customerName},</p><p>Please find sales order <strong>${content.soNumber}</strong> dated ${content.orderDate}.</p><p>Expected date: ${content.expectedDate}<br/>Plant: ${content.shopName}<br/>Total: ${content.totalAmount}</p><p>Thank you,<br/>${content.companyName}</p>`;
 }
 
@@ -121,6 +126,7 @@ export function supplierBillIssuedText(content: SupplierBillIssuedEmailContent):
 }
 
 export function supplierBillIssuedHtml(content: SupplierBillIssuedEmailContent): string {
+  content = escapeFields(content);
   const poLine = content.poNumber ? `<br/>Purchase order: ${content.poNumber}` : '';
   return `<p>Hello ${content.supplierName},</p><p>Supplier bill <strong>${content.billNumber}</strong> dated ${content.billDate} has been issued.</p><p>Due date: ${content.dueDate}${poLine}<br/>Amount: ${content.totalAmount}</p><p>${content.companyName}</p>`;
 }
@@ -152,6 +158,7 @@ export function supplierPaymentRecordedText(content: SupplierPaymentRecordedEmai
 }
 
 export function supplierPaymentRecordedHtml(content: SupplierPaymentRecordedEmailContent): string {
+  content = escapeFields(content);
   return `<p>Hello ${content.supplierName},</p><p>We recorded ${content.paymentType} payment of ${content.amountPaid} against bill ${content.billNumber}.</p><p>Payment ref: ${content.paymentNumber}<br/>Balance due: ${content.balanceDue}</p><p>${content.companyName}</p>`;
 }
 
@@ -181,6 +188,7 @@ export function paymentReminderText(content: PaymentReminderEmailContent): strin
 }
 
 export function paymentReminderHtml(content: PaymentReminderEmailContent): string {
+  content = escapeFields(content);
   return `<p>Dear ${content.customerName},</p><p>This is a reminder that invoice <strong>${content.invoiceNumber}</strong> is due in ${content.daysUntilDue} day(s) on ${content.dueDate}.</p><p>Balance due: ${content.balanceDue}</p><p>Thank you,<br/>${content.companyName}</p>`;
 }
 
@@ -217,6 +225,7 @@ export function goodsReceiptSupplierText(content: GoodsReceiptSupplierEmailConte
 }
 
 export function goodsReceiptSupplierHtml(content: GoodsReceiptSupplierEmailContent): string {
+  content = escapeFields(content);
   return `<p>Hello ${content.supplierName},</p><p>Goods receipt <strong>${content.grNumber}</strong> dated ${content.grDate} has been posted for ${content.shopName}.</p><p>Purchase order: ${content.poNumber}<br/>Total: ${content.totalAmount}</p><p>${content.companyName}</p>`;
 }
 
@@ -229,5 +238,6 @@ export function internalAlertText(content: InternalAlertEmailContent): string {
 }
 
 export function internalAlertHtml(content: InternalAlertEmailContent): string {
+  content = escapeFields(content);
   return `<p><strong>${content.title}</strong></p><p>${content.message}</p><p>${content.companyName}</p>`;
 }

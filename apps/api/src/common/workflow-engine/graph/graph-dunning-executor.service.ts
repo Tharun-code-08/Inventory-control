@@ -32,6 +32,8 @@ export interface GraphSweepResult {
  * Both must never run for the same tenant at once — see docs; enabling
  * graph-execution is the switch that hands a tenant over to the graph.
  */
+const CUSTOMER_MESSAGE_ACTIONS = new Set(['notify.customer']);
+
 @Injectable()
 export class GraphDunningExecutor {
   private readonly logger = new Logger(GraphDunningExecutor.name);
@@ -45,16 +47,24 @@ export class GraphDunningExecutor {
   ) {}
 
   async sweep(now: Date = new Date()): Promise<GraphSweepResult> {
+    // Only tenants on graph-execution are swept, oldest due first, so threads
+    // of other tenants can't fill the batch and starve everyone else.
+    const companyFilter = await this.features.companyFilter('graph-execution');
+    if ('in' in companyFilter && companyFilter.in.length === 0) {
+      return { companiesEnabled: 0, threadsAdvanced: 0, stepsEmitted: 0, resolved: 0 };
+    }
     const due = await this.prisma.followupThread.findMany({
       where: {
         entityType: DUNNING_ENTITY_TYPE,
         state: 'ACTIVE',
+        companyId: companyFilter,
         OR: [{ nextActionAt: null }, { nextActionAt: { lte: now } }],
       },
+      orderBy: [{ nextActionAt: { sort: 'asc', nulls: 'first' } }, { id: 'asc' }],
       take: 500,
     });
 
-    // Resolve each distinct company's flag once.
+    // Resolve each distinct company's flag once (also honours the flag cache).
     const flagByCompany = new Map<string, boolean>();
     for (const companyId of new Set(due.map((t) => t.companyId))) {
       flagByCompany.set(companyId, await this.features.isEnabled(companyId, 'graph-execution'));
@@ -70,7 +80,12 @@ export class GraphDunningExecutor {
 
       const facts = await this.loadFacts(thread.entityId);
       if (!facts) continue; // invoice gone / not collectible → leave thread as-is
-      const published = await this.registry.getPublished(thread.companyId, WORKFLOW_KEY);
+      // A thread already inside the graph stays on the version it started on;
+      // only new threads pick up the latest published version.
+      const published =
+        (thread.currentNodeId
+          ? await this.registry.getVersion(thread.companyId, WORKFLOW_KEY, thread.workflowVersion)
+          : null) ?? (await this.registry.getPublished(thread.companyId, WORKFLOW_KEY));
       if (!published) continue;
 
       const advance = advanceThread(published.workflow, thread.currentNodeId ?? null, facts.threadFacts, now, {
@@ -96,6 +111,12 @@ export class GraphDunningExecutor {
 
       await this.prisma.$transaction(async (tx) => {
         for (const effect of advance.effects) {
+          // Only customer-notify actions become dunning messages; other action
+          // types (webhook, crm.update, ...) are not executed by this sweep.
+          if (effect.kind === 'ACTION' && !CUSTOMER_MESSAGE_ACTIONS.has(effect.action.type)) {
+            this.logger.warn(`Graph action ${effect.action.type} skipped for thread ${thread.id}`);
+            continue;
+          }
           const payload =
             effect.kind === 'ACTION' ? graphActionToStepPayload(effect.action, ctx) : graphEscalateToStepPayload(ctx);
           await this.outbox.emit(tx, {

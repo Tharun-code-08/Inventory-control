@@ -1999,6 +1999,9 @@ enum AlertType {
   CONTRACT_EXPIRY
   RFQ_DEADLINE
   PO_OVERDUE
+
+  // Receivables
+  INVOICE_OVERDUE
 }
 
 model Customer {
@@ -4142,8 +4145,10 @@ model DispatchBatchItem {
   tone          String
   eventId       String   @map("event_id") @db.Uuid
   correlationId String   @map("correlation_id") @db.Uuid
-  /// PENDING | SENT
+  /// PENDING | SENDING | SENT
   status        String   @default("PENDING")
+  /// When a flush claimed the row; a stale SENDING claim is retried.
+  claimedAt     DateTime? @map("claimed_at") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([companyId, customerId, status])

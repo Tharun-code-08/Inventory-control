@@ -68,6 +68,22 @@ export class FeatureFlagsService {
     return value;
   }
 
+  /**
+   * Which companies have `feature` on, as a Prisma companyId filter: an
+   * allow-list when the global default is off, a deny-list when it is on.
+   */
+  async companyFilter(feature: WorkflowFeature): Promise<{ in: string[] } | { notIn: string[] }> {
+    const overrides = await this.prisma.notificationPolicy.findMany({
+      where: { scope: 'feature-flag', name: feature },
+      select: { companyId: true, action: true },
+    });
+    const defaultOn = this.globalDefault(feature);
+    const ids = overrides
+      .filter((o) => this.readEnabled(o.action) !== defaultOn)
+      .map((o) => o.companyId);
+    return defaultOn ? { notIn: ids } : { in: ids };
+  }
+
   /** Set (upsert) a per-company override and invalidate the shared cache. */
   async setEnabled(companyId: string, feature: WorkflowFeature, enabled: boolean): Promise<void> {
     const existing = await this.prisma.notificationPolicy.findFirst({

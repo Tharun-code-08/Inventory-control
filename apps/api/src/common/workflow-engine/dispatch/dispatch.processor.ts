@@ -30,7 +30,15 @@ export class DispatchProcessor extends WorkerHost {
     if (job.name === DISPATCH_JOB.FLUSH_BATCH) {
       const { companyId, customerId } = job.data as { companyId: string; customerId: string };
       const items = await this.batch.collectPending(companyId, customerId);
-      if (items.length > 0) await this.dispatch.sendDigest(companyId, customerId, items);
+      if (items.length === 0) return;
+      try {
+        await this.dispatch.sendDigest(companyId, customerId, items);
+      } catch (err) {
+        // Put the items back so the job's retry (or the next flush) sends them.
+        await this.batch.release(items);
+        throw err;
+      }
+      await this.batch.markSent(items);
       return;
     }
     this.logger.warn(`Unknown dispatch job "${job.name}" ignored.`);

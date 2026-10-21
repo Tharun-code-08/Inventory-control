@@ -1,4 +1,5 @@
 import { wrapBusinessEmailHtml } from './email-layout.template';
+import { escapeHtml } from './escape-html';
 
 export type TemplateContext = Record<string, string | number | null | undefined>;
 
@@ -17,11 +18,13 @@ const TEMPLATE_TITLES: Record<string, string> = {
 export function renderTemplateString(
   template: string,
   context: TemplateContext,
+  options: { html?: boolean } = {},
 ): string {
   return template.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_match, key: string) => {
     const value = context[key.toLowerCase()] ?? context[key];
     if (value == null || value === '') return '';
-    return String(value);
+    // Values are customer/supplier data; never let them inject markup.
+    return options.html ? escapeHtml(value) : String(value);
   });
 }
 
@@ -65,7 +68,7 @@ export function mergeTemplateContent(args: {
     (args.templateId ? TEMPLATE_TITLES[args.templateId] : undefined) ??
     'Notification';
   const companyName = String(args.context.company_name ?? '');
-  const renderedHtml = renderTemplateString(htmlSource, args.context);
+  const renderedHtml = renderTemplateString(htmlSource, args.context, { html: true });
   const renderedText = renderTemplateString(textSource, args.context);
   const html = finalizeEmailHtml(renderedHtml, layoutTitle, companyName);
   return {

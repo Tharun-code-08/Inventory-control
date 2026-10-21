@@ -33,7 +33,13 @@ export async function buildSupplierPaymentPdfViewModel(
   const supplier = bill.supplier;
 
   const billTotal = Number(bill.totalValue);
-  const paidAfter = Number(bill.paidValue);
+  // Paid total as of this payment (it and every earlier one), not today's
+  // running total, so a reprint shows what was true when it was issued.
+  const paidUpTo = await prisma.supplierPayment.aggregate({
+    where: { supplierBillId: bill.id, createdAt: { lte: payment.createdAt } },
+    _sum: { amount: true },
+  });
+  const paidAfter = Number(paidUpTo._sum.amount ?? payment.amount);
   const amount = Number(payment.amount);
   const balance = Math.max(billTotal - paidAfter, 0);
   const paymentType = balance <= 0 ? 'Full' : 'Partial';
