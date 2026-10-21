@@ -35,7 +35,11 @@ export type CreateShopPayload = {
   isActive?: boolean;
 };
 
-export type UpdateShopPayload = Partial<CreateShopPayload> & { id: string };
+export type UpdateShopPayload = Partial<Omit<CreateShopPayload, 'taxId'>> & {
+  id: string;
+  /** null clears the GSTIN. */
+  taxId?: string | null;
+};
 
 export const shopKeys = {
   all: ['shops'] as const,

@@ -92,6 +92,12 @@ function stripOptional(value: string): string | undefined {
   return trimmed === '' ? undefined : trimmed;
 }
 
+/** Empty → null so an edit can clear an optional field (undefined is dropped). */
+function clearable(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 function customerInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
@@ -492,14 +498,14 @@ function CustomersListView() {
 
     const payload = {
       customerName: form.customerName.trim(),
-      email: stripOptional(form.email),
-      phone: stripOptional(form.phone),
-      taxId: stripOptional(form.taxId)?.toUpperCase?.(),
-      pan: stripOptional(form.pan)?.toUpperCase?.(),
-      street: stripOptional(form.street),
-      city: stripOptional(form.city),
-      state: stripOptional(form.state),
-      postalCode: stripOptional(form.postalCode),
+      email: clearable(form.email),
+      phone: clearable(form.phone),
+      taxId: clearable(form.taxId)?.toUpperCase() ?? null,
+      pan: clearable(form.pan)?.toUpperCase() ?? null,
+      street: clearable(form.street),
+      city: clearable(form.city),
+      state: clearable(form.state),
+      postalCode: clearable(form.postalCode),
     };
 
     try {

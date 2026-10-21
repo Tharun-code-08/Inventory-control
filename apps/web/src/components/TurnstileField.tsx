@@ -15,12 +15,26 @@ declare global {
 export function TurnstileField({
   siteKey,
   onToken,
+  resetKey = 0,
 }: {
   siteKey?: string;
   onToken: (token: string) => void;
+  /**
+   * Bump after a failed submit: a token is single-use and the server spends it
+   * even when the request fails, so the widget must issue a fresh one.
+   */
+  resetKey?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (resetKey === 0) return;
+    onToken('');
+    if (widgetIdRef.current && window.turnstile?.reset) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, [resetKey, onToken]);
 
   useEffect(() => {
     if (!siteKey) return;

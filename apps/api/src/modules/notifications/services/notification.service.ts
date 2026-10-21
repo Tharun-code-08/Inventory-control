@@ -87,6 +87,8 @@ export class NotificationService {
     const where: any = {
       userId,
       companyId,
+      // delete() soft-deletes by status; deleted rows must not be listed.
+      status: { not: NotificationStatus.DELETED },
     };
 
     if (filter.isRead !== undefined) {
@@ -223,6 +225,7 @@ export class NotificationService {
         userId,
         companyId,
         isRead: false,
+        status: { not: NotificationStatus.DELETED },
         OR: [{ expiresAt: { gt: new Date() } }, { expiresAt: null }],
       },
     });

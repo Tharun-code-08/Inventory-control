@@ -208,10 +208,11 @@ export class CustomersService {
       where: { id },
       data: {
         customerName: dto.customerName,
-        email: dto.email?.toLowerCase?.(),
+        // null clears the field; undefined leaves it unchanged.
+        email: dto.email === null ? null : dto.email?.toLowerCase?.(),
         phone: dto.phone,
         taxId: dto.taxId,
-        pan: dto.pan?.toUpperCase?.(),
+        pan: dto.pan === null ? null : dto.pan?.toUpperCase?.(),
         street: dto.street,
         city: dto.city,
         state: dto.state,

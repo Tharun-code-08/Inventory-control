@@ -33,7 +33,7 @@ import { assertNotFuture } from '../../common/utils/date-guards';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import type { PurchaseOrderEmailContent } from '../../common/mail/purchase-order-supplier.template';
-import type { ListPurchaseOrdersDto } from './dto/list-purchase-orders.dto';
+import type { ListPurchaseOrdersDto, PoLifecycle } from './dto/list-purchase-orders.dto';
 
 const RECEIPT_INCLUDE = {
   select: {
@@ -463,6 +463,57 @@ export class PurchaseOrdersService {
     };
   }
 
+  /**
+   * Server-side lifecycle filter, so tabs filter the whole list rather than
+   * one page. Receipt states are derived the same way as withLifecycle():
+   * posted receipts minus posted supplier returns, per product.
+   */
+  private async lifecycleWhere(
+    lifecycle: PoLifecycle | undefined,
+    shopIds: string[],
+  ): Promise<Prisma.PurchaseOrderHeaderWhereInput> {
+    if (!lifecycle) return {};
+    if (lifecycle === 'DRAFT') return { status: PurchaseOrderStatus.DRAFT };
+    if (lifecycle === 'CANCELLED') return { status: PurchaseOrderStatus.CANCELLED };
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      WITH ordered AS (
+        SELECT poi.po_header_id AS po_id, poi.product_id, SUM(poi.order_qty) AS qty
+        FROM purchase_order_items poi
+        JOIN purchase_order_header poh ON poh.id = poi.po_header_id
+        WHERE poh.status = 'CONFIRMED'
+          ${shopIds.length ? Prisma.sql`AND poh.shop_id = ANY(${shopIds}::uuid[])` : Prisma.empty}
+        GROUP BY 1, 2
+      ), received AS (
+        SELECT grh.purchase_order_id AS po_id, gri.product_id, SUM(gri.quantity) AS qty
+        FROM goods_receipt_header grh
+        JOIN goods_receipt_items gri ON gri.gr_header_id = grh.id
+        WHERE grh.status = 'POSTED' AND grh.purchase_order_id IS NOT NULL
+        GROUP BY 1, 2
+      ), returned AS (
+        SELECT sr.purchase_order_id AS po_id, sri.product_id, SUM(sri.quantity) AS qty
+        FROM supplier_returns sr
+        JOIN supplier_return_items sri ON sri.return_id = sr.id
+        WHERE sr.status = 'POSTED' AND sr.purchase_order_id IS NOT NULL
+        GROUP BY 1, 2
+      ), net AS (
+        SELECT o.po_id, o.qty AS ordered,
+               GREATEST(COALESCE(r.qty, 0) - COALESCE(t.qty, 0), 0) AS got
+        FROM ordered o
+        LEFT JOIN received r ON r.po_id = o.po_id AND r.product_id = o.product_id
+        LEFT JOIN returned t ON t.po_id = o.po_id AND t.product_id = o.product_id
+      ), states AS (
+        SELECT po_id,
+               CASE WHEN bool_and(got >= ordered) THEN 'FULLY_RECEIVED'
+                    WHEN bool_or(got > 0) THEN 'PARTIALLY_RECEIVED'
+                    ELSE 'CONFIRMED' END AS lifecycle
+        FROM net
+        GROUP BY po_id
+      )
+      SELECT po_id::text AS id FROM states WHERE lifecycle = ${lifecycle}
+    `;
+    return { status: PurchaseOrderStatus.CONFIRMED, id: { in: rows.map((r) => r.id) } };
+  }
+
   async list(user: RequestUser, query: ListPurchaseOrdersDto) {
     const take = clampTake(query.limit ?? query.take);
     const page = query.page && query.page > 0 ? query.page : 1;
@@ -470,10 +521,20 @@ export class PurchaseOrdersService {
     const useCursor = Boolean(query.cursor);
     if (query.shop_id) assertShopScope(user, query.shop_id);
 
+    // Narrow the receipt scan to the caller's plants (the list where clause
+    // still enforces scope on the result).
+    const lifecycleWhere = await this.lifecycleWhere(
+      query.lifecycle,
+      query.shop_id ? [query.shop_id] : user.tenantShopIds,
+    );
     const where: Prisma.PurchaseOrderHeaderWhereInput = {
       shop: shopListWhere(user),
       ...(query.shop_id ? { shopId: query.shop_id } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.supplier?.trim()
+        ? { supplier: { contains: query.supplier.trim(), mode: 'insensitive' } }
+        : {}),
+      ...lifecycleWhere,
       ...(query.search?.trim()
         ? {
             OR: [

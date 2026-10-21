@@ -359,7 +359,8 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
     }
 
     return {
-      shopId: user?.shopId ?? shops[0]?.id ?? undefined,
+      // The plant chosen on the form (or the user's home plant).
+      shopId: resolvedShopId || undefined,
       title: form.title.trim(),
       deadline: form.deadline || undefined,
       notes: form.notes || undefined,
@@ -416,7 +417,15 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
     setSubmitMode('send');
     try {
       const created = await createRfq.mutateAsync(payload);
-      const result = await sendRfq.mutateAsync(created.id);
+      let result;
+      try {
+        result = await sendRfq.mutateAsync(created.id);
+      } catch (sendErr: unknown) {
+        // The draft is saved; close the form so a retry doesn't create another.
+        toast.error(`${getApiErrorMessage(sendErr, 'Sending failed')} — RFQ ${created.rfqNumber} was saved as a draft; send it from the list.`);
+        finishCreateFlow();
+        return;
+      }
       toastEmailResult(created.rfqNumber, result.emailDelivery?.results, 'sent');
       finishCreateFlow();
     } catch (err: unknown) {
@@ -475,6 +484,26 @@ export function RfqsPage({ createOnly = false }: { createOnly?: boolean }) {
             onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))}
           />
         </div>
+        {!user?.shopId && shops.length > 1 ? (
+          <div className="space-y-1">
+            <Label className="text-xs">Plant (delivery location)</Label>
+            <Select
+              value={resolvedShopId}
+              onValueChange={(value) => setForm((p) => ({ ...p, shopId: value }))}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Select plant" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((shop) => (
+                  <SelectItem key={shop.id} value={shop.id}>
+                    {shop.shopName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="space-y-2 sm:col-span-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs">Suppliers *</Label>

@@ -37,11 +37,32 @@ export function sumPoLineTotals(lines: PoLineInput[]) {
   );
 }
 
-export function taxPercentForProduct(
-  lineItemTaxes: Array<{ productId: string; taxPercent: number }> | undefined,
-  productId: string,
+type LineTaxEntry = { productId?: string; lineDescription?: string; lineIndex?: number; taxPercent: number };
+type LineRef = { productId?: string | null; lineDescription?: string | null };
+
+function sameLine(entry: LineTaxEntry, line: LineRef): boolean {
+  if (entry.productId) return entry.productId === line.productId;
+  return Boolean(entry.lineDescription) && entry.lineDescription === (line.lineDescription ?? '').trim();
+}
+
+/**
+ * Tax % for one PO line. Entries are matched by position first (so the same
+ * product on two lines keeps two rates), then by product / service
+ * description (older POs stored product id only).
+ */
+export function taxPercentForLine(
+  lineItemTaxes: LineTaxEntry[] | undefined,
+  line: LineRef,
+  lineIndex: number,
 ): number {
-  if (!lineItemTaxes?.length || !productId) return 0;
-  const row = lineItemTaxes.find((t) => t.productId === productId);
+  if (!lineItemTaxes?.length) return 0;
+  const row =
+    lineItemTaxes.find((t) => t.lineIndex === lineIndex && sameLine(t, line)) ??
+    lineItemTaxes.find((t) => sameLine(t, line));
   return row ? numPo(row.taxPercent) : 0;
+}
+
+/** @deprecated Use taxPercentForLine. */
+export function taxPercentForProduct(lineItemTaxes: LineTaxEntry[] | undefined, productId: string): number {
+  return taxPercentForLine(lineItemTaxes, { productId }, -1);
 }

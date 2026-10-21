@@ -137,6 +137,9 @@ export class BillingController {
       throw new BadRequestException('Payment not verified');
     }
     if (payment.consumedAt) {
+      // A retry after a lost response: this payment already activated this
+      // organisation, so report success instead of an error.
+      if (payment.companyId === companyId) return this.subscriptions.getSnapshotForUser(user);
       throw new BadRequestException('Payment already used');
     }
     const company = await this.prisma.company.findUnique({

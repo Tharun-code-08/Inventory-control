@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { portalGet, portalPost } from '@/lib/portal-api';
 import { initializeSessionFromAuthResponse } from '@/lib/session';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { TurnstileField } from '@/components/TurnstileField';
 
 type InvitePreview = {
   email: string;
@@ -19,91 +20,6 @@ type InvitePreview = {
   inviterName?: string | null;
   expiresAt: string;
 };
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        container: HTMLElement,
-        options: Record<string, unknown>,
-      ) => string | undefined;
-      reset?: (id?: string) => void;
-    };
-  }
-}
-
-function TurnstileField({
-  siteKey,
-  onToken,
-}: {
-  siteKey?: string;
-  onToken: (token: string) => void;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const widgetIdRef = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!siteKey) return;
-    let cancelled = false;
-
-    const renderWidget = () => {
-      if (!containerRef.current || !window.turnstile) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        theme: 'light',
-        callback: (token: string) => {
-          if (!cancelled) onToken(token);
-        },
-        'error-callback': () => {
-          if (!cancelled) onToken('');
-        },
-        'expired-callback': () => {
-          if (!cancelled) onToken('');
-        },
-      }) as string | undefined;
-    };
-
-    if (window.turnstile) {
-      renderWidget();
-      return () => {
-        cancelled = true;
-        if (widgetIdRef.current && window.turnstile?.reset) {
-          window.turnstile.reset(widgetIdRef.current);
-        }
-      };
-    }
-
-    const scriptId = 'cf-turnstile-script';
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      script.async = true;
-      script.onload = renderWidget;
-      document.head.appendChild(script);
-      return () => {
-        cancelled = true;
-        if (widgetIdRef.current && window.turnstile?.reset) {
-          window.turnstile.reset(widgetIdRef.current);
-        }
-      };
-    }
-
-    const existing = document.getElementById(scriptId);
-    existing?.addEventListener('load', renderWidget);
-    return () => {
-      cancelled = true;
-      existing?.removeEventListener('load', renderWidget);
-      if (widgetIdRef.current && window.turnstile?.reset) {
-        window.turnstile.reset(widgetIdRef.current);
-      }
-    };
-  }, [siteKey, onToken]);
-
-  if (!siteKey) return null;
-
-  return <div className="mt-1" ref={containerRef} />;
-}
 
 export function InviteAcceptPage() {
   const [searchParams] = useSearchParams();
@@ -117,6 +33,7 @@ export function InviteAcceptPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [isSubmitting, setSubmitting] = useState(false);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
 
@@ -168,6 +85,8 @@ export function InviteAcceptPage() {
       toast.success('Invitation accepted.');
       nav('/products');
     } catch (err) {
+      // The captcha token was spent by this attempt; get a fresh one.
+      setTurnstileResetKey((n) => n + 1);
       toast.error(getApiErrorMessage(err, 'Failed to accept invitation.'));
     } finally {
       setSubmitting(false);
@@ -230,7 +149,7 @@ export function InviteAcceptPage() {
                   />
                 </div>
 
-                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} />
+                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? 'Creating account…' : 'Accept and continue'}

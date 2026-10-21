@@ -165,6 +165,33 @@ function formToPayload(form: SupplierFormState): CreateSupplierPayload {
   };
 }
 
+/** Empty → null so an edit can clear an optional field (undefined is dropped). */
+function clearable(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+function formToUpdatePayload(form: SupplierFormState) {
+  return {
+    ...formToPayload(form),
+    taxId: form.taxId.trim() ? form.taxId.trim().toUpperCase() : null,
+    vatNumber: form.vatNumber.trim() ? form.vatNumber.trim().toUpperCase() : null,
+    contactPerson: clearable(form.contactPerson),
+    email: clearable(form.email),
+    phone: clearable(form.phone),
+    street: clearable(form.street),
+    city: clearable(form.city),
+    state: clearable(form.state),
+    postalCode: clearable(form.postalCode),
+    country: clearable(form.country),
+    paymentTerms: clearable(form.paymentTerms),
+    bankName: clearable(form.bankName),
+    accountNumber: clearable(form.accountNumber),
+    routingNumber: clearable(form.routingNumber),
+    iban: clearable(form.iban),
+  };
+}
+
 function supplierInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -602,7 +629,7 @@ function SuppliersListView() {
     try {
       await updateSupplier.mutateAsync({
         id: editingSupplier.id,
-        ...formToPayload(editForm),
+        ...formToUpdatePayload(editForm),
       });
       setEditSheetOpen(false);
       setEditingSupplier(null);

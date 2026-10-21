@@ -503,7 +503,8 @@ function PlantsListView() {
         id: editingPlant!.id,
         ...form,
         shopNumber,
-        taxId: form.taxId || undefined,
+        // null clears the GSTIN; undefined would leave the old one in place.
+        taxId: form.taxId.trim() || null,
       });
       toast.success('Plant updated successfully');
       setSheetOpen(false);

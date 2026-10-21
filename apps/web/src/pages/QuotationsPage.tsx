@@ -421,7 +421,15 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
     setSubmitMode('send');
     try {
       const created = await createQuote.mutateAsync(payload);
-      const sent = await sendQuote.mutateAsync(created.id);
+      let sent;
+      try {
+        sent = await sendQuote.mutateAsync(created.id);
+      } catch (sendErr: unknown) {
+        // The draft is saved; close the form so a retry doesn't create another.
+        toast.error(`${getApiErrorMessage(sendErr, 'Sending failed')} — the quotation was saved as a draft; send it from the list.`);
+        finishCreateFlow();
+        return;
+      }
       toast.success(quotationSentToast(sent.emailDelivery), { duration: 8000 });
       finishCreateFlow();
     } catch (err: unknown) {

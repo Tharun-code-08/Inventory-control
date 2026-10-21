@@ -27,9 +27,10 @@ import { useProducts, type Product } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { localDateString } from '@/lib/local-date';
 
 function todayISO() {
-  return new Date().toISOString().split('T')[0];
+  return localDateString();
 }
 
 function extractProducts(raw: unknown): Product[] {

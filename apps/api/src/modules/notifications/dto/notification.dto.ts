@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsBoolean, IsUUID, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsUUID, IsDateString, IsInt, Min, Max } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { AlertType, NotificationPriority, NotificationModule, NotificationStatus } from '@prisma/client';
 
 export class CreateNotificationDto {
@@ -169,6 +170,10 @@ export class NotificationFilterDto {
     description: 'Filter by read status',
     required: false,
   })
+  // Query strings are text: implicit conversion would turn "false" into true.
+  @Transform(({ obj }) =>
+    obj.isRead === undefined || obj.isRead === '' ? undefined : obj.isRead === true || obj.isRead === 'true',
+  )
   @IsBoolean()
   @IsOptional()
   isRead?: boolean;
@@ -206,6 +211,9 @@ export class NotificationFilterDto {
     default: 1,
   })
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number = 1;
 
   @ApiProperty({
@@ -214,6 +222,10 @@ export class NotificationFilterDto {
     default: 20,
   })
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number = 20;
 }
 
