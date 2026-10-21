@@ -374,9 +374,10 @@ export class EmailSenderService {
     await this.prisma.emailSenderIdentity.delete({ where: { id: senderId } });
 
     if (sender.isPrimary) {
+      // Only a verified sender can send; promote the oldest verified one.
       const next = await this.prisma.emailSenderIdentity.findFirst({
-        where: { companyId },
-        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+        where: { companyId, status: EmailSenderStatus.VERIFIED },
+        orderBy: { createdAt: 'asc' },
       });
       if (next) {
         await this.prisma.emailSenderIdentity.update({
@@ -473,6 +474,19 @@ export class EmailSenderService {
       throw new BadRequestException('Platform SMTP is not configured for verification emails.');
     }
 
+    // Resend cooldown and hourly cap: each code resets the attempt budget.
+    const recent = await this.prisma.emailSenderVerification.findMany({
+      where: { senderId: sender.id, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    if (recent[0] && Date.now() - recent[0].createdAt.getTime() < 60 * 1000) {
+      throw new BadRequestException('Please wait a minute before requesting another code.');
+    }
+    if (recent.length >= 5) {
+      throw new BadRequestException('Too many verification emails. Try again in an hour.');
+    }
+
     const otpCode = String(randomInt(100000, 999999));
     const expiresAt = new Date(Date.now() + SENDER_OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -525,16 +539,18 @@ export class EmailSenderService {
       orderBy: { createdAt: 'desc' },
     });
     if (!verification) throw new BadRequestException('Verification code expired. Resend email and try again.');
-    if (verification.attemptCount >= SENDER_OTP_MAX_ATTEMPTS) {
+    // Take an attempt atomically before comparing, so parallel guesses can't
+    // all pass the limit check.
+    const { count: claimed } = await this.prisma.emailSenderVerification.updateMany({
+      where: { id: verification.id, attemptCount: { lt: SENDER_OTP_MAX_ATTEMPTS } },
+      data: { attemptCount: { increment: 1 } },
+    });
+    if (claimed === 0) {
       throw new BadRequestException('Too many attempts. Resend verification email.');
     }
 
     const valid = verification.otpHash === this.hashOtp(otpCode);
     if (!valid) {
-      await this.prisma.emailSenderVerification.update({
-        where: { id: verification.id },
-        data: { attemptCount: { increment: 1 } },
-      });
       throw new BadRequestException('Invalid verification code');
     }
 

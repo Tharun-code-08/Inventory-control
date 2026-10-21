@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { PurchaseOrder } from '@/hooks/use-purchase-orders';
 import type { PoDocumentMeta } from '@/lib/po-document';
 import { computeGstAmounts } from '@/lib/po-form-document';
-import { computePoLineAmounts, taxPercentForProduct } from '@/lib/po-line-calculations';
+import { computePoLineAmounts, taxPercentForLine } from '@/lib/po-line-calculations';
 
 const BLUE: [number, number, number] = [54, 96, 146];
 const BLUE_LIGHT: [number, number, number] = [220, 230, 241];
@@ -210,7 +210,7 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
     if (item) {
       const qty = Number(item.orderQty);
       const rate = Number(item.rate);
-      const taxPct = taxPercentForProduct(doc.lineItemTaxes, item.productId);
+      const taxPct = taxPercentForLine(doc.lineItemTaxes, item, i);
       const line = computePoLineAmounts({ orderQty: qty, rate, taxPercent: taxPct });
       subtotal += line.subtotal;
       taxTotal += line.taxAmount;
@@ -232,8 +232,8 @@ export function buildPoPdf(po: PurchaseOrder, ctx: PoPdfContext): jsPDF {
   }
 
   if (taxTotal === 0 && doc.lineItemTaxes?.length) {
-    taxTotal = items.reduce((sum, item) => {
-      const taxPct = taxPercentForProduct(doc.lineItemTaxes, item.productId);
+    taxTotal = items.reduce((sum, item, index) => {
+      const taxPct = taxPercentForLine(doc.lineItemTaxes, item, index);
       const line = computePoLineAmounts({
         orderQty: item.orderQty,
         rate: item.rate,

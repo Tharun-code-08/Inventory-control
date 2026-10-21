@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/store/authStore';
 import { AppLayout } from '@/components/AppLayout';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader, SearchInput, ConfirmDialog, DataTablePagination, LoadingSkeleton, EmptyState, AnimatedTableBody, P2PFlowTimeline, CreatePageLayout, FormSection, FormGrid, type P2PStep } from '@/components/shared';
 import { DocumentEmailHistoryPanel } from '@/components/shared/DocumentEmailHistoryPanel';
@@ -104,7 +105,7 @@ import {
   computePoLineAmounts,
   numPo,
   sumPoLineTotals,
-  taxPercentForProduct,
+  taxPercentForLine,
 } from '@/lib/po-line-calculations';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -241,8 +242,12 @@ function defaultPoLineItem() {
   };
 }
 
-function taxPercentFromDocument(doc: PoDocumentMeta, productId: string): string | number {
-  const pct = taxPercentForProduct(doc.lineItemTaxes, productId);
+function taxPercentFromDocument(
+  doc: PoDocumentMeta,
+  line: { productId?: string | null; lineDescription?: string | null },
+  lineIndex: number,
+): string | number {
+  const pct = taxPercentForLine(doc.lineItemTaxes, line, lineIndex);
   return pct > 0 ? pct : '';
 }
 
@@ -269,7 +274,7 @@ function sanitizePoDocumentTaxes(
     ...document,
     lineItemTaxes: document.lineItemTaxes.map((line) => ({
       ...line,
-      taxPercent: effectivePoLineTaxPercent(line.productId, line.taxPercent, productLookup),
+      taxPercent: effectivePoLineTaxPercent(line.productId ?? '', line.taxPercent, productLookup),
     })),
   };
 }
@@ -295,8 +300,8 @@ function purchaseOrderTotals(
 
   let taxTotal = 0;
   if (sanitizedDocument.lineItemTaxes?.length) {
-    taxTotal = po.items.reduce((sum, item) => {
-      const taxPercent = taxPercentForProduct(sanitizedDocument.lineItemTaxes, item.productId);
+    taxTotal = po.items.reduce((sum, item, index) => {
+      const taxPercent = taxPercentForLine(sanitizedDocument.lineItemTaxes, item, index);
       return (
         sum +
         computePoLineAmounts({
@@ -380,10 +385,15 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const [formCancelConfirmOpen, setFormCancelConfirmOpen] = useState(false);
 
   // ---- queries ----
+  // Supplier and lifecycle filters run on the server so they cover every
+  // page, not just the 10 rows already loaded.
+  const debouncedSupplier = useDebouncedValue(supplierSearch.trim(), 300);
   const poQuery = usePurchaseOrders({
     page,
     limit: PAGE_SIZE,
     search: search || undefined,
+    supplier: debouncedSupplier || undefined,
+    lifecycle: lifecycleFilter === 'ALL' ? undefined : lifecycleFilter,
     status: statusFilter || undefined,
     shopId: shopId || undefined,
   });
@@ -415,45 +425,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     return undefined;
   }, [poMeta]);
 
-  const filteredPoList = useMemo(() => {
-    const supplierTerm = supplierSearch.trim().toLowerCase();
-    return poList.filter((po) => {
-      const lifecycle = (po.lifecycleStatus ?? po.status) as
-        | 'DRAFT'
-        | 'CONFIRMED'
-        | 'PARTIALLY_RECEIVED'
-        | 'FULLY_RECEIVED'
-        | 'CANCELLED';
+  const filteredPoList = poList;
 
-      if (lifecycleFilter !== 'ALL' && lifecycle !== lifecycleFilter) {
-        return false;
-      }
-      if (supplierTerm && !po.supplier.toLowerCase().includes(supplierTerm)) {
-        return false;
-      }
-      return true;
-    });
-  }, [lifecycleFilter, poList, supplierSearch]);
-
-  const lifecycleCounts = useMemo(() => {
-    const counts = {
-      // ALL reflects the server-side total so the badge matches the paginated total
-      // shown in the footer; per-lifecycle counts are best-effort over the visible page.
-      ALL: poTotal ?? poList.length,
-      DRAFT: 0,
-      CONFIRMED: 0,
-      PARTIALLY_RECEIVED: 0,
-      FULLY_RECEIVED: 0,
-      CANCELLED: 0,
-    };
-    for (const po of poList) {
-      const lifecycle = (po.lifecycleStatus ?? po.status) as keyof typeof counts;
-      if (lifecycle in counts) {
-        counts[lifecycle] += 1;
-      }
-    }
-    return counts;
-  }, [poList, poTotal]);
 
   const detailQuery = usePurchaseOrder(detailId ?? '');
   const detailPO = detailId ? detailQuery.data : null;
@@ -657,7 +630,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   const handleExportPoDetail = useCallback(
     (po: PurchaseOrder) => {
-      const ok = exportModuleCsv(`${po.poNumber}.csv`, po.items.map((item) => ({ po, item })), [
+      const ok = exportModuleCsv(`${po.poNumber}.csv`, po.items.map((item, index) => ({ po, item, index })), [
         { header: 'PO Number', value: ({ po: current }) => current.poNumber },
         { header: 'PO Date', value: ({ po: current }) => csvDate(current.poDate) },
         { header: 'Supplier', value: ({ po: current }) => current.supplier },
@@ -674,19 +647,19 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         { header: 'Rate', value: ({ item }) => csvMoney(item.rate) },
         {
           header: 'Tax %',
-          value: ({ po: current, item }) =>
+          value: ({ po: current, item, index }) =>
             effectivePoLineTaxPercent(
               item.productId,
-              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              taxPercentForLine(parsePoRemarks(current.remarks).document.lineItemTaxes, item, index),
               productMap,
             ),
         },
         {
           header: 'Gross Line Total',
-          value: ({ po: current, item }) => {
+          value: ({ po: current, item, index }) => {
             const taxPercent = effectivePoLineTaxPercent(
               item.productId,
-              taxPercentForProduct(parsePoRemarks(current.remarks).document.lineItemTaxes, item.productId),
+              taxPercentForLine(parsePoRemarks(current.remarks).document.lineItemTaxes, item, index),
               productMap,
             );
             return csvMoney(
@@ -887,8 +860,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
         useManualPoNumber: false,
         poNumberManual: po.poNumber,
         ...logisticsFieldsFromDocumentWithPayment(docMeta, 'Net 30'),
-        items: po.items.map((it) => {
-          const savedTaxPercent = taxPercentFromDocument(docMeta, it.productId);
+        items: po.items.map((it, index) => {
+          const savedTaxPercent = taxPercentFromDocument(docMeta, it, index);
           const effectiveTaxPercent = effectivePoLineTaxPercent(
             it.productId,
             savedTaxPercent,
@@ -1473,44 +1446,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               <p className="text-[10px] text-muted-foreground">Locked to your assigned plant.</p>
             )}
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Storage Location (optional)</Label>
-            <Controller
-              control={form.control}
-              name="storageLocationId"
-              render={({ field }) => (
-                <Select
-                  value={field.value || ''}
-                  onValueChange={(locId) => {
-                    field.onChange(locId);
-                    applyDeliveryAddressFromPlant();
-                  }}
-                  disabled={!selectedDeliveryPlantId}
-                >
-                  <SelectTrigger
-                    className={cn(
-                      PO_SELECT_TRIGGER,
-                      form.formState.errors.storageLocationId && 'border-destructive',
-                    )}
-                  >
-                    <SelectValue placeholder="Select storage" />
-                  </SelectTrigger>
-                  <SelectContent className={PO_SELECT_CONTENT} position="popper">
-                    {storageLocations.map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
-                        {loc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {form.formState.errors.storageLocationId && (
-              <p className="text-[10px] text-destructive">
-                {form.formState.errors.storageLocationId.message}
-              </p>
-            )}
-          </div>
+          {/* Storage location is chosen on the goods receipt: a PO has no
+              storage-location field, so selecting one here was discarded. */}
           <div className="space-y-1">
             <Label htmlFor="supplier" className="text-xs">Supplier *</Label>
             <Controller
@@ -2132,7 +2069,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
               }}
               className="h-7 px-2.5 text-xs"
             >
-              {label} ({lifecycleCounts[value]})
+              {label}
+              {lifecycleFilter === value && poTotal !== undefined ? ` (${poTotal})` : ''}
             </Button>
           ))}
         </div>
@@ -2474,7 +2412,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                   {detailPO.items.map((item, i) => {
                     const taxPercent = effectivePoLineTaxPercent(
                       item.productId,
-                      taxPercentForProduct(detailTotals?.document.lineItemTaxes, item.productId),
+                      taxPercentForLine(detailTotals?.document.lineItemTaxes, item, i),
                       productMap,
                     );
                     const line = computePoLineAmounts({

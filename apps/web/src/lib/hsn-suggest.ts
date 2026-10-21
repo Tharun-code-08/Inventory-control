@@ -128,8 +128,12 @@ export function suggestHsnFromDescription(
       Math.max(...a.keywords.map((k) => k.length)),
   );
 
+  // Match whole words (plural allowed): 'pen' must not hit "open", nor
+  // 'rice' "price", but 'pen' still matches "pens".
+  const matches = (kw: string) =>
+    new RegExp(`(?:^| )${normalizeText(kw)}(?:s|es)?(?= |$)`).test(haystack);
   for (const rule of sorted) {
-    const hit = rule.keywords.find((kw) => haystack.includes(normalizeText(kw)));
+    const hit = rule.keywords.find(matches);
     if (hit) {
       return {
         code: rule.code,

@@ -29,6 +29,7 @@ export function ForgotPasswordPage() {
   const [isRequesting, setIsRequesting] = useState(false);
   const [isSubmittingOtp, setIsSubmittingOtp] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
 
   async function requestReset(method: RequestMethod) {
@@ -78,6 +79,8 @@ export function ForgotPasswordPage() {
       await initializeSessionFromAuthResponse(payload, queryClient);
       nav(dashboardHomePath(useAuthStore.getState().user?.role));
     } catch (err) {
+      // The captcha token was spent by this attempt; get a fresh one.
+      setTurnstileResetKey((n) => n + 1);
       setError(getApiErrorMessage(err, 'Could not reset password with the code.'));
     } finally {
       setIsSubmittingOtp(false);
@@ -209,7 +212,7 @@ export function ForgotPasswordPage() {
                   />
                 </div>
 
-                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} />
+                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
                 <Button type="submit" className="w-full" disabled={isSubmittingOtp}>
                   {isSubmittingOtp ? 'Resetting password...' : 'Reset password and sign in'}

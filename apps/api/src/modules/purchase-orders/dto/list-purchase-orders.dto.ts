@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { PurchaseOrderStatus } from '@prisma/client';
+
+export const PO_LIFECYCLES = ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CANCELLED'] as const;
+export type PoLifecycle = (typeof PO_LIFECYCLES)[number];
 
 export class ListPurchaseOrdersDto {
   @ApiPropertyOptional({ description: 'Filter by shop (respects user scope)' })
@@ -13,6 +16,16 @@ export class ListPurchaseOrdersDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by supplier name (contains)' })
+  @IsOptional()
+  @IsString()
+  supplier?: string;
+
+  @ApiPropertyOptional({ enum: PO_LIFECYCLES, description: 'Filter by receipt lifecycle' })
+  @IsOptional()
+  @IsIn(PO_LIFECYCLES)
+  lifecycle?: PoLifecycle;
 
   @ApiPropertyOptional({ enum: PurchaseOrderStatus })
   @IsOptional()

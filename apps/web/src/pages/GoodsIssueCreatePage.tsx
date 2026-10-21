@@ -47,6 +47,7 @@ import {
 } from '@/lib/goods-issue';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { cn } from '@/lib/cn';
+import { localDateString } from '@/lib/local-date';
 
 function resolveProductStock(product: Product, activeShopId?: string): number {
   if (activeShopId) {
@@ -65,7 +66,7 @@ type LineDraft = {
 };
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 function extractProducts(raw: unknown): Product[] {
@@ -254,7 +255,17 @@ export function GoodsIssueCreatePage() {
       });
 
       if (mode === 'post') {
-        await postGi.mutateAsync(created.id);
+        try {
+          await postGi.mutateAsync(created.id);
+        } catch (postErr: unknown) {
+          // The draft exists: open it rather than leaving the form to create
+          // a second one on retry.
+          toast.error(
+            `${getApiErrorMessage(postErr, 'Posting failed')} — saved as draft ${created.giNumber}; post it from the list.`,
+          );
+          navigate(`/goods-issues?detail=${created.id}`);
+          return;
+        }
         toast.success(`Goods issue ${created.giNumber} created and posted`);
       } else {
         toast.success(`Draft ${created.giNumber} saved`);

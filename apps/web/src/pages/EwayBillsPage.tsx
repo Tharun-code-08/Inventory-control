@@ -43,6 +43,7 @@ import {
   type EwayBillStatus,
   type EwayTransportMode,
 } from '@/hooks/use-eway-bills';
+import { localDateString } from '@/lib/local-date';
 
 const TABS: { key: EwayBillStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: 'All' },
@@ -66,7 +67,7 @@ function fmtDate(value?: string | null): string {
 
 const emptyForm = () => ({
   documentNumber: '',
-  documentDate: new Date().toISOString().slice(0, 10),
+  documentDate: localDateString(),
   fromName: '',
   fromGstin: '',
   fromAddress: '',

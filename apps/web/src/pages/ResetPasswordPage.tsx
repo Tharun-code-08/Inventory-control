@@ -28,6 +28,7 @@ export function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
@@ -82,6 +83,8 @@ export function ResetPasswordPage() {
       await initializeSessionFromAuthResponse(payload, queryClient);
       nav(dashboardHomePath(useAuthStore.getState().user?.role));
     } catch (err) {
+      // The captcha token was spent by this attempt; get a fresh one.
+      setTurnstileResetKey((n) => n + 1);
       setError(getApiErrorMessage(err, 'Could not reset the password.'));
     } finally {
       setIsSubmitting(false);
@@ -175,7 +178,7 @@ export function ResetPasswordPage() {
                   </div>
                 ) : null}
 
-                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} />
+                <TurnstileField siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   <Link2 className="mr-2 h-4 w-4" />

@@ -93,8 +93,12 @@ export function planPrice(plan: Exclude<PlanId, 'trial'>, interval: BillingInter
   return plan === 'pro' ? 349 : 549;
 }
 
-export function yearlySavingsLabel() {
-  return 'Save 12.5%';
+/** Savings of the yearly price vs. paying monthly; "up to" the best plan's. */
+export function yearlySavingsLabel(plan?: Exclude<PlanId, 'trial'>) {
+  const pct = (p: Exclude<PlanId, 'trial'>) =>
+    Math.round((1 - planPrice(p, 'yearly') / PLAN_CATALOG[p].monthlyDisplay) * 1000) / 10;
+  if (plan) return `Save ${pct(plan)}%`;
+  return `Save up to ${Math.max(pct('pro'), pct('plus'))}%`;
 }
 
 export type SubscriptionSnapshot = {

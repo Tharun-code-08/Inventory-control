@@ -168,7 +168,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
                         item.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                       }`}
                     >
-                      ₹{(Math.abs(item.profit) / 100000).toFixed(2)}L
+                      {item.profit < 0 ? '−' : ''}₹{(Math.abs(item.profit) / 100000).toFixed(2)}L
                     </td>
                     <td className="px-6 py-4 text-sm text-right font-bold text-foreground">
                       {item.marginPercentage}%

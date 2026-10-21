@@ -232,7 +232,6 @@ export function RfqDetailPage() {
   const [savedAllocations, setSavedAllocations] = useState<RfqAllocationMap>({});
   const [poDialogOpen, setPoDialogOpen] = useState(false);
   const [creatingQuoteId] = useState<string | null>(null);
-  const [isCreatingAll, setIsCreatingAll] = useState(false);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [manualSupplier, setManualSupplier] = useState<ManualResponseSupplier | null>(null);
 
@@ -385,22 +384,6 @@ export function RfqDetailPage() {
     toast.message('PO form opened with RFQ allocation. Review and send.');
   }
 
-  async function createAllPurchaseOrders() {
-    if (allocationPlans.length === 0) {
-      toast.error('Save allocations in Compare bids before creating a PO');
-      return;
-    }
-    if (!allocationValidation.valid) {
-      toast.error(allocationValidation.errors[0] ?? 'Invalid saved allocation');
-      return;
-    }
-    setIsCreatingAll(true);
-    const first = allocationPlans[0];
-    await createPoForAllocationPlan(first.quoteId);
-    setIsCreatingAll(false);
-    setPoDialogOpen(false);
-  }
-
   const linkedContractCount = useMemo(
     () => contracts.filter((c) => c.rfqId === id).length,
     [contracts, id],
@@ -483,7 +466,7 @@ export function RfqDetailPage() {
               <Button
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={acceptQuote.isPending || isCreatingAll}
+                disabled={acceptQuote.isPending}
                 onClick={() => {
                   if (allocationPlans.length === 0) {
                     toast.error('Save allocations in Compare bids before creating a PO');
@@ -801,7 +784,6 @@ export function RfqDetailPage() {
                   className="border-border text-primary"
                   disabled={
                     acceptQuote.isPending ||
-                    isCreatingAll ||
                     !allocationValidation.valid ||
                     creatingQuoteId === plan.quoteId
                   }
@@ -813,18 +795,6 @@ export function RfqDetailPage() {
             ))}
           </div>
 
-          {allocationPlans.length > 1 ? (
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={acceptQuote.isPending || isCreatingAll || !allocationValidation.valid}
-                onClick={() => void createAllPurchaseOrders()}
-              >
-                {isCreatingAll ? 'Creating purchase orders...' : 'Create all purchase orders'}
-              </Button>
-            </div>
-          ) : null}
         </DialogContent>
       </Dialog>
     </AppLayout>

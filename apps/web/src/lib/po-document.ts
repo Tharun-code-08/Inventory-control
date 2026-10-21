@@ -2,6 +2,13 @@
  * Purchase order printable document fields stored inside `remarks` as JSON
  * so we don't require a DB migration. Human text stays above the marker.
  */
+export type PoLineTax = {
+  productId?: string;
+  lineDescription?: string;
+  lineIndex?: number;
+  taxPercent: number;
+};
+
 export type PoDocumentMeta = {
   buyerCompanyName?: string;
   buyerAddress?: string;
@@ -25,8 +32,11 @@ export type PoDocumentMeta = {
   fob?: string;
   shippingTerms?: string;
   paymentTerms?: string;
-  /** Per-line tax % stored by product id (current POs). */
-  lineItemTaxes?: Array<{ productId: string; taxPercent: number }>;
+  /**
+   * Per-line tax %. Current POs key each entry by line position plus product
+   * (or description for service lines); older POs stored product id only.
+   */
+  lineItemTaxes?: PoLineTax[];
   /** @deprecated Legacy header-level tax; kept for older saved POs. */
   taxPercent?: number;
   cgstPercent?: number;

@@ -14,7 +14,7 @@ export type PoLogisticsForm = {
   shipVia?: string;
   fob?: string;
   shippingTerms?: string;
-  items?: Array<{ productId?: string; taxPercent?: number | string }>;
+  items?: Array<{ productId?: string; lineDescription?: string; taxPercent?: number | string }>;
 };
 
 function resolveDepartment(values: PoLogisticsForm): string | undefined {
@@ -34,12 +34,16 @@ function resolveRequestedBy(values: PoLogisticsForm): string | undefined {
 }
 
 export function documentFromPoForm(values: PoLogisticsForm, shop?: Shop | null): PoDocumentMeta {
+  // One entry per line (service lines included), keyed by position so the
+  // same product on two lines keeps its own rate.
   const lineItemTaxes = (values.items ?? [])
-    .filter((it): it is typeof it & { productId: string } => Boolean(it.productId))
-    .map((it) => ({
-      productId: it.productId,
+    .map((it, lineIndex) => ({
+      lineIndex,
+      ...(it.productId ? { productId: it.productId } : {}),
+      ...(!it.productId && it.lineDescription?.trim() ? { lineDescription: it.lineDescription.trim() } : {}),
       taxPercent: Math.max(0, numPo(it.taxPercent)),
-    }));
+    }))
+    .filter((it) => it.productId || it.lineDescription);
 
   return {
     requisitioner: resolveRequestedBy(values),

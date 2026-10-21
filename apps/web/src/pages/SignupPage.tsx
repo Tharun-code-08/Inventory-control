@@ -116,6 +116,7 @@ export function SignupPage() {
   const [pendingAuthPayload, setPendingAuthPayload] = useState<unknown>(null);
   const [mfaSkipped, setMfaSkipped] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim();
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -259,6 +260,8 @@ export function SignupPage() {
       );
       setStep('verify');
     } catch (error) {
+      // The captcha token was spent by this attempt; get a fresh one.
+      setTurnstileResetKey((n) => n + 1);
       setErr(getApiErrorMessage(error, 'Could not start registration.'));
     } finally {
       setIsSubmitting(false);
@@ -700,7 +703,7 @@ export function SignupPage() {
                 </div>
 
                 {turnstileSiteKey ? (
-                  <TurnstileField siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                  <TurnstileField siteKey={turnstileSiteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
                 ) : null}
 
                 <label className="flex cursor-pointer items-start gap-3">

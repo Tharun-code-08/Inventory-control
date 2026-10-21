@@ -217,7 +217,8 @@ export class SuppliersService {
         rating: dto.rating,
         categories: dto.categories,
         contactPerson: dto.contactPerson,
-        email: dto.email?.toLowerCase?.(),
+        // null clears the field; undefined leaves it unchanged.
+        email: dto.email === null ? null : dto.email?.toLowerCase?.(),
         phone: dto.phone,
         street: dto.street,
         city: dto.city,

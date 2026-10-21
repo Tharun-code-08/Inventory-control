@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
+import { getApiErrorMessage } from '@/lib/api-error';
 import {
   downloadSubscriptionInvoicePdf,
   useSubscriptionInvoices,
@@ -48,6 +49,35 @@ function PlanStat({
   );
 }
 
+type PendingPayment = { orderId: string; paymentId: string; signature: string };
+const PENDING_PAYMENT_KEY = 'pending-upgrade-payment';
+
+function savePendingPayment(payment: PendingPayment) {
+  try {
+    window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(payment));
+  } catch {
+    // Storage unavailable: the in-page retries still run.
+  }
+}
+
+function loadPendingPayment(): PendingPayment | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_PAYMENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<PendingPayment>) : null;
+    return parsed?.orderId && parsed.paymentId && parsed.signature ? (parsed as PendingPayment) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingPayment() {
+  try {
+    window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function UpgradePage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -73,18 +103,48 @@ export function UpgradePage() {
     })();
   }, [searchParams, setSearchParams]);
 
-  async function handlePaidUpgrade(payload: {
-    orderId: string;
-    paymentId: string;
-    signature: string;
-  }) {
-    await api.post('/billing/upgrade', {
-      razorpay_order_id: payload.orderId,
-      razorpay_payment_id: payload.paymentId,
-      razorpay_signature: payload.signature,
-    });
-    await queryClient.invalidateQueries({ queryKey: ['billing'] });
+  async function handlePaidUpgrade(payload: PendingPayment) {
+    // Remember the paid order until it is applied: if this request fails
+    // (network, 5xx) the money is taken but the plan is not, so the page
+    // retries it now and again on its next load.
+    savePendingPayment(payload);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await api.post('/billing/upgrade', {
+          razorpay_order_id: payload.orderId,
+          razorpay_payment_id: payload.paymentId,
+          razorpay_signature: payload.signature,
+        });
+        clearPendingPayment();
+        await queryClient.invalidateQueries({ queryKey: ['billing'] });
+        return;
+      } catch (err) {
+        lastError = err;
+        const status = (err as { response?: { status?: number } }).response?.status;
+        // 4xx (other than timeouts) won't succeed on retry.
+        if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) break;
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+      }
+    }
+    throw new Error(
+      `${getApiErrorMessage(lastError, 'Upgrade failed')}. Your payment is safe — we will retry applying it when you reopen this page, or contact support with payment ${payload.paymentId}.`,
+    );
   }
+
+  useEffect(() => {
+    const pending = loadPendingPayment();
+    if (!pending) return;
+    void (async () => {
+      try {
+        await handlePaidUpgrade(pending);
+        toast.success('Your earlier payment has been applied. Plan upgraded.');
+      } catch {
+        // Keep it stored; the message on the next attempt explains what to do.
+      }
+    })();
+    // Runs once on mount.
+  }, []);
 
   async function handleDownloadInvoice(invoiceId: string, invoiceNumber: string) {
     try {

@@ -82,6 +82,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
+import { localDateString } from '@/lib/local-date';
 import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { useShops } from '@/hooks/use-shops';
@@ -132,7 +133,7 @@ const emptyItem = {
 };
 
 function todayISO() {
-  return new Date().toISOString().split('T')[0];
+  return localDateString();
 }
 
 function formatDateOnly(value: string | null | undefined) {
@@ -161,6 +162,12 @@ function resolveGrLineProduct(
   };
 }
 
+/** The negotiated PO rate for a product (receiptProgress carries no rate). */
+function poRateFor(po: PurchaseOrder | undefined, productId: string): number {
+  const line = (po?.items ?? []).find((item) => item.productId === productId);
+  return Number(line?.rate) || 0;
+}
+
 function poSuggestedItems(po: PurchaseOrder) {
   if (po.receiptProgress?.length) {
     return po.receiptProgress
@@ -169,7 +176,7 @@ function poSuggestedItems(po: PurchaseOrder) {
         productId: line.productId,
         quantity: Number(line.remainingQty),
         uom: '',
-        purchaseRate: 0,
+        purchaseRate: poRateFor(po, line.productId),
         batchNumber: '',
         serialNumber: '',
         expiryDate: todayISO(),
@@ -357,7 +364,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 productId: line.productId,
                 quantity: Number(line.remainingQty),
                 uom: '',
-                purchaseRate: 0,
+                purchaseRate: poRateFor(po, line.productId),
                 batchNumber: '',
                 serialNumber: '',
                 expiryDate: todayISO(),
@@ -622,10 +629,21 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
           items: payloadItems,
         });
         receiptId = created.id;
+        // From here on this form edits the saved draft: if posting fails, a
+        // retry posts this draft instead of creating a duplicate receipt.
+        setEditingGR(created);
       }
 
       if (postAfter && receiptId) {
-        await postGR.mutateAsync(receiptId);
+        try {
+          await postGR.mutateAsync(receiptId);
+        } catch (postErr: unknown) {
+          toast.error(
+            getApiErrorMessage(postErr, 'Posting failed') +
+              ' — the receipt was saved as a draft; fix the issue and post it again.',
+          );
+          return;
+        }
         toast.success('Goods receipt posted — warehouse stock updated');
       } else if (editingGR) {
         toast.success('Goods receipt updated (still draft — post to update stock)');

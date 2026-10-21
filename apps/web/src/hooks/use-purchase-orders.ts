@@ -49,8 +49,19 @@ export type PurchaseOrder = {
   }>;
 };
 
+export type PurchaseOrderLifecycle =
+  | 'DRAFT'
+  | 'CONFIRMED'
+  | 'PARTIALLY_RECEIVED'
+  | 'FULLY_RECEIVED'
+  | 'CANCELLED';
+
 export type PurchaseOrderFilters = {
   search?: string;
+  /** Supplier name contains (server-side). */
+  supplier?: string;
+  /** Receipt lifecycle tab (server-side). */
+  lifecycle?: PurchaseOrderLifecycle;
   status?: PurchaseOrderStatus;
   shopId?: string;
   page?: number;
@@ -128,6 +139,8 @@ export function usePurchaseOrders(filters: PurchaseOrderFilters = {}) {
       if (filters.search) params.set('search', filters.search);
       if (filters.status) params.set('status', filters.status);
       if (filters.shopId) params.set('shop_id', filters.shopId);
+      if (filters.supplier) params.set('supplier', filters.supplier);
+      if (filters.lifecycle) params.set('lifecycle', filters.lifecycle);
       const res = await api.get(`/purchase-orders?${params}`);
       return {
         data: (res.data.data ?? []) as PurchaseOrder[],

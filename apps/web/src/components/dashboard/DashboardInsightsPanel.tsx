@@ -15,6 +15,7 @@ import { useFastMovingReport } from '@/hooks/use-reports';
 import type { DashboardViewData } from '@/lib/dashboard-demo-data';
 import { EMPTY_DASHBOARD } from '@/lib/dashboard-demo-data';
 import { cn } from '@/lib/cn';
+import { localDateString } from '@/lib/local-date';
 
 type InsightTileProps = {
   label: string;
@@ -86,8 +87,8 @@ export function DashboardInsightsPanel({
     const from = new Date();
     from.setDate(from.getDate() - 30);
     return {
-      dateFrom: from.toISOString().slice(0, 10),
-      dateTo: to.toISOString().slice(0, 10),
+      dateFrom: localDateString(from),
+      dateTo: localDateString(to),
     };
   }, []);
 
