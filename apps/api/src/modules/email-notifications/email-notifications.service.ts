@@ -26,10 +26,18 @@ type PreparedEmail = {
   bcc?: string[];
 };
 
-const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+const EMAIL_FORBIDDEN = /[\s,;<>]/;
 
+/** One plain address: local@domain.tld, no separators or angle brackets. */
 function isEmailAddress(value: unknown): value is string {
-  return typeof value === 'string' && EMAIL_RE.test(value.trim());
+  if (typeof value !== 'string') return false;
+  const email = value.trim();
+  if (email.length > 254 || EMAIL_FORBIDDEN.test(email)) return false;
+  const at = email.indexOf('@');
+  if (at < 1 || at !== email.lastIndexOf('@')) return false;
+  const domain = email.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
 }
 
 @Injectable()
