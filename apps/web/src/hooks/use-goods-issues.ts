@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 import { dashboardKeys } from '@/hooks/use-dashboard';
 
 export type GoodsIssueStatus = 'DRAFT' | 'POSTED';
@@ -86,25 +87,17 @@ function normalizeGiList(rows: GoodsIssue[]): GoodsIssue[] {
   });
 }
 
-function unwrapGiPayload<T>(payload: unknown): T {
-  if (!payload || typeof payload !== 'object') return payload as T;
-  const source = payload as { data?: unknown };
-  if (source.data !== undefined) return source.data as T;
-  return payload as T;
-}
-
 export function useGoodsIssues(filters: GoodsIssueFilters = {}) {
   return useQuery({
     queryKey: giKeys.list(filters),
     queryFn: async () => {
-      const params: Record<string, string | number> = {
-        take: filters.take ?? 300,
-      };
-      if (filters.shopId) params.shop_id = filters.shopId;
-      if (filters.status) params.status = filters.status;
-      const res = await api.get('/goods-issues', { params });
-      const payload = unwrapGiPayload<unknown>(res.data);
-      return extractGiRows(payload);
+      // The API caps a page at 100; follow the cursor for the rest.
+      const rows = await fetchAllCursorPages<unknown>('/goods-issues', {
+        take: Math.min(filters.take ?? 100, 100),
+        shop_id: filters.shopId,
+        status: filters.status,
+      });
+      return extractGiRows(rows);
     },
     staleTime: 30_000,
   });

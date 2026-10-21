@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 
 export type Payment = {
   id: string;
@@ -39,9 +40,8 @@ export function usePayments() {
   return useQuery({
     queryKey: keys.list(),
     queryFn: async () => {
-      // Newest 100; the API caps a page at 100.
-      const res = await api.get('/payments', { params: { take: 100 } });
-      return (res.data.data ?? []) as Payment[];
+      // Newest first, following the cursor (the API caps a page at 100).
+      return fetchAllCursorPages<Payment>('/payments', { take: 100 });
     },
   });
 }

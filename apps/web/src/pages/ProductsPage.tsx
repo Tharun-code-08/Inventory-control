@@ -46,6 +46,7 @@ import {
   type ProductFilters,
   TAX_PREFERENCE_OPTIONS,
   formatTaxPreference,
+  fetchAllProducts,
 } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
@@ -202,7 +203,8 @@ const UOM_OPTIONS = [
 const PAGE_SIZE = 25;
 const CREATE_CATEGORY_OPTION = '__create_category__';
 /** API rejects limit > 100 (ListProductsDto @Max(100)). */
-const STATS_FETCH_LIMIT = 100;
+// KPIs, the low-stock view and SKU numbering read one page at the API maximum.
+const STATS_FETCH_LIMIT = 500;
 
 function normalizeProductCode(value: string): string {
   return value.trim().toUpperCase();
@@ -833,7 +835,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
     [categoryConfig, createProduct, isDuplicateProductCodeError, nextAvailableProductCode],
   );
 
-  function onExportCsv() {
+  async function onExportCsv() {
     const columns: CsvColumn<Product>[] = [
       { header: 'SKU', value: (r) => r.productCode },
       { header: 'Name', value: (r) => r.description },
@@ -849,8 +851,14 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
       },
       { header: 'Status', value: (r) => (r.isActive ? 'Active' : 'Inactive') },
     ];
-    downloadCsv('products.csv', toCsv(items, columns));
-    toast.success('CSV exported');
+    // Export every product matching the current filters, not just this page.
+    try {
+      const rows = await fetchAllProducts({ ...filters, page: undefined, limit: undefined });
+      downloadCsv('products.csv', toCsv(rows, columns));
+      toast.success(`Exported ${rows.length} products`);
+    } catch {
+      toast.error('Export failed');
+    }
   }
 
   const form = useForm<FormShape>({

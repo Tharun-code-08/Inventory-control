@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 
 export type Invoice = {
   id: string;
@@ -35,8 +36,7 @@ export function useInvoices() {
     queryKey: keys.list(),
     queryFn: async () => {
       // Newest 100; the API caps a page at 100.
-      const res = await api.get('/invoices', { params: { take: 100 } });
-      return (res.data.data ?? []) as Invoice[];
+      return fetchAllCursorPages<Invoice>('/invoices', { take: 100 });
     },
   });
 }

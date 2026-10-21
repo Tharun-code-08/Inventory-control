@@ -514,7 +514,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     companyCatalog: true,
     shopId: resolvedDeliveryPlantId || shopId || undefined,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
   const products = useMemo(

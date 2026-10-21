@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { fetchAllCursorPages } from '@/lib/fetch-cursor-pages';
 
 export type StockTransferStatus = 'DRAFT' | 'POSTED';
 
@@ -40,20 +41,11 @@ const keys = {
   lists: () => [...keys.all, 'list'] as const,
 };
 
-function extractRows(payload: unknown): StockTransfer[] {
-  if (Array.isArray(payload)) return payload as StockTransfer[];
-  if (!payload || typeof payload !== 'object') return [];
-  const source = payload as { data?: unknown };
-  if (Array.isArray(source.data)) return source.data as StockTransfer[];
-  return [];
-}
-
 export function useStockTransfers() {
   return useQuery({
     queryKey: keys.lists(),
     queryFn: async () => {
-      const res = await api.get('/stock-transfers');
-      return extractRows(res.data?.data ?? res.data);
+      return fetchAllCursorPages<StockTransfer>('/stock-transfers', { take: 100 });
     },
   });
 }

@@ -288,7 +288,7 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
   const productsQuery = useProducts({
     shopId: resolvedShopId || undefined,
     isActive: true,
-    limit: 100,
+    limit: 500,
     page: 1,
   });
   const products = useMemo(() => extractProductRows(productsQuery.data), [productsQuery.data]);
