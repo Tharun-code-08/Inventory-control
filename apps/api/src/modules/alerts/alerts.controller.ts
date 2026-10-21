@@ -26,14 +26,14 @@ export class AlertsController {
 
   @RequirePermission('report:view')
   @Post('run-checks')
-  runChecks() {
-    return this.alerts.runAutomationChecks();
+  runChecks(@CurrentUser() user: RequestUser) {
+    return this.alerts.runAutomationChecks(user);
   }
 
   @RequirePermission('report:export')
   @Post('retention-run')
-  runRetention() {
-    return this.alerts.runRetention();
+  runRetention(@CurrentUser() user: RequestUser) {
+    return this.alerts.runRetention(user);
   }
 
   @RequirePermission('report:view')

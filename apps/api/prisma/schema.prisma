@@ -4193,7 +4193,7 @@ model InventoryException {
   resolutionType  ResolutionType? @map("resolution_type")
   resolutionNotes String?         @map("resolution_notes")
 
-  @@unique([companyId, type, entityType, entityId, status])
+  @@index([companyId, type, entityType, entityId, status], map: "inventory_exceptions_dedup_idx")
   @@index([companyId, status, type])
   @@index([companyId, severity, status])
   @@index([companyId, lastDetectedAt])

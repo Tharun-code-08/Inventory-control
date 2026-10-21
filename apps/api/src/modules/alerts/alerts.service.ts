@@ -3,7 +3,7 @@ import { AlertType, DocumentStatus, InvoiceStatus, PurchaseOrderStatus } from '@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
-import { shopListWhere } from '../../common/utils/shop-scope';
+import { requireCompanyId, shopListWhere } from '../../common/utils/shop-scope';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 import { getIdempotentResult, setIdempotentResult } from '../../common/utils/idempotency';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -105,7 +105,9 @@ export class AlertsService {
         id,
         OR: [{ shop: shopListWhere(user) }, { shopId: null }],
       },
-      data: { isRead: true, resolvedAt: new Date() },
+      // Reading an alert is not resolving it: the condition may still hold,
+      // and treating it as resolved made the next run raise it again.
+      data: { isRead: true },
     });
   }
 
@@ -145,8 +147,13 @@ export class AlertsService {
     return saved.value;
   }
 
-  async runAutomationChecks() {
-    const idempotencyKey = `alerts:automation:${new Date().toISOString().slice(0, 13)}`;
+  /** Runs the alert checks for the caller's company only. */
+  async runAutomationChecks(user: RequestUser) {
+    const companyId = requireCompanyId(user);
+    const shops = await this.prisma.shop.findMany({ where: { companyId }, select: { id: true } });
+    const shopIds = shops.map((shop) => shop.id);
+    if (shopIds.length === 0) return { generated: 0 };
+    const idempotencyKey = `alerts:automation:${companyId}:${new Date().toISOString().slice(0, 13)}`;
     const already = await this.prisma.$transaction((tx) =>
       getIdempotentResult<{ generated: number }>(tx, idempotencyKey),
     );
@@ -184,9 +191,10 @@ export class AlertsService {
         ON s.shop_id = pp.shop_id
        AND s.product_id = pp.product_id
       WHERE pp.is_active = true
+        AND pp.shop_id = ANY(${shopIds}::uuid[])
         AND pp.min_stock_level > 0
         AND ${stockQty} <= pp.min_stock_level
-      LIMIT 200
+      ORDER BY pp.shop_id, p.product_code
     `);
 
     const activeLowStockKeys = new Set(
@@ -198,9 +206,9 @@ export class AlertsService {
         alertType: AlertType.LOW_STOCK,
         resolvedAt: null,
         referenceType: 'PRODUCT',
+        shopId: { in: shopIds },
       },
       select: { id: true, shopId: true, referenceId: true },
-      take: 500,
     });
 
     const openLowStockKeys = new Set(
@@ -249,9 +257,9 @@ export class AlertsService {
         alertType: AlertType.RFQ_DEADLINE,
         resolvedAt: null,
         referenceType: 'RFQ',
+        shopId: { in: shopIds },
       },
       select: { shopId: true, referenceId: true },
-      take: 500,
     });
     const openRfqDeadlineKeys = new Set(
       openRfqDeadlineAlerts
@@ -261,10 +269,10 @@ export class AlertsService {
 
     const approachingRfqs = await this.prisma.rfqHeader.findMany({
       where: {
+        shopId: { in: shopIds },
         status: DocumentStatus.POSTED,
         deadline: { gte: todayStart, lt: deadlineUpper },
       },
-      take: 200,
     });
     for (const row of approachingRfqs) {
       const key = `${row.shopId}:${row.id}`;
@@ -279,37 +287,55 @@ export class AlertsService {
       });
     }
 
+    // Contract and PO alerts are raised once per document while still open.
+    const openDocAlerts = await this.prisma.alertEvent.findMany({
+      where: {
+        alertType: { in: [AlertType.CONTRACT_EXPIRY, AlertType.PO_OVERDUE] },
+        resolvedAt: null,
+        shopId: { in: shopIds },
+        referenceId: { not: null },
+      },
+      select: { alertType: true, referenceId: true },
+    });
+    const openDocKeys = new Set(openDocAlerts.map((a) => `${a.alertType}:${a.referenceId}`));
+
     const expiringContracts = await this.prisma.contractHeader.findMany({
       where: {
+        shopId: { in: shopIds },
         endDate: {
           lte: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
           gte: new Date(),
         },
       },
-      take: 200,
     });
     for (const row of expiringContracts) {
+      if (openDocKeys.has(`${AlertType.CONTRACT_EXPIRY}:${row.id}`)) continue;
       events.push({
         alertType: AlertType.CONTRACT_EXPIRY,
         title: `Contract expiring: ${row.contractNumber}`,
         message: `Contract ${row.title} is expiring soon.`,
         shopId: row.shopId,
+        referenceType: 'CONTRACT',
+        referenceId: row.id,
       });
     }
 
     const overduePo = await this.prisma.purchaseOrderHeader.findMany({
       where: {
+        shopId: { in: shopIds },
         status: { in: [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.CONFIRMED] },
         poDate: { lt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14) },
       },
-      take: 200,
     });
     for (const row of overduePo) {
+      if (openDocKeys.has(`${AlertType.PO_OVERDUE}:${row.id}`)) continue;
       events.push({
         alertType: AlertType.PO_OVERDUE,
         title: `PO overdue: ${row.poNumber}`,
         message: `Purchase order is pending beyond expected timeline.`,
         shopId: row.shopId,
+        referenceType: 'PURCHASE_ORDER',
+        referenceId: row.id,
       });
     }
 
@@ -372,10 +398,11 @@ export class AlertsService {
     if (this.emailNotifications) {
       const overdueInvoices = await this.prisma.invoiceHeader.findMany({
         where: {
+          shopId: { in: shopIds },
           status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID] },
           dueDate: { lt: todayStart },
         },
-        take: 200,
+        take: 500,
       });
       for (const invoice of overdueInvoices) {
         const balance = Number(invoice.totalValue) - Number(invoice.paidValue);
@@ -399,10 +426,13 @@ export class AlertsService {
     return result;
   }
 
-  async runRetention(daysToKeep = 90) {
+  /** Deletes old read alerts of the caller's company only. */
+  async runRetention(user: RequestUser, daysToKeep = 90) {
+    const companyId = requireCompanyId(user);
     const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
     const deleted = await this.prisma.alertEvent.deleteMany({
       where: {
+        shop: { companyId },
         isRead: true,
         triggeredAt: { lt: cutoff },
       },

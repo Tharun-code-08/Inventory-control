@@ -73,7 +73,7 @@ export class SupplierBillsService {
       where,
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'asc' },
+      orderBy: [{ billDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,
         billNumber: true,

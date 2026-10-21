@@ -3,6 +3,17 @@ import { ExceptionType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ExceptionRule, ExceptionInput, RuleContext } from './exception.rule';
 
+/**
+ * One exception per entity *and* scope: the same product can be low at two
+ * plants, or have two different integrity issues, and each is its own row.
+ */
+function dedupeKey(entityType: string, entityId: string, metadata: unknown): string {
+  const meta = (metadata ?? {}) as { shopId?: unknown; issue?: unknown };
+  const shop = typeof meta.shopId === 'string' ? meta.shopId : '';
+  const issue = typeof meta.issue === 'string' ? meta.issue : '';
+  return `${entityType}:${entityId}:${shop}:${issue}`;
+}
+
 @Injectable()
 export class ExceptionEngineService {
   private rules: Map<string, ExceptionRule> = new Map();
@@ -23,7 +34,7 @@ export class ExceptionEngineService {
         const detected = new Set<string>();
         for (const ex of exceptions) {
           await this.createOrUpdate(tx, companyId, ex);
-          detected.add(`${ex.entityType}:${ex.entityId}`);
+          detected.add(dedupeKey(ex.entityType, ex.entityId, ex.metadata));
         }
         detectedByType.set(rule.type, detected);
       } catch (error) {
@@ -40,10 +51,10 @@ export class ExceptionEngineService {
           type: type as ExceptionType,
           status: { in: ['OPEN', 'ACKNOWLEDGED'] },
         },
-        select: { id: true, entityType: true, entityId: true },
+        select: { id: true, entityType: true, entityId: true, metadata: true },
       });
       for (const ex of openOnes) {
-        if (!detected.has(`${ex.entityType}:${ex.entityId}`)) {
+        if (!detected.has(dedupeKey(ex.entityType, ex.entityId, ex.metadata))) {
           await this.resolve(tx, ex.id, null, 'AUTOMATIC', 'Condition no longer detected');
         }
       }
@@ -58,7 +69,8 @@ export class ExceptionEngineService {
     const { type, severity, entityType, entityId, title, description, metadata } = input;
 
     // Check if OPEN/ACKNOWLEDGED exception already exists for deduplication
-    const existing = await tx.inventoryException.findFirst({
+    const key = dedupeKey(entityType, entityId, metadata);
+    const candidates = await tx.inventoryException.findMany({
       where: {
         companyId,
         type,
@@ -66,14 +78,19 @@ export class ExceptionEngineService {
         entityId,
         status: { in: ['OPEN', 'ACKNOWLEDGED'] },
       },
+      select: { id: true, entityType: true, entityId: true, metadata: true },
     });
+    const existing = candidates.find((row) => dedupeKey(row.entityType, row.entityId, row.metadata) === key);
 
     if (existing) {
-      // Dedup: just update lastDetectedAt and metadata
+      // Still detected: refresh what may have changed (stock level, severity).
       await tx.inventoryException.update({
         where: { id: existing.id },
         data: {
           lastDetectedAt: new Date(),
+          severity,
+          title,
+          description,
           ...(metadata ? { metadata } : {}),
         },
       });

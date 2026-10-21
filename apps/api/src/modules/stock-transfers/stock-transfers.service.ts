@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
+import { AuditAction, CostingMethod, DocumentStatus, Prisma, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, shopListWhere } from '../../common/utils/shop-scope';
@@ -9,6 +9,7 @@ import { assertNotFuture } from '../../common/utils/date-guards';
 import { runSerializableTxWithRetry } from '../../common/utils/serializable-tx';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { StockService } from '../stock/stock.service';
+import { CostingService } from '../stock/costing.service';
 import { DocumentAlreadyPostedException, InsufficientStockException } from '../../common/exceptions/domain.exceptions';
 import { AuditService } from '../audit/audit.service';
 import { buildTransferStockAudit } from '../../common/state-machines/inventory-audit';
@@ -30,6 +31,7 @@ export class StockTransfersService {
     private readonly stock: StockService,
     private readonly numbers: DocumentNumberService,
     private readonly audit: AuditService,
+    private readonly costing: CostingService,
   ) {}
 
   private serializeListRow(row: StockTransferListRow) {
@@ -331,11 +333,28 @@ export class StockTransfersService {
 
       const shops = await tx.shop.findMany({
         where: { id: { in: [fresh.fromShopId, fresh.toShopId] } },
-        select: { id: true, companyId: true },
+        select: { id: true, companyId: true, costingMethod: true },
       });
       const companyId = shops[0]?.companyId;
+      const methodOf = (shopId: string) =>
+        shops.find((s) => s.id === shopId)?.costingMethod ?? CostingMethod.AVERAGE;
 
       for (const line of fresh.items) {
+        const qty = new Prisma.Decimal(line.quantity);
+        // Stock leaves the source at its cost and arrives at the destination
+        // at that same cost, so both plants' valuation stays right.
+        const { unitCost } = await this.costing.recordOutflow(tx, {
+          shopId: fresh.fromShopId,
+          productId: line.productId,
+          qty,
+          method: methodOf(fresh.fromShopId),
+        });
+        // The destination needs a product/plant row to show and reorder it.
+        await tx.productPlant.createMany({
+          data: [{ productId: line.productId, shopId: fresh.toShopId, createdById: user.id }],
+          skipDuplicates: true,
+        });
+
         await this.stock.postMovementOnce(tx, {
           type: TransactionType.STOCK_TRANSFER_OUT,
           ref: fresh.transferNumber,
@@ -344,6 +363,7 @@ export class StockTransfersService {
           productId: line.productId,
           inQty: 0,
           outQty: line.quantity,
+          unitRate: Number(unitCost),
           sourceType: 'STOCK_TRANSFER',
           sourceId: fresh.id,
           sourceLineId: line.id,
@@ -358,11 +378,19 @@ export class StockTransfersService {
           productId: line.productId,
           inQty: line.quantity,
           outQty: 0,
+          unitRate: Number(unitCost),
           sourceType: 'STOCK_TRANSFER',
           sourceId: fresh.id,
           sourceLineId: line.id,
           idempotencyKey: `st:in:${fresh.id}:${line.id}`,
           userId: user.id,
+        });
+        await this.costing.recordInflow(tx, {
+          shopId: fresh.toShopId,
+          productId: line.productId,
+          qty,
+          unitCost,
+          method: methodOf(fresh.toShopId),
         });
 
         // Capture after quantities for audit
