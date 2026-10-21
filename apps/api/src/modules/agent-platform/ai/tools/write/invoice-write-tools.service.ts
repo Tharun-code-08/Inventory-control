@@ -7,6 +7,7 @@ import { ShopsService } from '@/modules/shops/shops.service';
 import { AgentTaskService } from '../../../tasks/agent-task.service';
 import { TaskExecutorService } from '../../../tasks/task-executor.service';
 import { ToolRegistry, type AgentToolContext } from '../tool-registry';
+import { businessToday } from '../business-date';
 
 const CREATE_INVOICE = 'sales.create_invoice';
 
@@ -312,7 +313,7 @@ export class InvoiceWriteToolsService implements OnModuleInit {
   }
 
   private resolveInvoiceDate(requested: unknown): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     if (typeof requested !== 'string' || !requested.trim()) return today;
     const date = requested.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('invoice_date must be YYYY-MM-DD');

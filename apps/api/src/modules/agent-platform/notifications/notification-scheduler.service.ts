@@ -11,10 +11,13 @@ import {
   type NotificationJob,
 } from './notification-jobs';
 
+const NOTIFICATION_TYPES: NotificationJob['type'][] = ['daily_summary', 'low_stock_alert', 'overdue_payment'];
+
 /**
- * Registers BullMQ repeatable jobs (one per notification type per company)
- * at application startup. Idempotent — BullMQ deduplicates by key so a
- * restart doesn't add duplicate schedules.
+ * Registers BullMQ job schedulers (one per notification type per company) at
+ * application startup. Schedulers are keyed by type+company, so a restart or
+ * a changed cron updates the schedule in place; schedules that are no longer
+ * wanted (feature off, legacy repeatables) are removed.
  */
 @Injectable()
 export class NotificationSchedulerService implements OnApplicationBootstrap {
@@ -27,8 +30,11 @@ export class NotificationSchedulerService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    if (!this.notificationsEnabled()) return;
     try {
+      if (!this.notificationsEnabled()) {
+        await this.removeSchedulers(() => true);
+        return;
+      }
       await this.scheduleAll();
     } catch (err) {
       // Scheduling failures must never block the app from starting.
@@ -38,6 +44,11 @@ export class NotificationSchedulerService implements OnApplicationBootstrap {
 
   private async scheduleAll() {
     const companies = await this.prisma.company.findMany({ select: { id: true } });
+    const wanted = new Set(
+      companies.flatMap((c) => NOTIFICATION_TYPES.map((type) => this.schedulerId(type, c.id))),
+    );
+    // Drops legacy cron-keyed repeatables and schedules of deleted companies.
+    await this.removeSchedulers((key) => !wanted.has(key));
     for (const company of companies) {
       await this.upsertRepeatable('daily_summary', company.id, this.dailyCron());
       await this.upsertRepeatable('low_stock_alert', company.id, this.lowStockCron());
@@ -46,22 +57,36 @@ export class NotificationSchedulerService implements OnApplicationBootstrap {
     this.logger.log(`Notification schedules registered for ${companies.length} company/companies`);
   }
 
+  private schedulerId(type: NotificationJob['type'], companyId: string): string {
+    return `${type}-${companyId}`;
+  }
+
+  private async removeSchedulers(shouldRemove: (key: string) => boolean) {
+    const schedulers = await this.queue.getJobSchedulers();
+    for (const scheduler of schedulers) {
+      if (shouldRemove(scheduler.key)) await this.queue.removeJobScheduler(scheduler.key);
+    }
+  }
+
   private async upsertRepeatable(
     type: NotificationJob['type'],
     companyId: string,
     cron: string,
   ) {
-    const jobId = `${type}:${companyId}`;
-    await this.queue.add(
-      type,
-      { type, companyId },
+    await this.queue.upsertJobScheduler(
+      this.schedulerId(type, companyId),
+      // Crons are business hours (08:00 daily…), not server time.
+      { pattern: cron, tz: this.timezone() },
       {
-        jobId,
-        repeat: { pattern: cron },
-        removeOnComplete: 50,
-        removeOnFail: 20,
+        name: type,
+        data: { type, companyId },
+        opts: { removeOnComplete: 50, removeOnFail: 20 },
       },
     );
+  }
+
+  private timezone(): string {
+    return this.config.get<string>('NOTIFICATION_TIMEZONE') ?? 'Asia/Kolkata';
   }
 
   /**

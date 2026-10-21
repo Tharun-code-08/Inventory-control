@@ -63,7 +63,10 @@ function buildHarness(options?: { providerResult?: Partial<AiConversationResult>
       }),
     ),
   };
-  const prisma = { message: { findMany: jest.fn().mockResolvedValue([]) } };
+  const prisma = {
+    message: { findMany: jest.fn().mockResolvedValue([]) },
+    agentTask: { findFirst: jest.fn().mockResolvedValue(null) },
+  };
   const config = { get: jest.fn().mockReturnValue(undefined) };
   const settings = { forCompany: jest.fn().mockResolvedValue(resolvedSettings) };
   const usage = {

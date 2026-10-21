@@ -5,6 +5,9 @@ import { SuppliersService } from '@/modules/suppliers/suppliers.service';
 import { AgentTaskService } from '../../../tasks/agent-task.service';
 import { TaskExecutorService } from '../../../tasks/task-executor.service';
 import { ToolRegistry, type AgentToolContext } from '../tool-registry';
+import { CreateSupplierDto } from '@/modules/suppliers/dto/create-supplier.dto';
+import { CreateCustomerDto } from '@/modules/customers/dto/create-customer.dto';
+import { validateAsDto } from '../../../tasks/validate-payload';
 
 const CREATE_SUPPLIER = 'partner.create_supplier';
 const CREATE_CUSTOMER = 'partner.create_customer';
@@ -119,7 +122,7 @@ export class PartnerWriteToolsService implements OnModuleInit {
         const dto = payload as SupplierPayload;
         const existing = await this.findSupplier(user, dto.supplierName);
         if (existing) return existing;
-        return this.suppliers.create(user, dto as never);
+        return this.suppliers.create(user, await validateAsDto(CreateSupplierDto, dto));
       },
       verify: (result) => {
         const row = result as PartnerRow;
@@ -137,7 +140,7 @@ export class PartnerWriteToolsService implements OnModuleInit {
         const dto = payload as CustomerPayload;
         const existing = await this.findCustomer(user, dto.customerName);
         if (existing) return existing;
-        return this.customers.create(user, dto as never);
+        return this.customers.create(user, await validateAsDto(CreateCustomerDto, dto));
       },
       verify: (result) => {
         const row = result as PartnerRow;

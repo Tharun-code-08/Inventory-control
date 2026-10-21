@@ -84,7 +84,15 @@ describe('CatalogWriteToolsService — create_product', () => {
     const h = buildHarness();
     h.products.create.mockRejectedValue(new Error('unique constraint'));
     h.products.list.mockResolvedValue({ data: [panel] });
-    const result = await h.runners['catalog.create_product'].run(user, { productCode: 'ELEC0501' });
+    const result = await h.runners['catalog.create_product'].run(user, {
+      productCode: 'ELEC0501',
+      description: 'LED bulb 9W',
+      category: 'Electrical',
+      uom: 'NOS',
+      purchasePrice: 40,
+      sellingPrice: 60,
+      plants: [{ shopId: '0f8fad5b-d9cb-469f-a165-70867728950e', openingStock: 0 }],
+    });
     expect((result as { id: string }).id).toBe('p9');
   });
 });
@@ -108,6 +116,14 @@ describe('CatalogWriteToolsService — update_product', () => {
     const h = buildHarness();
     h.products.list.mockResolvedValue({ data: [panel] });
     await expect(h.updateTool.handler(ctx, { product_query: 'ELEC0501' })).rejects.toThrow(/No changes/);
+  });
+
+  it('runner rejects a draft the REST DTO would reject', async () => {
+    const h = buildHarness();
+    await expect(
+      h.runners['catalog.create_product'].run(user, { productCode: 'X' }, {} as never, {} as never),
+    ).rejects.toThrow(/Invalid draft/);
+    expect(h.products.create).not.toHaveBeenCalled();
   });
 
   it('runner applies the change through ProductsService.update', async () => {

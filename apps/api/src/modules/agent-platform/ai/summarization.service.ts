@@ -1,9 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { MessageDirection } from '@prisma/client';
+import { AiModelRole, MessageDirection } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { AiProvider } from './provider/ai-provider.interface';
 import { AI_PROVIDER } from './provider/ai-provider.token';
 import { AiSettingsService } from '../settings/ai-settings.service';
+import { PlatformHealthService } from './platform-health.service';
+import { UsageLimitService } from './usage/usage-limit.service';
+import { estimateCostCents } from './usage/model-cost';
 
 const SUMMARIZE_AFTER = 14; // trigger when history reaches this many messages
 const SUMMARIZE_SYSTEM = `You are a conversation summarizer for an ERP WhatsApp assistant.
@@ -22,6 +25,8 @@ export class SummarizationService {
     private readonly prisma: PrismaService,
     @Inject(AI_PROVIDER) private readonly provider: AiProvider,
     private readonly settings: AiSettingsService,
+    private readonly usage: UsageLimitService,
+    private readonly health: PlatformHealthService,
   ) {}
 
   /**
@@ -49,6 +54,12 @@ export class SummarizationService {
       }));
 
       const resolved = await this.settings.forCompany(companyId);
+      // Summaries use the same paid provider: respect the tenant's quota and
+      // the provider circuit breaker, and meter what they spend.
+      if (this.health.isOpen('ai_provider')) return;
+      const quota = await this.usage.check(companyId, resolved);
+      if (!quota.allowed) return;
+      const startedAt = Date.now();
       const result = await this.provider.runConversation({
         model: resolved.models.reasoning,
         system: SUMMARIZE_SYSTEM,
@@ -58,6 +69,18 @@ export class SummarizationService {
         tools: [],
         executeTool: async () => ({ content: '' }),
         maxToolRounds: 0,
+      });
+      await this.usage.record({
+        companyId,
+        conversationId,
+        model: resolved.models.reasoning,
+        role: AiModelRole.REASONING,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        costCents: estimateCostCents(resolved.models.reasoning, result.usage.inputTokens, result.usage.outputTokens),
+        toolDurationMs: null,
+        toolErrors: 0,
+        durationMs: Date.now() - startedAt,
       });
 
       if (result.text?.trim()) {

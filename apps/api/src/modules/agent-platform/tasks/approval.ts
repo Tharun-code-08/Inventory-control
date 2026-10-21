@@ -19,3 +19,16 @@ export function parseDecision(text: string): ApprovalDecision | null {
   if (REJECT_RE.test(trimmed)) return 'reject';
   return null;
 }
+
+/** The task number a decision names ("approve #421"), if any. */
+export function decisionTaskNumber(text: string): number | null {
+  // Linear scan (no regex) over the user's text: trailing ".!" and spaces,
+  // then the digits before them.
+  const value = (text ?? '').trim();
+  let end = value.length;
+  while (end > 0 && '.! '.includes(value[end - 1])) end -= 1;
+  let start = end;
+  while (start > 0 && value[start - 1] >= '0' && value[start - 1] <= '9') start -= 1;
+  if (start === end || end - start > 9) return null;
+  return Number(value.slice(start, end));
+}

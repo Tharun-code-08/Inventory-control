@@ -14,9 +14,20 @@ export function estimateCostCents(
   inputTokens: number,
   outputTokens: number,
 ): number {
+  return Math.round(exactCostCents(model, inputTokens, outputTokens));
+}
+
+/**
+ * Unrounded cost in cents. A typical turn costs a fraction of a cent, so
+ * budgets must be checked against token totals, not summed rounded costs.
+ */
+export function exactCostCents(model: string, inputTokens: number, outputTokens: number): number {
   const rate = COST_CENTS_PER_MTOK[model];
   if (!rate) return 0;
-  return Math.round(
-    (inputTokens * rate.input) / 1_000_000 + (outputTokens * rate.output) / 1_000_000,
-  );
+  return (inputTokens * rate.input) / 1_000_000 + (outputTokens * rate.output) / 1_000_000;
+}
+
+/** Models the platform has pricing for (and so may bill tenants for). */
+export function pricedModels(): string[] {
+  return Object.keys(COST_CENTS_PER_MTOK);
 }

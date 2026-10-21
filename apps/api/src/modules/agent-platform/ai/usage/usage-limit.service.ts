@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AiModelRole } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { ResolvedAiSettings } from '../../settings/ai-settings.service';
+import { exactCostCents } from './model-cost';
 
 export type QuotaCheck =
   | { allowed: true }
@@ -39,7 +40,7 @@ export class UsageLimitService {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [todayCount, monthAgg] = await Promise.all([
+    const [todayCount, monthAgg, monthByModel] = await Promise.all([
       settings.dailyRequestLimit
         ? this.prisma.aiUsageLog.count({
             where: { companyId, createdAt: { gte: startOfDay } },
@@ -51,6 +52,13 @@ export class UsageLimitService {
             _sum: { inputTokens: true, outputTokens: true, costCents: true },
           })
         : Promise.resolve(null),
+      settings.monthlyCostCentsLimit
+        ? this.prisma.aiUsageLog.groupBy({
+            by: ['model'],
+            where: { companyId, createdAt: { gte: startOfMonth } },
+            _sum: { inputTokens: true, outputTokens: true },
+          })
+        : Promise.resolve([] as Array<{ model: string; _sum: { inputTokens: number | null; outputTokens: number | null } }>),
     ]);
 
     if (settings.dailyRequestLimit && todayCount >= settings.dailyRequestLimit) {
@@ -61,7 +69,12 @@ export class UsageLimitService {
       if (settings.monthlyTokenLimit && tokens >= settings.monthlyTokenLimit) {
         return { allowed: false, reason: 'monthly_tokens' };
       }
-      const cost = monthAgg._sum.costCents ?? 0;
+      // Re-price from token totals: per-turn costs are stored rounded to whole
+      // cents, which records most turns as 0.
+      const cost = monthByModel.reduce<number>(
+        (sum, row) => sum + exactCostCents(row.model, row._sum.inputTokens ?? 0, row._sum.outputTokens ?? 0),
+        0,
+      );
       if (settings.monthlyCostCentsLimit && cost >= settings.monthlyCostCentsLimit) {
         return { allowed: false, reason: 'monthly_cost' };
       }

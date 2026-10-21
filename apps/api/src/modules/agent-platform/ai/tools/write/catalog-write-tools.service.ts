@@ -4,6 +4,9 @@ import { ProductsService } from '@/modules/products/products.service';
 import { AgentTaskService } from '../../../tasks/agent-task.service';
 import { TaskExecutorService } from '../../../tasks/task-executor.service';
 import { ToolRegistry, type AgentToolContext } from '../tool-registry';
+import { CreateProductDto } from '@/modules/products/dto/create-product.dto';
+import { UpdateProductDto } from '@/modules/products/dto/update-product.dto';
+import { validateAsDto } from '../../../tasks/validate-payload';
 
 const CREATE_PRODUCT = 'catalog.create_product';
 const UPDATE_PRODUCT = 'catalog.update_product';
@@ -140,8 +143,9 @@ export class CatalogWriteToolsService implements OnModuleInit {
       name: CREATE_PRODUCT,
       run: async (user, payload) => {
         const dto = payload as CreateProductPayload;
+        const validated = await validateAsDto(CreateProductDto, dto);
         try {
-          return await this.products.create(user, dto as never);
+          return await this.products.create(user, validated);
         } catch (err) {
           // Retry safety: the unique product code means a duplicate create can
           // only mean the earlier attempt succeeded — return that product.
@@ -162,9 +166,9 @@ export class CatalogWriteToolsService implements OnModuleInit {
 
     this.executor.registerRunner({
       name: UPDATE_PRODUCT,
-      run: (user, payload) => {
+      run: async (user, payload) => {
         const data = payload as UpdateProductPayload;
-        return this.products.update(user, data.productId, data.changes as never);
+        return this.products.update(user, data.productId, await validateAsDto(UpdateProductDto, data.changes));
       },
       verify: (result) => {
         const product = result as ProductRow;

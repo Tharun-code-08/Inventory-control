@@ -15,9 +15,13 @@ describe('IntentService', () => {
     ['thanks'],
     ['Thank you!'],
     ['ok'],
-    ['low_stock'],
-    ['revenue'],
   ];
+
+  // Data shortcuts go to the AI (with live tools) instead of a placeholder.
+  it.each([['low_stock'], ['revenue'], ['Low stock alert']])('routes %p to the AI', (text) => {
+    expect(service.match(text)).toBeNull();
+    expect(service.resolveButtonId(text)).not.toBe(text);
+  });
 
   it.each(ruleMatched)('answers %p from the rule tier (no AI)', (text) => {
     expect(service.match(text)).not.toBeNull();
