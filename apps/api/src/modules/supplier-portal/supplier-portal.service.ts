@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -143,6 +144,16 @@ export class SupplierPortalService {
     if (supplier?.companyId) {
       await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
     }
+    if (rfq.closedAt) {
+      throw new BadRequestException('This RFQ is closed');
+    }
+    if (rfq.deadline) {
+      const endOfDeadline = new Date(rfq.deadline);
+      endOfDeadline.setUTCHours(23, 59, 59, 999);
+      if (endOfDeadline.getTime() < Date.now()) {
+        throw new BadRequestException('The deadline for this RFQ has passed');
+      }
+    }
     const itemMap = new Map(rfq.items.map((i) => [i.id, i]));
 
     if (dto.items.length !== rfq.items.length) {
@@ -181,6 +192,17 @@ export class SupplierPortalService {
 
     const quoteDate = new Date();
     const created = await this.prisma.$transaction(async (tx) => {
+      // One quote per supplier per RFQ; serialize so a double submit cannot
+      // create two (each one burns a number from the buyer's sequence).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rfq-quote:${rfq.id}:${dto.supplierId}`}::text))`;
+      const already = await tx.supplierQuotationHeader.findFirst({
+        where: { rfqId: rfq.id, supplierId: dto.supplierId },
+        select: { id: true },
+      });
+      if (already) {
+        throw new ConflictException('You have already submitted a quote for this RFQ. Contact the buyer to revise it.');
+      }
+
       const quoteNumber = await this.numbers.nextShopScopedNumber(tx, {
         shopId: rfq.shopId,
         docType: 'QUO',

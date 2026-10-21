@@ -1175,7 +1175,7 @@ model ProductSpecification {
 
 model Supplier {
   id            String   @id @default(uuid()) @db.Uuid
-  supplierCode  String   @unique @map("supplier_code")
+  supplierCode  String   @map("supplier_code")
   supplierName  String   @map("supplier_name")
   companyId     String?  @map("company_id") @db.Uuid
   taxId         String?  @map("tax_id")
@@ -1211,6 +1211,7 @@ model Supplier {
   supplierBills   SupplierBillHeader[]
   productBarcodes ProductBarcode[]
 
+  @@unique([companyId, supplierCode])
   @@index([companyId])
   @@index([supplierName])
   @@index([deletedAt])
@@ -1222,6 +1223,7 @@ model RfqHeader {
   rfqNumber        String         @unique @map("rfq_number")
   rfqDate          DateTime       @map("rfq_date") @db.Date
   deadline         DateTime?      @map("deadline") @db.Date
+  closedAt         DateTime?      @map("closed_at") @db.Timestamptz(6)
   title            String
   notes            String?
   shopId           String         @map("shop_id") @db.Uuid
@@ -1293,6 +1295,7 @@ model ContractHeader {
   paymentTerms   String?        @map("payment_terms")
   startDate      DateTime       @map("start_date") @db.Date
   endDate        DateTime?      @map("end_date") @db.Date
+  terminatedAt   DateTime?      @map("terminated_at") @db.Timestamptz(6)
   notes          String?
   status         DocumentStatus @default(DRAFT)
   postedAt       DateTime?      @map("posted_at") @db.Timestamptz(6)

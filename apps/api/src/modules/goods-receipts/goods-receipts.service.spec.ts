@@ -458,6 +458,7 @@ describe('GoodsReceiptsService.post', () => {
     });
     tx.purchaseOrderHeader.findUnique.mockResolvedValue({
       id: 'po-1',
+      shopId: 's1',
       status: 'CONFIRMED',
       lifecycleStatus: 'CONFIRMED',
       items: [{ productId: 'p1', orderQty: new Prisma.Decimal(10) }],
@@ -495,6 +496,60 @@ describe('GoodsReceiptsService.post', () => {
     await service.post(adminUser, 'gr-1');
 
     expect(tx.$executeRaw).toHaveBeenCalled();
+  });
+
+  it('rejects a receipt that over-receives by splitting a product across lines', async () => {
+    const line = (id: string) => ({
+      id,
+      productId: 'p1',
+      quantity: new Prisma.Decimal(6),
+      purchaseRate: new Prisma.Decimal(10),
+      lineValue: new Prisma.Decimal(60),
+      storageLocationId: 'loc-1',
+      expiryDate: new Date('2027-12-31'),
+    });
+    const items = [line('l1'), line('l2')];
+    const tx = buildTx();
+    tx.goodsReceiptHeader.findUnique.mockResolvedValue({
+      id: 'gr-1',
+      shopId: 's1',
+      grNumber: 'GR-1',
+      grDate: new Date('2026-04-01'),
+      status: DocumentStatus.DRAFT,
+      purchaseOrderId: 'po-1',
+      items,
+    });
+    tx.purchaseOrderHeader.findUnique.mockResolvedValue({
+      id: 'po-1',
+      shopId: 's1',
+      status: 'CONFIRMED',
+      lifecycleStatus: 'CONFIRMED',
+      items: [{ productId: 'p1', orderQty: new Prisma.Decimal(10) }],
+    });
+    (tx.goodsReceiptHeader as any).findMany = jest.fn().mockResolvedValue([]);
+    const prisma = makePrisma(tx);
+    prisma.goodsReceiptHeader.findUnique.mockResolvedValue({
+      id: 'gr-1',
+      shopId: 's1',
+      grNumber: 'GR-1',
+      grDate: new Date('2026-04-01'),
+      status: DocumentStatus.DRAFT,
+      items,
+    });
+    const service = new GoodsReceiptsService(
+      prisma,
+      stockFactory(),
+      numbersFactory(),
+      auditFactory(),
+      costingFactory(),
+      emailNotificationsFactory(),
+      documentPdfFactory(),
+      documentEmailFactory(),
+      notificationsFactory(),
+      outboxFactory(),
+    );
+    // 6 + 6 = 12 against an order of 10.
+    await expect(service.post(adminUser, 'gr-1')).rejects.toThrow('exceeds PO quantity');
   });
 
   it('emits goods-receipt.created inside the posting transaction', async () => {

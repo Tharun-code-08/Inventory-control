@@ -172,6 +172,7 @@ export class ApprovalController {
       requireCompanyId(user),
       body.escalatedTo,
       user.id,
+      user.role,
     );
     return { success: true };
   }
@@ -184,7 +185,7 @@ export class ApprovalController {
     @Param('approvalId') approvalId: string,
     @CurrentUser() user: RequestUser,
   ): Promise<{ checked: boolean }> {
-    await this.approvalService.checkEscalation(approvalId, requireCompanyId(user), user.id);
+    await this.approvalService.checkEscalation(approvalId, requireCompanyId(user), user.id, user.role);
     return { checked: true };
   }
 }

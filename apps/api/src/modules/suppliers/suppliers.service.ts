@@ -86,11 +86,25 @@ export class SuppliersService {
     if (dto.companyId && dto.companyId !== companyId) {
       assertCompanyScope(user, dto.companyId);
     }
-    const count = await this.prisma.supplier.count({ where: { companyId } });
-    const code = dto.supplierCode?.trim() || `SUP-${String(count + 1).padStart(4, '0')}`;
+    // Codes are unique per company; pick the next free SUP-nnnn if none given.
+    let code = dto.supplierCode?.trim();
+    if (!code) {
+      const count = await this.prisma.supplier.count({ where: { companyId } });
+      for (let n = count + 1; ; n += 1) {
+        const candidate = `SUP-${String(n).padStart(4, '0')}`;
+        const taken = await this.prisma.supplier.findFirst({
+          where: { companyId, supplierCode: candidate },
+          select: { id: true },
+        });
+        if (!taken) {
+          code = candidate;
+          break;
+        }
+      }
+    }
 
     const existingByCode = await this.prisma.supplier.findFirst({
-      where: { supplierCode: code },
+      where: { companyId, supplierCode: code },
       select: {
         id: true,
         supplierCode: true,
@@ -150,7 +164,7 @@ export class SuppliersService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const retry = await this.prisma.supplier.findFirst({
-          where: { supplierCode: code },
+          where: { companyId, supplierCode: code },
           select: {
             id: true,
             supplierCode: true,

@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request = require('supertest');
 import { AuditAction } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
 import { authed, grLineItem, todayDateString, unwrap } from '../helpers/e2e-http';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -187,11 +188,36 @@ describe('Day 6 — E2E Audit Validation', () => {
 
     // ===== STEP 6: CREATE APPROVAL & APPROVE GR =====
     // Verify: APPROVE audit exists with reason/comment/requestId
+    // Requesters can't approve their own documents, so a second admin in the
+    // same shop is the approver.
+    const owner = await prisma.user.findUnique({ where: { id: userId }, select: { shopId: true } });
+    const adminRole = await prisma.role.findFirst({ where: { name: 'ADMIN' }, select: { id: true } });
+    const approverEmail = `approver-day6-${Date.now()}@e2e.local`;
+    const approverPassword = 'Approver@123';
+    const approverUser = await prisma.user.create({
+      data: {
+        name: 'Day6 Approver',
+        email: approverEmail,
+        passwordHash: await bcrypt.hash(approverPassword, 4),
+        roleId: adminRole.id,
+        shopId: owner.shopId,
+        isActive: true,
+      },
+    });
+    const approverLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: approverEmail, password: approverPassword });
+    expect(approverLogin.status).toBe(201);
+    const approverApi = authed(
+      app,
+      unwrap<{ accessToken: string }>(approverLogin.body).accessToken,
+    );
+
     // First, create an approval request for the GR
     const approvalRes = await api.post('/api/v1/approvals').send({
       referenceId: grId,
       approvalType: 'GOODS_RECEIPT',
-      assignedTo: userId,
+      assignedTo: approverUser.id,
       documentNumber: 'GR-E2E-DAY6',
     });
     expect(approvalRes.status).toBe(201);
@@ -199,7 +225,7 @@ describe('Day 6 — E2E Audit Validation', () => {
     const approvalId = approval.id;
 
     // Approve the GR
-    const approveRes = await api
+    const approveRes = await approverApi
       .post(`/api/v1/approvals/${approvalId}/approve`)
       .send({
         comment: 'Verified quantities and dates',
@@ -246,7 +272,10 @@ describe('Day 6 — E2E Audit Validation', () => {
     expect(recordsByAction.get('CREATE_PRODUCT')).toBeGreaterThan(0);
     expect(recordsByAction.get('RECEIVE_GOODS')).toBeGreaterThan(0);
     expect(recordsByAction.get('UPDATE_PRODUCT')).toBeGreaterThan(0);
-    expect(recordsByAction.get('APPROVE')).toBeGreaterThan(0);
+    // The approval was recorded under the approver.
+    expect(
+      auditData.data.some((r) => r.action === 'APPROVE' && r.userId === approverUser.id),
+    ).toBe(true);
 
     // Verify requestId consistency: audit records should have requestId
     const userRecords = auditData.data.filter((r) => r.userId === userId).slice(0, 10);

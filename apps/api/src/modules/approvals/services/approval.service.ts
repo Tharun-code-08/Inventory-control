@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
@@ -49,6 +55,11 @@ export class ApprovalService {
     requestedBy: string,
     companyId: string,
   ): Promise<ApprovalRequestResponseDto> {
+    // A requester cannot approve their own document.
+    if (dto.assignedTo === requestedBy) {
+      throw new BadRequestException('You cannot assign an approval to yourself');
+    }
+
     // Validate assignee exists and belongs to the requester's organisation.
     const assignee = await this.findCompanyUser(dto.assignedTo, companyId);
 
@@ -352,7 +363,12 @@ export class ApprovalService {
   /**
    * Check if approval requires escalation
    */
-  async checkEscalation(approvalId: string, companyId: string, actorId?: string): Promise<void> {
+  async checkEscalation(
+    approvalId: string,
+    companyId: string,
+    actorId?: string,
+    actorRole?: string,
+  ): Promise<void> {
     const approval = await this.getApproval(approvalId, companyId);
 
     if (approval.status !== ApprovalStatus.PENDING) {
@@ -365,7 +381,7 @@ export class ApprovalService {
 
     if (requireDate && now > requireDate) {
       // Escalate to higher authority
-      await this.escalateApproval(approvalId, companyId, undefined, actorId);
+      await this.escalateApproval(approvalId, companyId, undefined, actorId, actorRole);
     }
   }
 
@@ -377,9 +393,26 @@ export class ApprovalService {
     companyId: string,
     escalatedTo?: string,
     actorId?: string,
+    actorRole?: string,
   ): Promise<void> {
     const approval = await this.getApproval(approvalId, companyId);
+    // Only the requester, the current assignee or an Owner/Admin may escalate.
+    if (
+      actorRole !== undefined &&
+      actorRole !== 'OWNER' &&
+      actorRole !== 'ADMIN' &&
+      actorId !== approval.requestedBy &&
+      actorId !== approval.assignedTo
+    ) {
+      throw new ForbiddenException('You cannot escalate this approval');
+    }
+    if (approval.status !== ApprovalStatus.PENDING) {
+      throw new BadRequestException('Only pending approvals can be escalated');
+    }
     if (escalatedTo) {
+      if (escalatedTo === approval.requestedBy) {
+        throw new BadRequestException('Cannot escalate an approval to its requester');
+      }
       const target = await this.findCompanyUser(escalatedTo, companyId);
       if (!target) {
         throw new NotFoundException('Escalation target user not found');

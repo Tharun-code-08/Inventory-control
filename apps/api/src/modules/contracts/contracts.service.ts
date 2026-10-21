@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertProcurementRefs } from '../../common/utils/procurement-refs';
 import { DocumentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionService } from '../billing/subscription.service';
@@ -20,6 +21,7 @@ export class ContractsService {
     return this.prisma.contractHeader.findMany({
       where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
+      take: 500,
       include: {
         supplier: true,
         rfq: true,
@@ -33,6 +35,7 @@ export class ContractsService {
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
     await this.subscriptions.assertFeatureForShop(shopId, 'contracts');
+    await assertProcurementRefs(this.prisma, shopId, { supplierIds: [dto.supplierId], rfqId: dto.rfqId });
     const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
     return this.prisma.$transaction(async (tx) => {
       const contractNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
@@ -92,6 +95,10 @@ export class ContractsService {
   async update(user: RequestUser, id: string, dto: UpdateContractDto) {
     const existing = await this.get(user, id);
     await this.subscriptions.assertFeatureForShop(existing.shopId, 'contracts');
+    await assertProcurementRefs(this.prisma, existing.shopId, {
+      supplierIds: [dto.supplierId],
+      rfqId: dto.rfqId,
+    });
     // Activated contracts carry agreed prices and must not be rewritten.
     if (existing.status !== DocumentStatus.DRAFT) {
       throw new BadRequestException('Only draft contracts can be edited');
@@ -148,9 +155,18 @@ export class ContractsService {
   async terminate(user: RequestUser, id: string) {
     const contract = await this.get(user, id);
     await this.subscriptions.assertFeatureForShop(contract.shopId, 'contracts');
+    if (contract.terminatedAt) return contract;
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     return this.prisma.contractHeader.update({
       where: { id },
-      data: { notes: `[Terminated ${new Date().toISOString()}]`, updatedById: user.id },
+      data: {
+        terminatedAt: now,
+        // A terminated contract ends today, so it no longer counts as active.
+        endDate: contract.endDate && contract.endDate < today ? contract.endDate : today,
+        notes: [contract.notes, `[Terminated ${now.toISOString()}]`].filter(Boolean).join('\n'),
+        updatedById: user.id,
+      },
     });
   }
 }
