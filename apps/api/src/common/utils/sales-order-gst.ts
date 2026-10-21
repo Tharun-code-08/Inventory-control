@@ -93,7 +93,10 @@ export function computeSalesOrderLineTotals(
   const { cgstPercent, sgstPercent, igstPercent } = resolveLineGstPercents(item, supplyType);
 
   const subTotal = quantity.mul(unitPrice);
-  const taxable = Prisma.Decimal.max(subTotal.sub(discount), new Prisma.Decimal(0));
+  if (discount.lt(0) || discount.gt(subTotal)) {
+    throw new BadRequestException('Line discount must be between 0 and the line subtotal');
+  }
+  const taxable = subTotal.sub(discount);
 
   let cgstAmount = new Prisma.Decimal(0);
   let sgstAmount = new Prisma.Decimal(0);
@@ -104,9 +107,12 @@ export function computeSalesOrderLineTotals(
     igstAmount = roundMoney(taxable.mul(new Prisma.Decimal(igstPercent)).div(100));
     taxAmount = igstAmount;
   } else {
-    cgstAmount = roundMoney(taxable.mul(new Prisma.Decimal(cgstPercent)).div(100));
-    sgstAmount = roundMoney(taxable.mul(new Prisma.Decimal(sgstPercent)).div(100));
+    // Round the combined tax once, then split it so CGST + SGST always equals
+    // the line tax (rounding each half separately can drift by a paisa).
     taxAmount = roundMoney(taxable.mul(new Prisma.Decimal(cgstPercent + sgstPercent)).div(100));
+    cgstAmount = roundMoney(taxable.mul(new Prisma.Decimal(cgstPercent)).div(100));
+    if (cgstAmount.gt(taxAmount)) cgstAmount = taxAmount;
+    sgstAmount = taxAmount.sub(cgstAmount);
   }
   const lineValue = roundMoney(subTotal.sub(discount).add(taxAmount));
   const combinedPercent = isInterStateSupply(supplyType)

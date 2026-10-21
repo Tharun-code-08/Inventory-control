@@ -6,8 +6,10 @@ import {
   CreditNoteStatus,
   DocumentEmailTrigger,
   DocumentStatus,
+  InvoiceStatus,
   Prisma,
   ReturnStatus,
+  SalesOrderStatus,
   SupplierReturnReasonCode,
   TransactionType,
 } from '@prisma/client';
@@ -137,6 +139,96 @@ export class ReturnsService {
 
   // -- Customer returns -----------------------------------------------------
 
+  /**
+   * A customer return must belong to the shop and customer, and when it names
+   * an invoice or sales order, each line must be a product that was sold on it,
+   * within the quantity not yet returned and at no more than the sold price.
+   * Returns the sales order the return is checked against (or null).
+   */
+  private async assertCustomerReturnAgainstSale(shopId: string, dto: CreateCustomerReturnDto) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: dto.customerId },
+      select: { shopId: true },
+    });
+    if (!customer || customer.shopId !== shopId) {
+      throw new BadRequestException('Customer must belong to the selected shop');
+    }
+
+    let salesOrderId = dto.salesOrderId ?? null;
+    if (dto.invoiceId) {
+      const invoice = await this.prisma.invoiceHeader.findUnique({
+        where: { id: dto.invoiceId },
+        select: { shopId: true, customerId: true, salesOrderId: true, status: true },
+      });
+      if (!invoice || invoice.shopId !== shopId || invoice.customerId !== dto.customerId) {
+        throw new BadRequestException('Invoice must belong to this shop and customer');
+      }
+      if (invoice.status === InvoiceStatus.VOID) {
+        throw new BadRequestException('Cannot return against a voided invoice');
+      }
+      if (salesOrderId && invoice.salesOrderId && salesOrderId !== invoice.salesOrderId) {
+        throw new BadRequestException('Invoice and sales order do not match');
+      }
+      salesOrderId = salesOrderId ?? invoice.salesOrderId;
+    }
+    if (!salesOrderId) return null;
+
+    const so = await this.prisma.salesOrderHeader.findUnique({
+      where: { id: salesOrderId },
+      select: {
+        shopId: true,
+        customerId: true,
+        status: true,
+        items: { select: { productId: true, quantity: true, unitPrice: true } },
+      },
+    });
+    if (!so || so.shopId !== shopId || so.customerId !== dto.customerId) {
+      throw new BadRequestException('Sales order must belong to this shop and customer');
+    }
+    if (so.status === SalesOrderStatus.DRAFT || so.status === SalesOrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot return against a draft or cancelled sales order');
+    }
+
+    const sold = new Map<string, { qty: Prisma.Decimal; maxPrice: Prisma.Decimal }>();
+    for (const line of so.items) {
+      const prev = sold.get(line.productId);
+      sold.set(line.productId, {
+        qty: (prev?.qty ?? new Prisma.Decimal(0)).add(line.quantity),
+        maxPrice: Prisma.Decimal.max(prev?.maxPrice ?? new Prisma.Decimal(0), line.unitPrice),
+      });
+    }
+    const priorReturns = await this.prisma.customerReturnItem.groupBy({
+      by: ['productId'],
+      where: {
+        header: { salesOrderId, status: { not: ReturnStatus.CANCELLED } },
+      },
+      _sum: { quantity: true },
+    });
+    const returned = new Map(priorReturns.map((r) => [r.productId, r._sum.quantity ?? new Prisma.Decimal(0)]));
+
+    const requested = new Map<string, Prisma.Decimal>();
+    for (const it of dto.items) {
+      const line = sold.get(it.productId);
+      if (!line) {
+        throw new BadRequestException(`Product ${it.productId} was not sold on this order`);
+      }
+      if (asMoney(it.unitPrice).gt(line.maxPrice)) {
+        throw new BadRequestException('Return price cannot exceed the price the product was sold at');
+      }
+      requested.set(it.productId, (requested.get(it.productId) ?? new Prisma.Decimal(0)).add(asMoney(it.quantity)));
+    }
+    for (const [productId, qty] of requested) {
+      const line = sold.get(productId)!;
+      const remaining = line.qty.sub(returned.get(productId) ?? 0);
+      if (qty.gt(remaining)) {
+        throw new BadRequestException(
+          `Return quantity exceeds what can still be returned (${remaining.toString()} left)`,
+        );
+      }
+    }
+    return salesOrderId;
+  }
+
   async createCustomerReturn(user: RequestUser, dto: CreateCustomerReturnDto) {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
@@ -144,6 +236,7 @@ export class ReturnsService {
 
     const returnDate = dto.returnDate ? new Date(dto.returnDate) : new Date();
     assertNotFuture(returnDate);
+    const salesOrderId = await this.assertCustomerReturnAgainstSale(shopId, dto);
     let total = new Prisma.Decimal(0);
     const items = dto.items.map((it) => {
       const quantity = asMoney(it.quantity);
@@ -172,7 +265,7 @@ export class ReturnsService {
           shopId,
           customerId: dto.customerId,
           invoiceId: dto.invoiceId ?? null,
-          salesOrderId: dto.salesOrderId ?? null,
+          salesOrderId,
           reason: dto.reason ?? null,
           remarks: dto.remarks ?? null,
           status: ReturnStatus.DRAFT,
@@ -198,6 +291,17 @@ export class ReturnsService {
       );
       return created;
     });
+  }
+
+  /** Current average cost at the shop, falling back to the product's purchase price. */
+  private async returnUnitCost(tx: Prisma.TransactionClient, shopId: string, productId: string) {
+    const summary = await tx.stockSummary.findUnique({
+      where: { shopId_productId: { shopId, productId } },
+      select: { avgCost: true },
+    });
+    if (summary && summary.avgCost.gt(0)) return summary.avgCost;
+    const product = await tx.product.findUnique({ where: { id: productId }, select: { purchasePrice: true } });
+    return product?.purchasePrice ?? new Prisma.Decimal(0);
   }
 
   async postCustomerReturn(user: RequestUser, id: string) {
@@ -232,6 +336,8 @@ export class ReturnsService {
       }
 
       for (const line of ret.items) {
+        // Returned goods come back at what they cost, not at the selling price.
+        const unitCost = await this.returnUnitCost(tx, ret.shopId, line.productId);
         await this.stock.postMovementOnce(tx, {
           type: TransactionType.GOODS_RECEIPT,
           ref: ret.returnNumber,
@@ -240,7 +346,7 @@ export class ReturnsService {
           productId: line.productId,
           inQty: Number(line.quantity),
           outQty: 0,
-          unitRate: Number(line.unitPrice),
+          unitRate: Number(unitCost),
           remarks: 'Customer return',
           sourceType: 'CUSTOMER_RETURN',
           sourceId: ret.id,
@@ -252,7 +358,7 @@ export class ReturnsService {
           shopId: ret.shopId,
           productId: line.productId,
           qty: new Prisma.Decimal(line.quantity),
-          unitCost: new Prisma.Decimal(line.unitPrice),
+          unitCost,
           method,
         });
       }

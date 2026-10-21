@@ -67,10 +67,33 @@ export class EwayBillsService {
 
   // ─── Create ─────────────────────────────────────────────────────────────────
 
+  /** Linked invoice, sales order and customer must all belong to the bill's shop. */
+  private async assertReferencesInShop(
+    shopId: string,
+    dto: { invoiceId?: string | null; salesOrderId?: string | null; customerId?: string | null },
+  ) {
+    const checks: Array<Promise<{ shopId: string } | null>> = [
+      dto.invoiceId
+        ? this.prisma.invoiceHeader.findUnique({ where: { id: dto.invoiceId }, select: { shopId: true } })
+        : Promise.resolve({ shopId }),
+      dto.salesOrderId
+        ? this.prisma.salesOrderHeader.findUnique({ where: { id: dto.salesOrderId }, select: { shopId: true } })
+        : Promise.resolve({ shopId }),
+      dto.customerId
+        ? this.prisma.customer.findUnique({ where: { id: dto.customerId }, select: { shopId: true } })
+        : Promise.resolve({ shopId }),
+    ];
+    const rows = await Promise.all(checks);
+    if (rows.some((row) => !row || row.shopId !== shopId)) {
+      throw new BadRequestException('Invoice, sales order and customer must belong to the selected shop');
+    }
+  }
+
   async create(user: RequestUser, dto: CreateEwayBillDto) {
     const shopId = dto.shopId ?? user.shopId;
     if (!shopId) throw new BadRequestException('shopId is required');
     assertShopScope(user, shopId);
+    await this.assertReferencesInShop(shopId, dto);
 
     const summary = this.summariseItems(dto.items ?? []);
 
@@ -142,6 +165,7 @@ export class EwayBillsService {
       include: {
         customer: true,
         shop: true,
+        salesOrder: { select: { totalCgst: true, totalSgst: true, totalIgst: true } },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -149,6 +173,11 @@ export class EwayBillsService {
 
     // Auto-compute a single summary item from the invoice totals (no line items on InvoiceHeader).
     const taxable = Number(invoice.totalValue) - Number(invoice.taxAmount);
+    // Use the order's CGST/SGST/IGST split when there is one.
+    const so = invoice.salesOrder;
+    const split = so && Number(so.totalCgst) + Number(so.totalSgst) + Number(so.totalIgst) > 0
+      ? { cgst: Number(so.totalCgst), sgst: Number(so.totalSgst), igst: Number(so.totalIgst) }
+      : { cgst: 0, sgst: 0, igst: Number(invoice.taxAmount) };
     const lineItems: EwayBillItemDto[] = [
       {
         productName: `Invoice ${invoice.invoiceNumber}`,
@@ -157,9 +186,9 @@ export class EwayBillsService {
         unit: 'PCS',
         taxableAmount: taxable,
         gstRate: taxable > 0 ? (Number(invoice.taxAmount) / taxable) * 100 : 0,
-        igst: Number(invoice.taxAmount),
-        cgst: 0,
-        sgst: 0,
+        igst: split.igst,
+        cgst: split.cgst,
+        sgst: split.sgst,
         cess: 0,
         total: Number(invoice.totalValue),
       },

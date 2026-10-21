@@ -20,6 +20,7 @@ const subscriptions = () =>
 
 function buildTx() {
   return {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     salesOrderHeader: { findUnique: jest.fn() },
     invoiceHeader: { create: jest.fn() },
   };

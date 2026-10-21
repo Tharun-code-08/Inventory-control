@@ -51,20 +51,19 @@ describe('SalesOrdersService.computeLineTotals', () => {
     expect(r.totalDiscount.toFixed(2)).toBe('10.00');
   });
 
-  it('clamps tax base to zero when discount exceeds subtotal', () => {
-    // 1 * 10 = 10, discount 25 -> taxable max(10 - 25, 0) = 0 -> tax 0
-    // line = 10 - 25 + 0 = -15, allowed (returns/credit notes)
-    const r = compute([
-      {
-        productId: 'p',
-        quantity: 1,
-        unitPrice: 10,
-        discountAmount: 25,
-        taxRate: 0.18,
-      },
-    ]);
-    expect(r.lines[0].taxAmount.toFixed(2)).toBe('0.00');
-    expect(r.lines[0].lineValue.toFixed(2)).toBe('-15.00');
+  it('rejects a discount larger than the line subtotal', () => {
+    // Sales-order lines never go negative (returns use their own documents).
+    expect(() =>
+      compute([
+        {
+          productId: 'p',
+          quantity: 1,
+          unitPrice: 10,
+          discountAmount: 25,
+          taxRate: 0.18,
+        },
+      ]),
+    ).toThrow('Line discount must be between 0 and the line subtotal');
   });
 
   it('rounds half-up to two decimals on tax', () => {
