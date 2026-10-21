@@ -19,50 +19,34 @@ const RESUME_BUTTONS: [QuickReply, QuickReply] = [
   { id: 'help', title: '❓ Help' },
 ];
 
+// Commands must start the message ("stop daily summary", "please turn off
+// alerts"): unanchored patterns used to rewrite preferences on ordinary
+// questions such as "why is there no stock alert for X?".
+const LEAD = String.raw`^\s*(?:please\s+|pls\s+|kindly\s+)?`;
+const OFF = String.raw`(?:stop|disable|turn\s*off|mute|don'?t\s*send)`;
+const ON = String.raw`(?:enable|turn\s*on|start|resume|unmute)`;
+const cmd = (verb: string, target: string) =>
+  new RegExp(`${LEAD}${verb}\\b(?:\\s+(?:my|the|all))*\\s*${target}\\s*[.!]*\\s*$`, 'i');
+
+const ALL = String.raw`(?:notifications?|alerts?|updates?)`;
+const DAILY = String.raw`(?:daily\s+(?:summary|summaries|updates?|reports?|snapshots?))`;
+const LOW_STOCK = String.raw`(?:(?:low[\s-]?)?stock\s+alerts?)`;
+const OVERDUE = String.raw`(?:overdue(?:\s+(?:payments?|reminders?|alerts?))?|payment\s+reminders?|invoice\s+alerts?)`;
+
 const RULES: Array<{ pattern: RegExp; command: NotifCommand }> = [
+  { pattern: cmd(OFF, ALL), command: { type: 'disable_all' } },
+  { pattern: cmd(ON, ALL), command: { type: 'enable_all' } },
+  { pattern: cmd(OFF, DAILY), command: { type: 'disable_daily' } },
+  { pattern: cmd(ON, DAILY), command: { type: 'enable_daily' } },
+  { pattern: cmd(OFF, LOW_STOCK), command: { type: 'disable_low_stock' } },
+  { pattern: cmd(ON, LOW_STOCK), command: { type: 'enable_low_stock' } },
+  { pattern: cmd(OFF, OVERDUE), command: { type: 'disable_overdue' } },
+  { pattern: cmd(ON, OVERDUE), command: { type: 'enable_overdue' } },
   {
-    pattern:
-      /\b(stop|disable|turn\s*off|no|don'?t\s*send)\b.{0,30}\b(all\s+notifications?|all\s+alerts?|all\s+updates?|notifications?|alerts?)\b/i,
-    command: { type: 'disable_all' },
-  },
-  {
-    pattern:
-      /\b(enable|turn\s*on|start|resume|send)\b.{0,30}\b(all\s+notifications?|notifications?|all\s+alerts?|all\s+updates?)\b/i,
-    command: { type: 'enable_all' },
-  },
-  {
-    pattern:
-      /\b(stop|disable|turn\s*off|no|don'?t\s*send)\b.{0,30}\b(daily\s+summary|daily\s+(updates?|report|snapshots?)|daily)\b/i,
-    command: { type: 'disable_daily' },
-  },
-  {
-    pattern:
-      /\b(enable|turn\s*on|start|resume)\b.{0,30}\b(daily\s+summary|daily\s+(updates?|report|snapshots?)|daily)\b/i,
-    command: { type: 'enable_daily' },
-  },
-  {
-    pattern:
-      /\b(stop|disable|turn\s*off|no|don'?t\s*send)\b.{0,30}\b(low[\s-]?stock\s+alerts?|stock\s+alerts?)\b/i,
-    command: { type: 'disable_low_stock' },
-  },
-  {
-    pattern:
-      /\b(enable|turn\s*on|start|resume)\b.{0,30}\b(low[\s-]?stock\s+alerts?|stock\s+alerts?)\b/i,
-    command: { type: 'enable_low_stock' },
-  },
-  {
-    pattern:
-      /\b(stop|disable|turn\s*off|no|don'?t\s*send)\b.{0,30}\b(overdue|payment\s+reminders?|invoice\s+alerts?)\b/i,
-    command: { type: 'disable_overdue' },
-  },
-  {
-    pattern:
-      /\b(enable|turn\s*on|start|resume)\b.{0,30}\b(overdue|payment\s+reminders?|invoice\s+alerts?)\b/i,
-    command: { type: 'enable_overdue' },
-  },
-  {
-    pattern:
-      /\b(notification\s+settings?|my\s+notifications?|alert\s+settings?|what\s+notifications?|which\s+notifications?)\b/i,
+    pattern: new RegExp(
+      `${LEAD}(?:show\\s+)?(?:notification\\s+settings?|my\\s+notifications?|alert\\s+settings?|(?:what|which)\\s+notifications?(?:\\s+(?:am\\s+i|do\\s+i)\\s+(?:getting|subscribed\\s+to|get))?)\\s*\\??\\s*$`,
+      'i',
+    ),
     command: { type: 'status' },
   },
 ];

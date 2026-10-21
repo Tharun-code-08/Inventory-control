@@ -60,6 +60,19 @@ describe('TaskFlowService.handleDecision', () => {
     expect(h.tasks.complete).toHaveBeenCalledWith('t1', { id: 'po1' });
   });
 
+  it('a decision naming another task does not act on the pending one', async () => {
+    const h = buildHarness();
+    await expect(h.service.handleDecision(link, pending, 'approve #400')).resolves.toBe(
+      TASK_REPLIES.staleDecision(400, 421),
+    );
+    expect(h.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it('a decision naming the pending task proceeds', async () => {
+    const h = buildHarness();
+    await expect(h.service.handleDecision(link, pending, 'approve #421')).resolves.toBe('✅ PO created');
+  });
+
   it('double-approve: second transition fails → no second execution', async () => {
     const h = buildHarness();
     h.tasks.approveTransition.mockResolvedValue(false);

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { AiRole } from '../ai/provider/ai-provider.interface';
+import { pricedModels } from '../ai/usage/model-cost';
 
 export type ResolvedAiSettings = {
   provider: string;
@@ -90,6 +91,7 @@ export class AiSettingsService {
       monthlyCostCentsLimit?: number | null;
     },
   ) {
+    this.assertTenantSettingsAllowed(patch);
     return this.prisma.aiSettings.upsert({
       where: { companyId },
       create: { companyId, ...patch },
@@ -104,6 +106,40 @@ export class AiSettingsService {
       orderBy: { version: 'desc' },
       select: { version: true, body: true, createdAt: true, createdById: true },
     });
+  }
+
+  /**
+   * Tenants run on the platform's API key, so they may pick only models the
+   * platform prices and may only tighten (never raise) platform-wide limits.
+   */
+  private assertTenantSettingsAllowed(patch: {
+    intentModel?: string;
+    reasoningModel?: string;
+    escalationModel?: string;
+    dailyRequestLimit?: number | null;
+    monthlyTokenLimit?: number | null;
+  }) {
+    const allowed = new Set([
+      ...pricedModels(),
+      this.config.get<string>('AI_MODEL') ?? '',
+      ...(this.config.get<string>('AI_ALLOWED_MODELS') ?? '').split(','),
+    ].map((m) => m.trim()).filter(Boolean));
+    for (const model of [patch.intentModel, patch.reasoningModel, patch.escalationModel]) {
+      if (model !== undefined && !allowed.has(model)) {
+        throw new BadRequestException(`Model "${model}" is not available. Allowed: ${[...allowed].join(', ')}`);
+      }
+    }
+    const caps: Array<[keyof typeof patch, string]> = [
+      ['dailyRequestLimit', 'AI_DAILY_REQUEST_LIMIT'],
+      ['monthlyTokenLimit', 'AI_MONTHLY_TOKEN_LIMIT'],
+    ];
+    for (const [field, envKey] of caps) {
+      const cap = this.numberOrNull(envKey);
+      const value = patch[field];
+      if (cap !== null && typeof value === 'number' && value > cap) {
+        throw new BadRequestException(`${field} cannot exceed the platform limit of ${cap}`);
+      }
+    }
   }
 
   private numberOrNull(key: string): number | null {

@@ -2,13 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { UserChannelLink } from '@prisma/client';
 import { LinkService } from '../link/link.service';
 import { ToolRegistry } from '../ai/tools/tool-registry';
-import { parseDecision } from './approval';
+import { decisionTaskNumber, parseDecision } from './approval';
 import { AgentTaskService, type AgentTaskWithSteps } from './agent-task.service';
 import { TaskExecutorService } from './task-executor.service';
 
 export const TASK_REPLIES = {
   accountInactive:
     'Your ERP account linked to this number is no longer active. Please contact your administrator.',
+  staleDecision: (named: number, pending: number) =>
+    `Task #${named} is no longer waiting for approval. Task #${pending} is the pending draft — reply to that one.`,
   alreadyDecided: (n: number) =>
     `Task #${n} was already processed — nothing left to approve. Ask me for the latest status if unsure.`,
   cancelled: (n: number) => `🗑️ Task #${n} cancelled. Nothing was created.`,
@@ -43,6 +45,12 @@ export class TaskFlowService {
    */
   async handleDecision(link: UserChannelLink, task: AgentTaskWithSteps, text: string): Promise<string | null> {
     const decision = parseDecision(text);
+    // A decision naming another task (an old button, "approve #12") must not
+    // act on the current draft.
+    const named = decision ? decisionTaskNumber(text) : null;
+    if (named !== null && named !== task.taskNumber) {
+      return TASK_REPLIES.staleDecision(named, task.taskNumber);
+    }
     if (decision === 'approve') return this.approve(link, task);
     if (decision === 'reject') {
       const cancelled = await this.tasks.cancel(task.id, 'Rejected by user');

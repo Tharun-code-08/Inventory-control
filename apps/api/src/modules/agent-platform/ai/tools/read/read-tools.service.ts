@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { InvoiceStatus, PurchaseOrderStatus, SalesOrderStatus } from '@prisma/client';
 import type { RequestUser } from '@/common/types/request-user';
 import { PrismaService } from '@/prisma/prisma.service';
 import { BarcodesService } from '@/modules/barcodes/barcodes.service';
@@ -287,7 +288,7 @@ export class ReadToolsService implements OnModuleInit {
       inputSchema: {
         type: 'object',
         properties: {
-          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, RECEIVED, CANCELLED' },
+          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, CANCELLED' },
           take: { type: 'number', description: 'How many to return (default 10, max 20)' },
         },
       },
@@ -295,8 +296,11 @@ export class ReadToolsService implements OnModuleInit {
       featureFlag: 'purchase',
       handler: async ({ user }, input) => {
         const take = Math.min(Number(input.take ?? 10), 20);
-        const result = await this.purchaseOrders.list(user, { status: input.status as string | undefined, take } as never);
-        return result.data.map((po) => pick(po, ['id', 'poNumber', 'status', 'supplierName', 'totalAmount', 'orderDate', 'expectedDate']));
+        const status = enumValue(input.status, Object.values(PurchaseOrderStatus));
+        const result = await this.purchaseOrders.list(user, { take, ...(status ? { status } : {}) } as never);
+        return result.data.map((po) =>
+          pick(po, ['id', 'poNumber', 'status', 'supplier', 'totalValue', 'poDate']),
+        );
       },
     });
 
@@ -306,7 +310,7 @@ export class ReadToolsService implements OnModuleInit {
       inputSchema: {
         type: 'object',
         properties: {
-          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, DELIVERED, CANCELLED' },
+          status: { type: 'string', description: 'Filter by status: DRAFT, CONFIRMED, FULFILLED, CLOSED, CANCELLED' },
           take: { type: 'number', description: 'How many to return (default 10, max 20)' },
         },
       },
@@ -314,8 +318,12 @@ export class ReadToolsService implements OnModuleInit {
       featureFlag: 'sales',
       handler: async ({ user }, input) => {
         const take = Math.min(Number(input.take ?? 10), 20);
-        const result = await this.salesOrders.list(user, { take } as never);
-        return result.data.map((so) => pick(so, ['id', 'soNumber', 'status', 'customerName', 'totalAmount', 'orderDate']));
+        const status = enumValue(input.status, Object.values(SalesOrderStatus));
+        const result = await this.salesOrders.list(user, { take, ...(status ? { status } : {}) } as never);
+        return result.data.map((so) => ({
+          ...pick(so, ['id', 'soNumber', 'status', 'totalValue', 'orderDate']),
+          customerName: so.customer?.customerName ?? null,
+        }));
       },
     });
 
@@ -325,7 +333,7 @@ export class ReadToolsService implements OnModuleInit {
       inputSchema: {
         type: 'object',
         properties: {
-          status: { type: 'string', description: 'Filter by status: DRAFT, ISSUED, PAID, CANCELLED' },
+          status: { type: 'string', description: 'Filter by status: DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID' },
           take: { type: 'number', description: 'How many to return (default 10, max 20)' },
         },
       },
@@ -333,8 +341,12 @@ export class ReadToolsService implements OnModuleInit {
       featureFlag: 'sales',
       handler: async ({ user }, input) => {
         const take = Math.min(Number(input.take ?? 10), 20);
-        const result = await this.invoices.list(user, { take } as never);
-        return result.data.map((inv) => pick(inv, ['id', 'invoiceNumber', 'status', 'customerName', 'totalValue', 'invoiceDate']));
+        const status = enumValue(input.status, Object.values(InvoiceStatus));
+        const result = await this.invoices.list(user, { take, ...(status ? { status } : {}) } as never);
+        return result.data.map((inv) => ({
+          ...pick(inv, ['id', 'invoiceNumber', 'status', 'totalValue', 'paidValue', 'invoiceDate', 'dueDate']),
+          customerName: inv.customer?.customerName ?? null,
+        }));
       },
     });
 
@@ -373,4 +385,11 @@ export class ReadToolsService implements OnModuleInit {
       },
     });
   }
+}
+
+/** The model's free-text status, if it names a real enum value (case-insensitive). */
+function enumValue<T extends string>(raw: unknown, values: readonly T[]): T | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const upper = raw.trim().toUpperCase();
+  return values.find((v) => v === upper);
 }

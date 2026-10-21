@@ -22,6 +22,7 @@ import {
   type OverduePaymentJob,
 } from './notification-jobs';
 import { NotificationPrefsService } from './notification-prefs.service';
+import { businessDate } from '../ai/tools/business-date';
 
 type AnalyticsResult = {
   totalRevenue?: unknown;
@@ -94,6 +95,8 @@ export class NotificationProcessor extends WorkerHost {
       try {
         const user = await this.links.buildRequestUser(link);
         if (!user) continue;
+        // These are report data; only users who may view reports get them.
+        if (!user.permissions.includes('*') && !user.permissions.includes('report:view')) continue;
 
         const userName = await this.resolveUserName(user.id);
         const companyName = await this.resolveCompanyName(link.companyId);
@@ -132,7 +135,7 @@ export class NotificationProcessor extends WorkerHost {
   ): Promise<NotificationPayload | null> {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = yesterday.toISOString().slice(0, 10);
+    const yStr = businessDate(yesterday);
 
     let overview: AnalyticsResult;
     try {

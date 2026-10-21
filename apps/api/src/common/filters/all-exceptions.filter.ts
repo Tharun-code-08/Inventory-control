@@ -11,6 +11,7 @@ import { Request, Response } from 'express';
 import { RequestContextStore } from '../context/request-context';
 import { InsufficientStockException } from '../exceptions/domain.exceptions';
 import { captureServerError } from '../observability/sentry';
+import { redactUrl } from '../utils/redact-url';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -40,6 +41,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return 'PDF engine unavailable. Install Chromium/Chrome on the API server or set PUPPETEER_EXECUTABLE_PATH.';
     }
     return null;
+  }
+
+  /**
+   * With the pg driver adapter (Prisma 7) the Postgres details live under
+   * meta.driverAdapterError.cause rather than meta.target / the error code.
+   */
+  private adapterCause(exception: Prisma.PrismaClientKnownRequestError): {
+    originalCode?: string;
+    message?: string;
+    constraint?: { index?: string; fields?: string[] };
+  } {
+    const meta = exception.meta as { driverAdapterError?: { cause?: unknown } } | undefined;
+    const cause = meta?.driverAdapterError?.cause;
+    return cause && typeof cause === 'object' ? (cause as ReturnType<AllExceptionsFilter['adapterCause']>) : {};
   }
 
   private normalizeConstraintTarget(target: string): string {
@@ -100,7 +115,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const meta = {
       requestId,
       method: request.method,
-      path: request.originalUrl,
+      path: redactUrl(request.originalUrl),
       userId: request.user?.id ?? null,
       shopId: request.user?.shopId ?? null,
     };
@@ -108,7 +123,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     this.logger.error(`${message} | ${JSON.stringify(meta)}`, exception instanceof Error ? exception.stack : undefined);
     captureServerError(exception, {
       requestId,
-      route: request.originalUrl ?? null,
+      route: request.originalUrl ? redactUrl(request.originalUrl) : null,
       userId: request.user?.id ?? null,
     });
   }
@@ -160,7 +175,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      if (exception.code === 'P0001' && exception.message.includes('INSUFFICIENT_STOCK_DB')) {
+      const cause = this.adapterCause(exception);
+      const raisedInsufficientStock =
+        (exception.code === 'P0001' || cause.originalCode === 'P0001') &&
+        `${exception.message} ${cause.message ?? ''}`.includes('INSUFFICIENT_STOCK_DB');
+      if (raisedInsufficientStock) {
         return response.status(422).json({
           success: false,
           error: {
@@ -178,7 +197,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? rawTargets.map((target) => String(target))
           : typeof rawTargets === 'string'
             ? [rawTargets]
-            : [];
+            : (cause.constraint?.fields ?? (cause.constraint?.index ? [cause.constraint.index] : []));
 
         return response.status(409).json({
           success: false,
@@ -230,7 +249,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
       // P2023: malformed value for a typed column (e.g. an id that is not a
       // valid UUID). Surface a clean validation error instead of a raw DB code.
-      if (exception.code === 'P2023') {
+      if (exception.code === 'P2023' || cause.originalCode === '22P02') {
         return response.status(400).json({
           success: false,
           error: {
@@ -355,7 +374,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const meta = {
       requestId,
       method: request.method,
-      path: request.originalUrl,
+      path: redactUrl(request.originalUrl),
       userId: request.user?.id ?? null,
       shopId: request.user?.shopId ?? null,
     };
@@ -374,7 +393,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // quote when reporting the failure.
     captureServerError(exception, {
       requestId: requestId || null,
-      route: request.originalUrl ?? null,
+      route: request.originalUrl ? redactUrl(request.originalUrl) : null,
       userId: request.user?.id ?? null,
     });
 

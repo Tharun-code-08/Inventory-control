@@ -68,6 +68,41 @@ describe('AllExceptionsFilter', () => {
     expect(json.mock.calls[0][0].error.message).toMatch(/email/i);
   });
 
+  // Shapes observed from @prisma/adapter-pg (Prisma 7) against Postgres.
+  const adapterError = (code: string, cause: Record<string, unknown>) =>
+    new Prisma.PrismaClientKnownRequestError('adapter', {
+      code,
+      clientVersion: 't',
+      meta: { driverAdapterError: { name: 'DriverAdapterError', cause } },
+    });
+
+  it('maps an adapter unique violation using the constraint index name', () => {
+    const { host, status, json } = fakeHost();
+    filter.catch(
+      adapterError('P2002', { originalCode: '23505', kind: 'UniqueConstraintViolation', constraint: { index: 'users_email_key' } }),
+      host,
+    );
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json.mock.calls[0][0].error.message).toMatch(/email/i);
+  });
+
+  it('maps the stock trigger RAISE through the adapter to 422', () => {
+    const { host, status, json } = fakeHost();
+    filter.catch(
+      adapterError('P2010', { originalCode: 'P0001', kind: 'postgres', message: 'INSUFFICIENT_STOCK_DB: product x' }),
+      host,
+    );
+    expect(status).toHaveBeenCalledWith(422);
+    expect(json.mock.calls[0][0].error.code).toBe('INSUFFICIENT_STOCK');
+  });
+
+  it('maps an adapter invalid-uuid error to 400 INVALID_IDENTIFIER', () => {
+    const { host, status, json } = fakeHost();
+    filter.catch(adapterError('P2007', { originalCode: '22P02', kind: 'InvalidInputValue' }), host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json.mock.calls[0][0].error.code).toBe('INVALID_IDENTIFIER');
+  });
+
   it('maps idempotency_key collisions to a friendly message', () => {
     const err = new Prisma.PrismaClientKnownRequestError('unique', {
       code: 'P2002',

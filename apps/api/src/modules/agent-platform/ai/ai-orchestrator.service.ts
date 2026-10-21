@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AgentTaskStatus,
   AiModelRole,
   ChatMessageStatus,
   MessageDirection,
@@ -17,6 +18,7 @@ import { ToolRegistry, type AgentTool, type AgentToolContext } from './tools/too
 import { estimateCostCents } from './usage/model-cost';
 import { UsageLimitService } from './usage/usage-limit.service';
 import { PlatformHealthService } from './platform-health.service';
+import { businessToday } from './tools/business-date';
 
 export const REPLIES = {
   notConfigured:
@@ -126,6 +128,9 @@ export class AiOrchestratorService {
 
     const history = await this.loadHistory(conversation.id, excludeMessageId);
     const tools = this.registry.listFor(user, resolved.featureFlags);
+    // Only tools offered this turn may run: a model naming a tool the tenant
+    // switched off (feature flag) is refused, not dispatched.
+    const offered = new Set(tools.map((t) => t.name));
     let toolDurationMs = 0;
     const turnStartedAt = Date.now();
 
@@ -139,7 +144,7 @@ export class AiOrchestratorService {
     const executeTool = async (call: AiToolCall): Promise<AiToolResult> => {
       const startedAt = Date.now();
       try {
-        const result = await this.dispatchTool(ctx, call);
+        const result = await this.dispatchTool(ctx, call, offered);
         return result;
       } finally {
         toolDurationMs += Date.now() - startedAt;
@@ -174,7 +179,7 @@ export class AiOrchestratorService {
         timedOut: false,
       });
 
-      return result.text || REPLIES.empty;
+      return await this.withDraftSummary(conversation.id, turnStartedAt, result.text || REPLIES.empty);
     } catch (err) {
       this.health.recordFailure('ai_provider');
       this.logger.error(
@@ -201,10 +206,32 @@ export class AiOrchestratorService {
     }
   }
 
+  /**
+   * The user approves the stored draft, so show them its exact summary rather
+   * than only the model's paraphrase of it.
+   */
+  private async withDraftSummary(conversationId: string, turnStartedAt: number, text: string): Promise<string> {
+    const draft = await this.prisma.agentTask.findFirst({
+      where: {
+        conversationId,
+        status: AgentTaskStatus.WAITING_APPROVAL,
+        createdAt: { gte: new Date(turnStartedAt) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { taskNumber: true, summary: true },
+    });
+    if (!draft?.summary || text.includes(draft.summary)) return text;
+    return `${text}\n\n📋 *Draft #${draft.taskNumber} — this is what you are approving:*\n${draft.summary}`;
+  }
+
   /** Registry dispatch with permission re-check and timeout + one retry. */
-  private async dispatchTool(ctx: AgentToolContext, call: AiToolCall): Promise<AiToolResult> {
+  private async dispatchTool(
+    ctx: AgentToolContext,
+    call: AiToolCall,
+    offered: ReadonlySet<string>,
+  ): Promise<AiToolResult> {
     const tool = this.registry.get(call.name);
-    if (!tool) {
+    if (!tool || !offered.has(tool.name)) {
       return { content: `Unknown tool: ${call.name}`, isError: true };
     }
     if (tool.requiredPermission && !ctx.user.permissions.includes(tool.requiredPermission)) {
@@ -233,8 +260,10 @@ export class AiOrchestratorService {
       return await withTimeout(tool.handler(ctx, input), timeoutMs, tool.name);
     } catch (err) {
       if (!(err instanceof ToolTimeoutError)) throw err;
+      // The timed-out call keeps running, so a draft-creating tool retried now
+      // could leave two approvable drafts. Only read tools are retried.
+      if (tool.confirmationRequired) throw err;
       // One retry on timeout (transient DB latency), then give up gracefully.
-      // Draft-creating tools are safe to retry: a duplicate draft supersedes.
       return withTimeout(tool.handler(ctx, input), timeoutMs, tool.name);
     }
   }
@@ -265,7 +294,7 @@ export class AiOrchestratorService {
     pendingTask?: AgentTaskWithSteps,
   ): string {
     const parts = [tenantPrompt?.trim() || DEFAULT_SYSTEM_PROMPT];
-    parts.push(`Today's date: ${new Date().toISOString().slice(0, 10)}.`);
+    parts.push(`Today's date: ${businessToday()}.`);
     if (summary?.trim()) {
       parts.push(`Summary of the earlier conversation:\n${summary.trim()}`);
     }

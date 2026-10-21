@@ -6,6 +6,7 @@ import { ShopsService } from '@/modules/shops/shops.service';
 import { AgentTaskService } from '../../../tasks/agent-task.service';
 import { TaskExecutorService } from '../../../tasks/task-executor.service';
 import { ToolRegistry, type AgentToolContext } from '../tool-registry';
+import { businessToday } from '../business-date';
 
 const WRITE_OFF = 'inventory.write_off';
 
@@ -134,7 +135,7 @@ export class InventoryWriteToolsService implements OnModuleInit {
     const product = await this.resolveProduct(ctx.user, shopId, input);
     if ('clarify' in product) return product;
 
-    const damageDate = new Date().toISOString().slice(0, 10);
+    const damageDate = businessToday();
     const payload: WriteOffPayload = {
       shopId,
       productId: product.id,

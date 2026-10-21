@@ -76,6 +76,15 @@ const TASK_BUTTONS: [QuickReply, QuickReply] = [
   { id: 'cancel', title: '❌ Cancel' },
 ];
 
+/** Buttons bound to one task, so a stale tap can't decide a newer draft. */
+function taskButtons(taskNumber?: number): [QuickReply, QuickReply] {
+  if (taskNumber == null) return TASK_BUTTONS;
+  return [
+    { id: `approve #${taskNumber}`, title: '✅ Approve' },
+    { id: `cancel #${taskNumber}`, title: '❌ Cancel' },
+  ];
+}
+
 // ── Reply topic detection ──────────────────────────────────────────────────
 
 const SNAPSHOT_RE =
@@ -175,9 +184,9 @@ export class ConversationService {
       if (this.looksLikeTaskModification(rawText)) {
         const reply = await this.orchestrator.respond(link, conversation, rawText, inboundMessageId, pending);
         const body = reply === REPLIES.notConfigured ? this.taskFlow.pendingReminder(pending) : reply;
-        return { body, buttons: TASK_BUTTONS };
+        return { body, buttons: taskButtons(pending.taskNumber) };
       }
-      return { body: this.taskFlow.pendingReminder(pending), buttons: TASK_BUTTONS };
+      return { body: this.taskFlow.pendingReminder(pending), buttons: taskButtons(pending.taskNumber) };
     }
 
     // 3. Translate button IDs to natural-language queries before intent/AI routing.
@@ -189,7 +198,8 @@ export class ConversationService {
 
     // 5. AI tier with context-aware button post-processing.
     const aiText = await this.orchestrator.respond(link, conversation, text, inboundMessageId);
-    return this.postProcessAiReply(aiText);
+    const drafted = DRAFT_RE.test(aiText) ? await this.tasks.findPending(conversation.id) : null;
+    return this.postProcessAiReply(aiText, drafted?.taskNumber);
   }
 
   /** True when the message is clearly asking to modify a pending draft (not a greeting). */
@@ -203,9 +213,9 @@ export class ConversationService {
    * Attach context-aware quick-reply buttons to an AI response based on the
    * topic of the reply, so the user can naturally continue the conversation.
    */
-  private postProcessAiReply(text: string): OutboundReply {
+  private postProcessAiReply(text: string, taskNumber?: number): OutboundReply {
     if (SNAPSHOT_RE.test(text)) return { body: text, buttons: SNAPSHOT_BUTTONS };
-    if (DRAFT_RE.test(text))    return { body: text, buttons: TASK_BUTTONS };
+    if (DRAFT_RE.test(text))    return { body: text, buttons: taskButtons(taskNumber) };
     if (INVOICE_RE.test(text))  return { body: text, buttons: INVOICE_BUTTONS };
     if (SALES_RE.test(text))    return { body: text, buttons: SALES_BUTTONS };
     if (STOCK_RE.test(text))    return { body: text, buttons: STOCK_BUTTONS };

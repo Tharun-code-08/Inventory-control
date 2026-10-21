@@ -1,5 +1,6 @@
 ﻿import './load-env';
 import * as path from 'node:path';
+import { redactUrl } from './common/utils/redact-url';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -147,7 +148,7 @@ async function bootstrap() {
           requestId,
           traceparent,
           method: req.method,
-          path: req.originalUrl ?? req.url,
+          path: redactUrl(req.originalUrl ?? req.url),
           statusCode: res.statusCode,
           latencyMs: Date.now() - startedAt,
           userId,

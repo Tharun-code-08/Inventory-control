@@ -70,18 +70,6 @@ const RULES: IntentRule[] = [
     pattern: /^(thanks?|thank you|thx|ty|ok(ay)?|great|nice|cool|👍|🙏)[\s!.]*$/i,
     reply: { body: 'Anytime! 👍' },
   },
-  {
-    name: 'low_stock_shortcut',
-    // Matches the "low_stock" button ID (underscore form) and natural language
-    pattern: /^(low_stock|📦\s*low\s+stock|low\s+stock\s+alert)[\s!.?]*$/i,
-    reply: { body: 'Checking low-stock items for you…' },
-  },
-  {
-    name: 'revenue_shortcut',
-    // Matches the "revenue" button ID and natural variants
-    pattern: /^(revenue|💰\s*revenue|revenue\s+details?)[\s!.?]*$/i,
-    reply: { body: "Pulling today's revenue numbers…" },
-  },
 ];
 
 /**
@@ -91,6 +79,8 @@ const RULES: IntentRule[] = [
 export const BUTTON_ID_TO_QUERY: Record<string, string> = {
   snapshot: 'Give me a business snapshot with today\'s new orders, total revenue, low stock count, and overdue invoice count.',
   low_stock: 'Show me all items that are below their minimum stock level.',
+  'low stock alert': 'Show me all items that are below their minimum stock level.',
+  'revenue details': "What is my total sales revenue for today? Include number of orders.",
   revenue: "What is my total sales revenue for today? Include number of orders.",
   overdue: 'Show me overdue customer invoices — total overdue amount and which customers owe the most.',
   create_po: 'I want to create a purchase order.',
@@ -114,6 +104,6 @@ export class IntentService {
    * Returns the original text unchanged if it's not a known button ID.
    */
   resolveButtonId(text: string): string {
-    return BUTTON_ID_TO_QUERY[text.trim()] ?? text;
+    return BUTTON_ID_TO_QUERY[text.trim().toLowerCase().replace(/^[📦💰]\s*/u, '')] ?? text;
   }
 }

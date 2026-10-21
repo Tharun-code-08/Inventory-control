@@ -19,3 +19,9 @@ export function parseDecision(text: string): ApprovalDecision | null {
   if (REJECT_RE.test(trimmed)) return 'reject';
   return null;
 }
+
+/** The task number a decision names ("approve #421"), if any. */
+export function decisionTaskNumber(text: string): number | null {
+  const match = /#?\s*(\d+)\s*[.!]*$/.exec((text ?? '').trim());
+  return match ? Number(match[1]) : null;
+}
