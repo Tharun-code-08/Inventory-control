@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertProcurementRefs } from '../../common/utils/procurement-refs';
 import { AuditAction, DocumentStatus, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { assertRfqAction } from '../../common/state-machines/assert-action';
 import { assertRfqTransition } from '../../common/state-machines/assert-transition';
@@ -47,6 +48,8 @@ export class RfqsService {
     const rfqs = await this.prisma.rfqHeader.findMany({
       where: { shop: shopListWhere(user) },
       orderBy: { createdAt: 'desc' },
+      // Each RFQ costs a few extra queries for its fulfilment summary.
+      take: 200,
       include: {
         shop: true,
         suppliers: { include: { supplier: true } },
@@ -87,6 +90,7 @@ export class RfqsService {
   async create(user: RequestUser, dto: CreateRfqDto) {
     const shopId = await this.resolveRfqShopId(user, dto.shopId ?? user.shopId);
     await this.subscriptions.assertFeatureForShop(shopId, 'rfqs');
+    await assertProcurementRefs(this.prisma, shopId, { supplierIds: dto.suppliers ?? [] });
     const rfqDate = dto.rfqDate ? new Date(dto.rfqDate) : new Date();
     return this.prisma.$transaction(async (tx) => {
       const shop = await tx.shop.findUnique({
@@ -172,6 +176,7 @@ export class RfqsService {
     const existing = await this.get(user, id);
     assertRfqAction(existing.status, RfqAction.EDIT);
     await this.subscriptions.assertFeatureForShop(existing.shopId, 'rfqs');
+    if (dto.suppliers) await assertProcurementRefs(this.prisma, existing.shopId, { supplierIds: dto.suppliers });
     const expectedUpdatedAt = dto.ifUnmodifiedSince ? new Date(dto.ifUnmodifiedSince) : null;
     if (expectedUpdatedAt && Number.isNaN(expectedUpdatedAt.getTime())) {
       throw new BadRequestException('Invalid optimistic lock timestamp');
@@ -435,6 +440,7 @@ export class RfqsService {
   async resendInvites(user: RequestUser, id: string) {
     const existing = await this.get(user, id);
     assertRfqAction(existing.status, RfqAction.SEND);
+    this.assertOpen(existing);
 
     const suppliers = existing.suppliers ?? [];
     if (suppliers.length === 0) {
@@ -484,15 +490,25 @@ export class RfqsService {
     return { ...existing, emailDelivery };
   }
 
+  /** Closes the RFQ: no more bids, sends or POs. Existing notes are kept. */
   async close(user: RequestUser, id: string) {
-    await this.get(user, id);
+    const rfq = await this.get(user, id);
+    if (rfq.closedAt) return rfq;
+    const now = new Date();
     return this.prisma.rfqHeader.update({
       where: { id },
       data: {
-        notes: `[Closed ${new Date().toISOString()}]`,
+        closedAt: now,
+        notes: [rfq.notes, `[Closed ${now.toISOString()}]`].filter(Boolean).join('\n'),
         updatedById: user.id,
       },
     });
+  }
+
+  private assertOpen(rfq: { closedAt: Date | null }) {
+    if (rfq.closedAt) {
+      throw new BadRequestException('This RFQ is closed');
+    }
   }
 
   async deletionImpact(user: RequestUser, id: string) {
@@ -550,12 +566,13 @@ export class RfqsService {
 
     const rfq = await db.rfqHeader.findFirst({
       where: { id: args.rfqId, shopId: args.shopId },
-      select: { id: true, shopId: true, status: true },
+      select: { id: true, shopId: true, status: true, closedAt: true },
     });
     if (!rfq) {
       throw new NotFoundException('RFQ not found for the selected plant');
     }
     assertRfqAction(rfq.status, RfqAction.CREATE_PO);
+    this.assertOpen(rfq);
 
     if (args.supplierName?.trim()) {
       const expectedSupplier = args.supplierName.trim().toLowerCase();

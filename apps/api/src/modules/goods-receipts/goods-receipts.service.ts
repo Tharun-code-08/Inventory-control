@@ -65,6 +65,7 @@ export class GoodsReceiptsService {
     headerId: string | null,
     purchaseOrderId: string,
     items: Array<{ productId: string; quantity: Prisma.Decimal }>,
+    shopId: string,
   ) {
     // Serialize concurrent receipt validations against the same PO so two
     // posts cannot both pass the partial-receipt guard and over-receive.
@@ -76,6 +77,9 @@ export class GoodsReceiptsService {
     });
     if (!po) {
       throw new BadRequestException('Purchase order not found');
+    }
+    if (po.shopId !== shopId) {
+      throw new BadRequestException('Goods receipt must be for the purchase order\'s plant');
     }
     const poLifecycle = (po as { lifecycleStatus?: string }).lifecycleStatus ?? po.status;
     if (poLifecycle !== 'CONFIRMED' && poLifecycle !== 'PARTIALLY_RECEIVED') {
@@ -101,16 +105,32 @@ export class GoodsReceiptsService {
       }
     }
 
+    // Compare per product: a receipt may split a product across lines, and a
+    // PO may order the same product on more than one line.
+    const orderedByProduct = new Map<string, Prisma.Decimal>();
+    for (const poLine of po.items) {
+      orderedByProduct.set(
+        poLine.productId,
+        (orderedByProduct.get(poLine.productId) ?? new Prisma.Decimal(0)).add(poLine.orderQty),
+      );
+    }
+    const receivingByProduct = new Map<string, Prisma.Decimal>();
     for (const line of items) {
-      const poLine = po.items.find((x) => x.productId === line.productId);
-      if (!poLine) {
+      receivingByProduct.set(
+        line.productId,
+        (receivingByProduct.get(line.productId) ?? new Prisma.Decimal(0)).add(line.quantity),
+      );
+    }
+
+    for (const [productId, receiving] of receivingByProduct) {
+      const ordered = orderedByProduct.get(productId);
+      if (!ordered) {
         throw new BadRequestException('Received product does not belong to selected purchase order');
       }
-      const already = alreadyReceivedByProduct.get(line.productId) ?? new Prisma.Decimal(0);
-      const nextTotal = already.add(line.quantity);
-      if (nextTotal.gt(poLine.orderQty)) {
+      const already = alreadyReceivedByProduct.get(productId) ?? new Prisma.Decimal(0);
+      if (already.add(receiving).gt(ordered)) {
         throw new BadRequestException(
-          `Partial GR exceeds PO quantity for product ${line.productId}. Remaining qty: ${poLine.orderQty.sub(already).toString()}`,
+          `Partial GR exceeds PO quantity for product ${productId}. Remaining qty: ${ordered.sub(already).toString()}`,
         );
       }
     }
@@ -269,7 +289,7 @@ export class GoodsReceiptsService {
         if (!resolvedPurchaseOrderId) {
           throw new BadRequestException('Purchase order is required for PO-linked receipts');
         }
-        await this.validateAgainstPurchaseOrder(tx, null, resolvedPurchaseOrderId, normalizedItems);
+        await this.validateAgainstPurchaseOrder(tx, null, resolvedPurchaseOrderId, normalizedItems, dto.shopId);
       }
 
       // The sequence counter can fall behind existing gr_numbers (imported
@@ -413,6 +433,7 @@ export class GoodsReceiptsService {
               productId: line.productId,
               quantity: new Prisma.Decimal(line.quantity),
             })),
+            resolvedShopId,
           );
         }
       }
@@ -483,6 +504,7 @@ export class GoodsReceiptsService {
           fresh.id,
           fresh.purchaseOrderId,
           fresh.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          fresh.shopId,
         );
       }
 
