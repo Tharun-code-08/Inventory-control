@@ -1,5 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { DeliveryChannel, DeliveryState, EventClassification, RoleName } from '@prisma/client';
+import {
+  AlertType,
+  DeliveryChannel,
+  DeliveryState,
+  EventClassification,
+  NotificationModule,
+  NotificationPriority,
+  RoleName,
+} from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { NotificationService } from '@/modules/notifications/services/notification.service';
 import { MetricsService } from '@/common/observability/metrics.service';
@@ -12,7 +20,7 @@ import { FeatureFlagsService } from '../ops/feature-flags.service';
 import { RateCaps } from '../rate-limit';
 import { NotificationPipeline } from '../pipeline/stage';
 import { buildDefaultPipeline } from '../pipeline/stages';
-import { initialDecision } from '../pipeline/pipeline-context';
+import { initialDecision, PipelineDecision } from '../pipeline/pipeline-context';
 import { DedupStore } from './dedup-store';
 import { DispatchProducer } from './dispatch.producer';
 import { DispatchBatchService, BatchItem } from './dispatch-batch.service';
@@ -162,6 +170,23 @@ export class CustomerDispatchService {
       decision: { ...initialDecision(), caps: DEFAULT_CAPS },
     })).decision;
 
+    try {
+      await this.actOnOutcome(envelope, payload, outcome, advice, consent);
+    } catch (err) {
+      // The dedup key was claimed before any side effect; free it so the
+      // relay's retry of this event isn't suppressed as a duplicate.
+      if (outcome.dedupKey) await this.dedup.release(outcome.dedupKey);
+      throw err;
+    }
+  }
+
+  private async actOnOutcome(
+    envelope: EventEnvelope,
+    payload: DunningStepEventPayload,
+    outcome: PipelineDecision,
+    advice: { rationale: string; confidence: number },
+    consent: Awaited<ReturnType<CustomerDispatchService['loadConsent']>>,
+  ): Promise<void> {
     const reason = `${outcome.reasons.join(' | ')} | ai=${advice.rationale} (conf ${advice.confidence})`;
 
     if (outcome.suppressed) {
@@ -421,11 +446,27 @@ export class CustomerDispatchService {
         select: { id: true },
       });
       if (dup) continue;
+      const notification = await this.notifications.create(
+        {
+          userId: user.id,
+          title: `Overdue invoice ${payload.invoiceNumber} escalated`,
+          message: `Invoice ${payload.invoiceNumber} is ${payload.daysFromDue} day(s) overdue with ${payload.balanceDue.toFixed(2)} outstanding. Customer reminders have not resolved it.`,
+          type: AlertType.INVOICE_OVERDUE,
+          priority: NotificationPriority.HIGH,
+          module: NotificationModule.SYSTEM,
+          referenceType: 'invoice',
+          referenceId: payload.invoiceId,
+          deepLink: '/invoices',
+        },
+        null,
+        envelope.companyId,
+      );
       await this.prisma.notificationDelivery.create({
         data: {
           eventId: envelope.eventId,
           companyId: envelope.companyId,
           recipientUserId: user.id,
+          notificationId: notification.id,
           channel: DeliveryChannel.IN_APP,
           attempt: 1,
           state: DeliveryState.DELIVERED,

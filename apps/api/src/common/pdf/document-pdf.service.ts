@@ -11,6 +11,7 @@ import { BrandingResolverService } from '../branding/branding-resolver.service';
 import type { BrandingSnapshot } from '../branding/branding.types';
 
 import { renderHtmlToPdfBuffer } from './html-to-pdf.service';
+import { inlineUploadAsset } from './inline-upload-asset';
 
 import {
 
@@ -239,13 +240,13 @@ export class DocumentPdfService {
   }) {
     const snapshot = args.brandingMode === BrandingMode.SNAPSHOT ? args.brandingSnapshot ?? null : null;
     const branding = await this.branding.resolveForShop(args.shopId, { snapshot });
-    args.viewModel.brandingLogoUrl = branding.logoUrl ?? null;
+    args.viewModel.brandingLogoUrl = await inlineUploadAsset(branding.logoUrl);
     args.viewModel.brandingInitials = branding.initials;
     if ('sealUrl' in args.viewModel) {
-      args.viewModel.sealUrl = branding.sealUrl ?? null;
+      args.viewModel.sealUrl = await inlineUploadAsset(branding.sealUrl);
     }
     if ('signatureUrl' in args.viewModel) {
-      args.viewModel.signatureUrl = branding.signatureUrl ?? null;
+      args.viewModel.signatureUrl = await inlineUploadAsset(branding.signatureUrl);
     }
     if ('footerNote' in args.viewModel) {
       const existing = args.viewModel.footerNote?.trim();

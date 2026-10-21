@@ -1,7 +1,8 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { RequirePermission } from '../decorators/require-permission.decorator';
+import { PlatformAdminGuard } from '@/modules/platform/platform-admin.guard';
 import { MetricsService } from './metrics.service';
 
 @ApiTags('observability')
@@ -13,9 +14,11 @@ export class MetricsController {
   /**
    * Prometheus scrape endpoint. Behind `user:manage` because exposing process
    * memory/event-loop metrics to anonymous callers makes it easier to time
-   * attacks that try to fingerprint the deployment.
+   * attacks that try to fingerprint the deployment. The registry is
+   * platform-wide, so tenant admins are not enough: platform admins only.
    */
   @RequirePermission('user:manage')
+  @UseGuards(PlatformAdminGuard)
   @Get()
   async scrape(@Res() res: Response): Promise<void> {
     const body = await this.metrics.registry.metrics();

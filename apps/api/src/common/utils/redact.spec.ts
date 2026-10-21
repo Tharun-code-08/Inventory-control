@@ -68,3 +68,14 @@ describe('redactSensitive', () => {
     expect('self' in out).toBe(true);
   });
 });
+
+describe('redactSensitive value types', () => {
+  it('keeps Dates and Decimals intact', () => {
+    const { Prisma } = jest.requireActual('@prisma/client');
+    const when = new Date('2026-01-02T03:04:05Z');
+    const out = redactSensitive({ when, price: new Prisma.Decimal('12.50'), password: 'x' }) as Record<string, unknown>;
+    expect(out.when).toBe(when);
+    expect(out.price).toBe('12.5');
+    expect(out.password).toBe('[REDACTED]');
+  });
+});

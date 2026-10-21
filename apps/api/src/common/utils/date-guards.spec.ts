@@ -39,3 +39,14 @@ describe('date-guards', () => {
     });
   });
 });
+
+describe('date-guards across timezones', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it("accepts an IST user's today while UTC is still on yesterday", () => {
+    // 02:00 IST on 22 Oct is 20:30 UTC on 21 Oct.
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-21T20:30:00Z'));
+    expect(() => assertNotFuture(new Date('2026-10-22'))).not.toThrow();
+    expect(() => assertNotFuture(new Date('2026-10-24'))).toThrow(BadRequestException);
+  });
+});

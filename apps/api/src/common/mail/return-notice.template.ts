@@ -1,3 +1,5 @@
+import { escapeFields } from './escape-html';
+
 export type ReturnNoticeLine = {
   code: string;
   description: string;
@@ -51,9 +53,12 @@ export function returnNoticeText(content: ReturnNoticeEmailContent): string {
 }
 
 export function returnNoticeHtml(content: ReturnNoticeEmailContent): string {
+  content = escapeFields(content);
   const rows = content.lines
     .map(
-      (line) => `
+      (rawLine) => {
+        const line = escapeFields(rawLine);
+        return `
       <tr>
         <td style="padding:8px;border:1px solid #e2e8f0;">${line.code}</td>
         <td style="padding:8px;border:1px solid #e2e8f0;">${line.description}</td>
@@ -62,7 +67,8 @@ export function returnNoticeHtml(content: ReturnNoticeEmailContent): string {
         <td style="padding:8px;border:1px solid #e2e8f0;">${line.reason}</td>
         <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">${line.imageCount}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join('');
 

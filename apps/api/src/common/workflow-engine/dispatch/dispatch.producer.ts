@@ -18,6 +18,8 @@ export class DispatchProducer {
   async enqueueDeferred(job: DispatchJobData, deferUntil: Date): Promise<void> {
     const delay = Math.max(0, deferUntil.getTime() - Date.now());
     await this.queue.add(DISPATCH_JOB.DEFERRED_SEND, job, {
+      // One deferred send per (event, customer): a retried step is a no-op.
+      jobId: `deferred-${job.eventId}-${job.customerId}`,
       delay,
       removeOnComplete: 100,
       removeOnFail: 100,
@@ -38,6 +40,9 @@ export class DispatchProducer {
         // jobId taken, so the customer's next digest would never be scheduled.
         removeOnComplete: true,
         removeOnFail: true,
+        // A failed flush releases its items; retry so they still go out.
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 60_000 },
       },
     );
   }
