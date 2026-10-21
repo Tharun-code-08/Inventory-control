@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { resolveRolePermissions } from '../../common/auth/role-permissions';
 import { AvatarStorageService } from '../../common/upload/avatar-storage.service';
 import { AuditService } from '../audit/audit.service';
 import { AttemptSource } from '../../common/enums/attempt-source.enum';
@@ -101,8 +102,8 @@ export class AuthService {
     return new Date(Date.now() + this.lockoutDurationMs() * multiplier);
   }
 
-  private toSessionUser(user: SessionUserRecord) {
-    const permissions = user.role.permissions as unknown as string[];
+  private async toSessionUser(user: SessionUserRecord) {
+    const permissions = await resolveRolePermissions(this.prisma, user.shop?.companyId, user.role);
     const allowlist = parsePlatformAdminEmailsFromConfig(this.config);
     return {
       id: user.id,
@@ -421,7 +422,7 @@ export class AuthService {
       accessToken,
       refreshCookieValue: newRefreshToken,
       sessionId: session.id,
-      user: this.toSessionUser(user as SessionUserRecord),
+      user: await this.toSessionUser(user as SessionUserRecord),
     };
   }
 
@@ -497,7 +498,7 @@ export class AuthService {
     if (!user || !user.isActive) {
       throw new UnauthorizedException();
     }
-    return this.toSessionUser(user as SessionUserRecord);
+    return await this.toSessionUser(user as SessionUserRecord);
   }
 
   async updateProfile(
@@ -552,7 +553,7 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    return this.toSessionUser(updated as SessionUserRecord);
+    return await this.toSessionUser(updated as SessionUserRecord);
   }
 
   async updatePassword(userId: string, dto: UpdatePasswordDto) {
@@ -662,7 +663,7 @@ export class AuthService {
       accessToken,
       refreshCookieValue: result.refreshToken,
       sessionId: result.sessionId,
-      user: this.toSessionUser(user as SessionUserRecord),
+      user: await this.toSessionUser(user as SessionUserRecord),
     };
   }
 }

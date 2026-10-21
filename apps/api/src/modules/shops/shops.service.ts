@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
@@ -24,6 +24,12 @@ export class ShopsService {
   /** Attach orphaned plants (missing company) to the creator's organisation. */
   private async repairOrphanShops(user: RequestUser) {
     await repairOrphanShopsForUser(this.prisma, user);
+  }
+
+  private assertOwnCompany(user: RequestUser, companyId: string | null | undefined) {
+    if (companyId && companyId !== user.companyId) {
+      throw new ForbiddenException('Shops can only belong to your own organisation');
+    }
   }
 
   private async assertPlantAccess(user: RequestUser, shopId: string) {
@@ -92,7 +98,10 @@ export class ShopsService {
 
   async create(user: RequestUser, dto: CreateShopDto) {
     await this.repairOrphanShops(user);
-    const companyId = dto.companyId ?? user.companyId ?? undefined;
+    // A shop always joins the caller's own company; a client-supplied
+    // companyId is only accepted when it names that same company.
+    this.assertOwnCompany(user, dto.companyId);
+    const companyId = user.companyId ?? undefined;
     if (companyId) {
       await this.subscriptions.assertWarehouseLimit(companyId);
     }
@@ -122,6 +131,7 @@ export class ShopsService {
 
   async update(user: RequestUser, id: string, dto: UpdateShopDto) {
     await this.assertPlantAccess(user, id);
+    this.assertOwnCompany(user, dto.companyId);
     const current = await this.get(user, id);
     const updated = await this.prisma.shop.update({
       where: { id },
@@ -133,7 +143,6 @@ export class ShopsService {
         contactPerson: dto.contactPerson,
         mobile: dto.mobile,
         email: dto.email?.toLowerCase().trim(),
-        companyId: dto.companyId,
         isActive: dto.isActive,
         updatedById: user.id,
       },

@@ -11,6 +11,7 @@ import {
 import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailNotificationsService } from './email-notifications.service';
+import type { EmailNotificationsConfig } from './email-notifications.constants';
 import { PAYMENT_REMINDER_QUEUE } from './payment-reminder.constants';
 
 @Processor(PAYMENT_REMINDER_QUEUE)
@@ -33,15 +34,11 @@ export class PaymentReminderProcessor extends WorkerHost {
       return { sent: 0, skipped: 'SMTP not configured' };
     }
 
-    const config = await this.emailNotifications.resolveConfigForShop(null);
-    if (!config.reminders.paymentReminderEnabled) {
-      return { sent: 0, skipped: 'Reminders disabled' };
-    }
-
-    const daysBefore = [...new Set(config.reminders.paymentReminderDaysBefore)].filter(
-      (day) => Number.isFinite(day) && day >= 0,
-    );
-    if (daysBefore.length === 0) return { sent: 0 };
+    // Each company (or shop) has its own reminder settings, so scan every
+    // lead time in use and check the invoice's own settings below.
+    const daysBefore = await this.emailNotifications.reminderDaysInUse();
+    if (daysBefore.length === 0) return { sent: 0, skipped: 'Reminders disabled' };
+    const configByShop = new Map<string, EmailNotificationsConfig>();
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -67,6 +64,18 @@ export class PaymentReminderProcessor extends WorkerHost {
       for (const invoice of invoices) {
         const recipient = invoice.customer.email?.trim();
         if (!recipient) continue;
+
+        let config = configByShop.get(invoice.shopId);
+        if (!config) {
+          config = await this.emailNotifications.resolveConfigForShop(invoice.shopId);
+          configByShop.set(invoice.shopId, config);
+        }
+        if (
+          !config.reminders.paymentReminderEnabled ||
+          !config.reminders.paymentReminderDaysBefore.includes(daysUntilDue)
+        ) {
+          continue;
+        }
 
         const templateKey = `payment_reminder_${daysUntilDue}`;
         const alreadySent = await this.emailNotifications.hasDeliveryLog({

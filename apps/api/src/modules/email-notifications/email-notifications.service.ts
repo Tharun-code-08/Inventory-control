@@ -26,6 +26,12 @@ type PreparedEmail = {
   bcc?: string[];
 };
 
+const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+
+function isEmailAddress(value: unknown): value is string {
+  return typeof value === 'string' && EMAIL_RE.test(value.trim());
+}
+
 @Injectable()
 export class EmailNotificationsService {
   constructor(
@@ -40,8 +46,29 @@ export class EmailNotificationsService {
     }
   }
 
-  private configKey(shopId?: string | null) {
-    return `${EMAIL_NOTIFICATIONS_CONFIG_PREFIX}:${shopId ?? 'global'}`;
+  /** Per-shop override row. */
+  private configKey(shopId: string) {
+    return `${EMAIL_NOTIFICATIONS_CONFIG_PREFIX}:${shopId}`;
+  }
+
+  /** Company-wide defaults; each tenant has its own row. */
+  private companyConfigKey(companyId: string) {
+    return `${EMAIL_NOTIFICATIONS_CONFIG_PREFIX}:company:${companyId}`;
+  }
+
+  private requireCompany(user: RequestUser): string {
+    if (!user.companyId) {
+      throw new ForbiddenException('Organisation scope is required');
+    }
+    return user.companyId;
+  }
+
+  private async assertShopInCompany(shopId: string, companyId: string) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { companyId: true } });
+    if (!shop) throw new NotFoundException('Shop not found');
+    if (shop.companyId !== companyId) {
+      throw new ForbiddenException('Shop does not belong to your organization');
+    }
   }
 
   private normalizeConfig(raw: unknown): EmailNotificationsConfig {
@@ -58,8 +85,8 @@ export class EmailNotificationsService {
         subject: typeof current.subject === 'string' ? current.subject : defaults.templates[id].subject,
         bodyText: typeof current.bodyText === 'string' ? current.bodyText : defaults.templates[id].bodyText,
         bodyHtml: typeof current.bodyHtml === 'string' ? current.bodyHtml : defaults.templates[id].bodyHtml,
-        cc: Array.isArray(current.cc) ? current.cc.filter((v): v is string => typeof v === 'string') : [],
-        bcc: Array.isArray(current.bcc) ? current.bcc.filter((v): v is string => typeof v === 'string') : [],
+        cc: Array.isArray(current.cc) ? current.cc.filter(isEmailAddress) : [],
+        bcc: Array.isArray(current.bcc) ? current.bcc.filter(isEmailAddress) : [],
       };
     }
     return {
@@ -108,7 +135,9 @@ export class EmailNotificationsService {
 
   async getEffectiveConfig(user: RequestUser, shopId?: string | null) {
     this.assertOrgAdmin(user);
-    const companyKey = this.configKey(null);
+    const companyId = this.requireCompany(user);
+    if (shopId) await this.assertShopInCompany(shopId, companyId);
+    const companyKey = this.companyConfigKey(companyId);
     const shopKey = shopId ? this.configKey(shopId) : null;
     const [companySetting, shopSetting] = await Promise.all([
       this.prisma.systemSetting.findUnique({ where: { key: companyKey } }),
@@ -151,12 +180,13 @@ export class EmailNotificationsService {
 
   async saveCompanyDefaults(user: RequestUser, dto: UpdateEmailNotificationsDto) {
     this.assertOrgAdmin(user);
+    const key = this.companyConfigKey(this.requireCompany(user));
     const value = this.normalizeConfig(dto);
     await this.prisma.systemSetting.upsert({
-      where: { key: this.configKey(null) },
+      where: { key },
       update: { value: value as unknown as Prisma.InputJsonValue, updatedById: user.id },
       create: {
-        key: this.configKey(null),
+        key,
         value: value as unknown as Prisma.InputJsonValue,
         createdById: user.id,
         updatedById: user.id,
@@ -167,11 +197,7 @@ export class EmailNotificationsService {
 
   async saveShopOverrides(user: RequestUser, shopId: string, dto: UpdateEmailNotificationsDto) {
     this.assertOrgAdmin(user);
-    const shop = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { id: true, companyId: true } });
-    if (!shop) throw new NotFoundException('Shop not found');
-    if (user.companyId && shop.companyId !== user.companyId) {
-      throw new ForbiddenException('Shop does not belong to your organization');
-    }
+    await this.assertShopInCompany(shopId, this.requireCompany(user));
     const value = this.normalizeConfig(dto);
     await this.prisma.systemSetting.upsert({
       where: { key: this.configKey(shopId) },
@@ -239,9 +265,12 @@ export class EmailNotificationsService {
   }
 
   async resolveConfigForShop(shopId?: string | null): Promise<EmailNotificationsConfig> {
-    const companySetting = await this.prisma.systemSetting.findUnique({
-      where: { key: this.configKey(null) },
-    });
+    const companyId = shopId
+      ? (await this.prisma.shop.findUnique({ where: { id: shopId }, select: { companyId: true } }))?.companyId
+      : null;
+    const companySetting = companyId
+      ? await this.prisma.systemSetting.findUnique({ where: { key: this.companyConfigKey(companyId) } })
+      : null;
     const shopSetting = shopId
       ? await this.prisma.systemSetting.findUnique({ where: { key: this.configKey(shopId) } })
       : null;
@@ -254,6 +283,23 @@ export class EmailNotificationsService {
       reminders: { ...companyConfig.reminders, ...shopConfig.reminders },
       internalAlerts: { ...companyConfig.internalAlerts, ...shopConfig.internalAlerts },
     };
+  }
+
+  /** Every reminder lead time that any company or shop has switched on. */
+  async reminderDaysInUse(): Promise<number[]> {
+    const rows = await this.prisma.systemSetting.findMany({
+      where: { key: { startsWith: `${EMAIL_NOTIFICATIONS_CONFIG_PREFIX}:` } },
+      select: { value: true },
+    });
+    const configs = [buildDefaultEmailNotificationsConfig(), ...rows.map((r) => this.normalizeConfig(r.value))];
+    const days = new Set<number>();
+    for (const config of configs) {
+      if (!config.reminders.paymentReminderEnabled) continue;
+      for (const day of config.reminders.paymentReminderDaysBefore) {
+        if (Number.isFinite(day) && day >= 0) days.add(day);
+      }
+    }
+    return [...days];
   }
 
   prepareTemplate(

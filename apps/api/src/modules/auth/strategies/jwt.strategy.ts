@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../../common/types/request-user';
+import { resolveRolePermissions } from '../../../common/auth/role-permissions';
 
 type JwtPayload = { sub: string; pwd?: string };
 
@@ -50,7 +51,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       tenantShopIds = [user.shopId];
     }
 
-    const permissions = user.role.permissions as unknown as string[];
+    const permissions = await resolveRolePermissions(this.prisma, companyId, user.role);
     return {
       id: user.id,
       email: user.email,

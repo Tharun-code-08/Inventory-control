@@ -14,6 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@ne
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { AuditExportRateLimitGuard } from '@/common/guards/audit-export-rate-limit.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { RequirePermission } from '@/common/decorators/require-permission.decorator';
+import { requireCompanyId } from '@/common/utils/shop-scope';
 import type { RequestUser } from '@/common/types/request-user';
 import { AuditService } from './audit.service';
 import {
@@ -27,6 +29,7 @@ import {
 @ApiTags('Audit Logs')
 @Controller('audit')
 @UseGuards(JwtAuthGuard)
+@RequirePermission('audit_log:read')
 @ApiBearerAuth()
 export class AuditController {
   private readonly logger = new Logger(AuditController.name);
@@ -71,7 +74,7 @@ export class AuditController {
       endDate: query.endDate ? new Date(query.endDate) : undefined,
     };
 
-    const { data, total } = await this.auditService.findAll(user.companyId!, convertedFilters, {
+    const { data, total } = await this.auditService.findAll(requireCompanyId(user), convertedFilters, {
       page: query.page,
       limit: query.limit,
       sortBy: query.sortBy,
@@ -107,7 +110,7 @@ export class AuditController {
   ): Promise<AuditLogResponseDto> {
     this.logger.debug(`Fetching audit log ${auditLogId}`);
 
-    const log = await this.auditService.findById(auditLogId, user.companyId!);
+    const log = await this.auditService.findById(auditLogId, requireCompanyId(user));
 
     if (!log) {
       throw new NotFoundException('Audit log not found');
@@ -138,7 +141,7 @@ export class AuditController {
   ): Promise<AuditListResponseDto> {
     this.logger.debug(`Fetching audit logs for user ${targetUserId}`);
 
-    const { data, total } = await this.auditService.findByUser(user.companyId!, targetUserId, {
+    const { data, total } = await this.auditService.findByUser(requireCompanyId(user), targetUserId, {
       page: pagination.page,
       limit: pagination.limit,
       sortBy: pagination.sortBy,
@@ -174,7 +177,7 @@ export class AuditController {
   ): Promise<AuditLogResponseDto[]> {
     this.logger.debug(`Fetching audit logs for ${entityType} ${entityId}`);
 
-    const logs = await this.auditService.findByEntity(user.companyId!, entityType, entityId);
+    const logs = await this.auditService.findByEntity(requireCompanyId(user), entityType, entityId);
     return logs as AuditLogResponseDto[];
   }
 
@@ -210,7 +213,7 @@ export class AuditController {
       endDate: filters.endDate ? new Date(filters.endDate) : undefined,
     };
 
-    const csv = await this.auditService.exportCsv(user.companyId!, convertedFilters);
+    const csv = await this.auditService.exportCsv(requireCompanyId(user), convertedFilters);
     return csv;
   }
 }

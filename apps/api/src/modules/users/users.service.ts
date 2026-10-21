@@ -15,6 +15,12 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertCompanyId } from '../../common/utils/assert-company-id';
+import {
+  LOCKED_ROLES,
+  assertValidPermissions,
+  loadRolePermissionOverrides,
+  rolePermissionsKey,
+} from '../../common/auth/role-permissions';
 import { MailService } from '../../common/mail/mail.service';
 import { type UserInviteEmailContent } from '../../common/mail/user-invite.template';
 import { buildUserInviteAcceptUrl } from '../../common/mail/portal-url';
@@ -27,6 +33,13 @@ import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { EmailNotificationsService } from '../email-notifications/email-notifications.service';
 import { userInviteDefaults } from '../email-notifications/email-notifications.outbound';
+
+/** Credential columns that must never leave the API. */
+const USER_SECRET_FIELDS = {
+  passwordHash: true,
+  refreshTokenHash: true,
+  mfaSecretEncrypted: true,
+} as const;
 
 @Injectable()
 export class UsersService {
@@ -139,34 +152,53 @@ export class UsersService {
     }
   }
 
-  async listRoles() {
-    return this.prisma.role.findMany({ orderBy: { name: 'asc' } });
+  async listRoles(actor: RequestUser) {
+    const roles = await this.prisma.role.findMany({ orderBy: { name: 'asc' } });
+    const overrides = await loadRolePermissionOverrides(this.prisma, actor.companyId);
+    return roles.map((role) => {
+      const own = LOCKED_ROLES.has(role.name) ? undefined : overrides[role.name];
+      return Array.isArray(own) ? { ...role, permissions: own } : role;
+    });
   }
 
+  /**
+   * Role rows are shared by every tenant, so edits are saved as this
+   * company's override and never touch the shared row.
+   */
   async updateRolePermissions(actor: RequestUser, roleName: string, permissions: string[]) {
     if (!this.isOrgAdmin(actor)) {
       throw new ForbiddenException('Only an administrator can edit role permissions');
     }
+    const companyId = assertCompanyId(actor);
     const targetName = this.normalizeRoleName(roleName);
     const role = await this.prisma.role.findFirst({ where: { name: targetName as RoleName } });
     if (!role) throw new NotFoundException('Role not found');
+    if (LOCKED_ROLES.has(role.name)) {
+      throw new ForbiddenException('Owner and Admin permissions cannot be changed');
+    }
+    assertValidPermissions(permissions);
 
-    const updated = await this.prisma.role.update({
-      where: { id: role.id },
-      data: { permissions },
+    const overrides = await loadRolePermissionOverrides(this.prisma, companyId);
+    const previous = overrides[role.name] ?? (role.permissions as string[]);
+    const next = { ...overrides, [role.name]: permissions };
+    const key = rolePermissionsKey(companyId);
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      create: { key, value: next, createdById: actor.id, updatedById: actor.id },
+      update: { value: next, updatedById: actor.id },
     });
 
     await this.audit.log({
       userId: actor.id,
-      companyId: assertCompanyId(actor),
+      companyId,
       action: AuditAction.UPDATE,
       entityType: 'ROLE',
       entityId: role.id,
-      oldValues: { permissions: role.permissions },
+      oldValues: { permissions: previous },
       newValues: { permissions },
     });
 
-    return updated;
+    return { ...role, permissions };
   }
 
   private resolveShopForActor(actor: RequestUser, requestedShopId?: string | null): string | null {
@@ -190,6 +222,7 @@ export class UsersService {
       where: userListWhere(actor),
       orderBy: { createdAt: 'desc' },
       include: { role: true, shop: true },
+      omit: USER_SECRET_FIELDS,
     });
   }
 
@@ -227,6 +260,7 @@ export class UsersService {
         isActive: dto.isActive ?? true,
       },
       include: { role: true, shop: true },
+      omit: USER_SECRET_FIELDS,
     });
 
     await this.audit.log({
@@ -355,14 +389,44 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: { role: true, shop: true },
+      omit: USER_SECRET_FIELDS,
     });
     if (!user) throw new NotFoundException('User not found');
     this.assertCanManageShop(actor, user.shopId);
     return user;
   }
 
+  /** Only an Owner may change, deactivate or delete another Owner. */
+  private assertCanManageTarget(actor: RequestUser, target: { role: { name: RoleName } }) {
+    if (target.role.name === RoleName.OWNER && !this.isOwner(actor)) {
+      throw new ForbiddenException('Only the organisation owner can change an Owner account');
+    }
+  }
+
+  /** Refuses a change that would leave the company without an active Owner. */
+  private async assertNotLastOwner(target: { id: string; role: { name: RoleName }; shopId: string | null }) {
+    if (target.role.name !== RoleName.OWNER) return;
+    const companyId = target.shopId
+      ? (await this.prisma.shop.findUnique({ where: { id: target.shopId }, select: { companyId: true } }))?.companyId
+      : null;
+    if (!companyId) return;
+    const others = await this.prisma.user.count({
+      where: {
+        id: { not: target.id },
+        isActive: true,
+        deletedAt: null,
+        role: { name: RoleName.OWNER },
+        shop: { companyId },
+      },
+    });
+    if (others === 0) {
+      throw new BadRequestException('The organisation must keep at least one active Owner');
+    }
+  }
+
   async update(actor: RequestUser, id: string, dto: UpdateUserDto) {
     const existing = await this.get(actor, id);
+    this.assertCanManageTarget(actor, existing);
 
     if (dto.shopId !== undefined) {
       this.assertCanManageShop(actor, dto.shopId);
@@ -377,6 +441,9 @@ export class UsersService {
     if (dto.roleId) {
       resolvedRoleId = await this.resolveRoleId(dto.roleId);
       await this.assertRoleAssignable(actor, resolvedRoleId);
+    }
+    if ((resolvedRoleId && resolvedRoleId !== existing.roleId) || dto.isActive === false) {
+      await this.assertNotLastOwner(existing);
     }
 
     if (dto.email) {
@@ -404,6 +471,7 @@ export class UsersService {
           lockedUntil: dto.password ? null : undefined,
         },
         include: { role: true, shop: true },
+      omit: USER_SECRET_FIELDS,
       });
 
       if (dto.password) {
@@ -453,6 +521,8 @@ export class UsersService {
     if (existing.id === actor.id) {
       throw new BadRequestException('You cannot disable your own account');
     }
+    this.assertCanManageTarget(actor, existing);
+    await this.assertNotLastOwner(existing);
     if (actor.tenantShopIds && actor.tenantShopIds.length > 0) {
       if (!existing.shopId || !actor.tenantShopIds.includes(existing.shopId)) {
         throw new ForbiddenException('User is outside your organisation');
