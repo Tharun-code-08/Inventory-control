@@ -1,6 +1,8 @@
 #!/bin/bash
 # Deployment script with automatic rollback on failure.
-# Rollback restores: source (git reset), dist snapshot (apps/api/dist), and build identity env vars.
+# Rollback restores the live release: source (git reset to the commit that was
+# running), dependencies when the lockfile changed, the API and web builds, and
+# build identity env vars. Set DEPLOY_SHA to deploy an exact commit.
 # Rollback does NOT restore: database schema (Prisma migrations persist).
 #
 # Usage:  ./scripts/deploy.sh [environment] [branch]
@@ -51,6 +53,8 @@ mkdir -p "$STATE_DIR"
 
 CURRENT_STEP=""
 RUNNING_COMMIT=""
+# Commit that is live right now; rollback returns here.
+ROLLBACK_COMMIT=""
 
 # Restart the PM2 process and FAIL LOUDLY if it does not come back.
 # (The old script used `|| true`, which silently left the stale process running.)
@@ -75,18 +79,31 @@ health_ok() {
 rollback() {
   echo -e "\n${RED}✗ Deployment failed at: $CURRENT_STEP${NC}"
 
-  if [ -f "$STATE_DIR/previous_commit" ]; then
-    PREVIOUS=$(cat "$STATE_DIR/previous_commit")
-    echo -e "${RED}Rolling back code to: $PREVIOUS${NC}"
+  if [ -n "$ROLLBACK_COMMIT" ]; then
+    PREVIOUS="$ROLLBACK_COMMIT"
+    FAILED_COMMIT=$(git rev-parse HEAD)
+    echo -e "${RED}Rolling back code to the live commit: $PREVIOUS${NC}"
     git reset --hard "$PREVIOUS"
 
-    # Restore the pre-build dist so the executable matches the rolled-back source.
+    # Dependencies changed with the failed release: reinstall the live ones.
+    if ! git diff --quiet "$PREVIOUS" "$FAILED_COMMIT" -- package-lock.json; then
+      echo -e "${RED}Reinstalling dependencies for $PREVIOUS...${NC}"
+      rm -rf apps/mobile/node_modules 2>/dev/null || true
+      npm ci --quiet || echo -e "${YELLOW}⚠ npm ci failed during rollback${NC}"
+    fi
+
+    # Restore the live builds so the executable and the web app match the rolled-back source.
     if [ -d "$STATE_DIR/dist_prev" ]; then
-      echo -e "${RED}Restoring previous dist...${NC}"
+      echo -e "${RED}Restoring previous API dist...${NC}"
       rm -rf apps/api/dist
       cp -r "$STATE_DIR/dist_prev" apps/api/dist
     else
       echo -e "${YELLOW}⚠ No dist snapshot found — rollback will restart with current dist${NC}"
+    fi
+    if [ -d "$STATE_DIR/web_dist_prev" ]; then
+      echo -e "${RED}Restoring previous web build...${NC}"
+      rm -rf apps/web/dist
+      cp -r "$STATE_DIR/web_dist_prev" apps/web/dist
     fi
 
     # Export build identity for the rollback commit so the startup log is accurate.
@@ -132,15 +149,59 @@ if ! node -e '
   exit 1
 fi
 
-# Save current running commit (rollback point) BEFORE any changes.
-RUNNING_COMMIT=$(git rev-parse HEAD)
-echo "Running commit: $RUNNING_COMMIT"
+# Local edits would be lost by the checkout below (the deploy workflow stashes
+# them first); refuse before anything changes.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo -e "${RED}✗ Uncommitted changes to tracked files; stash or commit them, then redeploy. Nothing was changed.${NC}"
+  git status --short --untracked-files=no
+  exit 1
+fi
 
-# Step 1: Pull
-CURRENT_STEP="git-pull"
-echo -e "\n${GREEN}Pulling latest code...${NC}"
-git pull origin "$DEPLOY_BRANCH" --quiet
-echo "✓ Pulled"
+# Save the live commit and builds (rollback point) BEFORE any changes.
+RUNNING_COMMIT=$(git rev-parse HEAD)
+# deployed_commit is written after each successful deploy. Older runs only
+# wrote previous_commit, which held the live commit because the workflow pulled
+# before calling this script.
+if [ -f "$STATE_DIR/deployed_commit" ]; then
+  ROLLBACK_COMMIT=$(cat "$STATE_DIR/deployed_commit")
+elif [ -f "$STATE_DIR/previous_commit" ]; then
+  ROLLBACK_COMMIT=$(cat "$STATE_DIR/previous_commit")
+else
+  ROLLBACK_COMMIT="$RUNNING_COMMIT"
+fi
+echo "Live commit (rollback point): $ROLLBACK_COMMIT"
+
+CURRENT_STEP="save-dist-snapshot"
+if [ -d "apps/api/dist" ]; then
+  rm -rf "$STATE_DIR/dist_prev"
+  cp -r apps/api/dist "$STATE_DIR/dist_prev"
+  echo "✓ API dist snapshot saved ($STATE_DIR/dist_prev)"
+else
+  echo -e "${YELLOW}⚠ apps/api/dist not found — rollback will not be able to restore executable state${NC}"
+fi
+if [ -d "apps/web/dist" ]; then
+  rm -rf "$STATE_DIR/web_dist_prev"
+  cp -r apps/web/dist "$STATE_DIR/web_dist_prev"
+  echo "✓ Web dist snapshot saved ($STATE_DIR/web_dist_prev)"
+fi
+
+# Step 1: Check out the release. The deploy workflow passes DEPLOY_SHA, the
+# exact commit that passed CI; a manual run deploys the branch tip.
+CURRENT_STEP="git-checkout"
+echo -e "\n${GREEN}Fetching code...${NC}"
+git fetch origin "$DEPLOY_BRANCH" --quiet
+if [ -n "${DEPLOY_SHA:-}" ]; then
+  if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    echo -e "${RED}✗ DEPLOY_SHA must be a full commit SHA${NC}"
+    false
+  fi
+  git merge-base --is-ancestor "$DEPLOY_SHA" "origin/$DEPLOY_BRANCH"
+  TARGET_COMMIT="$DEPLOY_SHA"
+else
+  TARGET_COMMIT=$(git rev-parse "origin/$DEPLOY_BRANCH")
+fi
+git reset --hard "$TARGET_COMMIT" --quiet
+echo "✓ Checked out $TARGET_COMMIT"
 
 # Step 2: Install deps
 CURRENT_STEP="npm-ci"
@@ -158,17 +219,6 @@ if [ -d "apps/api/node_modules/class-validator" ] && [ ! -d "node_modules/class-
   echo "✓ class-validator copied to root node_modules"
 fi
 echo "✓ Dependencies installed"
-
-# Snapshot the current dist BEFORE overwriting it with a new build.
-# Rollback needs the previous runnable artifact, not just the source.
-CURRENT_STEP="save-dist-snapshot"
-if [ -d "apps/api/dist" ]; then
-  rm -rf "$STATE_DIR/dist_prev"
-  cp -r apps/api/dist "$STATE_DIR/dist_prev"
-  echo "✓ Dist snapshot saved ($STATE_DIR/dist_prev)"
-else
-  echo -e "${YELLOW}⚠ apps/api/dist not found — rollback will not be able to restore executable state${NC}"
-fi
 
 # Step 3: Build
 CURRENT_STEP="npm-build"
@@ -215,11 +265,12 @@ if [ "$HEALTH_OK" != "true" ]; then
 fi
 echo "✓ Health check passed"
 
-# Success: save this run's starting commit as the rollback point for next time.
+# Success: this commit is now live and is the rollback point for the next deploy.
+git rev-parse HEAD > "$STATE_DIR/deployed_commit"
 echo "$RUNNING_COMMIT" > "$STATE_DIR/previous_commit"
 
 echo -e "\n${GREEN}=== Deployment Successful ($ENVIRONMENT) ===${NC}"
 echo "Deployed commit: $(git rev-parse --short HEAD)  (APP_COMMIT_SHA=$APP_COMMIT_SHA)"
 echo "Build time:      $APP_BUILD_TIME"
-echo "Rollback point:  $RUNNING_COMMIT"
+echo "Previous live:   $ROLLBACK_COMMIT"
 echo "Time: $(date)"

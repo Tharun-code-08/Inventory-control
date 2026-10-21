@@ -56,6 +56,7 @@ jobs:
           # `ssh-keyscan -H <your-host>` run from a trusted machine.
           # This is the only way to fully prevent MITM attacks against deploys.
           DEPLOY_HOST_KNOWN_KEY: ${{ secrets.DEPLOY_HOST_KNOWN_KEY }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           # Trim secrets (pasted values may have trailing newlines/spaces)
           HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
@@ -92,18 +93,19 @@ jobs:
             SSH_STRICT="-o StrictHostKeyChecking=accept-new"
           fi
 
-          # Run deployment script.
-          # Pull latest code first so deploy.sh itself is up-to-date before
-          # it executes (git pull inside deploy.sh updates files on disk but
-          # the already-running process keeps the old in-memory script).
-          echo "🚀 Connecting to $USER@$HOST..."
+          # Run deployment script for the commit that passed CI.
+          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "❌ Unexpected head_sha: $DEPLOY_SHA"
+            exit 1
+          fi
+          echo "🚀 Connecting to $USER@$HOST (deploying $DEPLOY_SHA)..."
           ssh -i ~/.ssh/deploy_key \
             $SSH_STRICT \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \
             "$USER@$HOST" \
-            'bash -s' <<'REMOTE'
+            "DEPLOY_SHA=$DEPLOY_SHA bash -s" <<'REMOTE'
           set -euo pipefail
           cd /opt/Inventory-control-prod
           # Local edits to tracked files on the server make `git pull` abort
@@ -117,8 +119,13 @@ jobs:
             git stash push -m "deploy-autostash $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "   Saved as $(git stash list -1 --format=%gd). Inspect: git -C $PWD stash show -p stash@{0}"
           fi
-          git pull origin main --quiet
-          ./scripts/deploy.sh prod
+          # Move to the exact commit that passed CI (not whatever main is now)
+          # before running deploy.sh, so the script on disk is the release's own
+          # and is not rewritten while bash is reading it.
+          git fetch origin main --quiet
+          git merge-base --is-ancestor "$DEPLOY_SHA" origin/main
+          git reset --hard "$DEPLOY_SHA" --quiet
+          DEPLOY_SHA="$DEPLOY_SHA" ./scripts/deploy.sh prod
           REMOTE
 
       - name: Post-deployment verification
