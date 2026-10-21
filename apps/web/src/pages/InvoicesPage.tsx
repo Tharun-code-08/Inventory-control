@@ -39,8 +39,12 @@ export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
       toast.error('Select a customer');
       return;
     }
+    // The invoice belongs to the order's (or customer's) plant, not the user's home plant.
+    const linkedOrder = salesOrders.find((so) => so.id === form.salesOrderId);
+    const shopId = linkedOrder?.shopId ?? customers.find((c) => c.id === form.customerId)?.shopId;
     try {
       await createInvoice.mutateAsync({
+        shopId,
         customerId: form.customerId,
         salesOrderId: form.salesOrderId || undefined,
         totalValue: Number(form.totalValue),
@@ -96,7 +100,16 @@ export function InvoicesPage({ createOnly = false }: { createOnly?: boolean }) {
           <DocumentReferenceSelect
             items={salesOrders}
             value={form.salesOrderId}
-            onValueChange={(salesOrderId) => setForm((p) => ({ ...p, salesOrderId }))}
+            onValueChange={(salesOrderId) => {
+              // Picking an order fills in its customer and total.
+              const so = salesOrders.find((o) => o.id === salesOrderId);
+              setForm((p) => ({
+                ...p,
+                salesOrderId,
+                customerId: so?.customerId ?? p.customerId,
+                totalValue: so?.totalValue != null ? String(so.totalValue) : p.totalValue,
+              }));
+            }}
             getValue={(order) => order.id}
             getLabel={(order) => formatSalesOrderOption(order)}
             placeholder="Select sales order"

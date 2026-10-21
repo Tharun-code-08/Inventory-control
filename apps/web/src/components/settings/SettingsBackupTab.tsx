@@ -169,6 +169,18 @@ export function SettingsBackupTab() {
     }
   }
 
+  // A dry-run report (and its restore job) belongs to one backup; picking a
+  // different backup discards it so Apply can never restore the wrong file.
+  function selectArtifact(artifactId: string) {
+    if (artifactId !== selectedArtifactId) {
+      setRestoreReport(null);
+      setRestoreJobId('');
+      setConfirmationToken('');
+      setConfirmText('');
+    }
+    setSelectedArtifactId(artifactId);
+  }
+
   async function handleDryRun() {
     if (!selectedArtifactId) {
       toast.error('Select a backup file first');
@@ -459,7 +471,7 @@ export function SettingsBackupTab() {
                     size="sm"
                     variant={selectedArtifactId === artifact.id ? 'default' : 'outline'}
                     className="border-border"
-                    onClick={() => setSelectedArtifactId(artifact.id)}
+                    onClick={() => selectArtifact(artifact.id)}
                   >
                     Restore
                   </Button>

@@ -162,7 +162,6 @@ function formToPayload(form: SupplierFormState): CreateSupplierPayload {
     accountNumber: form.accountNumber || undefined,
     routingNumber: form.routingNumber || undefined,
     iban: form.iban || undefined,
-    isActive: true,
   };
 }
 
@@ -482,7 +481,7 @@ function SuppliersCreateView() {
   const onCreate = async () => {
     if (!validateForm(createForm)) return;
     try {
-      await createSupplier.mutateAsync(formToPayload(createForm));
+      await createSupplier.mutateAsync({ ...formToPayload(createForm), isActive: true });
       triggerPulse();
       showActionSuccess({ message: 'Supplier created successfully' });
       navigate('/suppliers');
