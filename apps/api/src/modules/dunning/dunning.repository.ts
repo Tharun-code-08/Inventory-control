@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
-import { InvoiceCollectStatus } from '@/common/workflow-engine/dunning';
+import { DUNNING_LADDER, InvoiceCollectStatus } from '@/common/workflow-engine/dunning';
 import { DunningCandidate, ThreadOp, ThreadState } from '@/common/workflow-engine/dunning-sweep';
 import {
   ChannelConsentRecord,
@@ -10,6 +10,8 @@ import {
   toDunningConsent,
 } from '@/common/workflow-engine/consent';
 import { DUNNING_ENTITY_TYPE } from './dunning.constants';
+
+const CANDIDATE_PAGE_SIZE = 1000;
 
 /**
  * Typed data access for the dunning sweep. Reads collectible invoices + their
@@ -21,12 +23,11 @@ import { DUNNING_ENTITY_TYPE } from './dunning.constants';
 export class DunningRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Collectible invoices (issued / partially paid, with a due date) as candidates. */
-  async loadCandidates(): Promise<DunningCandidate[]> {
-    const invoices = await this.prisma.invoiceHeader.findMany({
+  private loadInvoicePage(horizon: Date, cursor?: string) {
+    return this.prisma.invoiceHeader.findMany({
       where: {
         status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID] },
-        dueDate: { not: null },
+        dueDate: { not: null, lte: horizon },
       },
       select: {
         id: true,
@@ -38,8 +39,26 @@ export class DunningRepository {
         paidValue: true,
         shop: { select: { companyId: true } },
       },
-      take: 2000,
+      orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+      take: CANDIDATE_PAGE_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+  }
+
+  /** Collectible invoices (issued / partially paid, with a due date) as candidates. */
+  async loadCandidates(): Promise<DunningCandidate[]> {
+    // The ladder starts before the due date, so anything due within that lead
+    // time is a candidate. Page through all of them in a stable order.
+    const leadDays = Math.max(0, ...DUNNING_LADDER.map((step) => -step.dayOffset));
+    const horizon = new Date(Date.now() + leadDays * 24 * 60 * 60 * 1000);
+    const invoices: Awaited<ReturnType<typeof this.loadInvoicePage>> = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.loadInvoicePage(horizon, cursor);
+      invoices.push(...page);
+      if (page.length < CANDIDATE_PAGE_SIZE) break;
+      cursor = page[page.length - 1].id;
+    }
     if (invoices.length === 0) return [];
 
     const invoiceIds = invoices.map((i) => i.id);

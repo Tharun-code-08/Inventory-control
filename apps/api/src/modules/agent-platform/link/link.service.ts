@@ -29,6 +29,7 @@ import type { RequestUser } from '@/common/types/request-user';
 import { REDIS_CLIENT } from '@/common/cache/redis.provider';
 import { MailService } from '@/common/mail/mail.service';
 import { AuditService } from '../../audit/audit.service';
+import { resolveRolePermissions } from '../../../common/auth/role-permissions';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 /** Unambiguous charset — no I/L/O/0/1 lookalikes; users type this by hand. */
@@ -453,7 +454,7 @@ export class LinkService {
       shopId: user.shopId,
       companyId,
       tenantShopIds,
-      permissions: user.role.permissions as unknown as string[],
+      permissions: await resolveRolePermissions(this.prisma, companyId, user.role),
     };
 
     try {

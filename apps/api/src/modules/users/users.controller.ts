@@ -31,8 +31,8 @@ export class UsersController {
 
   @RequirePermission('user:manage')
   @Get('roles/list')
-  listRoles() {
-    return this.users.listRoles();
+  listRoles(@CurrentUser() user: RequestUser) {
+    return this.users.listRoles(user);
   }
 
   @RequirePermission('user:manage')

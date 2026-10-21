@@ -625,12 +625,14 @@ export class ReportsService {
 
     const pendingOutbox = await this.prisma.documentEmailOutbox.count({
       where: {
+        shopId: { in: shopIds },
         status: { in: [DocumentEmailStatus.PENDING_PDF, DocumentEmailStatus.PENDING_SEND] },
       },
     });
 
     const failedEmails = await this.prisma.documentEmailOutbox.count({
       where: {
+        shopId: { in: shopIds },
         status: DocumentEmailStatus.FAILED,
         createdAt: { gte: sevenDaysAgo },
       },
@@ -640,7 +642,7 @@ export class ReportsService {
     staleDraftCutoff.setDate(staleDraftCutoff.getDate() - 30);
 
     const staleDrafts = await this.prisma.purchaseOrderHeader.count({
-      where: { status: PurchaseOrderStatus.DRAFT, createdAt: { lt: staleDraftCutoff } },
+      where: { shopId: { in: shopIds }, status: PurchaseOrderStatus.DRAFT, createdAt: { lt: staleDraftCutoff } },
     });
 
     const systemHealth = {
@@ -653,7 +655,11 @@ export class ReportsService {
     const topSuppliers = await this.prisma.purchaseOrderHeader.groupBy({
       by: ['supplier'],
       _sum: { totalValue: true },
-      where: { shopId: { in: shopIds }, poDate: { gte: from, lte: to } },
+      where: {
+        shopId: { in: shopIds },
+        poDate: { gte: from, lte: to },
+        status: { not: PurchaseOrderStatus.CANCELLED },
+      },
       orderBy: { _sum: { totalValue: 'desc' } },
       take: 5,
     });
@@ -661,7 +667,11 @@ export class ReportsService {
     const topCustomers = await this.prisma.salesOrderHeader.groupBy({
       by: ['customerId'],
       _sum: { totalValue: true },
-      where: { shopId: { in: shopIds }, orderDate: { gte: from, lte: to } },
+      where: {
+        shopId: { in: shopIds },
+        orderDate: { gte: from, lte: to },
+        status: { notIn: [SalesOrderStatus.CANCELLED, SalesOrderStatus.DRAFT] },
+      },
       orderBy: { _sum: { totalValue: 'desc' } },
       take: 5,
     });
@@ -1657,7 +1667,7 @@ COALESCE(
           SELECT p.id
           FROM products p
           JOIN sales_order_items soi ON soi.product_id = p.id
-          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray}) AND soh.status::text NOT IN ('CANCELLED', 'DRAFT')
           WHERE p.is_active = true
           ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
           GROUP BY p.id
@@ -1699,7 +1709,7 @@ COALESCE(
           END as avg_selling_price
         FROM products p
         JOIN sales_order_items soi ON soi.product_id = p.id
-        JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+        JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray}) AND soh.status::text NOT IN ('CANCELLED', 'DRAFT')
         LEFT JOIN (SELECT product_id, AVG(avg_cost) AS avg_cost FROM stock_summary WHERE shop_id = ANY(${shopArray}) GROUP BY product_id) ss ON ss.product_id = p.id
         WHERE p.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
@@ -1740,7 +1750,7 @@ COALESCE(
             (SUM(soi.quantity * soi.unit_price) - (SUM(soi.quantity) * COALESCE(ss.avg_cost, p.purchase_price, 0))) as profit
           FROM products p
           JOIN sales_order_items soi ON soi.product_id = p.id
-          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray})
+          JOIN sales_order_header soh ON soh.id = soi.so_header_id AND soh.order_date >= ${dateFrom} AND soh.order_date <= ${dateTo} AND soh.shop_id = ANY(${shopArray}) AND soh.status::text NOT IN ('CANCELLED', 'DRAFT')
           LEFT JOIN (SELECT product_id, AVG(avg_cost) AS avg_cost FROM stock_summary WHERE shop_id = ANY(${shopArray}) GROUP BY product_id) ss ON ss.product_id = p.id
           WHERE p.is_active = true
           ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}

@@ -213,12 +213,13 @@ export function SettingsRolesTab() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Advanced permission editor</CardTitle>
             <p className="text-sm font-normal text-muted-foreground">
-              Fine-tune API permission strings per role (optional).
+              Fine-tune API permission strings per role for your organisation (optional). Owner and Admin
+              always keep their full access.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              {SYSTEM_ROLE_ORDER.map((roleName) => {
+              {SYSTEM_ROLE_ORDER.filter((roleName) => roleName !== 'OWNER' && roleName !== 'ADMIN').map((roleName) => {
                 const def = SYSTEM_ROLES.find((r) => r.name === roleName);
                 return (
                   <Button

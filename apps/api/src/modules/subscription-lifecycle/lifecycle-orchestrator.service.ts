@@ -155,9 +155,17 @@ export class LifecycleOrchestratorService {
     const campaignKeys = ['dunning_immediate', 'dunning_1d', 'dunning_3d', 'dunning_7d', 'dunning_14d'] as const;
     const key = campaignKeys[Math.min(args.renewalAttempt, campaignKeys.length - 1)];
 
+    // Only a company whose paid period has already ended is suspended or
+    // expired; a failed checkout must not cut off time it has paid for.
     if (args.renewalAttempt >= 3) {
-      await this.prisma.company.update({
-        where: { id: args.companyId },
+      await this.prisma.company.updateMany({
+        where: {
+          id: args.companyId,
+          AND: [
+            { OR: [{ subscriptionEndsAt: null }, { subscriptionEndsAt: { lt: new Date() } }] },
+            { OR: [{ trialEndsAt: null }, { trialEndsAt: { lt: new Date() } }] },
+          ],
+        },
         data: { subscriptionStatus: args.renewalAttempt >= 4 ? 'EXPIRED' : 'SUSPENDED' },
       });
     }
@@ -167,6 +175,7 @@ export class LifecycleOrchestratorService {
       companyName: args.companyName,
       recipient: args.ownerEmail,
       campaignKey: key,
+      cycleKey: args.paymentId,
     });
 
     await this.platformRevenue

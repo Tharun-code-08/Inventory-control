@@ -182,6 +182,17 @@ export class TenantBackupService {
   ) {
     const shops = await tx.shop.findMany({ where: { companyId }, select: { id: true } });
     const shopIds = shops.map((s) => s.id);
+    // Product codes are unique across all tenants. Note which products this
+    // company owns before its plant links are cleared, so the restore can
+    // only overwrite those.
+    const ownedProducts = shopIds.length
+      ? await tx.productPlant.findMany({
+          where: { shopId: { in: shopIds } },
+          select: { productId: true },
+          distinct: ['productId'],
+        })
+      : [];
+    const ownedProductIds = new Set(ownedProducts.map((p) => p.productId));
     if (shopIds.length) {
       await tx.paymentReceipt.deleteMany({ where: { shopId: { in: shopIds } } });
       await tx.invoiceHeader.deleteMany({ where: { shopId: { in: shopIds } } });
@@ -254,6 +265,9 @@ export class TenantBackupService {
     for (const row of payload.products ?? []) {
       const productCode = String(row.productCode ?? '');
       const existing = await tx.product.findUnique({ where: { productCode } });
+      if (existing && !ownedProductIds.has(existing.id)) {
+        throw new BadRequestException(`Product code ${productCode} is not available`);
+      }
       const data = {
         productCode,
         description: String(row.description ?? productCode),

@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -117,6 +118,23 @@ export class BillingWebhookController {
     }
   }
 
+  /** Razorpay re-delivers webhooks, so each failed attempt is counted once. */
+  private async claimFailedAttempt(razorpayPaymentId: string, paymentId: string): Promise<boolean> {
+    try {
+      await this.prisma.idempotencyKey.create({
+        data: {
+          key: `razorpay:payment.failed:${razorpayPaymentId}`,
+          scope: 'razorpay-webhook',
+          result: { paymentId },
+        },
+      });
+      return true;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return false;
+      throw err;
+    }
+  }
+
   private async handlePaymentFailed(payload: RazorpayWebhookPayload) {
     const paymentEntity = payload.payload?.payment?.entity;
     const orderId = paymentEntity?.order_id;
@@ -126,6 +144,9 @@ export class BillingWebhookController {
       where: { razorpayOrderId: orderId },
     });
     if (!payment?.companyId) return;
+    // A late failure event for an order that was paid afterwards changes nothing.
+    if (payment.status === 'paid' || payment.verifiedAt || payment.consumedAt) return;
+    if (paymentEntity?.id && !(await this.claimFailedAttempt(paymentEntity.id, payment.id))) return;
 
     const renewalAttempt = Math.min(payment.renewalAttempt + 1, DUNNING_CAMPAIGN_KEYS.length - 1);
     const owner = await this.lifecycle.resolveOwnerEmail(payment.companyId);

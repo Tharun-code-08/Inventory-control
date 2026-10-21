@@ -70,7 +70,7 @@ describe('Phase 1 — Master Data workflows (e2e)', () => {
         email: 'bad@e2e.local',
         companyId: '00000000-0000-4000-8000-000000000000',
       })
-      .expect((res) => expect([400, 404, 409, 422]).toContain(res.status));
+      .expect((res) => expect([400, 403, 404, 409, 422]).toContain(res.status));
   });
 
   it('enforces unique product SKU codes', async () => {

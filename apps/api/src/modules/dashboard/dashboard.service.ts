@@ -1,5 +1,12 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { DocumentStatus, Prisma, PurchaseOrderStatus, SalesOrderStatus } from '@prisma/client';
+import {
+  ApprovalStatus,
+  DocumentStatus,
+  InvoiceStatus,
+  Prisma,
+  PurchaseOrderStatus,
+  SalesOrderStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { assertShopScope, requireCompanyId, shopIdsForUser } from '../../common/utils/shop-scope';
@@ -299,7 +306,7 @@ export class DashboardService {
     ] = await Promise.all([
       this.fetchFinancialCard(shopIds),
       this.fetchInventoryCard(shopIds),
-      this.fetchAttentionCard(shopIds),
+      this.fetchAttentionCard(shopIds, user.companyId),
     ]);
 
     return {
@@ -310,170 +317,142 @@ export class DashboardService {
     };
   }
 
+  private dashboardPeriods() {
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return { today, monthStart };
+  }
+
+  /** Revenue is billed invoice value; profit is sales value less average cost. */
   private async fetchFinancialCard(shopIds: string[]) {
-    // Week 4A: Frozen to 4 metrics only
-    try {
-      const result = await this.prisma.$queryRaw<
-        Array<{
-          revenue_today: string;
-          revenue_this_month: string;
-          net_profit: string;
-          cash_balance: string;
-        }>
-      >`
-        SELECT
-          COALESCE(revenue_today, 0)::text as revenue_today,
-          COALESCE(revenue_this_month, 0)::text as revenue_this_month,
-          COALESCE(net_profit, 0)::text as net_profit,
-          COALESCE(cash_balance, 0)::text as cash_balance
-        FROM financial_snapshot
-        WHERE shop_id = ANY(${shopIds}::uuid[])
-        LIMIT 1
-      `;
-
-      if (result.length > 0) {
-        const row = result[0];
-        return {
-          revenueToday: Math.round(Number(row.revenue_today)),
-          revenueThisMonth: Math.round(Number(row.revenue_this_month)),
-          netProfitMonth: Math.round(Number(row.net_profit)),
-          cashAvailable: Math.round(Number(row.cash_balance)),
-        };
-      }
-    } catch {
-      // View doesn't exist yet - fallback to example data
-    }
-
-    // Fallback: hardcoded example
+    const { today, monthStart } = this.dashboardPeriods();
+    const billed = [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.PAID];
+    const [todayAgg, monthAgg, profitRows, receiptsAgg, supplierPaidAgg] = await Promise.all([
+      this.prisma.invoiceHeader.aggregate({
+        _sum: { totalValue: true },
+        where: { shopId: { in: shopIds }, status: { in: billed }, invoiceDate: { gte: today } },
+      }),
+      this.prisma.invoiceHeader.aggregate({
+        _sum: { totalValue: true },
+        where: { shopId: { in: shopIds }, status: { in: billed }, invoiceDate: { gte: monthStart } },
+      }),
+      this.prisma.$queryRaw<Array<{ profit: string | null }>>(Prisma.sql`
+        SELECT COALESCE(SUM(
+          soi.quantity * soi.unit_price
+          - soi.quantity * COALESCE(NULLIF(ss.avg_cost, 0), p.purchase_price, 0)
+        ), 0)::text AS profit
+        FROM sales_order_items soi
+        JOIN sales_order_header soh ON soh.id = soi.so_header_id
+        JOIN products p ON p.id = soi.product_id
+        LEFT JOIN stock_summary ss ON ss.shop_id = soh.shop_id AND ss.product_id = soi.product_id
+        WHERE soh.shop_id = ANY(${shopIds}::uuid[])
+          AND soh.order_date >= ${monthStart}
+          AND soh.status::text NOT IN ('CANCELLED', 'DRAFT')
+      `),
+      this.prisma.paymentReceipt.aggregate({ _sum: { amount: true }, where: { shopId: { in: shopIds } } }),
+      this.prisma.supplierPayment.aggregate({ _sum: { amount: true }, where: { shopId: { in: shopIds } } }),
+    ]);
+    const received = Number(receiptsAgg._sum.amount ?? 0);
+    const paidOut = Number(supplierPaidAgg._sum.amount ?? 0);
     return {
-      revenueToday: 45000,
-      revenueThisMonth: 234000,
-      netProfitMonth: 78000,
-      cashAvailable: 125000,
+      revenueToday: Math.round(Number(todayAgg._sum.totalValue ?? 0)),
+      revenueThisMonth: Math.round(Number(monthAgg._sum.totalValue ?? 0)),
+      netProfitMonth: Math.round(Number(profitRows[0]?.profit ?? 0)),
+      // Money collected from customers less money paid to suppliers.
+      cashAvailable: Math.round(received - paidOut),
     };
   }
 
+  /** Dead stock: on-hand value of products with no outward movement in 90 days. */
   private async fetchInventoryCard(shopIds: string[]) {
-    // Week 4A: Frozen to 4 metrics only
-    try {
-      const result = await this.prisma.$queryRaw<
-        Array<{
-          inventory_value: string;
-          low_stock_count: number;
-          dead_stock_value: string;
-          stock_coverage_days: number;
-        }>
-      >`
-        SELECT
-          COALESCE(inventory_value, 0)::text as inventory_value,
-          COALESCE(low_stock_count, 0)::integer as low_stock_count,
-          COALESCE(dead_stock_value, 0)::text as dead_stock_value,
-          COALESCE(stock_coverage_days, 0)::integer as stock_coverage_days
-        FROM inventory_snapshot
-        WHERE shop_id = ANY(${shopIds}::uuid[])
-        LIMIT 1
-      `;
-
-      if (result.length > 0) {
-        const row = result[0];
-        return {
-          inventoryValue: Math.round(Number(row.inventory_value)),
-          lowStockCount: row.low_stock_count,
-          deadStockValue: Math.round(Number(row.dead_stock_value)),
-          coverageDays: row.stock_coverage_days,
-        };
-      }
-    } catch {
-      // View doesn't exist yet - use aggregation
-    }
-
-    // Fallback: Use existing aggregation function
-    const stockData = await this.aggregateStockValueAndLowCount(shopIds);
+    const stockQty = Prisma.raw(`(${EFFECTIVE_CURRENT_STOCK_SQL})`);
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [stockData, deadRows, outflowRows] = await Promise.all([
+      this.aggregateStockValueAndLowCount(shopIds),
+      this.prisma.$queryRaw<Array<{ dead_value: string | null }>>(Prisma.sql`
+        SELECT COALESCE(SUM(
+          ${stockQty} * COALESCE(NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
+        ), 0)::text AS dead_value
+        FROM product_plants pp
+        JOIN products p ON p.id = pp.product_id AND p.is_active = true
+        LEFT JOIN stock_summary s ON s.shop_id = pp.shop_id AND s.product_id = pp.product_id
+        WHERE pp.is_active = true
+          AND pp.shop_id = ANY(${shopIds}::uuid[])
+          AND ${stockQty} > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM stock_ledger sl
+            WHERE sl.shop_id = pp.shop_id
+              AND sl.product_id = pp.product_id
+              AND sl.out_qty > 0
+              AND sl.transaction_date >= ${since90}
+          )
+      `),
+      this.prisma.$queryRaw<Array<{ out_value: string | null }>>(Prisma.sql`
+        SELECT COALESCE(SUM(
+          sl.out_qty * COALESCE(NULLIF(sl.unit_rate, 0), NULLIF(s.avg_cost, 0), NULLIF(p.purchase_price, 0), 0)
+        ), 0)::text AS out_value
+        FROM stock_ledger sl
+        JOIN products p ON p.id = sl.product_id
+        LEFT JOIN stock_summary s ON s.shop_id = sl.shop_id AND s.product_id = sl.product_id
+        WHERE sl.shop_id = ANY(${shopIds}::uuid[])
+          AND sl.out_qty > 0
+          AND sl.transaction_date >= ${since30}
+      `),
+    ]);
+    const dailyOutflow = Number(outflowRows[0]?.out_value ?? 0) / 30;
     return {
       inventoryValue: stockData.totalStockValue,
       lowStockCount: stockData.lowStockCount,
-      deadStockValue: 120000,
-      coverageDays: 12,
+      deadStockValue: Math.round(Number(deadRows[0]?.dead_value ?? 0)),
+      // Days the current stock value lasts at the last 30 days' outflow rate.
+      coverageDays: dailyOutflow > 0 ? Math.round(stockData.totalStockValue / dailyOutflow) : 0,
     };
   }
 
-  private async fetchAttentionCard(shopIds: string[]) {
-    // Week 4A: Frozen to Problem → Urgency → Action format
-    try {
-      const results = await this.prisma.$queryRaw<
-        Array<{
-          overdue_payments: number;
-          low_stock_alerts: number;
-          pending_approvals: number;
-        }>
-      >`
-        SELECT
-          COALESCE(overdue_payments, 0)::integer as overdue_payments,
-          COALESCE(low_stock_alerts, 0)::integer as low_stock_alerts,
-          COALESCE(pending_approvals, 0)::integer as pending_approvals
-        FROM operations_snapshot
-        WHERE shop_id = ANY(${shopIds}::uuid[])
-        LIMIT 1
-      `;
+  private async fetchAttentionCard(shopIds: string[], companyId: string | null) {
+    const { today } = this.dashboardPeriods();
+    const [overduePayments, stockData, pendingApprovals] = await Promise.all([
+      this.prisma.invoiceHeader.count({
+        where: {
+          shopId: { in: shopIds },
+          status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID] },
+          dueDate: { lt: today },
+        },
+      }),
+      this.aggregateStockValueAndLowCount(shopIds),
+      companyId
+        ? this.prisma.approvalRequest.count({ where: { companyId, status: ApprovalStatus.PENDING } })
+        : Promise.resolve(0),
+    ]);
 
-      if (results.length > 0) {
-        const data = results[0];
-        const attention: Array<{ id: string; severity: 'high' | 'medium' | 'low'; title: string; action: string }> = [];
-
-        if (data.overdue_payments > 0) {
-          attention.push({
-            id: 'overdue_payments',
-            severity: 'high',
-            title: `${data.overdue_payments} Overdue Payments`,
-            action: 'Call customers today',
-          });
-        }
-
-        if (data.low_stock_alerts > 0) {
-          attention.push({
-            id: 'low_stock',
-            severity: 'medium',
-            title: `${data.low_stock_alerts} Items stock finishes soon`,
-            action: 'Reorder now',
-          });
-        }
-
-        if (data.pending_approvals > 0) {
-          attention.push({
-            id: 'pending_approvals',
-            severity: 'low',
-            title: `${data.pending_approvals} Approvals pending`,
-            action: 'Review',
-          });
-        }
-
-        return attention;
-      }
-    } catch {
-      // View doesn't exist yet - fallback
-    }
-
-    // Fallback: hardcoded example
-    return [
-      {
+    const attention: Array<{ id: string; severity: 'high' | 'medium' | 'low'; title: string; action: string }> = [];
+    if (overduePayments > 0) {
+      attention.push({
         id: 'overdue_payments',
         severity: 'high',
-        title: '2 Overdue Payments',
+        title: `${overduePayments} Overdue Payments`,
         action: 'Call customers today',
-      },
-      {
+      });
+    }
+    if (stockData.lowStockCount > 0) {
+      attention.push({
         id: 'low_stock',
         severity: 'medium',
-        title: '3 Items stock finishes soon',
+        title: `${stockData.lowStockCount} Items stock finishes soon`,
         action: 'Reorder now',
-      },
-      {
+      });
+    }
+    if (pendingApprovals > 0) {
+      attention.push({
         id: 'pending_approvals',
         severity: 'low',
-        title: '5 Approvals pending',
+        title: `${pendingApprovals} Approvals pending`,
         action: 'Review',
-      },
-    ];
+      });
+    }
+    return attention;
   }
 
   /**

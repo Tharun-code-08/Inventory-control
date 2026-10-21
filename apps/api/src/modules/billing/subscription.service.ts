@@ -194,7 +194,8 @@ export class SubscriptionService {
     const max = PLAN_LIMITS[limitsKey].maxUsers;
     if (max == null) return;
     const count = await this.prisma.user.count({
-      where: { shop: { companyId } },
+      // Removed users are soft-deleted and must not use up the plan quota.
+      where: { shop: { companyId }, deletedAt: null },
     });
     if (count >= max) {
       throw new ForbiddenException(`Your plan allows up to ${max} users. Upgrade to add more.`);

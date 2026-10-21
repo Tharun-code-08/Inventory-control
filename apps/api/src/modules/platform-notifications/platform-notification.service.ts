@@ -1,4 +1,5 @@
 ﻿import { Injectable, Logger, Optional } from '@nestjs/common';
+import { escapeHtml } from '../../common/pdf/document-pdf.formatters';
 import { ConfigService } from '@nestjs/config';
 import {
   PlatformNotificationCategory,
@@ -125,7 +126,7 @@ export class PlatformNotificationService {
         to,
         subject: args.title,
         text: args.message,
-        html: `<p>${args.message}</p>`,
+        html: `<p>${escapeHtml(args.message)}</p>`,
         fromName: 'SoftdigitIMS Platform',
       });
 
