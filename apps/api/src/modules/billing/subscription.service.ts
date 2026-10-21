@@ -249,7 +249,7 @@ export class SubscriptionService {
     await this.prisma.$transaction(async (tx) => {
       const company = await tx.company.findUnique({
         where: { id: args.companyId },
-        select: { subscriptionPlan: true },
+        select: { subscriptionPlan: true, subscriptionEndsAt: true },
       });
       if (!company) {
         throw new NotFoundException('Company not found');
@@ -266,7 +266,11 @@ export class SubscriptionService {
           billingCycle: args.billingCycle,
           subscriptionStatus: SubscriptionStatus.ACTIVE,
           trialEndsAt: null,
-          subscriptionEndsAt: subscriptionEndDate(args.plan, args.billingCycle, now),
+          subscriptionEndsAt: subscriptionEndDate(
+            args.plan,
+            args.billingCycle,
+            renewalStart(company.subscriptionPlan, args.plan, company.subscriptionEndsAt, now),
+          ),
         },
       });
       const { count } = await tx.subscriptionPayment.updateMany({
@@ -309,6 +313,10 @@ export class SubscriptionService {
     }
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
+      const current = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { subscriptionPlan: true, subscriptionEndsAt: true },
+      });
       await tx.company.update({
         where: { id: companyId },
         data: {
@@ -316,7 +324,11 @@ export class SubscriptionService {
           billingCycle: payment.billingCycle,
           subscriptionStatus: SubscriptionStatus.ACTIVE,
           trialEndsAt: null,
-          subscriptionEndsAt: subscriptionEndDate(payment.plan, payment.billingCycle, now),
+          subscriptionEndsAt: subscriptionEndDate(
+            payment.plan,
+            payment.billingCycle,
+            renewalStart(current?.subscriptionPlan, payment.plan, current?.subscriptionEndsAt, now),
+          ),
         },
       });
       await tx.subscriptionPayment.update({
@@ -325,4 +337,18 @@ export class SubscriptionService {
       });
     });
   }
+}
+
+/**
+ * Renewing the same plan before it lapses adds the new period after the time
+ * already paid for; a new plan (or a lapsed one) starts now.
+ */
+function renewalStart(
+  currentPlan: SubscriptionPlan | null | undefined,
+  newPlan: SubscriptionPlan,
+  currentEndsAt: Date | null | undefined,
+  now: Date,
+): Date {
+  if (currentPlan === newPlan && currentEndsAt && currentEndsAt > now) return currentEndsAt;
+  return now;
 }
