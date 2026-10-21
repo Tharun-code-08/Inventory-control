@@ -50,33 +50,6 @@ function PlanStat({
 }
 
 type PendingPayment = { orderId: string; paymentId: string; signature: string };
-const PENDING_PAYMENT_KEY = 'pending-upgrade-payment';
-
-function savePendingPayment(payment: PendingPayment) {
-  try {
-    window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(payment));
-  } catch {
-    // Storage unavailable: the in-page retries still run.
-  }
-}
-
-function loadPendingPayment(): PendingPayment | null {
-  try {
-    const raw = window.localStorage.getItem(PENDING_PAYMENT_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Partial<PendingPayment>) : null;
-    return parsed?.orderId && parsed.paymentId && parsed.signature ? (parsed as PendingPayment) : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearPendingPayment() {
-  try {
-    window.localStorage.removeItem(PENDING_PAYMENT_KEY);
-  } catch {
-    // ignore
-  }
-}
 
 export function UpgradePage() {
   const queryClient = useQueryClient();
@@ -104,10 +77,8 @@ export function UpgradePage() {
   }, [searchParams, setSearchParams]);
 
   async function handlePaidUpgrade(payload: PendingPayment) {
-    // Remember the paid order until it is applied: if this request fails
-    // (network, 5xx) the money is taken but the plan is not, so the page
-    // retries it now and again on its next load.
-    savePendingPayment(payload);
+    // The money is already taken at this point, so a transient failure
+    // (network, 5xx) is retried; the API treats a repeat as success.
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -116,7 +87,6 @@ export function UpgradePage() {
           razorpay_payment_id: payload.paymentId,
           razorpay_signature: payload.signature,
         });
-        clearPendingPayment();
         await queryClient.invalidateQueries({ queryKey: ['billing'] });
         return;
       } catch (err) {
@@ -128,23 +98,10 @@ export function UpgradePage() {
       }
     }
     throw new Error(
-      `${getApiErrorMessage(lastError, 'Upgrade failed')}. Your payment is safe — we will retry applying it when you reopen this page, or contact support with payment ${payload.paymentId}.`,
+      `${getApiErrorMessage(lastError, 'Upgrade failed')}. Your payment is safe — contact support with payment ${payload.paymentId} and we will apply it.`,
     );
   }
 
-  useEffect(() => {
-    const pending = loadPendingPayment();
-    if (!pending) return;
-    void (async () => {
-      try {
-        await handlePaidUpgrade(pending);
-        toast.success('Your earlier payment has been applied. Plan upgraded.');
-      } catch {
-        // Keep it stored; the message on the next attempt explains what to do.
-      }
-    })();
-    // Runs once on mount.
-  }, []);
 
   async function handleDownloadInvoice(invoiceId: string, invoiceNumber: string) {
     try {
