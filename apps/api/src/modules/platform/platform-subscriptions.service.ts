@@ -35,8 +35,9 @@ export class PlatformSubscriptionsService {
         createdAt: true,
         paidActivatedAt: true,
       },
+      // Every active company: KPIs (MRR, paid, churn) must not drop the oldest
+      // customers. Only a handful of columns are selected per row.
       orderBy: { createdAt: 'desc' },
-      take: 500,
     });
 
     // Single pass over companies to derive all partitions — avoids 6+ O(n) filter passes.
@@ -66,15 +67,22 @@ export class PlatformSubscriptionsService {
       if (c.subscriptionStatus === SubscriptionStatus.EXPIRED) churnExpired++;
     }
 
-    const conversions = await this.prisma.subscriptionPayment.count({
+    // A conversion is a company's first paid activation; renewals and upgrades
+    // of existing customers don't count.
+    const firstPaid = await this.prisma.subscriptionPayment.groupBy({
+      by: ['companyId'],
       where: {
         status: 'paid',
-        consumedAt: { gte: thirtyDays },
+        companyId: { not: null },
+        consumedAt: { not: null },
         plan: { in: [SubscriptionPlan.PRO, SubscriptionPlan.PLUS] },
       },
+      _min: { consumedAt: true },
     });
+    const conversions = firstPaid.filter((r) => r._min.consumedAt && r._min.consumedAt >= thirtyDays).length;
 
-    const conversionRate = trialStarts30d > 0 ? Math.round((100 * conversions) / trialStarts30d) : 0;
+    const conversionRate =
+      trialStarts30d > 0 ? Math.min(100, Math.round((100 * conversions) / trialStarts30d)) : 0;
 
     const mrr = paid.reduce((sum, c) => sum + mrrForCompany(c.subscriptionPlan, c.billingCycle), 0);
 

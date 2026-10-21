@@ -33,14 +33,18 @@ export class PlatformHealthService {
     private readonly notifications: PlatformNotificationService,
   ) {}
 
-  async collectSnapshot() {
+  /**
+   * `advanceErrorBaseline` is only set by the scheduled health check: viewing
+   * the health page must not consume the 5-minute error delta it alerts on.
+   */
+  async collectSnapshot(options: { advanceErrorBaseline?: boolean } = {}) {
     const [dbSize, diskPaths, queueStats, cpuLoad, memoryPct, httpErrors] = await Promise.all([
       this.getDatabaseSizeBytes(),
       this.getDiskUsage(),
       this.getQueueStats(),
       this.getCpuLoadPct(),
       this.getMemoryUsagePct(),
-      this.getHttpErrorDelta(),
+      this.getHttpErrorDelta(options.advanceErrorBaseline === true),
     ]);
 
     const dbLimit = Number(
@@ -129,16 +133,16 @@ export class PlatformHealthService {
     return total > 0 ? (used / total) * 100 : 0;
   }
 
-  private async getHttpErrorDelta() {
+  private async getHttpErrorDelta(advanceBaseline: boolean) {
     const metric = await this.metrics.httpErrors.get();
     const total = metric.values.reduce((sum, row) => sum + row.value, 0);
     const delta = Math.max(0, total - this.lastHttpErrorTotal);
-    this.lastHttpErrorTotal = total;
+    if (advanceBaseline) this.lastHttpErrorTotal = total;
     return delta;
   }
 
   async runHealthChecks() {
-    const snapshot = await this.collectSnapshot();
+    const snapshot = await this.collectSnapshot({ advanceErrorBaseline: true });
     let dispatched = 0;
 
     if (snapshot.database.usagePct >= 90) {

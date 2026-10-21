@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+import { BillingCycle, Prisma, SubscriptionPlan } from '@prisma/client';
 import { orderAmountPaise, type BillingInterval, type PlanId } from '../../common/plans/plan-config';
 import {
   buildSubscriptionInvoicePdfHtml,
@@ -14,11 +14,14 @@ export class SubscriptionInvoiceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async nextInvoiceNumber(issuedAt = new Date()): Promise<string> {
+  async nextInvoiceNumber(
+    issuedAt = new Date(),
+    db: Pick<Prisma.TransactionClient, 'subscriptionInvoice'> = this.prisma,
+  ): Promise<string> {
     const y = issuedAt.getFullYear();
     const m = String(issuedAt.getMonth() + 1).padStart(2, '0');
     const prefix = `SINV-${y}${m}-`;
-    const last = await this.prisma.subscriptionInvoice.findFirst({
+    const last = await db.subscriptionInvoice.findFirst({
       where: { invoiceNumber: { startsWith: prefix } },
       orderBy: { invoiceNumber: 'desc' },
       select: { invoiceNumber: true },
@@ -36,13 +39,35 @@ export class SubscriptionInvoiceService {
     paymentId?: string;
     billingAddress?: { companyName?: string; address?: string; gstNumber?: string };
     issuedAt?: Date;
+    /** Legacy backfill: only create when the company has no invoice yet. */
+    onlyIfNone?: boolean;
   }) {
     const taxPaise = args.taxPaise ?? 0;
     const totalPaise = args.amountPaise + taxPaise;
     const issuedAt = args.issuedAt ?? new Date();
-    const invoiceNumber = await this.nextInvoiceNumber(issuedAt);
 
     return this.prisma.$transaction(async (tx) => {
+      // One invoice per payment: the activation hook and the list backfill can
+      // both try to invoice the same payment at once.
+      if (args.paymentId) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sinv-pay:${args.paymentId}`}::text))`;
+        const payment = await tx.subscriptionPayment.findUnique({
+          where: { id: args.paymentId },
+          select: { invoiceId: true },
+        });
+        if (payment?.invoiceId) {
+          const existing = await tx.subscriptionInvoice.findUnique({ where: { id: payment.invoiceId } });
+          if (existing) return existing;
+        }
+      }
+      if (args.onlyIfNone) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sinv-legacy:${args.companyId}`}::text))`;
+        const first = await tx.subscriptionInvoice.findFirst({ where: { companyId: args.companyId } });
+        if (first) return first;
+      }
+      // Serialise numbering so concurrent invoices don't take the same number.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('sinv-number'))`;
+      const invoiceNumber = await this.nextInvoiceNumber(issuedAt, tx);
       const invoice = await tx.subscriptionInvoice.create({
         data: {
           invoiceNumber,
@@ -133,6 +158,7 @@ export class SubscriptionInvoiceService {
           amountPaise,
           billingAddress,
           issuedAt,
+          onlyIfNone: true,
         });
         created += 1;
         this.logger.log(`Backfilled legacy subscription invoice for company ${companyId}`);

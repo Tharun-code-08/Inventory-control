@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import {
   DocumentEmailStatus,
   DocumentStatus,
@@ -12,6 +12,9 @@ import { assertShopScope, requireCompanyId, shopIdsForUser, shopListWhere } from
 import { SubscriptionService } from '../billing/subscription.service';
 import { StockService } from '../stock/stock.service';
 import { effectiveCurrentStockExpr } from '../stock/effective-current-stock';
+
+/** Upper bound on rows a single register request loads into memory. */
+const REGISTER_ROW_LIMIT = 5000;
 
 @Injectable()
 export class ReportsService {
@@ -87,6 +90,7 @@ export class ReportsService {
         shop: { select: { id: true } },
       },
       orderBy: [{ product: { productCode: 'asc' } }, { shopId: 'asc' }],
+      take: REGISTER_ROW_LIMIT,
     });
 
     const productIds = [...new Set(assignments.map((a) => a.productId))];
@@ -954,6 +958,7 @@ COALESCE(
       where: { shop: shopWhere, ...(shop_id ? { shopId: shop_id } : {}) },
       orderBy: { damageDate: 'desc' },
       include: { product: true, shop: true },
+      take: REGISTER_ROW_LIMIT,
     });
   }
 
@@ -999,6 +1004,7 @@ COALESCE(
       },
       orderBy: { grDate: 'desc' },
       include: { shop: true, items: true },
+      take: REGISTER_ROW_LIMIT,
     });
   }
 
@@ -1014,6 +1020,7 @@ COALESCE(
       },
       orderBy: { giDate: 'desc' },
       include: { shop: true, items: true },
+      take: REGISTER_ROW_LIMIT,
     });
   }
 
@@ -1052,11 +1059,14 @@ COALESCE(
         ...((validatedProductShopId ?? scopedShopId) ? { shopId: validatedProductShopId ?? scopedShopId } : {}),
         transactionDate: { gte: from, lte: to },
       },
-      orderBy: { transactionDate: 'asc' },
+      // Newest rows win when the range exceeds the cap; shown oldest first.
+      orderBy: [{ transactionDate: 'desc' }, { createdAt: 'desc' }],
       include: {
         product: { select: { productCode: true, description: true } },
       },
+      take: REGISTER_ROW_LIMIT,
     });
+    rows.reverse();
     return rows.map((row) => ({
       id: row.id,
       transaction_date: row.transactionDate,
@@ -1171,17 +1181,20 @@ COALESCE(
     `;
 
     const [totalRows, rows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
-        SELECT COUNT(*)::bigint as count
+      this.prisma.$queryRaw<[{ count: bigint; total_qty: Prisma.Decimal | null; total_value: Prisma.Decimal | null }]>(Prisma.sql`
+        SELECT
+          COUNT(*)::bigint as count,
+          SUM(COALESCE(ss.current_stock, 0))::numeric as total_qty,
+          SUM(COALESCE(ss.current_stock, 0) * COALESCE(ss.avg_cost, p.purchase_price, 0))::numeric as total_value
         FROM products p
         JOIN product_plants pp ON pp.product_id = p.id
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = p.id
         LEFT JOIN (
-          SELECT product_id, MAX(created_at) as last_sale_date
+          SELECT shop_id, product_id, MAX(created_at) as last_sale_date
           FROM stock_ledger
-          WHERE transaction_type = 'GOODS_ISSUE'
-          GROUP BY product_id
-        ) sl ON sl.product_id = p.id
+          WHERE transaction_type = 'GOODS_ISSUE' AND shop_id = ANY(${shopArray})
+          GROUP BY shop_id, product_id
+        ) sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
         LEFT JOIN LATERAL (
           SELECT grh.supplier_name AS name
           FROM goods_receipt_items gri
@@ -1221,11 +1234,11 @@ COALESCE(
         JOIN product_plants pp ON pp.product_id = p.id
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = p.id
         LEFT JOIN (
-          SELECT product_id, MAX(created_at) as last_sale_date
+          SELECT shop_id, product_id, MAX(created_at) as last_sale_date
           FROM stock_ledger
-          WHERE transaction_type = 'GOODS_ISSUE'
-          GROUP BY product_id
-        ) sl ON sl.product_id = p.id
+          WHERE transaction_type = 'GOODS_ISSUE' AND shop_id = ANY(${shopArray})
+          GROUP BY shop_id, product_id
+        ) sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
         LEFT JOIN LATERAL (
           SELECT grh.supplier_name AS name
           FROM goods_receipt_items gri
@@ -1242,12 +1255,13 @@ COALESCE(
     ]);
 
     const totalCount = Number(totalRows[0]?.count ?? 0);
-    const totalDeadValue = rows.reduce((sum, r) => sum + Number(r.stock_value ?? 0), 0);
+    // Totals cover every matching row, not just this page.
+    const totalDeadValue = Number(totalRows[0]?.total_value ?? 0);
 
     return {
       summary: {
         totalDeadItems: totalCount,
-        totalDeadQty: rows.reduce((sum, r) => sum + Number(r.current_stock ?? 0), 0),
+        totalDeadQty: Number(totalRows[0]?.total_qty ?? 0),
         totalDeadValue,
         theme: totalDeadValue > 1000000 ? 'Critical' : totalDeadValue > 500000 ? 'High' : 'Medium',
       },
@@ -1298,20 +1312,67 @@ COALESCE(
     const now = new Date();
     const dateFrom = filters.date_from ? new Date(filters.date_from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const dateTo = filters.date_to ? new Date(filters.date_to) : now;
+    if (Number.isNaN(dateFrom.getTime()) || Number.isNaN(dateTo.getTime()) || dateFrom > dateTo) {
+      throw new BadRequestException('Invalid date range');
+    }
 
     const page = Math.max(filters.page ?? 1, 1);
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
     const sortBy = filters.sort_by ?? 'urgency';
 
-    const [totalRows, rows] = await Promise.all([
-      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
-        SELECT COUNT(*)::bigint as count
+    // Demand rates are per day of the selected range, not a fixed 30 days.
+    const periodDays = Math.max(1, Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000)));
+    const reorderSql = Prisma.sql`
+        WITH sales_data AS (
+          SELECT
+            pp.product_id,
+            COALESCE(SUM(CASE WHEN sl.transaction_type = 'GOODS_ISSUE' AND sl.transaction_date >= ${dateFrom} AND sl.transaction_date <= ${dateTo} THEN sl.out_qty ELSE 0 END), 0)::numeric as sales_qty
+          FROM product_plants pp
+          JOIN products p ON p.id = pp.product_id AND p.is_active = true
+          LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
+          WHERE pp.shop_id = ${filters.shop_id}::uuid
+          AND pp.is_active = true
+          ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+          GROUP BY pp.product_id
+        )
+        SELECT
+          p.id as product_id,
+          p.product_code,
+          p.description,
+          p.category,
+          COALESCE(ss.current_stock, 0)::numeric as current_stock,
+          COALESCE(pp.min_stock_level, 0)::numeric as min_stock_level,
+          COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as avg_cost,
+          COALESCE(sd.sales_qty, 0)::float8 as sales_last_30,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
+            ELSE ROUND(COALESCE(sd.sales_qty, 0) / ${periodDays}, 2)
+          END::float8 as avg_sales_per_day,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 999
+            ELSE (COALESCE(ss.current_stock, 0) / (COALESCE(sd.sales_qty, 0) / ${periodDays}))::int
+          END as days_remaining,
+          CASE
+            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
+            ELSE GREATEST(
+              (COALESCE(sd.sales_qty, 0) / ${periodDays} * (7 + 30))::int - COALESCE(ss.current_stock, 0)::int,
+              COALESCE(pp.min_stock_level, 0)::int - COALESCE(ss.current_stock, 0)::int
+            )
+          END as suggested_order_qty,
+          7::int as lead_time_days,
+          (SELECT MAX(transaction_date) FROM stock_ledger WHERE product_id = p.id AND shop_id = pp.shop_id AND transaction_type = 'GOODS_RECEIPT') as last_restock_date
         FROM product_plants pp
         JOIN products p ON p.id = pp.product_id AND p.is_active = true
         LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
+        LEFT JOIN sales_data sd ON sd.product_id = p.id
         WHERE pp.shop_id = ${filters.shop_id}::uuid
         AND pp.is_active = true
         ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+    `;
+
+    const [totalRows, rows, bucketRows] = await Promise.all([
+      this.prisma.$queryRaw<[{ count: bigint }]>(Prisma.sql`
+        SELECT COUNT(*)::bigint as count FROM (${reorderSql}) r
       `),
       this.prisma.$queryRaw<
         Array<{
@@ -1330,51 +1391,7 @@ COALESCE(
           last_restock_date: Date | null;
         }>
       >(Prisma.sql`
-        WITH sales_data AS (
-          SELECT
-            pp.product_id,
-            COALESCE(SUM(CASE WHEN sl.transaction_type = 'GOODS_ISSUE' AND sl.transaction_date >= ${dateFrom} AND sl.transaction_date <= ${dateTo} THEN sl.out_qty ELSE 0 END), 0)::int as sales_qty
-          FROM product_plants pp
-          JOIN products p ON p.id = pp.product_id AND p.is_active = true
-          LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.shop_id = pp.shop_id
-          WHERE pp.shop_id = ${filters.shop_id}::uuid
-          AND pp.is_active = true
-          ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
-          GROUP BY pp.product_id
-        )
-        SELECT
-          p.id as product_id,
-          p.product_code,
-          p.description,
-          p.category,
-          COALESCE(ss.current_stock, 0)::numeric as current_stock,
-          COALESCE(pp.min_stock_level, 0)::numeric as min_stock_level,
-          COALESCE(ss.avg_cost, p.purchase_price, 0)::numeric as avg_cost,
-          COALESCE(sd.sales_qty, 0) as sales_last_30,
-          CASE
-            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
-            ELSE COALESCE(sd.sales_qty, 0)::numeric / 30
-          END::int as avg_sales_per_day,
-          CASE
-            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 999
-            ELSE (COALESCE(ss.current_stock, 0) / (COALESCE(sd.sales_qty, 0)::numeric / 30))::int
-          END as days_remaining,
-          CASE
-            WHEN COALESCE(sd.sales_qty, 0) = 0 THEN 0
-            ELSE GREATEST(
-              (COALESCE(sd.sales_qty, 0)::numeric / 30 * (7 + 30))::int - COALESCE(ss.current_stock, 0)::int,
-              COALESCE(pp.min_stock_level, 0)::int - COALESCE(ss.current_stock, 0)::int
-            )
-          END as suggested_order_qty,
-          7::int as lead_time_days,
-          (SELECT MAX(transaction_date) FROM stock_ledger WHERE product_id = p.id AND shop_id = pp.shop_id AND transaction_type = 'GOODS_RECEIPT') as last_restock_date
-        FROM product_plants pp
-        JOIN products p ON p.id = pp.product_id AND p.is_active = true
-        LEFT JOIN stock_summary ss ON ss.shop_id = pp.shop_id AND ss.product_id = pp.product_id
-        LEFT JOIN sales_data sd ON sd.product_id = p.id
-        WHERE pp.shop_id = ${filters.shop_id}::uuid
-        AND pp.is_active = true
-        ${filters.category ? Prisma.sql`AND p.category = ${filters.category}` : Prisma.empty}
+        SELECT * FROM (${reorderSql}) r
         ORDER BY ${
           sortBy === 'daysLeft'
             ? Prisma.sql`days_remaining ASC`
@@ -1390,22 +1407,31 @@ COALESCE(
         OFFSET ${(page - 1) * limit}
         LIMIT ${limit}
       `),
+      this.prisma.$queryRaw<Array<{ bucket: string; count: bigint; order_qty: bigint | null }>>(Prisma.sql`
+        SELECT
+          CASE WHEN days_remaining < 7 THEN 'urgent' WHEN days_remaining < 14 THEN 'warning' ELSE 'normal' END AS bucket,
+          COUNT(*)::bigint AS count,
+          SUM(GREATEST(suggested_order_qty, 0))::bigint AS order_qty
+        FROM (${reorderSql}) r
+        GROUP BY 1
+      `),
     ]);
 
     const totalCount = Number(totalRows[0]?.count ?? 0);
 
+    const bucket = (name: string) => {
+      const row = bucketRows.find((r) => r.bucket === name);
+      return { count: Number(row?.count ?? 0), totalOrderQty: Number(row?.order_qty ?? 0) };
+    };
     const summary = {
       totalProducts: totalCount,
-      urgent: { count: 0, totalOrderQty: 0 },
-      warning: { count: 0, totalOrderQty: 0 },
-      normal: { count: 0, totalOrderQty: 0 },
+      urgent: bucket('urgent'),
+      warning: bucket('warning'),
+      normal: bucket('normal'),
     };
 
     return {
-      summary: {
-        ...summary,
-        // Will be calculated from items
-      },
+      summary,
       items: rows.map((r) => {
         const avgSalesPerDay = r.avg_sales_per_day;
         const daysRemaining = r.days_remaining;
