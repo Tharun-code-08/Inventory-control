@@ -68,6 +68,7 @@ import type { GstSupplyType } from '@/lib/gst-supply-type';
 import {
   computeSalesLineGst,
   convertLinePercentsForSupplyType,
+  productGstRateToLinePercents,
   splitTaxRateToPercents,
   validateLineGst,
 } from '@/lib/sales-order-gst';
@@ -342,7 +343,9 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
     setSelectedCustomer(null);
   };
 
-  const activeShop = shops.find((s) => s.id === resolvedShopId);
+  // An order being edited is taxed from its own plant, not the user's home plant.
+  const activeShopId = editingId && editingOrder?.shopId ? editingOrder.shopId : resolvedShopId;
+  const activeShop = shops.find((s) => s.id === activeShopId);
 
   const gstSupplyType: GstSupplyType = useMemo(() => {
     const customer = selectedCustomer ?? customers.find((c) => c.id === form.customerId);
@@ -425,11 +428,25 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
     else toast.error('No sales orders to export');
   };
 
+  const lineGstPercents = (gstRate: number | string | null | undefined, supplyType: GstSupplyType) => {
+    const percents = productGstRateToLinePercents(Number(gstRate ?? 0), supplyType);
+    return {
+      cgstPercent: String(percents.cgstPercent),
+      sgstPercent: String(percents.sgstPercent),
+      igstPercent: String(percents.igstPercent),
+    };
+  };
+
   const applyQuotation = (quoteId: string) => {
     const quote = quotations.find((q) => q.id === quoteId);
     if (!quote?.items?.length) return;
     const customer = customers.find((c) => c.id === quote.customerId);
     setSelectedCustomer(customer ?? null);
+    // Each line takes its product's GST rate, split for this customer's supply type.
+    const quoteSupplyType = resolveGstSupplyType({
+      shopTaxId: activeShop?.taxId,
+      customerTaxId: customer?.taxId,
+    });
     setForm((prev) => ({
       ...prev,
       quotationId: quoteId,
@@ -443,9 +460,8 @@ export function SalesPage({ createOnly = false }: { createOnly?: boolean }) {
         quantity: String(line.quantity),
         unitPrice: String(line.unitPrice),
         uom: line.uom ?? 'pcs',
-        cgstPercent: '9',
-        sgstPercent: '9',
-        igstPercent: '18',
+        // Unknown rate (product not loaded or not set): keep the standard 18%.
+        ...lineGstPercents(products.find((p) => p.id === line.productId)?.gstRate ?? 18, quoteSupplyType),
       })),
     }));
   };

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -301,10 +302,19 @@ export class BackupService {
       throw new BadRequestException('Invalid restore confirmation token');
     }
 
-    await this.prisma.restoreJob.update({
-      where: { id: restoreJob.id },
+    if ((restoreJob.dryRunReport as { canApply?: boolean } | null)?.canApply === false) {
+      throw new BadRequestException('The dry-run found problems; this backup cannot be applied');
+    }
+
+    // Claim the job atomically: a second (double-clicked or concurrent) apply
+    // finds it no longer DRY_RUN_COMPLETED and stops here.
+    const claimed = await this.prisma.restoreJob.updateMany({
+      where: { id: restoreJob.id, status: RestoreJobStatus.DRY_RUN_COMPLETED },
       data: { status: RestoreJobStatus.RUNNING, startedAt: new Date() },
     });
+    if (claimed.count === 0) {
+      throw new ConflictException('This restore is already running or finished');
+    }
 
     const startedAt = Date.now();
     try {

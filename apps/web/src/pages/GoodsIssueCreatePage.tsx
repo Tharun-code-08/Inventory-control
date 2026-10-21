@@ -96,9 +96,8 @@ export function GoodsIssueCreatePage() {
   const locations = locationsQuery.data ?? [];
   const salesOrdersQuery = useSalesOrders();
   const filteredSalesOrders = useMemo(() => {
-    const rows = (salesOrdersQuery.data ?? []).filter((so) =>
-      ['CONFIRMED', 'FULFILLED'].includes(so.status),
-    );
+    // A fulfilled order has nothing left to ship.
+    const rows = (salesOrdersQuery.data ?? []).filter((so) => so.status === 'CONFIRMED');
     return shopId ? rows.filter((so) => so.shopId === shopId) : rows;
   }, [salesOrdersQuery.data, shopId]);
   const salesOrderQuery = useSalesOrder(salesOrderId, issueType === 'Sales Order' && !!salesOrderId);
@@ -150,7 +149,8 @@ export function GoodsIssueCreatePage() {
         productLabel: code ? `${code} — ${desc}` : desc || item.productId,
         soQty: qty,
         batch: '',
-        issueQty: String(remaining > 0 ? remaining : qty),
+        // Only what is still unshipped; a fully shipped line defaults to 0.
+        issueQty: String(remaining),
         uom: item.uom || 'pcs',
       };
     });

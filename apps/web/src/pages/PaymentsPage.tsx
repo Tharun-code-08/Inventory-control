@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/authStore';
 import { hasPermission } from '@/lib/permissions';
 import { csvDate, csvMoney, exportModuleCsv } from '@/lib/module-csv';
 import { formatInvoiceOption } from '@/lib/document-display';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
   const navigate = useNavigate();
@@ -31,20 +32,37 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
   const paidValue = Number(selectedInvoice?.paidValue ?? 0);
   const openBalance = Math.max(totalValue - paidValue, 0);
 
+  // One key per payment being entered: a retry after a timeout or a double
+  // click replays the same payment instead of recording it twice.
+  const idempotencyKeyRef = useRef<string | null>(null);
+
   const onCreate = async () => {
-    if (!form.invoiceId) return;
-    await createPayment.mutateAsync({
-      invoiceId: form.invoiceId,
-      amount: Number(form.amount),
-      method: form.method || undefined,
-      reference: form.reference || undefined,
-      remarks: form.remarks || undefined,
-      idempotencyKey:
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `pay-${Date.now()}`,
-    });
-    setForm({ invoiceId: '', amount: '0', method: '', reference: '', remarks: '' });
+    if (!form.invoiceId || createPayment.isPending) return;
+    idempotencyKeyRef.current ??=
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `pay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      await createPayment.mutateAsync({
+        invoiceId: form.invoiceId,
+        amount: Number(form.amount),
+        method: form.method || undefined,
+        reference: form.reference || undefined,
+        remarks: form.remarks || undefined,
+        idempotencyKey: idempotencyKeyRef.current,
+      });
+      idempotencyKeyRef.current = null;
+      setForm({ invoiceId: '', amount: '0', method: '', reference: '', remarks: '' });
+      toast.success('Payment recorded');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Failed to record payment'));
+    }
+  };
+
+  const updateForm = (patch: Partial<typeof form>) => {
+    // A different payment needs a different key.
+    idempotencyKeyRef.current = null;
+    setForm((prev) => ({ ...prev, ...patch }));
   };
 
   const today = new Date();
@@ -122,13 +140,13 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
               <DocumentReferenceSelect
                 items={invoices}
                 value={form.invoiceId}
-                onValueChange={(invoiceId) => setForm((p) => ({ ...p, invoiceId }))}
+                onValueChange={(invoiceId) => updateForm({ invoiceId })}
                 getValue={(invoice) => invoice.id}
                 getLabel={(invoice) => formatInvoiceOption(invoice)}
                 placeholder="Select invoice"
               />
             </div>
-            <div className="space-y-2"><Label>Amount</Label><Input type="number" min="0.01" max={openBalance || undefined} value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Amount</Label><Input type="number" min="0.01" max={openBalance || undefined} value={form.amount} onChange={(e) => updateForm({ amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>Method</Label><Input value={form.method} onChange={(e) => setForm((p) => ({ ...p, method: e.target.value }))} placeholder="Bank Transfer / Cash / UPI" /></div>
             <div className="space-y-2"><Label>Reference</Label><Input value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} /></div>
             <div className="space-y-2 md:col-span-2"><Label>Remarks</Label><Input value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} /></div>
@@ -137,8 +155,8 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
               {selectedInvoice?.dueDate ? <p className="text-xs text-muted-foreground">Due: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p> : null}
             </div>
             <div className="md:col-span-2">
-              <Button onClick={onCreate} className="premium-button border-0 text-white" disabled={!canCreatePayment}>
-                Record Payment
+              <Button onClick={onCreate} className="premium-button border-0 text-white" disabled={!canCreatePayment || createPayment.isPending}>
+                {createPayment.isPending ? 'Recording…' : 'Record Payment'}
               </Button>
             </div>
           </CardContent>

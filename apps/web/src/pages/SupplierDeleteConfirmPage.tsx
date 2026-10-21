@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
 import { portalGet } from '@/lib/portal-api';
@@ -14,35 +14,25 @@ type ConfirmResult = {
 export function SupplierDeleteConfirmPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
+  const [state, setState] = useState<'confirm' | 'loading' | 'success' | 'error'>(
+    token ? 'confirm' : 'error',
+  );
   const [result, setResult] = useState<ConfirmResult | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(token ? '' : 'Missing confirmation token.');
 
-  useEffect(() => {
-    if (!token) {
+  // Deletion runs only on an explicit click: mail scanners and link previews
+  // that open the page must not delete the supplier.
+  const confirmDeletion = async () => {
+    setState('loading');
+    try {
+      const data = await portalGet<ConfirmResult>('/suppliers/confirm-deletion', { token });
+      setResult(data);
+      setState('success');
+    } catch (e) {
       setState('error');
-      setError('Missing confirmation token.');
-      return;
+      setError(e instanceof Error ? e.message : 'Confirmation failed');
     }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await portalGet<ConfirmResult>('/suppliers/confirm-deletion', { token });
-        if (cancelled) return;
-        setResult(data);
-        setState('success');
-      } catch (e) {
-        if (cancelled) return;
-        setState('error');
-        setError(e instanceof Error ? e.message : 'Confirmation failed');
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  };
 
   return (
     <div className="min-h-screen bg-muted">
@@ -55,6 +45,23 @@ export function SupplierDeleteConfirmPage() {
 
       <main className="mx-auto max-w-md px-4 py-12">
         <div className="rounded-xl border border-border bg-card p-8 shadow-xs text-center">
+          {state === 'confirm' && (
+            <>
+              <ShieldAlert className="mx-auto mb-4 h-14 w-14 text-amber-600 dark:text-amber-400" />
+              <h1 className="text-xl font-semibold text-foreground">Delete this supplier?</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                This permanently removes the supplier. It cannot be undone.
+              </p>
+              <button
+                type="button"
+                onClick={confirmDeletion}
+                className="mt-6 inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Confirm deletion
+              </button>
+            </>
+          )}
+
           {state === 'loading' && (
             <>
               <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-slate-200" />

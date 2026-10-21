@@ -141,6 +141,7 @@ export function SalesOrderDetailPage() {
     try {
       await createInvoice.mutateAsync({
         salesOrderId: order.id,
+        shopId: order.shopId,
         customerId: order.customerId,
         totalValue: grandTotal,
         remarks: `Invoice for ${order.soNumber}`,
