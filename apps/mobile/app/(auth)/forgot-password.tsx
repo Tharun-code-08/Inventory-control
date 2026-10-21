@@ -27,10 +27,10 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     try {
-      await api.post('/auth/forgot-password', { email: email.trim() });
+      await api.post('/auth/password-reset/request', { email: email.trim(), method: 'otp' });
       Alert.alert(
         'Check your email',
-        'If an account exists with this email, you will receive a password reset link.'
+        'If an account exists with this email, you will receive a 6-digit reset code.'
       );
       setStep('reset');
     } catch (err) {
@@ -41,8 +41,8 @@ export default function ForgotPasswordScreen() {
   }
 
   async function onResetPassword() {
-    if (!resetToken.trim()) {
-      Alert.alert('Token required', 'Enter the token from the reset email.');
+    if (!/^\d{6}$/.test(resetToken.trim())) {
+      Alert.alert('Code required', 'Enter the 6-digit code from the reset email.');
       return;
     }
     if (!newPassword || !confirmPassword) {
@@ -53,14 +53,19 @@ export default function ForgotPasswordScreen() {
       Alert.alert('Passwords do not match', 'Please try again.');
       return;
     }
-    if (newPassword.length < 8) {
-      Alert.alert('Password too short', 'Password must be at least 8 characters.');
+    // Same rules as the API: 10+ characters with a letter, a number and a symbol.
+    if (newPassword.length < 10 || !/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/.test(newPassword)) {
+      Alert.alert(
+        'Password too weak',
+        'Use at least 10 characters, including a letter, a number and a symbol.',
+      );
       return;
     }
     setLoading(true);
     try {
-      await api.post('/auth/reset-password', {
-        token: resetToken.trim(),
+      await api.post('/auth/password-reset/otp/complete', {
+        email: email.trim(),
+        otp: resetToken.trim(),
         newPassword,
       });
       setStep('success');
@@ -89,7 +94,7 @@ export default function ForgotPasswordScreen() {
                 Reset Password
               </Text>
               <Muted style={{ textAlign: 'center', marginBottom: spacing.lg }}>
-                Enter your email to receive a password reset link.
+                Enter your email to receive a 6-digit reset code.
               </Muted>
               <Input
                 autoCapitalize="none"
@@ -102,7 +107,7 @@ export default function ForgotPasswordScreen() {
                 onChangeText={setEmail}
                 onSubmitEditing={onRequestReset}
               />
-              <Button label="Send reset link" onPress={onRequestReset} loading={loading} />
+              <Button label="Send reset code" onPress={onRequestReset} loading={loading} />
               <Button label="Back to login" variant="secondary" onPress={onBackToLogin} />
             </>
           )}
@@ -116,7 +121,7 @@ export default function ForgotPasswordScreen() {
                 Check your email for the reset code.
               </Muted>
               <Input
-                placeholder="Reset token"
+                placeholder="6-digit code"
                 returnKeyType="next"
                 value={resetToken}
                 onChangeText={setResetToken}

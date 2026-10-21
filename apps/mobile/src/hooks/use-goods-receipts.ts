@@ -152,8 +152,10 @@ export type CreateGRPayload = {
 export function useCreateGoodsReceipt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CreateGRPayload) => {
-      const res = await api.post('/goods-receipts', payload);
+    mutationFn: async ({ idempotencyKey, ...payload }: CreateGRPayload & { idempotencyKey?: string }) => {
+      const res = await api.post('/goods-receipts', payload, {
+        headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : undefined,
+      });
       return normalizeGR(unwrapData(res.data));
     },
     onSuccess: () => {

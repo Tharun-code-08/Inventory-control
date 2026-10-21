@@ -7,6 +7,7 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { UnknownBarcodeSheet } from '@/components/UnknownBarcodeSheet';
 import { lookupBarcode } from '@/hooks/use-barcodes';
 import { useCreateGoodsIssue } from '@/hooks/use-goods-issues';
+import { newIdempotencyKey } from '@/lib/idempotency';
 import { useProducts } from '@/hooks/use-products';
 import { useShops } from '@/hooks/use-shops';
 import { useAuthStore } from '@/store/authStore';
@@ -52,6 +53,8 @@ export default function NewGoodsIssueScreen() {
     page: 1,
   });
   const createGi = useCreateGoodsIssue();
+  // One key per issue being entered, reused if the save is retried.
+  const idempotencyKey = useRef(newIdempotencyKey()).current;
 
   useEffect(() => {
     if (lockedShopId) setShopId(lockedShopId);
@@ -121,6 +124,7 @@ export default function NewGoodsIssueScreen() {
         issueReason,
         remarks: remarks.trim() || undefined,
         items,
+        idempotencyKey,
       });
       router.replace(`/goods-issues/${gi.id}`);
     } catch (err) {
