@@ -61,3 +61,8 @@ Report suspected vulnerabilities privately rather than opening a public issue wi
 ## Code quality
 
 Prefer existing project patterns over introducing new abstractions. Keep tenant isolation, authorization, stock integrity, auditability, and document immutability intact when modifying business logic.
+
+## License
+
+SoftdigitIMS is licensed under the [GNU AGPL v3.0](LICENSE). By submitting a pull
+request you agree that your contribution is licensed under the same terms.

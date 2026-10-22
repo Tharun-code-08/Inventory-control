@@ -5,6 +5,9 @@ entries are grouped by date and link to the pull request that shipped them.
 
 ## 2026-10-22
 
+### License
+- SoftdigitIMS is now open source under the **GNU AGPL v3.0** (`LICENSE`).
+
 ### Added
 - Accounts go **read-only** once a paid plan lapses (after a 3-day grace period) or a
   trial ends; reads, billing, exports and backups keep working ([#109]).

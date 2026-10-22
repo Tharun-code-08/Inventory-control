@@ -11,6 +11,7 @@
   <a href="https://github.com/Tharun-code-08/Inventory-control/actions/workflows/deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/deploy.yml?branch=main&label=deploy" alt="Deploy" /></a>
   <a href="https://github.com/Tharun-code-08/Inventory-control/actions/workflows/codeql.yml"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/codeql.yml?branch=main&label=CodeQL" alt="CodeQL" /></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A522.19-339933?logo=node.js&logoColor=white" alt="Node 22.19+" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
 </p>
 
 <p align="center">
@@ -19,7 +20,8 @@
   <a href="docs/DEPLOYMENT.md">Deployment</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="SECURITY.md">Security</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="LICENSE">License</a>
 </p>
 
 ---
@@ -257,4 +259,16 @@ full workflow is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-No open-source license has been granted. All rights are reserved by the repository owner.
+Copyright © 2026 Tharun-code-08 and contributors.
+
+SoftdigitIMS is free software, licensed under the
+**[GNU Affero General Public License v3.0](LICENSE)** (`AGPL-3.0-only`).
+
+In short:
+- You may use, study, modify and share the code.
+- If you distribute it, or **let people use a modified version over a network** (for
+  example by hosting it as a service), you must make your complete modified source code
+  available to those users under the same license.
+- It comes with no warranty.
+
+The [LICENSE](LICENSE) file is the authoritative text.
