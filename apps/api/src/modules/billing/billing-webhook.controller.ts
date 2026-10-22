@@ -16,7 +16,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
 import { PlatformRevenueService } from '../platform-notifications/platform-revenue.service';
 import { DUNNING_CAMPAIGN_KEYS } from '../subscription-lifecycle/lifecycle-rules.constants';
+import { notifySubscriptionActivated } from './notify-activation';
 import { RazorpayService } from './razorpay.service';
+import { SubscriptionService } from './subscription.service';
 
 type RazorpayWebhookPayload = {
   event?: string;
@@ -48,6 +50,7 @@ export class BillingWebhookController {
     private readonly prisma: PrismaService,
     private readonly lifecycle: LifecycleOrchestratorService,
     private readonly platformRevenue: PlatformRevenueService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   @Public()
@@ -99,6 +102,14 @@ export class BillingWebhookController {
         failureReason: null,
       },
     });
+
+    // An in-app upgrade order is bound to its organisation: apply it here so a
+    // closed tab after paying still activates the plan.
+    const activatedCompanyId = await this.subscriptions.applyBoundPayment(orderId, paymentId);
+    if (activatedCompanyId) {
+      await notifySubscriptionActivated(this.lifecycle, activatedCompanyId, payment);
+      return;
+    }
 
     if (
       !wasPaid &&

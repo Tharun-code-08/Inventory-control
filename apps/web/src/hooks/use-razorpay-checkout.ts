@@ -60,6 +60,8 @@ export function useRazorpayCheckout() {
       plan: Exclude<PlanId, 'trial'>;
       billing: BillingInterval;
       prefill?: { name?: string; email?: string; contact?: string };
+      /** '/billing/upgrade-order' binds the order to the signed-in organisation. */
+      orderEndpoint?: string;
       onSuccess: (payload: RazorpaySuccess) => void | Promise<void>;
       onDismiss?: () => void;
     }) => {
@@ -68,7 +70,7 @@ export function useRazorpayCheckout() {
         await loadRazorpayScript();
         let orderRes;
         try {
-          orderRes = await api.post('/billing/create-order', {
+          orderRes = await api.post(args.orderEndpoint ?? '/billing/create-order', {
             plan: args.plan,
             billing: args.billing,
           });

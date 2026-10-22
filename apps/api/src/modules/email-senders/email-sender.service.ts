@@ -5,7 +5,9 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,9 +20,10 @@ import {
   senderVerificationOtpText,
 } from '../../common/mail/sender-verification-otp.template';
 import {
-  decryptSecret,
+  decryptSecretWithKeys,
   encryptSecret,
   getSmtpCredentialsKey,
+  getSmtpCredentialsKeys,
 } from '../../common/crypto/secret-cipher';
 import type { RequestUser } from '../../common/types/request-user';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -40,13 +43,54 @@ import type {
 } from './dto/email-sender.dto';
 
 @Injectable()
-export class EmailSenderService {
+export class EmailSenderService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(EmailSenderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => MailService))
     private readonly mail: MailService,
     private readonly config: ConfigService,
   ) {}
+
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    void this.reencryptLegacySmtpPasswords().catch((err) =>
+      this.logger.warn(`SMTP password re-encryption skipped: ${(err as Error).message}`),
+    );
+  }
+
+  /**
+   * Re-encrypts stored SMTP passwords that still use an older key (the JWT or
+   * APP secret fallback, or SMTP_CREDENTIALS_KEY_PREVIOUS) with the current
+   * key, so the old key can be retired.
+   */
+  async reencryptLegacySmtpPasswords(): Promise<number> {
+    const keys = getSmtpCredentialsKeys();
+    if (keys.length < 2) return 0;
+    const senders = await this.prisma.emailSenderIdentity.findMany({
+      where: { smtpPasswordEnc: { not: null } },
+      select: { id: true, smtpPasswordEnc: true },
+    });
+    let migrated = 0;
+    for (const sender of senders) {
+      let result: { plaintext: string; keyIndex: number };
+      try {
+        result = decryptSecretWithKeys(sender.smtpPasswordEnc!, keys);
+      } catch {
+        this.logger.warn(`SMTP password for sender ${sender.id} cannot be decrypted with any configured key`);
+        continue;
+      }
+      if (result.keyIndex === 0) continue;
+      await this.prisma.emailSenderIdentity.updateMany({
+        where: { id: sender.id, smtpPasswordEnc: sender.smtpPasswordEnc },
+        data: { smtpPasswordEnc: encryptSecret(result.plaintext, keys[0]) },
+      });
+      migrated++;
+    }
+    if (migrated > 0) this.logger.log(`Re-encrypted ${migrated} SMTP password(s) with the current key`);
+    return migrated;
+  }
 
   private assertOrgAdmin(user: RequestUser) {
     if (user.role !== RoleName.OWNER && user.role !== RoleName.ADMIN) {
@@ -234,7 +278,7 @@ export class EmailSenderService {
   private decryptSmtpPassword(encrypted: string | null | undefined): string | null {
     if (!encrypted) return null;
     try {
-      return decryptSecret(encrypted, getSmtpCredentialsKey());
+      return decryptSecretWithKeys(encrypted, getSmtpCredentialsKeys()).plaintext;
     } catch {
       return null;
     }
