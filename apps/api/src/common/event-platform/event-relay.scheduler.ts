@@ -6,6 +6,7 @@ import {
   EVENT_RELAY_JOB_ID,
   EVENT_RELAY_QUEUE,
 } from './event-platform.constants';
+import { removeStaleJobSchedulers } from '../queue/job-schedulers';
 
 /**
  * Registers the repeatable relay tick job. Matches this codebase's scheduling
@@ -19,15 +20,11 @@ export class EventRelayScheduler {
   constructor(@InjectQueue(EVENT_RELAY_QUEUE) private readonly queue: Queue) {}
 
   async registerRepeatableJob(): Promise<void> {
-    await this.queue.add(
+    await removeStaleJobSchedulers(this.queue, [EVENT_RELAY_JOB_ID]);
+    await this.queue.upsertJobScheduler(
       EVENT_RELAY_JOB_ID,
-      {},
-      {
-        repeat: { every: EVENT_RELAY_INTERVAL_MS },
-        jobId: EVENT_RELAY_JOB_ID,
-        removeOnComplete: 50,
-        removeOnFail: 50,
-      },
+      { every: EVENT_RELAY_INTERVAL_MS },
+      { name: EVENT_RELAY_JOB_ID, data: {}, opts: { removeOnComplete: 50, removeOnFail: 50 } },
     );
     this.logger.log(`Scheduled outbox relay tick every ${EVENT_RELAY_INTERVAL_MS}ms`);
   }

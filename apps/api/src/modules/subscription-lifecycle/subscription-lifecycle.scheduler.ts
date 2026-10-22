@@ -2,6 +2,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { SUBSCRIPTION_LIFECYCLE_QUEUE } from './subscription-lifecycle.constants';
+import { removeStaleJobSchedulers } from '../../common/queue/job-schedulers';
 
 @Injectable()
 export class SubscriptionLifecycleScheduler {
@@ -10,15 +11,11 @@ export class SubscriptionLifecycleScheduler {
   constructor(@InjectQueue(SUBSCRIPTION_LIFECYCLE_QUEUE) private readonly queue: Queue) {}
 
   async registerRepeatableJob() {
-    await this.queue.add(
+    await removeStaleJobSchedulers(this.queue, ['daily-subscription-lifecycle']);
+    await this.queue.upsertJobScheduler(
       'daily-subscription-lifecycle',
-      {},
-      {
-        repeat: { pattern: '0 9 * * *' },
-        jobId: 'daily-subscription-lifecycle',
-        removeOnComplete: 20,
-        removeOnFail: 20,
-      },
+      { pattern: '0 9 * * *' },
+      { name: 'daily-subscription-lifecycle', data: {}, opts: { removeOnComplete: 20, removeOnFail: 20 } },
     );
     this.logger.log('Scheduled daily subscription lifecycle job (09:00 UTC)');
   }
