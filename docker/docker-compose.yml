@@ -1,5 +1,5 @@
-# Local dependencies for Retail IMS (Postgres + Redis).
-# From retail-ims: npm run docker:deps
+# Local dependencies for SoftdigitIMS (Postgres + Redis).
+# From the repository root: npm run docker:deps
 # Or: docker compose -f docker/docker-compose.yml up -d postgres redis
 
 services:

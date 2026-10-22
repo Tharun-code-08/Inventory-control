@@ -124,6 +124,10 @@ jobs:
           # and is not rewritten while bash is reading it.
           git fetch origin main --quiet
           git merge-base --is-ancestor "$DEPLOY_SHA" origin/main
+          # Uploaded files (logos, avatars) were once committed by mistake and
+          # are no longer tracked. Untrack them here first so the reset below
+          # leaves the live files on disk instead of deleting them.
+          git rm -r -q --cached --ignore-unmatch storage apps/api/uploads
           git reset --hard "$DEPLOY_SHA" --quiet
           DEPLOY_SHA="$DEPLOY_SHA" ./scripts/deploy.sh prod
           REMOTE
