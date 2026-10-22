@@ -2,6 +2,7 @@
   "name": "mobile",
   "version": "0.0.1",
   "private": true,
+  "license": "AGPL-3.0-only",
   "main": "expo-router/entry",
   "scripts": {
     "postinstall": "node scripts/link-hoisted-deps.cjs",
