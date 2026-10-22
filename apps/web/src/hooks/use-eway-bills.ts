@@ -136,8 +136,17 @@ export function useCreateEwayBillFromInvoice() {
 export function useGenerateEwayBill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await api.post(`/eway-bills/${id}/generate`);
+    /** Records the EWB number issued by ewaybillgst.gov.in for a draft. */
+    mutationFn: async ({
+      id,
+      ewayBillNumber,
+      validUpto,
+    }: {
+      id: string;
+      ewayBillNumber: string;
+      validUpto?: string;
+    }) => {
+      const res = await api.post(`/eway-bills/${id}/generate`, { ewayBillNumber, validUpto });
       return res.data.data as EwayBill;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
