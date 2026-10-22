@@ -1,81 +1,55 @@
 # Dependencies
 node_modules/
-**/node_modules/
 .pnpm-store/
 
-# Build and test output
+# Build output
 dist/
-**/dist/
-coverage/
-**/coverage/
-playwright-report/
-test-results/
-apps/api/coverage/
-apps/web/playwright-report/
-apps/web/test-results/
-apps/api/dist/
-apps/web/dist/
-
-# Environment and secrets
-.env
-.env.*
-!.env.example
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-*.log
-
-# OS and editor files
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Local application state
-.expo/
-.deploy/
-.claude/worktrees/
-
-# Backups and generated data
-*.bak
-*.sql.gz
-*.json.gz
-backups/
-apps/api/storage/backups/
-*.pdf
 **/dist-old/
 **/dist.bak*/
 **/dist.backup*/
-
-# Local databases / runtime data
-*.sqlite
-*.sqlite3
-
-# Temporary files
-*.tmp
-*.temp
-
-# Accidental files
-q
-
-# Deploy artifacts & local worktrees
-.deploy/
-.claude/worktrees/
-# Runtime data (user uploads, exports, local Redis snapshots)
-storage/
-apps/api/storage/
-dump.rdb
-
-# Editor/backup leftovers
-*.fix
-*.bak-*
-
-# TypeScript incremental build info
 *.tsbuildinfo
 
-# Legacy API upload folder (uploads live in storage/uploads)
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Environment and secrets (only the .env.example templates are committed)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Runtime data: user uploads, exports, backups, local databases
+/storage/
+apps/api/storage/
 apps/api/uploads/
+backups/
+dump.rdb
+*.sqlite
+*.sqlite3
+*.sql.gz
+*.json.gz
+*.pdf
+
+# Logs
+*.log
+
+# Local tooling state
+.expo/
+.deploy/
+.claude/worktrees/
+.vscode/
+.idea/
+
+# OS and editor leftovers
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.bak-*
+*.fix
+*.tmp
+*.temp
+.*-backup-*/

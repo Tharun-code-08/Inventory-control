@@ -530,8 +530,8 @@ After any incident:
 
 ## References
 
-- **Backup Procedure:** [docs/BACKUP-RECOVERY-GUIDE.md](docs/BACKUP-RECOVERY-GUIDE.md)
-- **Admin Details:** [docs/BACKUP-ADMINISTRATION.md](docs/BACKUP-ADMINISTRATION.md)
+- **Backup Procedure:** [BACKUP-RECOVERY-GUIDE.md](BACKUP-RECOVERY-GUIDE.md)
+- **Admin Details:** [BACKUP-ADMINISTRATION.md](BACKUP-ADMINISTRATION.md)
 - **API Health:** `/health`, `/health/live`, `/health/ready`
 - **Logs:** `pm2 log`, `/opt/Inventory-control/backups/backup.log`
 

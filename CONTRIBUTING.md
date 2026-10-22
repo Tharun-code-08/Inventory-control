@@ -7,11 +7,29 @@ Thank you for contributing to SoftdigitIMS.
 - Use Node.js 22.19+.
 - Install dependencies with `npm install` (npm workspaces; commit `package-lock.json` changes).
 - Never commit secrets, `.env` files, generated build output, database dumps, or production data.
-- Read `README.md`, `DEPLOYMENT.md`, and `RUNBOOK.md` before making infrastructure or production-facing changes.
+- Read `README.md`, [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/RUNBOOK.md`](docs/RUNBOOK.md) before making infrastructure or production-facing changes.
+
+## Branches
+
+`main` is the only long-lived branch. It is always deployable: every merge to `main`
+that passes CI is deployed to production automatically.
+
+Work happens on short-lived branches cut from `main`, named by the kind of change:
+
+| Prefix | Use for |
+| --- | --- |
+| `feat/` | New behaviour (`feat/eway-bill-json-export`) |
+| `fix/` | Bug fixes (`fix/po-receipt-limit`) |
+| `chore/` | Dependencies, tooling, CI, cleanup (`chore/bump-prisma`) |
+| `docs/` | Documentation only (`docs/backup-guide`) |
+
+Dependabot opens its own `dependabot/...` branches. Pull requests are **squash-merged**,
+and the branch is deleted after merging, so the repository only carries branches with
+open work.
 
 ## Development workflow
 
-1. Create a feature branch from `main`.
+1. Create a branch from `main` (see above).
 2. Make the smallest focused change that solves the problem.
 3. Add or update tests for behavior changes.
 4. Run the relevant lint, typecheck, build, and test commands locally.

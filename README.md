@@ -1,289 +1,260 @@
 # SoftdigitIMS
 
 <p align="center">
-  <strong>Inventory Control & ERP Platform</strong><br />
-  Multi-tenant operations software for procurement, inventory, sales, documents, analytics, and automation.
+  <strong>Inventory control and ERP for Indian retail and distribution businesses</strong><br />
+  Procurement, warehouse stock, sales, GST documents, billing and automation in one multi-tenant platform —
+  with a web app, a mobile warehouse app and a WhatsApp assistant.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tharun-code-08/Inventory-control/actions"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/ci.yml?branch=main&label=CI&logo=github" alt="CI" /></a>
-  <a href="https://github.com/Tharun-code-08/Inventory-control"><img src="https://img.shields.io/github/repo-size/Tharun-code-08/Inventory-control?label=repo%20size" alt="Repository size" /></a>
-  <a href="https://github.com/Tharun-code-08/Inventory-control/issues"><img src="https://img.shields.io/github/issues/Tharun-code-08/Inventory-control" alt="Issues" /></a>
-  <a href="https://github.com/Tharun-code-08/Inventory-control/pulls"><img src="https://img.shields.io/github/issues-pr/Tharun-code-08/Inventory-control" alt="Pull requests" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/Tharun-code-08/Inventory-control" alt="License" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/ci.yml?branch=main&label=CI&logo=github" alt="CI" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/actions/workflows/deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/deploy.yml?branch=main&label=deploy" alt="Deploy" /></a>
+  <a href="https://github.com/Tharun-code-08/Inventory-control/actions/workflows/codeql.yml"><img src="https://img.shields.io/github/actions/workflow/status/Tharun-code-08/Inventory-control/codeql.yml?branch=main&label=CodeQL" alt="CodeQL" /></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A522.19-339933?logo=node.js&logoColor=white" alt="Node 22.19+" />
 </p>
 
 <p align="center">
-  <a href="./docs/README.md">Documentation</a> ·
-  <a href="./CONTRIBUTING.md">Contributing</a> ·
-  <a href="./SECURITY.md">Security</a> ·
-  <a href="./DEPLOYMENT.md">Deployment</a>
+  <a href="#getting-started">Getting started</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="docs/DEPLOYMENT.md">Deployment</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ---
 
-## Overview
+## Contents
 
-**SoftdigitIMS** is a full-stack inventory and ERP platform designed around real operational workflows. It connects procurement, warehouse inventory, sales, documents, reporting, notifications, and background processing through a single system.
+- [What it does](#what-it-does)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Everyday commands](#everyday-commands)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Data integrity and security](#data-integrity-and-security)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
-The platform is built with production-oriented guarantees around **shop/tenant isolation, stock integrity, authorization, auditability, transactional consistency, and controlled deployments**.
+## What it does
 
-## Core capabilities
+SoftdigitIMS runs the day-to-day operations of a business with one or more plants
+(warehouses or shops). Each organisation's data is isolated from every other's.
 
-| Domain | Capabilities |
+| Area | Highlights |
 | --- | --- |
-| **Procurement** | Purchase orders, approvals, goods receipts, returns, suppliers |
-| **Inventory** | Stock ledger, transfers, batches, expiry, FEFO, low-stock monitoring |
-| **Sales** | Sales orders, goods issues, returns, payments, customer workflows |
-| **Documents** | Invoices, purchase orders, goods receipts, quotations, receipts |
-| **Analytics** | KPIs, reports, trends, inventory health, operational metrics |
-| **Automation** | Notifications, approvals, background jobs, scheduled workflows |
-| **Integrations** | Email, WhatsApp, in-app notifications, payment workflows |
-| **Mobile** | Warehouse-focused stock lookup and goods issue workflows |
-| **Security** | RBAC, shop/tenant isolation, audit trails, secure authentication |
+| **Procurement** | Suppliers, RFQs with a supplier quote portal, bid comparison, contracts, purchase orders with approval, goods receipts, supplier bills and payments, supplier returns |
+| **Inventory** | Stock ledger enforced in PostgreSQL, multi-plant stock and transfers, storage locations, batches/serials and expiry (FEFO), stock counts, damaged stock, inventory-health exceptions, low-stock and reorder alerts |
+| **Sales** | Customers, sales quotations with a customer review portal, sales orders, goods issues, invoices, receipts, returns and credit notes |
+| **GST** | CGST/SGST/IGST split, HSN codes, configurable document number series, e-way bill preparation (record the EWB number issued by the GST portal) |
+| **Documents** | Branded PDF documents (invoices, POs, GRs, quotations, receipts, e-way bills), emailed from the organisation's own verified sender |
+| **Reports** | Dashboard KPIs, stock movement, valuation, dead stock, reorder, profitability, Excel exports |
+| **Billing** | Trial and paid plans (Razorpay), plan limits, renewals, dunning, subscription invoices; organisations go read-only after a plan lapses |
+| **Automation** | Workflow engine, approvals, notifications (in-app, email, push), scheduled jobs on BullMQ |
+| **WhatsApp assistant** | Linked WhatsApp numbers can look up stock and draft documents, with human approval before anything is posted |
+| **Mobile** | Expo app for the warehouse floor: barcode scanning and printing, stock counts, goods receipts and issues, approvals, reports |
+| **Platform** | Signup with verification, MFA (TOTP), role-based permissions, audit log, per-company backups (local, email, Google Drive) |
 
----
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| API | [NestJS](https://nestjs.com) 12, TypeScript, [Prisma](https://www.prisma.io) 7 (`@prisma/adapter-pg`) |
+| Database | PostgreSQL 15+ with row-level security and stock triggers |
+| Jobs and cache | Redis 7, [BullMQ](https://docs.bullmq.io) 6 |
+| Web | React 19, Vite 8, Tailwind CSS 4, TanStack Query 5, React Hook Form + Zod 4 |
+| Mobile | Expo 54, React Native 0.81, Expo Router |
+| Documents | Puppeteer (headless Chromium) HTML-to-PDF |
+| Payments | Razorpay (orders, signature and webhook verification) |
+| Testing | Jest 30 (API unit + e2e), Vitest (web), Playwright (web e2e) |
+| CI/CD | GitHub Actions → SSH deploy to a VPS running PM2 behind nginx |
+
+The repository is an **npm workspaces** monorepo; `package-lock.json` at the root is the
+single lockfile.
 
 ## Architecture
 
 ```text
-                         ┌───────────────────────┐
-                         │      SoftdigitIMS      │
-                         │ Inventory + ERP Core  │
-                         └───────────┬───────────┘
-                                     │
-               ┌─────────────────────┼─────────────────────┐
-               │                     │                     │
-        ┌──────▼──────┐       ┌──────▼──────┐       ┌──────▼──────┐
-        │ Web Client  │       │ Mobile App  │       │   REST API  │
-        │ React/Vite  │       │ Expo/RN     │       │   NestJS    │
-        └──────┬──────┘       └──────┬──────┘       └──────┬──────┘
-               │                     │                     │
-               └─────────────────────┼─────────────────────┘
-                                     │
-                          ┌──────────▼──────────┐
-                          │   Business Domain   │
-                          │ Auth · Stock · PO   │
-                          │ Sales · Documents   │
-                          └──────────┬──────────┘
-                                     │
-                    ┌────────────────┼────────────────┐
-                    │                │                │
-             ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
-             │ PostgreSQL  │ │    Redis    │ │   BullMQ    │
-             │ Prisma + DB │ │ Cache       │ │ Background  │
-             │ constraints │ │             │ │ Jobs        │
-             └─────────────┘ └─────────────┘ └─────────────┘
+ Web (React/Vite) ──┐
+ Mobile (Expo) ─────┼──► REST API /api/v1 (NestJS) ──► PostgreSQL (Prisma, RLS, triggers)
+ WhatsApp ──────────┘          │
+                               ├──► Redis + BullMQ  (schedulers, email, exports, relays)
+                               ├──► Puppeteer       (PDF documents)
+                               └──► SMTP · Razorpay · Google Drive · push notifications
 ```
 
-### Technology
+- Every request carries a company context; Postgres row-level security and service-level
+  shop checks keep organisations apart.
+- Stock balances are maintained by database triggers on the stock ledger, so a stock
+  movement and its balance change commit together, and negative stock is rejected by the
+  database.
+- Background work (scheduled reminders, dunning, event relay, exports) runs on BullMQ
+  job schedulers inside the API process.
 
-| Layer | Technology |
-| --- | --- |
-| Web | React 18, Vite, TypeScript, Tailwind CSS, TanStack Query |
-| API | NestJS 11, TypeScript, Prisma |
-| Mobile | Expo, React Native |
-| Database | PostgreSQL 15 |
-| Cache / jobs | Redis, BullMQ |
-| Documents | Puppeteer PDF pipeline |
-| Local infrastructure | Docker Compose |
-| CI/CD | GitHub Actions |
-
----
-
-## Repository structure
+## Repository layout
 
 ```text
-Inventory-control/
+.
 ├── apps/
-│   ├── api/                 # NestJS API, Prisma and domain modules
-│   ├── web/                 # React web application
-│   └── mobile/              # Expo warehouse application
+│   ├── api/            NestJS API — src/modules/<domain>, prisma/ (schema, migrations, seed), test/ (e2e)
+│   ├── web/            React web app — src/pages, src/components, src/hooks, e2e/ (Playwright)
+│   └── mobile/         Expo warehouse app — app/ (routes), src/
 ├── packages/
-│   └── shared-types/        # Shared API/client types
-├── docker/                  # Local PostgreSQL and Redis services
-├── deploy/                  # Deployment configuration
-├── scripts/                 # Setup, validation and operational tooling
-├── docs/                    # Engineering and operational documentation
-├── fixtures/                # Test fixtures for document/PDF validation
-├── .github/                 # CI, issue templates and repository governance
-├── CONTRIBUTING.md          # Engineering contribution standards
-├── SECURITY.md              # Security policy
-├── DEPLOYMENT.md            # Deployment procedures
-└── RUNBOOK.md               # Operational runbook
+│   └── shared-types/   Types shared by the API and clients
+├── deploy/
+│   ├── api/            Chromium dependencies for PDF rendering
+│   ├── pm2/            PM2 process files (production, staging)
+│   ├── postgres/       Backup, WAL archiving and restore scripts + systemd timers
+│   └── web/            nginx config for the SPA
+├── docker/             docker-compose for local Postgres + Redis, API Dockerfile
+├── docs/               Deployment, runbook, backups, testing and design notes
+├── fixtures/           PDF stress-test fixtures
+├── scripts/            Setup, deploy, health and budget checks
+└── .github/            CI workflows, Dependabot, CODEOWNERS, templates
 ```
-
----
 
 ## Getting started
 
 ### Prerequisites
 
-- Node.js **22.19+** (LTS; CI and production run 22)
-- npm **10+** (the repository package manager; `package-lock.json` is the lockfile)
-- Docker Desktop with Docker Compose
+- **Node.js 22.19+** and npm 10+
+- **Docker** (for local PostgreSQL and Redis), or your own PostgreSQL 15+ and Redis 7
+- For PDF generation on Linux servers: the Chromium system libraries in
+  [deploy/api/README-pdf-chromium.md](deploy/api/README-pdf-chromium.md)
 
-### 1. Clone
+### 1. Install
 
 ```bash
 git clone https://github.com/Tharun-code-08/Inventory-control.git
 cd Inventory-control
+npm install
 ```
 
-### 2. Provision
+### 2. Start PostgreSQL and Redis
 
 ```bash
-npm run setup:new-machine
+npm run docker:deps          # Postgres on localhost:5433, Redis on localhost:6379
 ```
 
-To provision without starting development servers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1 -SkipStart
-```
-
-### 3. Develop
+### 3. Configure the API
 
 ```bash
-npm run dev
+npm run setup:credentials    # creates apps/api/.env from .env.example with fresh secrets
 ```
 
-Or start services independently:
+The defaults in `apps/api/.env.example` match the docker-compose services, so a local
+setup works without further edits. See [Configuration](#configuration) for mail,
+payments and other integrations.
+
+### 4. Create the database schema and seed data
 
 ```bash
-npm run dev:api
-npm run dev:web
-npm run dev:mobile
+cd apps/api
+npx prisma migrate deploy
+npm run db:seed              # creates a demo company, plant and owner account
+cd ../..
 ```
 
-> Keep local secrets in environment files. Never commit production credentials, tokens, customer data, or database dumps.
+The seed's owner login is `admin@retailims.com` / `Admin@123` (override with
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`; production requires an explicit password).
 
----
-
-## Quality engineering
-
-Run the checks relevant to your change before opening a pull request.
+### 5. Run
 
 ```bash
-npm run lint
-npm run build
-npm test
-npm run test:workflows
-npm run test:playwright
+npm run dev                  # API on http://localhost:3000, web on http://localhost:5173
+npm run dev:mobile           # Expo dev server for the mobile app
 ```
 
-Operational gates:
+API docs (Swagger) are at <http://localhost:3000/api/docs>; every route is under `/api/v1`.
 
-```bash
-npm run check:runtime-health
-npm run check:bundle-budget
-npm run check:api-slo
-```
+> **Windows:** `npm run setup:new-machine` runs `scripts/setup-new-machine.ps1`, which
+> performs steps 2–5 for you.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete engineering workflow.
+## Configuration
 
----
+The API reads **`apps/api/.env`** only. `apps/api/.env.example` documents every
+variable; the important groups are:
 
-## Data integrity & security
+| Variables | Purpose |
+| --- | --- |
+| `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` | Database and Redis |
+| `JWT_SECRET`, `REFRESH_SECRET`, `COOKIE_SECRET` | Session signing (generated by `setup:credentials`) |
+| `WEB_ORIGIN`, `PUBLIC_WEB_URL` | Allowed browser origins and links in emails |
+| `SMTP_*`, `MAIL_FROM` | Platform mail (signup, password reset) |
+| `SMTP_CREDENTIALS_KEY` | Encrypts organisations' own SMTP passwords (falls back to the JWT secret) |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Paid plans and the `payment.captured` webhook |
+| `SUPPLIER_PORTAL_SECRET` | Signs supplier portal links (falls back to the JWT secret) |
+| `SUBSCRIPTION_GRACE_DAYS`, `SUBSCRIPTION_READ_ONLY_ENFORCED` | Read-only mode after a plan lapses |
+| `GOOGLE_OAUTH_*`, `BACKUP_ENCRYPTION_KEY` | Google Drive backups |
+| `SENTRY_DSN` | Error reporting |
 
-Inventory is treated as a financial and operational system, not a simple CRUD application.
+The web app reads `VITE_*` variables at build time (`VITE_API_URL` when the API is on
+another origin). Never commit a real `.env`; only the `.env.example` templates are tracked.
 
-Key invariants include:
+## Everyday commands
 
-- Stock movements are processed transactionally.
-- PostgreSQL maintains critical stock balances and summaries.
-- Negative stock is blocked at the database layer.
-- Document numbers use concurrency-safe sequencing.
-- Batch and expiry workflows support FEFO consumption.
-- Shop/tenant isolation is enforced as a core boundary.
-- Sensitive operations remain auditable.
-- Production schema changes use reviewed Prisma migrations.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | API + web in watch mode |
+| `npm run build` | Build shared types, API and web |
+| `npm run lint` | ESLint for API and web |
+| `npm test` | API unit tests (Jest) and web tests (Vitest) |
+| `npm run test:workflows` | API business-workflow e2e tests (needs a migrated, seeded database) |
+| `npm run test:playwright` | Web end-to-end tests |
+| `npm run check:bundle-budget` | Fails if web bundles exceed their size budget |
+| `npm run check:runtime-health` / `check:api-slo` | Health and latency checks against a running API |
+| `cd apps/api && npx prisma migrate dev --name <change>` | Create a migration after editing `schema.prisma` |
 
-### Production rules
+## Testing
 
-- Use `prisma migrate deploy` for production migrations.
-- Never use `prisma db push` against production.
-- Use strong, unique authentication secrets.
-- Restrict CORS / web origins to trusted applications.
-- Use secure cookies in production.
-- Do not commit credentials, tokens, customer data, database dumps, or generated secrets.
+CI runs on every pull request:
 
-See [SECURITY.md](SECURITY.md).
+- **Quality gate** — lint, type checks, builds and the web bundle budget
+- **Unit tests** — about 840 Jest tests for the API, plus Vitest for the web app
+- **API business workflows** — e2e suites against a fresh PostgreSQL + Redis, migrated
+  from an empty database
+- **Playwright** — web flows on a mobile viewport
+- **CodeQL** — static security analysis
 
----
-
-## API
-
-Local Swagger/OpenAPI documentation:
-
-```text
-http://localhost:3000/api/docs
-```
-
-API routes are versioned under:
-
-```text
-/api/v1
-```
-
----
+See [docs/business-workflow-testing.md](docs/business-workflow-testing.md) for running
+the workflow suites locally.
 
 ## Deployment
 
-Production changes should go through a feature branch and pull request.
+Production deploys are automatic: when CI passes on `main`, the **Deploy to Production**
+workflow SSHes to the VPS, checks out that exact commit, installs, builds, runs
+`prisma migrate deploy`, restarts the API under PM2 and verifies health, the database and
+the deployed commit. A failed health check rolls back to the previous release.
 
-Before promotion, validate:
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — pipeline, secrets and safe migrations
+- [docs/RUNBOOK.md](docs/RUNBOOK.md) — operating and recovering production
+- [docs/postgres-backup-recovery.md](docs/postgres-backup-recovery.md) — backups, WAL archiving and point-in-time restore
 
-1. CI and application build
-2. Database migrations
-3. Runtime health
-4. Core procurement and sales workflows
-5. Inventory reconciliation
-6. Shop/tenant isolation
-7. Rollback readiness
+## Data integrity and security
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) and [RUNBOOK.md](RUNBOOK.md).
+- Stock movements and balances commit in one transaction; the database rejects negative stock.
+- Document numbers come from per-organisation, concurrency-safe sequences.
+- Organisations are isolated by row-level security and service-level shop checks;
+  actions are gated by role-based permissions.
+- Secrets at rest (SMTP passwords, MFA secrets, backup tokens) are encrypted with AES-256-GCM.
+- Production schema changes go through reviewed Prisma migrations — never `prisma db push`.
 
----
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-| Resource | Purpose |
-| --- | --- |
-| [Documentation Index](docs/README.md) | Central documentation hub |
-| [Contributing](CONTRIBUTING.md) | Development and PR standards |
-| [Security](SECURITY.md) | Security policy |
-| [Runbook](RUNBOOK.md) | Operations and recovery |
-| [Deployment](DEPLOYMENT.md) | Deployment procedures |
-| [Business Workflow Testing](docs/business-workflow-testing.md) | End-to-end validation |
-| [Deployment Safety Checklist](docs/deployment-safety-checklist.md) | Release validation |
-| [Rollback Guide](docs/deploy-rollback-demo.md) | Rollback walkthrough |
-| [Changelog](CHANGELOG.md) | Release history |
-
----
+All guides are indexed in **[docs/README.md](docs/README.md)** — deployment, operations,
+backups, testing and design notes.
 
 ## Contributing
 
-1. Create a focused feature or fix branch.
-2. Keep changes scoped and reviewable.
-3. Add or update tests for behavior changes.
-4. Run the relevant quality checks locally.
-5. Document migrations, configuration changes, and deployment impact.
-6. Open a pull request using the repository template.
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change.
-
-## Project status
-
-SoftdigitIMS is under active development. Features, APIs, operational procedures, and deployment architecture continue to evolve toward production maturity.
+`main` is always deployable. Work on a short-lived `feat/`, `fix/`, `chore/` or `docs/`
+branch, open a pull request using the template, and squash-merge once CI is green. The
+full workflow is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-See the repository's license file for the applicable terms.
-
----
-
-<p align="center">
-  <strong>SoftdigitIMS</strong><br />
-  Inventory Control & ERP Platform
-</p>
+No open-source license has been granted. All rights are reserved by the repository owner.
