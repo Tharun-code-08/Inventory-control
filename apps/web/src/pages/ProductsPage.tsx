@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type ChangeEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { formResolver } from '@/lib/form-resolver';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -862,7 +862,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   }
 
   const form = useForm<FormShape>({
-    resolver: zodResolver(productSchema),
+    resolver: formResolver(productSchema),
     defaultValues,
   });
   const [skuNumber, setSkuNumber] = useState('');

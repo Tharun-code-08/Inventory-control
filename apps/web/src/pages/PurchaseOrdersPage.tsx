@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { formResolver } from '@/lib/form-resolver';
 import { z } from 'zod';
 import {
   Plus,
@@ -464,7 +464,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
 
   // ---- form ----
   const form = useForm<POFormValues>({
-    resolver: zodResolver(poFormSchema),
+    resolver: formResolver(poFormSchema),
     defaultValues: {
       poDate: todayDateString(),
       priority: 'Medium',
