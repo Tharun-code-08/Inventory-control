@@ -485,7 +485,7 @@ function PlantAssignmentRow({
         <div className="flex items-center gap-2 text-xs">
           <span className="font-medium text-foreground">Plant {index + 1}</span>
           {!watchedActive && (
-            <Badge variant="outline" className="border-amber-300 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
+            <Badge variant="outline" className="border-amber-300 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 dark:border-amber-500/30">
               Inactive
             </Badge>
           )}
@@ -2133,7 +2133,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
         </PageHeader>
 
         {lowStockFilter ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
             <span>
               Showing <strong>{lowStockRows.length}</strong> low-stock product
               {lowStockRows.length === 1 ? '' : 's'} (at or below reorder level).
@@ -2142,7 +2142,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
               type="button"
               variant="outline"
               size="sm"
-              className="border-amber-300 bg-card hover:bg-amber-100"
+              className="border-amber-300 bg-card hover:bg-amber-100 dark:border-amber-500/30"
               onClick={() => {
                 setSearchParams((prev) => {
                   const next = new URLSearchParams(prev);

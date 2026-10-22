@@ -5,24 +5,24 @@ import { resolveAuthHref } from '@/lib/marketing-links';
 
 export function MarketingContactSection() {
   return (
-    <section id="contact" className="bg-white py-16 sm:py-20" aria-labelledby="contact-heading">
+    <section id="contact" className="bg-white py-16 sm:py-20 dark:bg-card" aria-labelledby="contact-heading">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 id="contact-heading" className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 id="contact-heading" className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-foreground">
             {MARKETING_CONTACT.title}
           </h2>
-          <p className="mt-4 text-lg text-slate-600">{MARKETING_CONTACT.body}</p>
+          <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">{MARKETING_CONTACT.body}</p>
         </Reveal>
         <Reveal delay={100}>
-          <address className="mx-auto mt-10 max-w-md not-italic rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center shadow-xs">
-            <p className="text-sm font-semibold text-slate-900">{MARKETING_CONTACT.companyName}</p>
-            <p className="mt-2 text-sm text-slate-600">
+          <address className="mx-auto mt-10 max-w-md not-italic rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center shadow-xs dark:border-border dark:bg-muted/40">
+            <p className="text-sm font-semibold text-slate-900 dark:text-foreground">{MARKETING_CONTACT.companyName}</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               Web:{' '}
               <a className="font-medium text-primary hover:underline" href={MARKETING_CONTACT.siteUrl}>
                 {MARKETING_CONTACT.siteLabel}
               </a>
             </p>
-            <p className="mt-4 text-sm text-slate-600">
+            <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
               For existing users, use{' '}
               {(() => {
                 const signInHref = resolveAuthHref('/login');

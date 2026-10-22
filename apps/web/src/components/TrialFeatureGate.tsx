@@ -44,7 +44,7 @@ export function TrialFeatureGate({ subscription, feature, children }: Props) {
         </p>
         <Link
           to="/upgrade"
-          className="mt-4 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"
+          className="mt-4 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           Go to Upgrade
         </Link>

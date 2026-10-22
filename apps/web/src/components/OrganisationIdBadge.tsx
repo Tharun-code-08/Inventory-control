@@ -58,7 +58,7 @@ export function OrganisationIdBadge({ className }: OrganisationIdBadgeProps) {
       </span>
       <span
         className="mt-0.5 min-w-18 rounded px-3 py-0.5 font-mono text-base font-bold leading-tight tracking-[0.12em] text-white shadow-xs sm:text-lg"
-        style={{ backgroundColor: '#16a34a' }}
+        style={{ backgroundColor: '#15803d' }}
       >
         {displayCode}
       </span>

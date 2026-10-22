@@ -49,7 +49,7 @@ function MatrixCell({ level }: { level: AccessLevel }) {
       ) : level === 'partial' ? (
         <span className="h-2.5 w-2.5 rounded-full bg-amber-500" title="Partial" />
       ) : (
-        <span className="h-2.5 w-2.5 rounded-full bg-slate-200" title="None" />
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-800" title="None" />
       )}
     </div>
   );

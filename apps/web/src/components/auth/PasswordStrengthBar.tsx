@@ -19,7 +19,7 @@ export function PasswordStrengthBar({ password }: { password: string }) {
 
   return (
     <div className="mt-2">
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
         <div className={`h-full rounded-full transition-all ${colors[score]}`} style={{ width }} />
       </div>
       {password ? (

@@ -1,22 +1,22 @@
 import { cn } from '@/lib/cn';
 
 const variants: Record<string, string> = {
-  DRAFT: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300',
-  POSTED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
-  CONFIRMED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
-  ACTIVE: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
-  COMPLETED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
-  FULLY_RECEIVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  DRAFT: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 dark:border-amber-500/30',
+  POSTED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
+  CONFIRMED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
+  ACTIVE: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
+  COMPLETED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
+  FULLY_RECEIVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
   PARTIALLY_RECEIVED: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
   SENT: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
-  PAID: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
-  PENDING: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  PAID: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
+  PENDING: 'border border-amber-300 bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 dark:border-amber-500/30',
   OPEN: 'border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-800 dark:text-sky-300',
   CLOSED: 'border border-border bg-muted text-muted-foreground',
-  APPROVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  APPROVED: 'border border-emerald-300 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30',
   INACTIVE: 'border border-border bg-muted text-muted-foreground',
-  DEACTIVE: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300',
-  DEACTIVATED: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300',
+  DEACTIVE: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300 dark:border-rose-500/30',
+  DEACTIVATED: 'border border-rose-300 bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300 dark:border-rose-500/30',
   CANCELLED: 'border border-border bg-muted text-foreground',
 };
 

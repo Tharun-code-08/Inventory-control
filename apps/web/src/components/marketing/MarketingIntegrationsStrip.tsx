@@ -17,13 +17,13 @@ type MarketingIntegrationsStripProps = {
 function IntegrationTile({ item }: { item: MarketingIntegration }) {
   const Icon = ICONS[item.id] ?? FileText;
   return (
-    <div className="inline-flex shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-xs">
+    <div className="inline-flex shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-xs dark:border-border dark:bg-card">
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-primary">
         <Icon className="h-5 w-5" aria-hidden />
       </div>
       <div>
-        <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-        <p className="text-xs text-slate-500">{item.description}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-foreground">{item.name}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{item.description}</p>
       </div>
     </div>
   );
@@ -34,7 +34,7 @@ export function MarketingIntegrationsStrip({ integrations, className }: Marketin
 
   return (
     <div className={cn('overflow-hidden', className)}>
-      <p className="mb-4 text-center text-sm font-medium text-slate-500">
+      <p className="mb-4 text-center text-sm font-medium text-slate-500 dark:text-slate-400">
         Integrates with the tools your retail stack needs
       </p>
       <div className="marketing-marquee integrations-marquee">

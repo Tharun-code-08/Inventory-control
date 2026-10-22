@@ -42,7 +42,7 @@ export function PlatformSubscriptionsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout active="/platform/subscriptions">
+      <AppLayout active="Platform Admin">
         <p className="text-sm text-muted-foreground">Loading platform dashboard...</p>
       </AppLayout>
     );
@@ -50,7 +50,7 @@ export function PlatformSubscriptionsPage() {
 
   if (isError || !data) {
     return (
-      <AppLayout active="/platform/subscriptions">
+      <AppLayout active="Platform Admin">
         <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-800 dark:text-red-300">
           Platform admin access required. Set PLATFORM_ADMIN_EMAILS on the server and sign in with an
           allowlisted account.
@@ -62,7 +62,7 @@ export function PlatformSubscriptionsPage() {
   const { kpis } = data;
 
   return (
-    <AppLayout active="/platform/subscriptions">
+    <AppLayout active="Platform Admin">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Platform subscriptions</h1>

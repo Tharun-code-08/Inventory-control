@@ -25,9 +25,9 @@ export function computePeriodTrend(current: number, prior: number, periodLabel =
 export function trendToneClass(direction: KpiTrendDirection): string {
   switch (direction) {
     case 'up':
-      return 'text-emerald-600';
+      return 'text-emerald-600 dark:text-emerald-400';
     case 'down':
-      return 'text-red-600';
+      return 'text-red-600 dark:text-red-400';
     default:
       return 'text-muted-foreground';
   }

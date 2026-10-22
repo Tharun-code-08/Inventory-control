@@ -9,17 +9,17 @@ export function MarketingFaq() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="scroll-mt-16 bg-slate-50 py-12 sm:py-14" aria-labelledby="faq-heading">
+    <section id="faq" className="scroll-mt-16 bg-slate-50 py-12 sm:py-14 dark:bg-muted/40" aria-labelledby="faq-heading">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
         <Reveal className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{eyebrow}</p>
-          <h2 id="faq-heading" className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          <h2 id="faq-heading" className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl dark:text-foreground">
             {title}
           </h2>
-          <p className="mt-3 text-base text-slate-600">{body}</p>
+          <p className="mt-3 text-base text-slate-600 dark:text-slate-400">{body}</p>
         </Reveal>
 
-        <Reveal delay={80} className="mt-8 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+        <Reveal delay={80} className="mt-8 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:divide-border dark:border-border dark:bg-card">
           {items.map((item, index) => {
             const isOpen = openIndex === index;
             const panelId = `faq-panel-${index}`;
@@ -36,7 +36,7 @@ export function MarketingFaq() {
                     onClick={() => setOpenIndex(isOpen ? null : index)}
                     className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:px-5"
                   >
-                    <span className="text-sm font-semibold text-slate-900">{item.q}</span>
+                    <span className="text-sm font-semibold text-slate-900 dark:text-foreground">{item.q}</span>
                     <ChevronDown
                       className={cn(
                         'h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300',
@@ -53,7 +53,7 @@ export function MarketingFaq() {
                   hidden={!isOpen}
                   className="px-4 pb-4 sm:px-5"
                 >
-                  <p className="text-xs leading-relaxed text-slate-600">{item.a}</p>
+                  <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">{item.a}</p>
                 </div>
               </div>
             );

@@ -482,13 +482,13 @@ export function SignupPage() {
 
             <div className="mb-6">
               {paidPlanLabel ? (
-                <div className="mb-4 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
+                <div className="mb-4 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-300">
                   You selected the <strong>{paidPlanLabel}</strong>{' '}
                   {billing === 'yearly' ? '(Yearly)' : '(Monthly)'} plan. Payment will run after
                   email verification and before MFA setup.
                 </div>
               ) : (
-                <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-900">
+                <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-900 dark:text-blue-300">
                   You are starting a <strong>7-day free trial</strong>. MFA setup is still required.
                 </div>
               )}
@@ -763,7 +763,7 @@ export function SignupPage() {
                 </div>
 
                 {phoneOtpSent ? (
-                  <div className="rounded-2xl border border-emerald-200/60 bg-emerald-500/10 p-5">
+                  <div className="rounded-2xl border border-emerald-200/60 bg-emerald-500/10 p-5 dark:border-emerald-500/30">
                     <div className="mb-4 text-center">
                       <p className="text-sm font-medium text-foreground">WhatsApp code</p>
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -803,7 +803,7 @@ export function SignupPage() {
                     className="rounded-2xl border border-border bg-muted p-5 text-left shadow-xs transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
                         <ShieldCheck className="h-5 w-5" />
                       </div>
                       <div>

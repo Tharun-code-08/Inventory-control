@@ -2044,7 +2044,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
-          <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-white sm:w-auto" disabled={!canMutatePo}>
+          <Button onClick={() => navigate('/purchase-orders/new')} className="premium-button w-full border-0 text-primary-foreground sm:w-auto" disabled={!canMutatePo}>
             <Plus className="h-4 w-4" />
             Create PO
           </Button>

@@ -55,7 +55,7 @@ export function SupplierDeleteConfirmPage() {
               <button
                 type="button"
                 onClick={confirmDeletion}
-                className="mt-6 inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                className="mt-6 inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
               >
                 Confirm deletion
               </button>
@@ -64,7 +64,7 @@ export function SupplierDeleteConfirmPage() {
 
           {state === 'loading' && (
             <>
-              <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-slate-200" />
+              <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
               <p className="text-muted-foreground">Confirming deletion…</p>
             </>
           )}

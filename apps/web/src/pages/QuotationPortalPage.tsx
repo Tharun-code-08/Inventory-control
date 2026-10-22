@@ -179,7 +179,7 @@ export function QuotationPortalPage() {
 
       <main className="mx-auto max-w-3xl px-4 py-8 pb-16">
         {!token && (
-          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900">
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900 dark:text-amber-300">
             Invalid link. Please open the quotation from the email we sent you.
           </div>
         )}
@@ -220,7 +220,7 @@ export function QuotationPortalPage() {
                   className={cn(
                     'rounded-lg border px-4 py-3 text-sm',
                     quote.status === 'ACCEPTED'
-                      ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900'
+                      ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300'
                       : 'border-border bg-muted text-foreground',
                   )}
                 >
@@ -229,7 +229,7 @@ export function QuotationPortalPage() {
               )}
 
               {quote.status === 'USER_REQUESTED' && quote.customerRequestedTotal && (
-                <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+                <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
                   Your requested total:{' '}
                   <strong>{formatAmount(quote.customerRequestedTotal)}</strong>
                   {quote.customerRequestNote ? (

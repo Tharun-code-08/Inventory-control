@@ -48,7 +48,7 @@ export function BackupCodesCard({ codes }: { codes: string[] }) {
           Download
         </Button>
       </div>
-      <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+      <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
         Store these codes safely. Each backup code works only once if you lose access to your
         authenticator app.
       </div>

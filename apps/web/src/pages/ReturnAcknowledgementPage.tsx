@@ -113,7 +113,7 @@ export function ReturnAcknowledgementPage() {
 
       <main className="mx-auto max-w-4xl px-4 py-8 pb-16">
         {!token ? (
-          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900">
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-6 text-amber-900 dark:text-amber-300">
             Invalid link. Please open the acknowledgement link from your return notice email.
           </div>
         ) : null}
@@ -160,11 +160,11 @@ export function ReturnAcknowledgementPage() {
               ) : null}
 
               {order.canAcknowledge ? (
-                <div className="mt-4 rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900">
+                <div className="mt-4 rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-300">
                   Please review the returned items and acknowledge the notice. Stock will be reduced only after you confirm this return.
                 </div>
               ) : (
-                <div className="mt-4 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
+                <div className="mt-4 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-300">
                   This return notice was acknowledged on {formatDate(order.acknowledgedAt)} and stock has already been adjusted.
                 </div>
               )}
@@ -231,7 +231,7 @@ export function ReturnAcknowledgementPage() {
                   {acting ? 'Acknowledging...' : 'Acknowledge And Process Return'}
                 </Button>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2 text-sm text-emerald-900">
+                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2 text-sm text-emerald-900 dark:text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
                   Acknowledgement recorded
                 </div>

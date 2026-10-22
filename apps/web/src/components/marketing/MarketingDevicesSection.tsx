@@ -9,18 +9,18 @@ export function MarketingDevicesSection() {
   const activeTab = MARKETING_DEVICES.tabs.find((t) => t.id === activeId) ?? MARKETING_DEVICES.tabs[0];
 
   return (
-    <section className="bg-white py-16 sm:py-20" aria-labelledby="devices-heading">
+    <section className="bg-white py-16 sm:py-20 dark:bg-card" aria-labelledby="devices-heading">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{MARKETING_DEVICES.eyebrow}</p>
-          <h2 id="devices-heading" className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 id="devices-heading" className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-foreground">
             {MARKETING_DEVICES.title}
           </h2>
-          <p className="mt-4 text-lg text-slate-600">{MARKETING_DEVICES.body}</p>
+          <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">{MARKETING_DEVICES.body}</p>
         </Reveal>
 
         <Reveal delay={80} className="mt-8 flex justify-center">
-          <div role="tablist" aria-label="Device views" className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+          <div role="tablist" aria-label="Device views" className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-border dark:bg-muted/40">
             {MARKETING_DEVICES.tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -31,7 +31,7 @@ export function MarketingDevicesSection() {
                 id={`devices-tab-${tab.id}`}
                 className={cn(
                   'rounded-full px-5 py-2 text-sm font-medium transition',
-                  activeId === tab.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900',
+                  activeId === tab.id ? 'bg-white text-slate-900 shadow-xs dark:bg-card dark:text-foreground' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400',
                 )}
                 onClick={() => setActiveId(tab.id)}
               >

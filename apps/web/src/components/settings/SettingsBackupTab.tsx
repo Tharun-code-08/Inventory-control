@@ -285,7 +285,7 @@ export function SettingsBackupTab() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Create a new backup</CardTitle>
             <Button
-              className="bg-emerald-600 text-white hover:bg-emerald-500"
+              className="bg-emerald-700 text-white hover:bg-emerald-600"
               onClick={() => handleCreateBackup(deliveryMethod)}
               disabled={
                 createBackup.isPending ||
@@ -304,7 +304,7 @@ export function SettingsBackupTab() {
               type="button"
               className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
                 deliveryMethod === 'MANUAL'
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900'
+                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300'
                   : 'border-border bg-card text-foreground'
               }`}
               onClick={() => setDeliveryMethod('MANUAL')}
@@ -322,9 +322,9 @@ export function SettingsBackupTab() {
               type="button"
               className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
                 deliveryMethod === 'EMAIL'
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900'
+                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300'
                   : 'border-border bg-card text-foreground'
-              } ${emailAvailable ? '' : 'opacity-70'}`}
+              } ${emailAvailable ? '' : 'opacity-80'}`}
               onClick={() => emailAvailable && setDeliveryMethod('EMAIL')}
               disabled={!emailAvailable}
             >
@@ -347,9 +347,9 @@ export function SettingsBackupTab() {
               tabIndex={0}
               className={`flex h-full flex-col rounded-xl border p-3 text-left transition ${
                 deliveryMethod === 'GOOGLE_DRIVE'
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900'
+                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300'
                   : 'border-border bg-card text-foreground'
-              } ${driveAvailable ? '' : 'opacity-70'}`}
+              } ${driveAvailable ? '' : 'opacity-80'}`}
               onClick={() => driveAvailable && setDeliveryMethod('GOOGLE_DRIVE')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {

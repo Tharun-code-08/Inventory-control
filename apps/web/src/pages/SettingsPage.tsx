@@ -1227,7 +1227,7 @@ function BrandingTab() {
   return (
     <div className="space-y-6">
       {/* Branding Health Status */}
-      <Card className={isHealthy ? 'border-green-200 dark:border-green-500/30 bg-green-50/50' : 'border-amber-200 dark:border-amber-500/30 bg-amber-50/50'}>
+      <Card className={isHealthy ? 'border-green-200 dark:border-green-500/30 bg-green-50/50 dark:bg-green-500/10' : 'border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/10'}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Branding Status</span>

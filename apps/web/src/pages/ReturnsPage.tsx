@@ -752,7 +752,7 @@ export function ReturnsPage({ createOnly = false }: { createOnly?: boolean }) {
                 ) : null}
 
                 {returnStatusMessage(detailReturn.status) ? (
-                  <div className="rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900">
+                  <div className="rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-300">
                     {returnStatusMessage(detailReturn.status)}
                   </div>
                 ) : null}

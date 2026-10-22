@@ -25,7 +25,7 @@ function statusLabel(status: string): string {
 function statusBadgeClass(status: string): string {
   const s = status.toLowerCase();
   if (s === 'sent' || s === 'delivered') return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
-  if (s === 'pending_pdf' || s === 'pending_send') return 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 border-amber-200 dark:border-amber-500/30';
+  if (s === 'pending_pdf' || s === 'pending_send') return 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 border-amber-200 dark:border-amber-500/30 dark:text-amber-300';
   if (s === 'failed') return 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300 border-red-200 dark:border-red-500/30';
   return 'bg-muted text-foreground border-border';
 }

@@ -282,7 +282,7 @@ function StorageLocationsListView() {
                           size="sm"
                           variant="outline"
                           className={cn(
-                            'border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 hover:text-emerald-900',
+                            'border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 hover:text-emerald-900 dark:border-emerald-500/30',
                           )}
                           onClick={() => onActivate(r.id)}
                           disabled={actionPending}

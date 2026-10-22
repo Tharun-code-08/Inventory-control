@@ -19,7 +19,7 @@ const ACCENTS: Record<KpiAccent, { chip: string; glow: string; ring: string }> =
     ring: 'group-hover:ring-sky-400/40',
   },
   emerald: {
-    chip: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-400/15 dark:text-emerald-300',
+    chip: 'bg-emerald-500/12 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300',
     glow: 'from-emerald-500 to-teal-400',
     ring: 'group-hover:ring-emerald-400/40',
   },
@@ -114,7 +114,7 @@ export function DashboardKpiCard({
           <span
             className={cn(
               'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums',
-              trend.direction === 'up' && 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-300',
+              trend.direction === 'up' && 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
               trend.direction === 'down' && 'bg-rose-500/12 text-rose-600 dark:text-rose-300',
               trend.direction !== 'up' && trend.direction !== 'down' && 'bg-muted text-muted-foreground',
             )}

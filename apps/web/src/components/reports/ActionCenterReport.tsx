@@ -86,8 +86,8 @@ export default function ActionCenterReport({ shopId }: Props) {
       {/* Actions List */}
       <div className="space-y-3">
         {data.actions.length === 0 ? (
-          <div className="bg-green-50 dark:bg-green-500/10 border-2 border-green-300 rounded-lg p-8 text-center">
-            <p className="text-2xl font-bold text-green-900">✅ All Clear!</p>
+          <div className="bg-green-50 dark:bg-green-500/10 border-2 border-green-300 rounded-lg p-8 text-center dark:border-green-500/30">
+            <p className="text-2xl font-bold text-green-900 dark:text-green-300">✅ All Clear!</p>
             <p className="text-sm text-green-700 dark:text-green-300 mt-2">No urgent actions needed right now.</p>
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">Keep monitoring your reports regularly.</p>
           </div>
@@ -137,7 +137,7 @@ export default function ActionCenterReport({ shopId }: Props) {
 
                   <div>
                     <p className="text-sm font-semibold text-foreground mb-2">Estimated Impact</p>
-                    <p className="text-sm text-foreground bg-green-50 dark:bg-green-500/10 p-3 rounded text-green-900">✓ {action.estimatedImpact}</p>
+                    <p className="text-sm text-foreground bg-green-50 dark:bg-green-500/10 p-3 rounded text-green-900 dark:text-green-300">✓ {action.estimatedImpact}</p>
                   </div>
 
                   {Object.keys(action.details).length > 0 && (

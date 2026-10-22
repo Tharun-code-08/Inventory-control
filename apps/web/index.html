@@ -3,6 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply the saved theme before first paint so dark mode doesn't flash white
+      // while the app loads (same key and rules as src/store/themeStore.ts).
+      (function () {
+        try {
+          var mode = localStorage.getItem('retail-ims-theme');
+          var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          root.classList.add(dark ? 'dark' : 'light');
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      /* Matches --background in dark mode until the stylesheet loads. */
+      html.dark { background-color: #0c1018; color-scheme: dark; }
+    </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-TPNZ5BVY8F"></script>
     <script>
@@ -23,7 +41,8 @@
       content="Softdigit Consulting helps retailers with inventory operations, dependable tooling, and SoftdigitIMS — sign in to manage stock across stores."
     />
     <link rel="canonical" href="https://softdigitconsulting.com/" />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c1018" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />

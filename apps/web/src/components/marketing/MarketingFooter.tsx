@@ -8,7 +8,7 @@ function FooterLink({ link }: { link: MarketingFooterLink }) {
   // On the marketing apex, auth paths (/login) live on the app subdomain.
   const href = resolveAuthHref(link.href);
   const isInternal = href.startsWith('/') && !href.startsWith('//');
-  const className = 'text-sm text-slate-600 transition hover:text-slate-900';
+  const className = 'text-sm text-slate-600 transition hover:text-slate-900 dark:text-slate-400';
 
   if (isInternal) {
     return (
@@ -40,21 +40,26 @@ export function MarketingFooter() {
   const hasSocial = Boolean(socialLinks.linkedin || socialLinks.twitter);
 
   return (
-    <footer className="border-t border-slate-200 bg-white">
+    <footer className="border-t border-slate-200 bg-white dark:border-border dark:bg-card">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:gap-8">
           <div>
             <img
               src="/LandingPageLogo.svg"
               alt={BRAND.companyName}
-              className="h-12 w-auto sm:h-14 lg:h-16"
+              className="h-12 w-auto sm:h-14 lg:h-16 dark:hidden"
             />
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600">{tagline}</p>
+            <img
+              src="/LandingPageLogo-dark.svg"
+              alt={BRAND.companyName}
+              className="hidden h-12 w-auto sm:h-14 lg:h-16 dark:block"
+            />
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-400">{tagline}</p>
           </div>
 
           {columns.map((col) => (
             <div key={col.heading}>
-              <h3 className="text-sm font-semibold text-slate-900">{col.heading}</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">{col.heading}</h3>
               <ul className="mt-4 space-y-2">
                 {col.links.map((link) => (
                   <li key={`${col.heading}-${link.label}`}>
@@ -67,14 +72,14 @@ export function MarketingFooter() {
 
           {hasSocial ? (
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Follow</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">Follow</h3>
               <div className="mt-4 flex gap-3">
                 {socialLinks.linkedin ? (
                   <a
                     href={socialLinks.linkedin}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-border dark:text-slate-400"
                     aria-label="LinkedIn"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -87,7 +92,7 @@ export function MarketingFooter() {
                     href={socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-border dark:text-slate-400"
                     aria-label="Twitter"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -100,7 +105,7 @@ export function MarketingFooter() {
           ) : null}
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between dark:border-border dark:text-slate-400">
           <p>{BRAND.copyright(new Date().getFullYear())}</p>
           <button
             type="button"

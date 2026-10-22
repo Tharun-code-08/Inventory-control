@@ -18,8 +18,8 @@ export function P2PFlowTimeline({ title = 'P2P flow', steps }: { title?: string;
             key={step.key}
             className={cn(
               'rounded-lg border px-3 py-2 text-xs',
-              step.state === 'done' && 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70',
-              step.state === 'active' && 'border-blue-200 dark:border-blue-500/30 bg-blue-50/70',
+              step.state === 'done' && 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/10',
+              step.state === 'active' && 'border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-500/10',
               step.state === 'todo' && 'border-border bg-muted/40',
             )}
           >

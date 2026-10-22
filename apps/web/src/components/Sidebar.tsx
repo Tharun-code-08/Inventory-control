@@ -240,7 +240,7 @@ export function Sidebar({
         {badge != null && badge > 0 && (
           <span
             className={cn(
-              'ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold leading-none text-white',
+              'ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold leading-none text-white',
               !effectivelyExpanded && 'absolute right-1 top-1 ml-0',
             )}
           >

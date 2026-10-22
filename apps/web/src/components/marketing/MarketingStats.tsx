@@ -7,7 +7,7 @@ function StatValue({ stat }: { stat: MarketingStat }) {
   return (
     <span
       className={cn(
-        'font-bold tracking-tight text-slate-900',
+        'font-bold tracking-tight text-slate-900 dark:text-foreground',
         // Numbers get the bigger, hero treatment; word values stay one line.
         isNumeric ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl',
       )}
@@ -21,7 +21,7 @@ function StatValue({ stat }: { stat: MarketingStat }) {
 
 export function MarketingStats() {
   return (
-    <section aria-label="Platform highlights" className="border-y border-slate-200/80 bg-white">
+    <section aria-label="Platform highlights" className="border-y border-slate-200/80 bg-white dark:border-border dark:bg-card">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <Reveal className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{MARKETING_STATS.eyebrow}</p>
@@ -37,8 +37,8 @@ export function MarketingStats() {
                 <StatValue stat={stat} />
               </dd>
               <dt className="mt-2">
-                <span className="block text-sm font-semibold text-slate-900">{stat.label}</span>
-                <span className="mt-0.5 block text-sm text-slate-500">{stat.description}</span>
+                <span className="block text-sm font-semibold text-slate-900 dark:text-foreground">{stat.label}</span>
+                <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">{stat.description}</span>
               </dt>
             </Reveal>
           ))}
