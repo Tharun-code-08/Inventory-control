@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { formResolver } from '@/lib/form-resolver';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
@@ -161,7 +161,7 @@ function ProfileTab() {
   }, [avatarFile]);
 
   const profileForm = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
+    resolver: formResolver(profileSchema),
     defaultValues: { name: user?.name ?? '' },
   });
 
@@ -176,7 +176,7 @@ function ProfileTab() {
   });
 
   const passwordForm = useForm<PasswordForm>({
-    resolver: zodResolver(passwordSchema),
+    resolver: formResolver(passwordSchema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
 
@@ -669,7 +669,7 @@ function UsersTab() {
   const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null);
 
   const form = useForm<UserFormValues>({
-    resolver: zodResolver(userFormSchema),
+    resolver: formResolver(userFormSchema),
     defaultValues: {
       name: '',
       email: '',
@@ -680,7 +680,7 @@ function UsersTab() {
     },
   });
   const inviteForm = useForm<InviteFormValues>({
-    resolver: zodResolver(inviteFormSchema),
+    resolver: formResolver(inviteFormSchema),
     defaultValues: {
       email: '',
       name: '',

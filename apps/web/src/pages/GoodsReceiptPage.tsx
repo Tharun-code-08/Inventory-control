@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { formResolver } from '@/lib/form-resolver';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
@@ -272,7 +272,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   );
 
   const form = useForm<GRFormValues>({
-    resolver: zodResolver(grFormSchema),
+    resolver: formResolver(grFormSchema),
     defaultValues: {
       supplierName: '',
       grDate: todayISO(),
