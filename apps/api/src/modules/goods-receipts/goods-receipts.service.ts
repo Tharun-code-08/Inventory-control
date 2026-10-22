@@ -296,6 +296,7 @@ export class GoodsReceiptsService {
       // data, series reconfiguration). A collision would abort the tx and
       // roll back the counter bump too, wedging every retry on the same
       // number — so advance within the tx until a free number is found.
+      const grShop = await tx.shop.findUnique({ where: { id: dto.shopId }, select: { companyId: true } });
       let grNumber = '';
       for (let attempt = 0; attempt < 50; attempt++) {
         grNumber = await this.numbers.nextConfiguredShopScopedNumber(tx, {
@@ -303,8 +304,8 @@ export class GoodsReceiptsService {
           docType: 'GR',
           date: grDate,
         });
-        const taken = await tx.goodsReceiptHeader.findUnique({
-          where: { grNumber },
+        const taken = await tx.goodsReceiptHeader.findFirst({
+          where: { grNumber, shop: { companyId: grShop?.companyId ?? undefined } },
           select: { id: true },
         });
         if (!taken) break;

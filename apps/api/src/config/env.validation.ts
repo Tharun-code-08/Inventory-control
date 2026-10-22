@@ -66,6 +66,12 @@ export const envValidationSchema = Joi.object({
   MFA_BACKUP_CODE_COUNT: Joi.number().integer().min(4).max(20).default(8),
   MFA_TRUSTED_DEVICE_DAYS: Joi.number().integer().min(1).max(30).default(7),
   MFA_SECRET_ENCRYPTION_KEY: Joi.string().trim().empty('').optional(),
+  /** Encrypts sender SMTP passwords; falls back to APP_SECRET / JWT_SECRET when unset. */
+  SMTP_CREDENTIALS_KEY: Joi.string().trim().empty('').optional(),
+  /** Old SMTP_CREDENTIALS_KEY during a rotation; passwords are re-encrypted on boot. */
+  SMTP_CREDENTIALS_KEY_PREVIOUS: Joi.string().trim().empty('').optional(),
+  /** Signs supplier portal links; falls back to JWT_SECRET. */
+  SUPPLIER_PORTAL_SECRET: Joi.string().trim().empty('').optional(),
   /** Optional Cloudflare Turnstile; empty string in .env is treated as unset. */
   TURNSTILE_SITE_KEY: Joi.string().trim().empty('').optional(),
   TURNSTILE_SECRET_KEY: Joi.string().trim().empty('').optional(),

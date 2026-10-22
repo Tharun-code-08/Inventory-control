@@ -24,6 +24,7 @@ import {
   UpdateEwayBillDto,
   GenerateFromInvoiceDto,
   CancelEwayBillDto,
+  RecordEwayBillNumberDto,
   EwayBillFilterDto,
 } from './dto/eway-bill.dto';
 
@@ -97,9 +98,13 @@ export class EwayBillsController {
   @Post(':id/generate')
   @RequirePermission('shop:write')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Generate (issue) the e-way bill number' })
-  generate(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    return this.service.generate(user, id);
+  @ApiOperation({ summary: 'Record the EWB number issued by the e-way bill portal' })
+  generate(
+    @Param('id') id: string,
+    @Body() dto: RecordEwayBillNumberDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.generate(user, id, dto);
   }
 
   @Post(':id/cancel')

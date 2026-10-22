@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsUUID } from 'class-validator';
 
-export class VerifySupplierDto {
+export class RequestPortalLinkDto {
   @ApiProperty()
   @IsEmail()
   email!: string;
 
-  @ApiPropertyOptional({ description: 'Optional RFQ id from portal link' })
+  @ApiPropertyOptional({ description: 'Only send the link for this RFQ' })
   @IsOptional()
   @IsUUID()
   rfqId?: string;

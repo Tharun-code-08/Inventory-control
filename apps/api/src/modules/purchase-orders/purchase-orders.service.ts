@@ -639,7 +639,12 @@ export class PurchaseOrdersService {
 
       const manualNumber = dto.poNumber?.trim();
       if (manualNumber) {
-        const exists = await tx.purchaseOrderHeader.findUnique({ where: { poNumber: manualNumber } });
+        // Numbers are unique per organisation (the counter is company-wide).
+        const shop = await tx.shop.findUnique({ where: { id: dto.shopId }, select: { companyId: true } });
+        const exists = await tx.purchaseOrderHeader.findFirst({
+          where: { poNumber: manualNumber, shop: { companyId: shop?.companyId ?? undefined } },
+          select: { id: true },
+        });
         if (exists) throw new BadRequestException('PO number already exists');
       }
       const { lines, total } = await this.buildPoLineCreates(tx, dto.shopId, user.id, dto.items);

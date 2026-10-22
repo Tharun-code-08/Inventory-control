@@ -31,6 +31,10 @@ export function decryptSecret(payload: string, secret: string): string {
   return decrypted.toString('utf8');
 }
 
+/**
+ * Key that new SMTP passwords are encrypted with. Set SMTP_CREDENTIALS_KEY so
+ * stored passwords don't depend on the JWT secret.
+ */
 export function getSmtpCredentialsKey(): string {
   const key =
     process.env.SMTP_CREDENTIALS_KEY?.trim() ||
@@ -40,4 +44,34 @@ export function getSmtpCredentialsKey(): string {
     throw new Error('SMTP_CREDENTIALS_KEY (or APP_SECRET) must be set to store sender SMTP passwords');
   }
   return key;
+}
+
+/**
+ * Every key a stored SMTP password may be encrypted with, current key first:
+ * SMTP_CREDENTIALS_KEY_PREVIOUS (after a rotation), then the APP_SECRET and
+ * JWT_SECRET fallbacks used before a dedicated key was set.
+ */
+export function getSmtpCredentialsKeys(): string[] {
+  const keys = [
+    getSmtpCredentialsKey(),
+    process.env.SMTP_CREDENTIALS_KEY_PREVIOUS?.trim(),
+    process.env.APP_SECRET?.trim(),
+    process.env.JWT_SECRET?.trim(),
+  ].filter((key): key is string => !!key);
+  return [...new Set(keys)];
+}
+
+/** Decrypts with the first key that works; `keyIndex` 0 means the current key. */
+export function decryptSecretWithKeys(
+  payload: string,
+  keys: readonly string[],
+): { plaintext: string; keyIndex: number } {
+  for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+    try {
+      return { plaintext: decryptSecret(payload, keys[keyIndex]), keyIndex };
+    } catch {
+      // try the next key
+    }
+  }
+  throw new Error('Encrypted secret could not be decrypted with any configured key');
 }

@@ -14,9 +14,10 @@ export function resolvePublicWebOrigin(config: ConfigService): string {
   return 'http://localhost:5173';
 }
 
-export function buildSupplierPortalSubmitUrl(config: ConfigService, rfqId: string): string {
+/** Supplier quote link; the signed token is the supplier's only credential. */
+export function buildSupplierPortalSubmitUrl(config: ConfigService, token: string): string {
   const origin = resolvePublicWebOrigin(config);
-  return `${origin}/supplier-portal/submit?rfq=${encodeURIComponent(rfqId)}`;
+  return `${origin}/supplier-portal/submit?token=${encodeURIComponent(token)}`;
 }
 
 export function buildSupplierDeleteConfirmUrl(config: ConfigService, token: string): string {

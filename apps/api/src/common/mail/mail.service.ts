@@ -5,6 +5,7 @@ import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { EmailSenderService } from '../../modules/email-senders/email-sender.service';
 import { NO_VERIFIED_SENDER_MESSAGE } from '../../modules/email-senders/email-sender.constants';
+import { signSupplierPortalToken, supplierPortalTokenExpiry } from '../crypto/portal-token';
 import type { SenderSmtpConfig } from '../../modules/email-senders/email-sender.constants';
 import {
   buildPasswordResetUrl,
@@ -392,6 +393,7 @@ export class MailService implements OnModuleInit {
     });
   }
 
+  /** Short RFQ reference shown in the invite; not a credential. */
   rfqPortalAccessCode(rfqId: string): string {
     return rfqId.replace(/-/g, '').slice(0, 8).toUpperCase();
   }
@@ -401,9 +403,15 @@ export class MailService implements OnModuleInit {
     rfqNumber: string;
     rfqTitle: string;
     deadline?: Date | null;
+    supplierId: string;
     supplierName: string;
   }): RfqInviteEmailContent {
-    const portalUrl = buildSupplierPortalSubmitUrl(this.config, args.rfqId);
+    const token = signSupplierPortalToken({
+      rfqId: args.rfqId,
+      supplierId: args.supplierId,
+      expiresAt: supplierPortalTokenExpiry(args.deadline),
+    });
+    const portalUrl = buildSupplierPortalSubmitUrl(this.config, token);
     const deadline = args.deadline
       ? args.deadline.toLocaleDateString('en-GB', {
           day: '2-digit',
@@ -496,6 +504,7 @@ export class MailService implements OnModuleInit {
         rfqNumber: args.rfqNumber,
         rfqTitle: args.rfqTitle,
         deadline: args.deadline,
+        supplierId: recipient.supplierId,
         supplierName: recipient.supplierName,
       });
 

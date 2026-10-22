@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,122 +10,128 @@ import { AlertType, DocumentStatus, NotificationModule, NotificationPriority, Pr
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentNumberService } from '../stock/document-number.service';
 import { SubmitPortalQuoteDto } from './dto/submit-portal-quote.dto';
-import { VerifySupplierDto } from './dto/verify-supplier.dto';
+import { RequestPortalLinkDto } from './dto/request-portal-link.dto';
+import { verifySupplierPortalToken } from '../../common/crypto/portal-token';
+import { MailService } from '../../common/mail/mail.service';
+import { rfqInviteHtml, rfqInviteSubject, rfqInviteText } from '../../common/mail/rfq-invite.template';
 import { SubscriptionService } from '../billing/subscription.service';
 import { NotificationService } from '../notifications/services/notification.service';
 
 @Injectable()
 export class SupplierPortalService {
+  private readonly logger = new Logger(SupplierPortalService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: DocumentNumberService,
     private readonly subscriptions: SubscriptionService,
     private readonly notifications: NotificationService,
+    private readonly mail: MailService,
   ) {}
 
-  private async resolveSupplier(email: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      throw new BadRequestException('Email is required');
-    }
-
+  /**
+   * Emails a fresh quote link for each open RFQ the address was invited to.
+   * The response is the same whether or not the address is a supplier, so it
+   * can't be used to discover suppliers, and the email itself is the proof of
+   * identity: only the inbox owner receives the link.
+   */
+  async requestLink(dto: RequestPortalLinkDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
     const suppliers = await this.prisma.supplier.findMany({
       where: {
         isActive: true,
         deletedAt: null,
         email: { equals: normalizedEmail, mode: 'insensitive' },
       },
-      include: { company: true },
-      take: 5,
+      select: { id: true, supplierName: true, email: true, companyId: true },
+      take: 20,
     });
 
-    if (suppliers.length === 0) {
-      throw new UnauthorizedException(
-        'We could not verify your email. Check that it matches our supplier records.',
-      );
-    }
-
-    return suppliers[0];
-  }
-
-  async verify(dto: VerifySupplierDto) {
-    const supplier = await this.resolveSupplier(dto.email);
-    if (supplier.companyId) {
-      await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
-    }
-
-    const openRfqs = await this.prisma.rfqHeader.findMany({
-      where: {
-        status: DocumentStatus.POSTED,
-        suppliers: { some: { supplierId: supplier.id } },
-      },
-      orderBy: { postedAt: 'desc' },
-      select: {
-        id: true,
-        rfqNumber: true,
-        title: true,
-        deadline: true,
-        rfqDate: true,
-      },
-    });
-
-    const resolveRfqId = (token: string) => {
-      const trimmed = token.trim();
-      if (!trimmed) return null;
-      if (trimmed.includes('-')) return trimmed;
-      const upper = trimmed.toUpperCase();
-      const fromOpen = openRfqs.find((r) => r.id.replace(/-/g, '').toUpperCase().startsWith(upper));
-      return fromOpen?.id ?? trimmed;
-    };
-
-    let selectedRfq: (typeof openRfqs)[number] | null = null;
-    if (dto.rfqId) {
-      const resolvedId = resolveRfqId(dto.rfqId);
-      selectedRfq = openRfqs.find((r) => r.id === resolvedId) ?? null;
-      if (!selectedRfq) {
-        const linked = await this.prisma.rfqHeader.findFirst({
-          where: {
-            id: resolvedId ?? dto.rfqId,
-            status: DocumentStatus.POSTED,
-            suppliers: { some: { supplierId: supplier.id } },
-          },
-          select: {
-            id: true,
-            rfqNumber: true,
-            title: true,
-            deadline: true,
-            rfqDate: true,
-          },
+    for (const supplier of suppliers) {
+      if (!supplier.companyId || !supplier.email) continue;
+      try {
+        await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
+      } catch {
+        continue;
+      }
+      const rfqs = await this.prisma.rfqHeader.findMany({
+        where: {
+          status: DocumentStatus.POSTED,
+          closedAt: null,
+          ...(dto.rfqId ? { id: dto.rfqId } : {}),
+          suppliers: { some: { supplierId: supplier.id } },
+        },
+        orderBy: { postedAt: 'desc' },
+        select: { id: true, rfqNumber: true, title: true, deadline: true },
+        take: 10,
+      });
+      for (const rfq of rfqs) {
+        if (rfq.deadline && endOfDay(rfq.deadline) < Date.now()) continue;
+        const content = this.mail.buildRfqInviteContent({
+          rfqId: rfq.id,
+          rfqNumber: rfq.rfqNumber,
+          rfqTitle: rfq.title,
+          deadline: rfq.deadline,
+          supplierId: supplier.id,
+          supplierName: supplier.supplierName,
         });
-        if (!linked) {
-          throw new NotFoundException('RFQ not found or not available for your company');
-        }
-        selectedRfq = linked;
+        await this.mail
+          .sendTenantMail(supplier.companyId, {
+            to: supplier.email,
+            subject: rfqInviteSubject(content),
+            text: rfqInviteText(content),
+            html: rfqInviteHtml(content),
+          })
+          .catch((err: Error) => this.logger.warn(`Supplier portal link email failed: ${err.message}`));
       }
     }
 
     return {
-      supplier: {
-        id: supplier.id,
-        supplierName: supplier.supplierName,
-        email: supplier.email,
-      },
-      openRfqs,
-      selectedRfqId: selectedRfq?.id ?? openRfqs[0]?.id ?? null,
+      ok: true,
+      message: 'If this email belongs to an invited supplier, we have sent a link to each open RFQ.',
     };
   }
 
-  async getRfqForSupplier(rfqId: string, supplierId: string) {
+  /** Resolves a portal link token to its supplier and RFQ, or 401. */
+  private async resolveToken(token: string) {
+    const claims = verifySupplierPortalToken(token);
+    if (!claims) {
+      throw new UnauthorizedException('This link is invalid or has expired. Request a new link from the portal.');
+    }
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: claims.supplierId, isActive: true, deletedAt: null },
+      select: { id: true, supplierName: true, email: true, companyId: true },
+    });
+    if (!supplier) {
+      throw new UnauthorizedException('This link is no longer valid.');
+    }
+    if (supplier.companyId) {
+      await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
+    }
     const rfq = await this.prisma.rfqHeader.findFirst({
       where: {
-        id: rfqId,
+        id: claims.rfqId,
         status: DocumentStatus.POSTED,
-        suppliers: { some: { supplierId } },
+        suppliers: { some: { supplierId: supplier.id } },
       },
-      include: {
+      // Only what a supplier needs; internal notes and audit columns stay out.
+      select: {
+        id: true,
+        rfqNumber: true,
+        title: true,
+        rfqDate: true,
+        deadline: true,
+        closedAt: true,
+        shopId: true,
         shop: { select: { shopName: true } },
         items: {
-          include: {
+          select: {
+            id: true,
+            productId: true,
+            description: true,
+            quantity: true,
+            uom: true,
+            specifications: true,
             product: { select: { productCode: true, description: true } },
           },
           orderBy: { createdAt: 'asc' },
@@ -132,27 +139,26 @@ export class SupplierPortalService {
       },
     });
     if (!rfq) throw new NotFoundException('RFQ not available');
-    return rfq;
+    return { supplier, rfq };
+  }
+
+  async getSession(token: string) {
+    const { supplier, rfq } = await this.resolveToken(token);
+    const { shopId: _shopId, ...publicRfq } = rfq;
+    return {
+      supplier: { supplierName: supplier.supplierName, email: supplier.email },
+      rfq: publicRfq,
+    };
   }
 
   async submitQuote(dto: SubmitPortalQuoteDto) {
-    const rfq = await this.getRfqForSupplier(dto.rfqId, dto.supplierId);
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id: dto.supplierId },
-      select: { companyId: true },
-    });
-    if (supplier?.companyId) {
-      await this.subscriptions.assertFeature(supplier.companyId, 'supplier_portal');
-    }
+    const { supplier, rfq } = await this.resolveToken(dto.token);
+    const supplierId = supplier.id;
     if (rfq.closedAt) {
       throw new BadRequestException('This RFQ is closed');
     }
-    if (rfq.deadline) {
-      const endOfDeadline = new Date(rfq.deadline);
-      endOfDeadline.setUTCHours(23, 59, 59, 999);
-      if (endOfDeadline.getTime() < Date.now()) {
-        throw new BadRequestException('The deadline for this RFQ has passed');
-      }
+    if (rfq.deadline && endOfDay(rfq.deadline) < Date.now()) {
+      throw new BadRequestException('The deadline for this RFQ has passed');
     }
     const itemMap = new Map(rfq.items.map((i) => [i.id, i]));
 
@@ -194,9 +200,9 @@ export class SupplierPortalService {
     const created = await this.prisma.$transaction(async (tx) => {
       // One quote per supplier per RFQ; serialize so a double submit cannot
       // create two (each one burns a number from the buyer's sequence).
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rfq-quote:${rfq.id}:${dto.supplierId}`}::text))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rfq-quote:${rfq.id}:${supplierId}`}::text))`;
       const already = await tx.supplierQuotationHeader.findFirst({
-        where: { rfqId: rfq.id, supplierId: dto.supplierId },
+        where: { rfqId: rfq.id, supplierId: supplierId },
         select: { id: true },
       });
       if (already) {
@@ -216,7 +222,7 @@ export class SupplierPortalService {
           quoteDate,
           shopId: rfq.shopId,
           rfqId: rfq.id,
-          supplierId: dto.supplierId,
+          supplierId: supplierId,
           notes: notes || null,
           status: DocumentStatus.POSTED,
           postedAt: new Date(),
@@ -278,4 +284,10 @@ export class SupplierPortalService {
       status: created.status,
     };
   }
+}
+
+function endOfDay(date: Date): number {
+  const end = new Date(date);
+  end.setUTCHours(23, 59, 59, 999);
+  return end.getTime();
 }

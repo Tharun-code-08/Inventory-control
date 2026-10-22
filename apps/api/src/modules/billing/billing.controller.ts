@@ -27,6 +27,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LifecycleOrchestratorService } from '../subscription-lifecycle/lifecycle-orchestrator.service';
 import { SubscriptionInvoiceService } from '../subscription-lifecycle/subscription-invoice.service';
 import { CreateOrderDto, VerifyPaymentDto } from './dto/billing.dto';
+import { notifySubscriptionActivated } from './notify-activation';
 import { RazorpayService } from './razorpay.service';
 import { SubscriptionService } from './subscription.service';
 
@@ -44,8 +45,38 @@ export class BillingController {
   @Public()
   @Post('create-order')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Create Razorpay order for Pro/Plus checkout' })
+  @ApiOperation({ summary: 'Create Razorpay order for Pro/Plus checkout (signup)' })
   async createOrder(@Body() dto: CreateOrderDto) {
+    return this.createPaymentOrder(dto, null);
+  }
+
+  @Post('upgrade-order')
+  @RequirePermission('billing:manage')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Create a Razorpay order bound to the current organisation' })
+  async createUpgradeOrder(@CurrentUser() user: RequestUser, @Body() dto: CreateOrderDto) {
+    const companyId = await this.subscriptions.resolveCompanyIdForUser(user);
+    if (!companyId) throw new BadRequestException('No organisation linked to this account');
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { subscriptionPlan: true },
+    });
+    if (!company) throw new BadRequestException('Organisation not found');
+    const plan = toSubscriptionPlan(dto.plan);
+    if (isDowngrade(company.subscriptionPlan, plan)) {
+      throw new BadRequestException(
+        `Downgrades are not allowed. Current plan: ${company.subscriptionPlan}, requested: ${plan}.`,
+      );
+    }
+    return this.createPaymentOrder(dto, companyId);
+  }
+
+  /**
+   * An order created with a company id is bound to it: only that organisation
+   * can apply it, and it is applied automatically once paid (verify-payment or
+   * the payment.captured webhook), even if the browser closes first.
+   */
+  private async createPaymentOrder(dto: CreateOrderDto, companyId: string | null) {
     if (!this.razorpay.isConfigured()) {
       throw new BadRequestException('Payment gateway is not configured');
     }
@@ -55,6 +86,7 @@ export class BillingController {
       const order = await this.razorpay.createOrder({ amountPaise, receipt });
       await this.prisma.subscriptionPayment.create({
         data: {
+          companyId,
           plan: toSubscriptionPlan(dto.plan),
           billingCycle: toBillingCycle(dto.billing),
           amountPaise,
@@ -101,6 +133,10 @@ export class BillingController {
         verifiedAt: now,
       },
     });
+    const activatedCompanyId = await this.subscriptions.applyBoundPayment(orderId, paymentId);
+    if (activatedCompanyId) {
+      await notifySubscriptionActivated(this.lifecycle, activatedCompanyId, payment);
+    }
     return {
       ok: true,
       order_id: orderId,
@@ -142,9 +178,12 @@ export class BillingController {
       if (payment.companyId === companyId) return this.subscriptions.getSnapshotForUser(user);
       throw new BadRequestException('Payment already used');
     }
+    if (payment.companyId && payment.companyId !== companyId) {
+      throw new BadRequestException('This payment was started for a different organisation');
+    }
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { subscriptionPlan: true, companyName: true },
+      select: { subscriptionPlan: true },
     });
     if (!company) {
       throw new BadRequestException('Organisation not found');
@@ -163,18 +202,7 @@ export class BillingController {
       amountPaise: payment.amountPaise,
     });
 
-    const owner = await this.lifecycle.resolveOwnerEmail(companyId);
-    if (owner) {
-      void this.lifecycle.onSubscriptionActivated({
-        companyId,
-        ownerEmail: owner.email,
-        companyName: company.companyName,
-        plan: payment.plan,
-        billingCycle: payment.billingCycle,
-        amountPaise: payment.amountPaise,
-        paymentId: payment.id,
-      });
-    }
+    await notifySubscriptionActivated(this.lifecycle, companyId, payment);
 
     return this.subscriptions.getSnapshotForUser(user);
   }

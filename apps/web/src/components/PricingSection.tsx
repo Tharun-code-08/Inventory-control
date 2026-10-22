@@ -14,7 +14,6 @@ import {
   type PlanId,
 } from '@/lib/plans';
 import { useRazorpayCheckout } from '@/hooks/use-razorpay-checkout';
-import { openRazorpayPaymentLink } from '@/lib/razorpay-payment-links';
 import { trackEvent } from '@/lib/analytics';
 import { resolveAuthHref } from '@/lib/marketing-links';
 
@@ -65,21 +64,16 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
       return;
     }
 
-    // In-app upgrade: payment link or Razorpay checkout modal.
+    // In-app upgrade: Razorpay checkout modal.
     if (plan === 'trial') return;
 
-    const useHostedPaymentLink = plan === 'pro' || plan === 'plus';
-    if (useHostedPaymentLink) {
-      if (openRazorpayPaymentLink(plan)) {
-        toast.message('Complete payment on Razorpay. Your plan updates after payment is confirmed.');
-        return;
-      }
-    }
-
     try {
+      // The order is bound to this organisation, so the plan is applied even if
+      // the tab closes after paying.
       await checkout({
         plan,
         billing,
+        orderEndpoint: '/billing/upgrade-order',
         onSuccess: async (response) => {
           await onPaidUpgrade({
             orderId: response.razorpay_order_id,

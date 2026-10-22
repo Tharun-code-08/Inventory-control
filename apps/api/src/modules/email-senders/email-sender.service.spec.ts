@@ -63,3 +63,36 @@ describe('EmailSenderService.resolveTenantSender', () => {
     expect(resolved.smtp.host).toBe('smtp.gmail.com');
   });
 });
+
+describe('EmailSenderService.reencryptLegacySmtpPasswords', () => {
+  const cipher = require('../../common/crypto/secret-cipher');
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('re-encrypts passwords stored under the JWT secret with SMTP_CREDENTIALS_KEY', async () => {
+    process.env.JWT_SECRET = 'jwt-secret';
+    delete process.env.APP_SECRET;
+    process.env.SMTP_CREDENTIALS_KEY = 'dedicated-key';
+    const legacy = cipher.encryptSecret('pw', 'jwt-secret');
+    const current = cipher.encryptSecret('pw2', 'dedicated-key');
+    const prisma = {
+      emailSenderIdentity: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'a', smtpPasswordEnc: legacy },
+          { id: 'b', smtpPasswordEnc: current },
+          { id: 'c', smtpPasswordEnc: cipher.encryptSecret('x', 'unknown') },
+        ]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const service = new EmailSenderService(prisma, {} as any, { get: jest.fn() } as any);
+
+    await expect(service.reencryptLegacySmtpPasswords()).resolves.toBe(1);
+    expect(prisma.emailSenderIdentity.updateMany).toHaveBeenCalledTimes(1);
+    const call = prisma.emailSenderIdentity.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: 'a', smtpPasswordEnc: legacy });
+    expect(cipher.decryptSecret(call.data.smtpPasswordEnc, 'dedicated-key')).toBe('pw');
+  });
+});

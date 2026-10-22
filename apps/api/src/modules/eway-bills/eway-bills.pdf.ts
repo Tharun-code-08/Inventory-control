@@ -214,7 +214,11 @@ export function generateEwayBillHtml(bill: any): string {
       </div>
 
       <div class="footer">
-        <p>This E-Way Bill is valid for movement of goods as per GST rules.</p>
+        ${
+          bill.status === 'GENERATED'
+            ? '<p>EWB number as issued by the GST e-way bill portal (ewaybillgst.gov.in). Verify it on the portal before movement.</p>'
+            : '<p style="font-weight:bold;color:#b45309;">DRAFT &mdash; not a valid e-way bill. Generate it on ewaybillgst.gov.in and record the EWB number before moving goods.</p>'
+        }
         <p>Generated on ${new Date().toLocaleDateString('en-IN')} at ${new Date().toLocaleTimeString('en-IN')}</p>
       </div>
     </body>

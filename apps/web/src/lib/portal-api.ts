@@ -61,7 +61,10 @@ export function portalPost<T>(path: string, body?: unknown): Promise<T> {
   return portalRequest<T>('POST', path, { body });
 }
 
-/** Public supplier portal link shown in RFQ emails and admin copy UI. */
+/**
+ * Public supplier portal page. Suppliers enter their email there to receive a
+ * personal (signed) quote link; this URL itself grants no access.
+ */
 export function supplierPortalSubmitUrl(rfqId?: string): string {
   const origin = window.location.origin.replace(/\/$/, '');
   if (!rfqId) return `${origin}/supplier-portal/submit`;

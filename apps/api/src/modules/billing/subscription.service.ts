@@ -340,6 +340,34 @@ export class SubscriptionService {
     });
   }
 
+  /**
+   * Applies a paid order that was created for a specific organisation (the
+   * in-app upgrade checkout), so the plan activates even if the browser never
+   * calls /billing/upgrade. Returns the company id when this call activated it.
+   */
+  async applyBoundPayment(orderId: string, paymentId: string): Promise<string | null> {
+    const payment = await this.prisma.subscriptionPayment.findUnique({
+      where: { razorpayOrderId: orderId },
+    });
+    if (!payment?.companyId || payment.consumedAt || payment.status !== 'paid') return null;
+    try {
+      await this.activatePaidPlan({
+        companyId: payment.companyId,
+        plan: payment.plan,
+        billingCycle: payment.billingCycle,
+        paymentId,
+        orderId,
+        amountPaise: payment.amountPaise,
+      });
+      return payment.companyId;
+    } catch (err) {
+      // Already applied by a concurrent request, or no longer valid (a
+      // downgrade): the upgrade endpoint reports those to the user.
+      if (err instanceof BadRequestException) return null;
+      throw err;
+    }
+  }
+
   async startTrial(companyId: string) {
     const now = new Date();
     await this.prisma.company.update({

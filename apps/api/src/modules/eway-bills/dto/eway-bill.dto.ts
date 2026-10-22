@@ -10,6 +10,7 @@ import {
   Min,
   ValidateNested,
   IsArray,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -202,6 +203,20 @@ export class GenerateFromInvoiceDto {
   @ApiPropertyOptional({ enum: EwayVehicleType, default: 'REGULAR' })
   @IsEnum(EwayVehicleType) @IsOptional() vehicleType?: EwayVehicleType;
   @ApiPropertyOptional() @IsInt() @Min(0) @IsOptional() distanceKm?: number;
+}
+
+// ─── Record portal number ────────────────────────────────────────────────────
+
+export class RecordEwayBillNumberDto {
+  @ApiProperty({ example: '331009876543', description: '12-digit EWB number issued by ewaybillgst.gov.in' })
+  @Matches(/^\d{12}$/, { message: 'E-way bill number must be the 12-digit number issued by the e-way bill portal' })
+  ewayBillNumber: string;
+
+  @ApiPropertyOptional({ description: 'Valid-until date/time shown on the portal' })
+  @IsDateString() @IsOptional() validUpto?: string;
+
+  @ApiPropertyOptional({ description: 'Generation date/time shown on the portal' })
+  @IsDateString() @IsOptional() generatedAt?: string;
 }
 
 // ─── Cancel ───────────────────────────────────────────────────────────────────

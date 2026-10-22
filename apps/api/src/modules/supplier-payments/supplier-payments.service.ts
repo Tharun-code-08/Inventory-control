@@ -137,10 +137,9 @@ export class SupplierPaymentsService {
       const paymentDate = dto.paymentDate ? new Date(dto.paymentDate) : new Date();
       const paymentNumber =
         dto.paymentNumber?.trim() ||
-        (await this.numbers.nextNumber(tx, {
+        (await this.numbers.nextConfiguredNumber(tx, {
           shopId: bill.shopId,
           docType: 'SPAY',
-          prefix: 'SPAY',
           date: paymentDate,
         }));
 

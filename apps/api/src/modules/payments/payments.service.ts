@@ -126,10 +126,9 @@ export class PaymentsService {
 
       const receiptNumber =
         dto.receiptNumber?.trim() ||
-        (await this.numbers.nextNumber(tx, {
+        (await this.numbers.nextConfiguredNumber(tx, {
           shopId: invoice.shopId,
           docType: 'RCPT',
-          prefix: 'RCPT',
           date: dto.receiptDate ? new Date(dto.receiptDate) : new Date(),
         }));
 

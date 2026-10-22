@@ -8,6 +8,7 @@ import {
   UpdateEwayBillDto,
   GenerateFromInvoiceDto,
   EwayBillFilterDto,
+  RecordEwayBillNumberDto,
   EwayBillItemDto,
 } from './dto/eway-bill.dto';
 
@@ -309,7 +310,12 @@ export class EwayBillsService {
 
   // ─── Generate ───────────────────────────────────────────────────────────────
 
-  async generate(user: RequestUser, id: string) {
+  /**
+   * Records the e-way bill number issued by the GST e-way bill portal
+   * (ewaybillgst.gov.in). This app does not talk to the portal, so it never
+   * invents a number: the bill stays a draft until the real number is entered.
+   */
+  async generate(user: RequestUser, id: string, dto: RecordEwayBillNumberDto) {
     const bill = await this.get(user, id);
 
     if (bill.status !== EwayBillStatus.DRAFT) {
@@ -317,17 +323,31 @@ export class EwayBillsService {
     }
     this.validateForGeneration(bill);
 
-    return this.prisma.ewayBill.update({
-      where: { id },
+    const taken = await this.prisma.ewayBill.findFirst({
+      where: { ewayBillNumber: dto.ewayBillNumber, id: { not: id } },
+      select: { id: true },
+    });
+    if (taken) {
+      throw new BadRequestException('This e-way bill number is already recorded on another bill');
+    }
+
+    const generatedAt = dto.generatedAt ? new Date(dto.generatedAt) : new Date();
+    // The status guard makes the transition atomic: a double submit can't
+    // record two different numbers.
+    const { count } = await this.prisma.ewayBill.updateMany({
+      where: { id, ...this.scopeWhere(user), status: EwayBillStatus.DRAFT },
       data: {
         status: EwayBillStatus.GENERATED,
-        ewayBillNumber: this.officialNumber(),
-        generatedAt: new Date(),
-        validUpto: this.validUpto(bill.distanceKm),
+        ewayBillNumber: dto.ewayBillNumber,
+        generatedAt,
+        validUpto: dto.validUpto ? new Date(dto.validUpto) : this.validUpto(bill.distanceKm, generatedAt),
         updatedById: user.id,
       },
-      include: { items: true },
     });
+    if (count === 0) {
+      throw new BadRequestException('E-way bill has already been generated or cancelled');
+    }
+    return this.prisma.ewayBill.findUnique({ where: { id }, include: { items: true } });
   }
 
   // ─── Cancel ─────────────────────────────────────────────────────────────────
@@ -440,16 +460,10 @@ export class EwayBillsService {
       .padStart(3, '0')}`;
   }
 
-  private officialNumber(): string {
-    let n = '';
-    for (let i = 0; i < 12; i += 1) n += Math.floor(Math.random() * 10).toString();
-    return n;
-  }
-
-  /** GST rule: 1 day per 200 km (min 1 day). */
-  private validUpto(distanceKm: number | null): Date {
+  /** Fallback when the portal's validity isn't entered: 1 day per 200 km (min 1 day). */
+  private validUpto(distanceKm: number | null, from: Date): Date {
     const days = Math.max(1, Math.ceil((distanceKm ?? 0) / 200));
-    const d = new Date();
+    const d = new Date(from);
     d.setDate(d.getDate() + days);
     return d;
   }

@@ -363,10 +363,9 @@ export class ReturnsService {
         });
       }
 
-      const creditNumber = await this.numbers.nextNumber(tx, {
+      const creditNumber = await this.numbers.nextConfiguredNumber(tx, {
         shopId: ret.shopId,
         docType: 'CN',
-        prefix: 'CN',
         date: ret.returnDate,
       });
       await tx.creditNote.create({

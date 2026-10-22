@@ -102,6 +102,8 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   const [form, setForm] = useState(emptyForm);
   const [active, setActive] = useState<EwayBill | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [portalNumber, setPortalNumber] = useState('');
+  const [portalValidUpto, setPortalValidUpto] = useState('');
 
   function set<K extends keyof ReturnType<typeof emptyForm>>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -216,15 +218,26 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   }
 
   async function handleGenerate(bill: EwayBill) {
+    const ewayBillNumber = portalNumber.replace(/\s/g, '');
+    if (!/^\d{12}$/.test(ewayBillNumber)) {
+      toast.error('Enter the 12-digit EWB number issued by the e-way bill portal.');
+      return;
+    }
     try {
-      await generateBill.mutateAsync(bill.id);
-      toast.success('E-way bill generated');
+      await generateBill.mutateAsync({
+        id: bill.id,
+        ewayBillNumber,
+        validUpto: portalValidUpto ? new Date(portalValidUpto).toISOString() : undefined,
+      });
+      toast.success('E-way bill number recorded');
       setActive(null);
+      setPortalNumber('');
+      setPortalValidUpto('');
     } catch (err) {
-      const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-        'Could not generate e-way bill.';
-      toast.error(msg);
+      const data = (err as { response?: { data?: { message?: string | string[]; error?: { message?: string } } } })
+        .response?.data;
+      const message = data?.error?.message ?? (Array.isArray(data?.message) ? data?.message[0] : data?.message);
+      toast.error(message ?? 'Could not record the e-way bill number.');
     }
   }
 
@@ -250,7 +263,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
       <AppLayout active="E-Way Bills">
         <CreatePageLayout
           title="New e-way bill"
-          description="Capture the consignment details, then generate the EWB number."
+          description="Capture the consignment details, then generate it on the GST e-way bill portal and record the EWB number."
           backTo="/eway-bills"
           actionBar={
             <>
@@ -441,7 +454,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
   // ---- List view ----
   return (
     <AppLayout active="E-Way Bills">
-      <PageHeader title="E-Way Bills" description="Generate and track GST e-way bills for goods movement.">
+      <PageHeader title="E-Way Bills" description="Prepare e-way bills, record the EWB number from the GST portal, and track validity.">
         <Button onClick={() => navigate('/eway-bills/new')}>
           <Plus className="mr-2 h-4 w-4" />
           New e-way bill
@@ -514,11 +527,10 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            void handleGenerate(b);
+                            setActive(b);
                           }}
-                          disabled={generateBill.isPending}
                         >
-                          Generate
+                          Record EWB no.
                         </Button>
                       ) : (
                         <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setActive(b); }}>
@@ -535,7 +547,7 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
       </Card>
 
       {/* Detail sheet */}
-      <Sheet open={Boolean(active)} onOpenChange={(open) => { if (!open) { setActive(null); setCancelReason(''); } }}>
+      <Sheet open={Boolean(active)} onOpenChange={(open) => { if (!open) { setActive(null); setCancelReason(''); setPortalNumber(''); setPortalValidUpto(''); } }}>
         <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle>{active && active.status !== 'DRAFT' ? active.ewayBillNumber : 'Draft e-way bill'}</SheetTitle>
@@ -565,10 +577,45 @@ export function EwayBillsPage({ createOnly = false }: { createOnly?: boolean }) 
               </dl>
 
               {active.status === 'DRAFT' && (
-                <Button className="w-full" onClick={() => void handleGenerate(active)} disabled={generateBill.isPending}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Generate e-way bill
-                </Button>
+                <div className="space-y-3 rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Generate this e-way bill on{' '}
+                    <a
+                      href="https://ewaybillgst.gov.in"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary underline"
+                    >
+                      ewaybillgst.gov.in
+                    </a>
+                    , then record the EWB number it issues. Until then this is only a draft and not valid for
+                    moving goods.
+                  </p>
+                  <div className="space-y-1">
+                    <Label htmlFor="ewb-number">EWB number</Label>
+                    <Input
+                      id="ewb-number"
+                      inputMode="numeric"
+                      maxLength={14}
+                      placeholder="12-digit number"
+                      value={portalNumber}
+                      onChange={(e) => setPortalNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="ewb-valid">Valid until (as shown on the portal)</Label>
+                    <Input
+                      id="ewb-valid"
+                      type="datetime-local"
+                      value={portalValidUpto}
+                      onChange={(e) => setPortalValidUpto(e.target.value)}
+                    />
+                  </div>
+                  <Button className="w-full" onClick={() => void handleGenerate(active)} disabled={generateBill.isPending}>
+                    <Send className="mr-2 h-4 w-4" />
+                    Record e-way bill number
+                  </Button>
+                </div>
               )}
 
               {active.status === 'GENERATED' && (

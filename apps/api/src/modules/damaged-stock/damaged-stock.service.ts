@@ -71,10 +71,9 @@ export class DamagedStockService {
         ]);
       }
 
-      const damageNumber = await this.numbers.nextNumber(tx, {
+      const damageNumber = await this.numbers.nextConfiguredNumber(tx, {
         shopId: dto.shopId,
         docType: 'DM',
-        prefix: 'DM',
         date: damageDate,
       });
 

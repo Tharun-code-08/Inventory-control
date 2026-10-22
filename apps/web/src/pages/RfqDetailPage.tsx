@@ -282,7 +282,7 @@ export function RfqDetailPage() {
 
   function copyAccessCode() {
     void navigator.clipboard.writeText(accessCode);
-    toast.success('Access code copied');
+    toast.success('RFQ reference copied');
   }
 
   function copyPortalLink() {
@@ -544,7 +544,11 @@ export function RfqDetailPage() {
               <div className="mt-6 flex flex-1 flex-col justify-end">
                 <div className="rounded-xl border border-border bg-muted p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Supplier portal access code
+                    RFQ reference
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Invited suppliers get a personal quote link by email. The portal link below lets
+                    them request it again.
                   </p>
                   <p className="mt-2 font-mono text-2xl font-bold tracking-[0.2em] text-primary">
                     {accessCode}
@@ -557,7 +561,7 @@ export function RfqDetailPage() {
                       onClick={copyAccessCode}
                     >
                       <Copy className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                      Copy code
+                      Copy reference
                     </Button>
                     <Button
                       size="sm"

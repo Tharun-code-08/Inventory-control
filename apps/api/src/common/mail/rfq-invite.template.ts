@@ -26,7 +26,7 @@ export function rfqInviteText(content: RfqInviteEmailContent): string {
     'Open the Supplier Portal to verify your identity and submit your quote:',
     content.portalUrl,
     '',
-    `RFQ reference (optional on verify screen): ${content.accessCode}`,
+    `RFQ reference: ${content.accessCode}`,
     '',
     'Thank you,',
     'SoftdigitIMS Procurement',
@@ -71,7 +71,7 @@ export function rfqInviteHtml(content: RfqInviteEmailContent): string {
               </p>
               <p style="margin:0 0 8px;font-size:13px;color:#64748b;">Or copy this link:</p>
               <p style="margin:0 0 20px;font-size:13px;word-break:break-all;"><a href="${escapeHtml(content.portalUrl)}" style="color:#4338ca;">${escapeHtml(content.portalUrl)}</a></p>
-              <p style="margin:0;font-size:12px;color:#94a3b8;">RFQ reference (optional): <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">${escapeHtml(content.accessCode)}</code></p>
+              <p style="margin:0;font-size:12px;color:#94a3b8;">RFQ reference: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">${escapeHtml(content.accessCode)}</code></p>
             </td>
           </tr>
           <tr>

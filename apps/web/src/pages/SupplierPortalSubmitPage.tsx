@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Check,
-  ChevronLeft,
   FileText,
   Send,
   ShieldCheck,
@@ -17,17 +16,15 @@ import { portalGet, portalPost } from '@/lib/portal-api';
 
 type Step = 1 | 2 | 3 | 4;
 
-type VerifyResult = {
-  supplier: { id: string; supplierName: string; email: string };
-  openRfqs: Array<{ id: string; rfqNumber: string; title: string }>;
-  selectedRfqId: string | null;
+type PortalSession = {
+  supplier: { supplierName: string; email: string | null };
+  rfq: PortalRfq;
 };
 
 type PortalRfq = {
   id: string;
   rfqNumber: string;
   title: string;
-  notes?: string | null;
   items: Array<{
     id: string;
     quantity: string | number;
@@ -98,12 +95,13 @@ function Stepper({ current }: { current: Step }) {
 
 export function SupplierPortalSubmitPage() {
   const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') ?? '';
   const presetRfqId = searchParams.get('rfq') ?? '';
 
   const [step, setStep] = useState<Step>(1);
   const [email, setEmail] = useState('');
-  const [accessCode, setAccessCode] = useState(presetRfqId);
-  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
+  const [linkSent, setLinkSent] = useState(false);
+  const [supplierName, setSupplierName] = useState<string | null>(null);
   const [rfq, setRfq] = useState<PortalRfq | null>(null);
   const [lines, setLines] = useState<QuoteLine[]>([]);
   const [leadTimeDays, setLeadTimeDays] = useState('');
@@ -113,6 +111,7 @@ export function SupplierPortalSubmitPage() {
     totalValue: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const grandTotal = useMemo(
     () =>
@@ -124,44 +123,57 @@ export function SupplierPortalSubmitPage() {
     [lines],
   );
 
-  async function handleVerify() {
+  // The emailed link carries a signed token: it opens the RFQ directly.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setLoading(true);
+    portalGet<PortalSession>('/supplier-portal/session', { token })
+      .then((session) => {
+        if (cancelled) return;
+        setSupplierName(session.supplier.supplierName);
+        setRfq(session.rfq);
+        setLines(
+          session.rfq.items.map((item) => ({
+            rfqItemId: item.id,
+            label: item.product
+              ? `${item.product.productCode} — ${item.product.description}`
+              : item.description ?? 'Item',
+            qty: Number(item.quantity),
+            uom: item.uom,
+            unitPrice: '',
+          })),
+        );
+        setStep(2);
+      })
+      .catch((e) => {
+        if (!cancelled) setLinkError(e instanceof Error ? e.message : 'This link is invalid or has expired.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  async function handleRequestLink() {
     setLoading(true);
     try {
-      const result = await portalPost<VerifyResult>('/supplier-portal/verify', {
+      await portalPost('/supplier-portal/request-link', {
         email: email.trim(),
-        rfqId: accessCode.trim() || undefined,
+        rfqId: presetRfqId || undefined,
       });
-      setVerifyResult(result);
-      const rfqId = result.selectedRfqId ?? result.openRfqs[0]?.id;
-      if (!rfqId) {
-        toast.error('No open RFQs are assigned to your company right now.');
-        return;
-      }
-      const detail = await portalGet<PortalRfq>(`/supplier-portal/rfqs/${rfqId}`, {
-        supplier_id: result.supplier.id,
-      });
-      setRfq(detail);
-      setLines(
-        detail.items.map((item) => ({
-          rfqItemId: item.id,
-          label: item.product
-            ? `${item.product.productCode} — ${item.product.description}`
-            : item.description ?? 'Item',
-          qty: Number(item.quantity),
-          uom: item.uom,
-          unitPrice: '',
-        })),
-      );
-      setStep(2);
+      setLinkSent(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Verification failed');
+      toast.error(e instanceof Error ? e.message : 'Could not send the link');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleSubmit() {
-    if (!verifyResult || !rfq) return;
+    if (!token || !rfq) return;
     const priced = lines.filter((l) => Number(l.unitPrice) > 0);
     if (priced.length === 0) {
       toast.error('Enter a unit price for at least one line');
@@ -172,8 +184,7 @@ export function SupplierPortalSubmitPage() {
       const result = await portalPost<{ referenceCode: string; totalValue: number }>(
         '/supplier-portal/quotes',
         {
-          rfqId: rfq.id,
-          supplierId: verifyResult.supplier.id,
+          token,
           leadTimeDays: leadTimeDays ? Number(leadTimeDays) : undefined,
           notes: notes.trim() || undefined,
           items: priced.map((l) => ({
@@ -212,31 +223,35 @@ export function SupplierPortalSubmitPage() {
               <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary">
                 <ShieldCheck className="h-7 w-7" />
               </div>
-              <h1 className="text-xl font-semibold text-foreground">Verify your identity</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Enter your details to access the RFQ</p>
+              <h1 className="text-xl font-semibold text-foreground">
+                {token && loading ? 'Opening your RFQ…' : 'Get your quotation link'}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {linkError ??
+                  'Enter the email address the buyer has on file. We will email you a secure link to each open RFQ.'}
+              </p>
             </div>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <Label>Email address</Label>
-                <Input
-                  type="email"
-                  placeholder="supplier@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>RFQ reference (optional)</Label>
-                <Input
-                  placeholder="Paste RFQ id from invitation link"
-                  value={accessCode}
-                  onChange={(e) => setAccessCode(e.target.value)}
-                />
-              </div>
-            </div>
-            <Button className="mt-6 w-full" disabled={loading} onClick={handleVerify}>
-              {loading ? 'Checking…' : 'Continue'}
-            </Button>
+            {linkSent ? (
+              <p className="rounded-lg bg-muted px-4 py-3 text-center text-sm text-foreground">
+                If {email.trim()} belongs to an invited supplier, a link is on its way. Check your inbox (and
+                spam folder).
+              </p>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label>Email address</Label>
+                  <Input
+                    type="email"
+                    placeholder="supplier@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <Button className="mt-6 w-full" disabled={loading || !email.trim()} onClick={handleRequestLink}>
+                  {loading ? 'Sending…' : 'Email me a link'}
+                </Button>
+              </>
+            )}
           </div>
         )}
 
@@ -251,9 +266,7 @@ export function SupplierPortalSubmitPage() {
               <p className="font-semibold text-foreground">
                 {rfq.rfqNumber} — {rfq.title}
               </p>
-              {verifyResult?.supplier && (
-                <p className="text-sm text-muted-foreground">{verifyResult.supplier.supplierName}</p>
-              )}
+              {supplierName && <p className="text-sm text-muted-foreground">{supplierName}</p>}
             </div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Requested items
@@ -279,9 +292,7 @@ export function SupplierPortalSubmitPage() {
               </table>
             </div>
             <div className="mt-6 flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                <ChevronLeft className="mr-1 h-4 w-4" /> Back
-              </Button>
+              <span />
               <Button onClick={() => setStep(3)}>Proceed to quote</Button>
             </div>
           </div>

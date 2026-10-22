@@ -56,6 +56,7 @@ export class DocumentNumberService {
 
     return this.nextNumberWithConfig(tx, {
       shopId: params.shopId,
+      companyId: shop.companyId,
       docType: params.docType,
       prefix,
       date: params.date,
@@ -86,6 +87,7 @@ export class DocumentNumberService {
 
     return this.nextNumberWithConfig(tx, {
       shopId: params.shopId,
+      companyId: shop.companyId,
       docType: params.docType,
       prefix: params.prefix || this.series.sanitizePrefix(config.prefix),
       date: params.date,
@@ -119,6 +121,7 @@ export class DocumentNumberService {
 
     return this.nextNumberWithConfig(tx, {
       shopId: params.shopId,
+      companyId: shop.companyId,
       docType: params.docType,
       prefix,
       date: params.date,
@@ -130,6 +133,7 @@ export class DocumentNumberService {
     tx: Prisma.TransactionClient,
     params: {
       shopId: string;
+      companyId: string;
       docType: string;
       prefix: string;
       date: Date;
@@ -137,22 +141,36 @@ export class DocumentNumberService {
         startingNumber: number;
         padWidth: number;
         restartPeriod: DocumentSeriesRestart;
+        shopScoped: boolean;
       };
     },
   ) {
     const bucket = this.series.sequenceBucket(params.date, params.config.restartPeriod);
-    const key = `${params.docType}:${params.shopId}:${bucket}`;
+    // A plant-scoped series (ST-<plant>-00001) counts per plant. A flat series
+    // (SO-00001) counts per organisation, so two plants never issue the same
+    // number; the counter is the highest value across the organisation's plants.
+    const key = params.config.shopScoped
+      ? `${params.docType}:${params.shopId}:${bucket}`
+      : `${params.docType}:company:${params.companyId}:${bucket}`;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}::text))`;
 
-    const existing = await tx.documentSequence.findUnique({
-      where: {
-        docType_shopId_yearMonth: {
-          docType: params.docType,
-          shopId: params.shopId,
-          yearMonth: bucket,
-        },
-      },
-    });
+    const existing = params.config.shopScoped
+      ? await tx.documentSequence.findUnique({
+          where: {
+            docType_shopId_yearMonth: {
+              docType: params.docType,
+              shopId: params.shopId,
+              yearMonth: bucket,
+            },
+          },
+          select: { lastSeq: true },
+        })
+      : (
+          await tx.documentSequence.aggregate({
+            where: { docType: params.docType, yearMonth: bucket, shop: { companyId: params.companyId } },
+            _max: { lastSeq: true },
+          })
+        )._max;
 
     const floor = Math.max(1, params.config.startingNumber);
     const nextSeq = Math.max((existing?.lastSeq ?? floor - 1) + 1, floor);
