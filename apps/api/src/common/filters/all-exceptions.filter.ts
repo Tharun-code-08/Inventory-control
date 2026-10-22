@@ -137,6 +137,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
       RequestContextStore.getRequestId() ??
       String(request.headers['x-request-id'] ?? '');
 
+    // body-parser errors (too large, bad JSON) are plain errors with a status.
+    const parserError = exception as { type?: string; status?: number } | null;
+    if (parserError?.type === 'entity.too.large') {
+      return response.status(413).json({
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large', requestId },
+      });
+    }
+    if (parserError?.type === 'entity.parse.failed') {
+      return response.status(400).json({
+        success: false,
+        error: { code: 'INVALID_JSON', message: 'Request body is not valid JSON', requestId },
+      });
+    }
+
     if (exception instanceof InsufficientStockException) {
       return response.status(422).json({
         success: false,

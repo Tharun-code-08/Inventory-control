@@ -147,6 +147,56 @@ export class SubscriptionService {
     };
   }
 
+  private readonly writeBlockCache = new Map<string, { at: number; reason: string | null }>();
+
+  /**
+   * Why this company may not create or change data right now (null = it may).
+   * A paid plan becomes read-only once `subscriptionEndsAt` is more than
+   * SUBSCRIPTION_GRACE_DAYS (default 3) in the past, or when it is marked
+   * EXPIRED/SUSPENDED; an ended trial is read-only straight away. Companies
+   * with no end date recorded are never blocked. Cached briefly because the
+   * guard runs on every write request.
+   */
+  async writeBlockReason(companyId: string): Promise<string | null> {
+    const cached = this.writeBlockCache.get(companyId);
+    if (cached && Date.now() - cached.at < 60_000) return cached.reason;
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        subscriptionPlan: true,
+        billingCycle: true,
+        subscriptionStatus: true,
+        trialStartsAt: true,
+        trialEndsAt: true,
+        subscriptionEndsAt: true,
+      },
+    });
+    let reason: string | null = null;
+    if (company) {
+      const graceDays = Number(process.env.SUBSCRIPTION_GRACE_DAYS ?? 3);
+      const graceMs = (Number.isFinite(graceDays) && graceDays >= 0 ? graceDays : 3) * 24 * 60 * 60 * 1000;
+      if (company.subscriptionPlan === SubscriptionPlan.TRIAL) {
+        if (this.toSnapshot(company).isTrialExpired) {
+          reason = `Your ${getTrialDays()}-day trial has ended. Your data is read-only until you upgrade.`;
+        }
+      } else if (
+        company.subscriptionStatus === SubscriptionStatus.EXPIRED ||
+        company.subscriptionStatus === SubscriptionStatus.SUSPENDED ||
+        (company.subscriptionEndsAt && company.subscriptionEndsAt.getTime() + graceMs < Date.now())
+      ) {
+        reason = 'Your subscription has expired. Your data is read-only until you renew.';
+      }
+    }
+    this.writeBlockCache.set(companyId, { at: Date.now(), reason });
+    return reason;
+  }
+
+  /** Drop the cached read-only state after a plan change. */
+  clearWriteBlockCache(companyId: string): void {
+    this.writeBlockCache.delete(companyId);
+  }
+
   async assertActiveSubscription(companyId: string): Promise<void> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Company not found');
@@ -273,6 +323,7 @@ export class SubscriptionService {
           ),
         },
       });
+      this.clearWriteBlockCache(args.companyId);
       const { count } = await tx.subscriptionPayment.updateMany({
         where: { razorpayOrderId: args.orderId, consumedAt: null },
         data: {
@@ -335,6 +386,7 @@ export class SubscriptionService {
         where: { id: payment.id },
         data: { companyId, consumedAt: now },
       });
+      this.clearWriteBlockCache(companyId);
     });
   }
 }

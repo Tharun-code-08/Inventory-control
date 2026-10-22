@@ -1,6 +1,7 @@
 ﻿import './load-env';
 import * as path from 'node:path';
 import { redactUrl } from './common/utils/redact-url';
+import * as express from 'express';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -78,6 +79,8 @@ function corsOptions(): CorsOptions {
   };
 }
 
+const BULK_IMPORT_PATHS = ['/api/v1/products/bulk-inventory', '/api/v1/products/bulk-upsert'];
+
 async function bootstrap() {
   // Sentry must initialize before NestFactory.create so any boot-time errors
   // are captured. No-op when SENTRY_DSN is unset.
@@ -96,11 +99,15 @@ async function bootstrap() {
   app.set('trust proxy', 1);
   const httpLogger = new Logger('Http');
 
-  // Raise the body size limit (default ~100KB) so bulk product uploads of a few
-  // hundred rows fit. useBodyParser applies the limit while preserving the
-  // rawBody capture above.
-  app.useBodyParser('json', { limit: '50mb' });
-  app.useBodyParser('urlencoded', { limit: '50mb', extended: true });
+  // Body parsing runs before auth and throttling, so keep the default small.
+  // Only the bulk product/inventory imports take large JSON; they get their
+  // own 50 MB parser first (a parsed body is skipped by the next parser).
+  // useBodyParser keeps the rawBody capture above for webhook signatures.
+  for (const path of BULK_IMPORT_PATHS) {
+    app.use(path, express.json({ limit: '50mb' }));
+  }
+  app.useBodyParser('json', { limit: '2mb' });
+  app.useBodyParser('urlencoded', { limit: '2mb', extended: true });
 
   // Drain SIGTERM/SIGINT through Nest's lifecycle so PrismaService.onModuleDestroy
   // and BullShutdownService.beforeApplicationShutdown can finish in-flight work
