@@ -70,6 +70,8 @@ export const envValidationSchema = Joi.object({
   SMTP_CREDENTIALS_KEY: Joi.string().trim().empty('').optional(),
   /** Old SMTP_CREDENTIALS_KEY during a rotation; passwords are re-encrypted on boot. */
   SMTP_CREDENTIALS_KEY_PREVIOUS: Joi.string().trim().empty('').optional(),
+  /** Signs supplier portal links; falls back to JWT_SECRET. */
+  SUPPLIER_PORTAL_SECRET: Joi.string().trim().empty('').optional(),
   /** Optional Cloudflare Turnstile; empty string in .env is treated as unset. */
   TURNSTILE_SITE_KEY: Joi.string().trim().empty('').optional(),
   TURNSTILE_SECRET_KEY: Joi.string().trim().empty('').optional(),

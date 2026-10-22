@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -25,13 +26,10 @@ export class PortalQuoteLineDto {
 }
 
 export class SubmitPortalQuoteDto {
-  @ApiProperty()
-  @IsUUID()
-  rfqId!: string;
-
-  @ApiProperty()
-  @IsUUID()
-  supplierId!: string;
+  @ApiProperty({ description: 'Token from the supplier portal link' })
+  @IsString()
+  @MaxLength(2048)
+  token!: string;
 
   @ApiPropertyOptional()
   @IsOptional()

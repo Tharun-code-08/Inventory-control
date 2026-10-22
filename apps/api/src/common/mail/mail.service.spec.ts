@@ -1,6 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { MailService } from './mail.service';
 
+// RFQ invite links are signed with JWT_SECRET.
+process.env.JWT_SECRET ??= 'mail-spec-secret';
+
 /**
  * Covers the MAIL_TRANSPORT=json sink used by CI/e2e: the service must report
  * itself configured and "deliver" mail without any network I/O, so flows that
