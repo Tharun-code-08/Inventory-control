@@ -6,6 +6,7 @@ import {
   RETENTION_CRON,
   RETENTION_JOB,
 } from './event-platform.constants';
+import { removeStaleJobSchedulers } from '../queue/job-schedulers';
 
 /** Registers the daily retention-cleanup repeatable job. */
 @Injectable()
@@ -15,15 +16,11 @@ export class RetentionScheduler {
   constructor(@InjectQueue(EVENT_PLATFORM_MAINTENANCE_QUEUE) private readonly queue: Queue) {}
 
   async registerRepeatableJob(): Promise<void> {
-    await this.queue.add(
+    await removeStaleJobSchedulers(this.queue, [RETENTION_JOB]);
+    await this.queue.upsertJobScheduler(
       RETENTION_JOB,
-      {},
-      {
-        repeat: { pattern: RETENTION_CRON },
-        jobId: RETENTION_JOB,
-        removeOnComplete: 20,
-        removeOnFail: 20,
-      },
+      { pattern: RETENTION_CRON },
+      { name: RETENTION_JOB, data: {}, opts: { removeOnComplete: 20, removeOnFail: 20 } },
     );
     this.logger.log(`Scheduled retention cleanup (${RETENTION_CRON})`);
   }
