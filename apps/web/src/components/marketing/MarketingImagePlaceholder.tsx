@@ -44,7 +44,7 @@ export function MarketingImagePlaceholder({
     <div
       className={cn(
         'relative overflow-hidden rounded-2xl',
-        !isMobile && 'border border-slate-200 bg-slate-50 shadow-lg shadow-slate-900/5',
+        !isMobile && 'border border-slate-200 bg-slate-50 shadow-lg shadow-slate-900/5 dark:border-border dark:bg-muted/40',
         isMobile ? 'aspect-4/3' : aspectClassName,
         className,
       )}

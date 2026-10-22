@@ -2,7 +2,7 @@ import { MARKETING_BADGES } from '@/lib/marketing-content';
 
 function BadgePill({ label }: { label: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs">
+    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs dark:border-border dark:bg-card dark:text-slate-300">
       {label}
     </span>
   );
@@ -12,7 +12,7 @@ export function MarketingBadgeStrip() {
   const row = MARKETING_BADGES;
 
   return (
-    <section aria-label="Platform capabilities" className="border-y border-slate-200/80 bg-white py-6">
+    <section aria-label="Platform capabilities" className="border-y border-slate-200/80 bg-white py-6 dark:border-border dark:bg-card">
       <div className="marketing-marquee overflow-hidden">
         <div className="marketing-marquee-track flex w-max gap-3 px-4">
           {[...row, ...row].map((label, i) => (

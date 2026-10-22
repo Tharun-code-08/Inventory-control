@@ -9,23 +9,23 @@ const CONTACT_EMAIL = 'office@softdigitconsulting.com';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">{children}</div>
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-foreground">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{children}</div>
     </section>
   );
 }
 
 export function CancellationPolicyPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-muted/40 dark:text-foreground">
       <MarketingHeader />
       <main className="flex-1">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Legal</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-foreground">
             Cancellation &amp; Refund Policy
           </h1>
-          <p className="mt-3 text-sm text-slate-500">Effective date: {EFFECTIVE_DATE}</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Effective date: {EFFECTIVE_DATE}</p>
 
           <Section title="How to cancel">
             <p>
@@ -102,7 +102,7 @@ export function CancellationPolicyPage() {
             </p>
           </Section>
 
-          <div className="mt-10 border-t border-slate-200 pt-6 text-xs text-slate-400">
+          <div className="mt-10 border-t border-slate-200 pt-6 text-xs text-slate-400 dark:border-border">
             <p>
               See also:{' '}
               <Link to="/privacy" className="text-primary underline">

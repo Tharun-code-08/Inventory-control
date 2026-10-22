@@ -19,16 +19,16 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
   return (
     <section
       id={isFirst ? 'features' : undefined}
-      className={cn('py-16 sm:py-20', reversed ? 'bg-slate-50' : 'bg-white')}
+      className={cn('py-16 sm:py-20', reversed ? 'bg-slate-50 dark:bg-muted/40' : 'bg-white dark:bg-card')}
       aria-labelledby={`feature-${block.id}-heading`}
     >
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-14">
         <Reveal className={cn(reversed && 'lg:order-2')}>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{block.eyebrow}</p>
-          <h2 id={`feature-${block.id}-heading`} className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 id={`feature-${block.id}-heading`} className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-foreground">
             {block.title}
           </h2>
-          <p className="mt-4 text-lg leading-relaxed text-slate-600">{block.body}</p>
+          <p className="mt-4 text-lg leading-relaxed text-slate-600 dark:text-slate-400">{block.body}</p>
 
           <div className="mt-6 flex flex-wrap gap-2" role="tablist" aria-label={`${block.eyebrow} views`}>
             {block.tabs.map((tab) => (
@@ -43,7 +43,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
                   'rounded-full border px-4 py-1.5 text-sm font-medium transition',
                   activeId === tab.id
                     ? 'border-border bg-muted text-primary'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900',
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-border dark:bg-card dark:text-slate-400',
                 )}
                 onClick={() => setActiveId(tab.id)}
               >
@@ -76,7 +76,7 @@ export function MarketingFeatureSection({ block, isFirst }: MarketingFeatureSect
             </div>
           ))}
           {activeTab?.description ? (
-            <p className="mt-3 text-sm text-slate-500">{activeTab.description}</p>
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{activeTab.description}</p>
           ) : null}
         </Reveal>
       </div>

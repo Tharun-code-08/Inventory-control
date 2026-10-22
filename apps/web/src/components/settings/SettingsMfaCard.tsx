@@ -234,7 +234,7 @@ export function SettingsMfaCard() {
             </div>
           ) : statusEnabled ? (
             <div className="space-y-3">
-              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-300">
                 Your account is protected by an authenticator app.
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -262,7 +262,7 @@ export function SettingsMfaCard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+              <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
                 MFA is currently disabled for this account.
               </div>
               <Button onClick={openSetupDialog} disabled={startEnrollment.isPending}>
@@ -285,7 +285,7 @@ export function SettingsMfaCard() {
 
           {backupCodes.length > 0 ? (
             <div className="space-y-5">
-              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-300">
                 MFA is now enabled. Save these backup codes before closing this dialog.
               </div>
               <BackupCodesCard codes={backupCodes} />
@@ -414,7 +414,7 @@ export function SettingsMfaCard() {
 
           {manageMode === 'regenerate' && managedBackupCodes.length > 0 ? (
             <div className="space-y-5">
-              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-300">
                 Your previous backup codes have been replaced. Save the new codes before closing
                 this dialog.
               </div>
@@ -428,7 +428,7 @@ export function SettingsMfaCard() {
               <div
                 className={`rounded-xl border px-4 py-3 text-sm ${
                   manageMode === 'regenerate'
-                    ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-900'
+                    ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-300'
                     : 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300'
                 }`}
               >

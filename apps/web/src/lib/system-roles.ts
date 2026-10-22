@@ -64,9 +64,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Owner',
     description: 'Full platform control',
     accessTier: 'Super access',
-    accessBadgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    accessBadgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30',
     icon: Crown,
-    iconClass: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    iconClass: 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/30',
     capabilities: [
       { label: 'Stock management', level: 'full' },
       { label: 'User & role mgmt', level: 'full' },
@@ -79,9 +79,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Admin',
     description: 'Org-level configuration',
     accessTier: 'High access',
-    accessBadgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+    accessBadgeClass: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30',
     icon: Settings,
-    iconClass: 'text-blue-600 bg-blue-50 border-blue-200',
+    iconClass: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-500/10 dark:border-blue-500/30',
     capabilities: [
       { label: 'Stock management', level: 'full' },
       { label: 'User & role mgmt', level: 'full' },
@@ -94,9 +94,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Inventory manager',
     description: 'Warehouse operations',
     accessTier: 'Ops access',
-    accessBadgeClass: 'bg-violet-100 text-violet-800 border-violet-200',
+    accessBadgeClass: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30',
     icon: UserCog,
-    iconClass: 'text-violet-600 bg-violet-50 border-violet-200',
+    iconClass: 'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-500/10 dark:border-violet-500/30',
     capabilities: [
       { label: 'Stock management', level: 'full' },
       { label: 'User & role mgmt', level: 'none' },
@@ -109,9 +109,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Purchase manager',
     description: 'Procurement and supplier workflows',
     accessTier: 'Procurement',
-    accessBadgeClass: 'bg-sky-100 text-sky-800 border-sky-200',
+    accessBadgeClass: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30',
     icon: ClipboardList,
-    iconClass: 'text-sky-600 bg-sky-50 border-sky-200',
+    iconClass: 'text-sky-600 bg-sky-50 border-sky-200 dark:text-sky-400 dark:bg-sky-500/10 dark:border-sky-500/30',
     capabilities: [
       { label: 'Suppliers & RFQs', level: 'full' },
       { label: 'Purchase orders', level: 'full' },
@@ -139,9 +139,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Employee',
     description: 'Read-only plant access',
     accessTier: 'Read only',
-    accessBadgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+    accessBadgeClass: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:border-teal-500/30',
     icon: Users,
-    iconClass: 'text-teal-600 bg-teal-50 border-teal-200',
+    iconClass: 'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-400 dark:bg-teal-500/10 dark:border-teal-500/30',
     capabilities: [
       { label: 'View products', level: 'full' },
       { label: 'View plant info', level: 'full' },
@@ -154,9 +154,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Warehouse staff',
     description: 'Day-to-day stock ops',
     accessTier: 'Limited ops',
-    accessBadgeClass: 'bg-amber-100 text-amber-900 border-amber-200',
+    accessBadgeClass: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30',
     icon: User,
-    iconClass: 'text-amber-700 bg-amber-50 border-amber-200',
+    iconClass: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/30',
     capabilities: [
       { label: 'Receive stock', level: 'full' },
       { label: 'Dispatch orders', level: 'full' },
@@ -169,9 +169,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Viewer / auditor',
     description: 'Read-only access',
     accessTier: 'Read only',
-    accessBadgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+    accessBadgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-muted dark:text-slate-300 dark:border-border',
     icon: Eye,
-    iconClass: 'text-slate-600 bg-slate-50 border-slate-200',
+    iconClass: 'text-slate-600 bg-slate-50 border-slate-200 dark:text-slate-400 dark:bg-muted/40 dark:border-border',
     capabilities: [
       { label: 'View stock levels', level: 'full' },
       { label: 'View reports', level: 'full' },
@@ -184,9 +184,9 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     title: 'Vendor / supplier',
     description: 'External portal access',
     accessTier: 'Portal only',
-    accessBadgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
+    accessBadgeClass: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-500/30',
     icon: Truck,
-    iconClass: 'text-orange-600 bg-orange-50 border-orange-200',
+    iconClass: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-500/10 dark:border-orange-500/30',
     capabilities: [
       { label: 'Submit PO fulfillment', level: 'full' },
       { label: 'View own orders', level: 'full' },
@@ -427,9 +427,9 @@ export function accessLevelLabel(level: AccessLevel): string {
 }
 
 export function accessLevelClass(level: AccessLevel): string {
-  if (level === 'full') return 'bg-emerald-100 text-emerald-800';
-  if (level === 'partial') return 'bg-amber-100 text-amber-800';
-  return 'bg-slate-100 text-slate-500';
+  if (level === 'full') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300';
+  if (level === 'partial') return 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300';
+  return 'bg-slate-100 text-slate-500 dark:bg-muted dark:text-slate-400';
 }
 
 export function assignableRolesForActor(actorRole: string | null | undefined): SystemRoleName[] {

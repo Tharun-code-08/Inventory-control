@@ -196,7 +196,7 @@ export function NotificationsPage() {
                               <Badge
                                 key={channel}
                                 variant={rule.channels.includes(channel) ? 'default' : 'outline'}
-                                className={cn('cursor-pointer', channel === 'WhatsApp' && 'opacity-80')}
+                                className="cursor-pointer"
                                 onClick={() => toggleRuleChannel(gIdx, rIdx, channel)}
                               >
                                 {channel}

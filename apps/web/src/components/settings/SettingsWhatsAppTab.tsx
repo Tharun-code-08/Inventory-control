@@ -146,7 +146,7 @@ export function SettingsWhatsAppTab() {
           {!linkToken || countdown?.expired ? (
             <div className="space-y-3">
               {countdown?.expired && (
-                <p className="text-sm text-amber-600">Code expired — generate a new one.</p>
+                <p className="text-sm text-amber-600 dark:text-amber-400">Code expired — generate a new one.</p>
               )}
               <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
                 {generate.isPending ? (
@@ -158,7 +158,7 @@ export function SettingsWhatsAppTab() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-border dark:bg-muted/40">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -188,7 +188,7 @@ export function SettingsWhatsAppTab() {
                 </Button>
                 <span className="text-xs text-muted-foreground">
                   Open WhatsApp and send{' '}
-                  <code className="rounded bg-slate-200 px-1 py-0.5 font-mono">
+                  <code className="rounded bg-slate-200 px-1 py-0.5 font-mono dark:bg-slate-800">
                     LINK {linkToken.token}
                   </code>{' '}
                   to the business number.
@@ -248,7 +248,7 @@ export function SettingsWhatsAppTab() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 dark:text-red-400"
                         disabled={revoke.isPending}
                         onClick={() => {
                           if (window.confirm('Remove this device? Its next message will be rejected.')) {

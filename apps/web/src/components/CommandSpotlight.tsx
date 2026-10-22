@@ -120,7 +120,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-linear-to-r from-slate-400 via-slate-500 to-slate-400" />
 
         <div className="flex items-center gap-3 border-b border-border/90 px-4 py-3 dark:border-slate-700">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-md">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
             <Command className="h-4 w-4" />
           </div>
           <input
@@ -153,7 +153,7 @@ export function CommandSpotlight({ open, onOpenChange }: CommandSpotlightProps) 
                   )}
                 >
                   <span className="truncate">{section}</span>
-                  <span className={cn('tabular-nums opacity-70', active && 'text-primary dark:text-slate-300')}>
+                  <span className={cn('tabular-nums text-muted-foreground', active && 'text-primary dark:text-slate-300')}>
                     {count}
                   </span>
                 </button>

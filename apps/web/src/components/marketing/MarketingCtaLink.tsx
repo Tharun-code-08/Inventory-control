@@ -25,7 +25,7 @@ export function MarketingCtaLink({ cta, variant = 'primary', className, location
     // lightweight marketing hover.
     variant === 'primary' && 'mk-cta-glow',
     variant === 'secondary' &&
-      'motion-marketing-cta border border-slate-200 bg-white/80 text-slate-900 backdrop-blur-sm hover:bg-white hover:border-slate-300',
+      'motion-marketing-cta border border-slate-200 bg-white/80 text-slate-900 backdrop-blur-sm hover:bg-white hover:border-slate-300 dark:border-border dark:bg-card/80 dark:text-foreground',
     variant === 'ghost' && 'motion-marketing-cta text-primary hover:text-primary hover:underline',
     className,
   );

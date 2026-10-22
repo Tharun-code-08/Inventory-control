@@ -257,7 +257,7 @@ export function SenderEmailPreferencesPanel() {
           </div>
 
           {primaryPublicGmail ? (
-            <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-950">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-300">
               <p className="font-medium">Gmail daily sending limit</p>
               <p className="mt-1">
                 Your primary sender uses Gmail. Free Gmail accounts are limited to about 500 emails per day. Enable Google

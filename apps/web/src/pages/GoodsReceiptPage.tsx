@@ -710,7 +710,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                 <Download className="h-4 w-4" />
                 Export CSV
               </Button>
-              <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-white sm:w-auto">
+              <Button onClick={() => navigate('/goods-receipts/new')} className="premium-button w-full border-0 text-primary-foreground sm:w-auto">
                 <Plus className="h-4 w-4" />
                 New Receipt
               </Button>
@@ -798,7 +798,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
                   : 'Get started by creating your first receipt'}
               </p>
               {!debouncedSearch && statusFilter === 'all' && (
-                <Button size="sm" className="premium-button mt-4 border-0 text-white" onClick={openCreate}>
+                <Button size="sm" className="premium-button mt-4 border-0 text-primary-foreground" onClick={openCreate}>
                   <Plus className="h-4 w-4" />
                   New Receipt
                 </Button>
@@ -1146,7 +1146,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
             onSubmit={form.handleSubmit((values) => onSubmit(values, false))}
             className="mt-6 space-y-5"
           >
-            <p className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-950">
+            <p className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-300">
               Draft receipts do not update warehouse stock. Use <strong>Save &amp; Post</strong> to
               increase on-hand quantity at the receiving plant.
             </p>

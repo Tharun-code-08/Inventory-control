@@ -120,7 +120,7 @@ export function UpgradePage() {
   const stageLabel = lifecycleStageLabel(data?.lifecycleStage);
 
   return (
-    <AppLayout active="/upgrade">
+    <AppLayout active="Upgrade">
       <div className="space-y-6">
         <PageHeader title="Upgrade" description="Manage your organisation plan, trial, and billing.">
           {data ? (
@@ -273,7 +273,7 @@ export function UpgradePage() {
         ) : null}
 
         {data?.isTrialExpired ? (
-          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
             Your trial has ended. Upgrade to Pro or Plus to restore full access.
           </div>
         ) : null}

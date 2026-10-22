@@ -286,7 +286,7 @@ export function RfqComparePage() {
                   <span className="rounded-lg border-2 border-border bg-muted px-4 py-2 text-sm font-semibold text-primary">
                     Price: {priceWeight}%
                   </span>
-                  <span className="rounded-lg border-2 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-900">
+                  <span className="rounded-lg border-2 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-900 dark:text-amber-300">
                     Lead time: {leadWeight}%
                   </span>
                 </div>
@@ -334,7 +334,7 @@ export function RfqComparePage() {
                         <TableRow
                           key={row.quoteId}
                           className={cn(
-                            isTop && 'border-l-4 border-l-emerald-500 bg-emerald-50/30',
+                            isTop && 'border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/10',
                           )}
                         >
                           <TableCell className="font-medium">
@@ -385,7 +385,7 @@ export function RfqComparePage() {
                                 Selected
                               </span>
                             ) : isPicked ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-white">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
                                 Focused
                               </span>
                             ) : (
@@ -513,7 +513,7 @@ export function RfqComparePage() {
                                   type="number"
                                   min={0}
                                   max={Math.max(quotedQty, required)}
-                                  className={cn('h-9 text-center', overQuoted && 'border-red-300 focus-visible:ring-red-500')}
+                                  className={cn('h-9 text-center', overQuoted && 'border-red-300 focus-visible:ring-red-500 dark:border-red-500/30')}
                                   value={val === 0 ? '' : val}
                                   onChange={(e) =>
                                     setAllocation(rfqItem.id, quote.id, e.target.value)

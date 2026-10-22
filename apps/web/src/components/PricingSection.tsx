@@ -95,25 +95,25 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
   return (
     <section
       id="pricing"
-      className={lightSurface ? 'border-y border-slate-200 bg-linear-to-b from-slate-50 via-white to-slate-50' : 'bg-white'}
+      className={lightSurface ? 'border-y border-slate-200 bg-linear-to-b from-slate-50 via-white to-slate-50 dark:border-border dark:from-background dark:via-card dark:to-background' : 'bg-white dark:bg-card'}
     >
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
         <Reveal className="text-center">
           <h2
             className={
-              lightSurface ? 'text-3xl font-semibold text-slate-900 sm:text-4xl' : 'text-3xl font-semibold text-slate-900 sm:text-4xl'
+              lightSurface ? 'text-3xl font-semibold text-slate-900 sm:text-4xl dark:text-foreground' : 'text-3xl font-semibold text-slate-900 sm:text-4xl dark:text-foreground'
             }
           >
             Plans &amp; Pricing
           </h2>
-          <p className={`mx-auto mt-3 max-w-2xl ${lightSurface ? 'text-slate-600' : 'text-slate-600'}`}>
+          <p className={`mx-auto mt-3 max-w-2xl ${lightSurface ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>
             Flexible plans for warehouses of every size. No lock-in, cancel anytime.
           </p>
           <div
             className={
               lightSurface
-                ? 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs'
-                : 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs'
+                ? 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs dark:border-border dark:bg-muted/40'
+                : 'mt-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-xs dark:border-border dark:bg-muted/40'
             }
           >
             <button
@@ -122,10 +122,10 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'monthly'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-card dark:text-foreground'
                   : lightSurface
-                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white',
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white dark:text-slate-400'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white dark:text-slate-400',
               )}
             >
               Monthly
@@ -136,12 +136,12 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition',
                 billing === 'yearly'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white',
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-card dark:text-foreground'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white dark:text-slate-400',
               )}
             >
               Yearly
-              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
                 {yearlySavingsLabel()}
               </span>
             </button>
@@ -159,14 +159,14 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
             const isDowngrade =
               activeTier != null && subscriptionPlanTier(planId) < activeTier;
             const cardBase = lightSurface
-              ? 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs'
-              : 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs';
+              ? 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs dark:border-border dark:bg-card dark:text-foreground'
+              : 'flex flex-col rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xs dark:border-border dark:bg-card dark:text-foreground';
             const borderClass =
               planId === 'pro'
-                ? 'border-emerald-200 shadow-[0_12px_30px_rgba(16,185,129,0.12)]'
+                ? 'border-emerald-200 shadow-[0_12px_30px_rgba(16,185,129,0.12)] dark:border-emerald-500/30'
                 : planId === 'plus'
-                  ? 'border-violet-200 shadow-[0_12px_30px_rgba(139,92,246,0.12)]'
-                  : 'border-slate-200 shadow-[0_10px_26px_rgba(15,23,42,0.06)]';
+                  ? 'border-violet-200 shadow-[0_12px_30px_rgba(139,92,246,0.12)] dark:border-violet-500/30'
+                  : 'border-slate-200 shadow-[0_10px_26px_rgba(15,23,42,0.06)] dark:border-border';
 
             return (
               <Reveal key={planId} delay={80 + index * 70}>
@@ -178,15 +178,15 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xl font-semibold text-slate-900">
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-foreground">
                     {plan.name}
                   </h3>
                   <span
                     className={cn(
                       'rounded-full px-2.5 py-1 text-xs font-semibold',
-                      planId === 'pro' && 'bg-emerald-50 text-emerald-700',
-                      planId === 'plus' && 'bg-violet-50 text-violet-700',
-                      planId === 'trial' && 'bg-blue-50 text-blue-700',
+                      planId === 'pro' && 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
+                      planId === 'plus' && 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400',
+                      planId === 'trial' && 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
                     )}
                   >
                     {plan.badge}
@@ -195,20 +195,20 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
 
                 <div className="mt-5">
                   {planId === 'trial' ? (
-                    <p className="text-4xl font-bold text-slate-900">
-                      ₹0 <span className="text-lg font-medium text-slate-500">free</span>
+                    <p className="text-4xl font-bold text-slate-900 dark:text-foreground">
+                      ₹0 <span className="text-lg font-medium text-slate-500 dark:text-slate-400">free</span>
                     </p>
                   ) : (
-                    <p className="text-4xl font-bold text-slate-900">
+                    <p className="text-4xl font-bold text-slate-900 dark:text-foreground">
                       ₹{price}
                       {plan.originalMonthly && billing === 'monthly' ? (
-                        <span className="ml-2 text-lg font-medium text-slate-500 line-through">
+                        <span className="ml-2 text-lg font-medium text-slate-500 line-through dark:text-slate-400">
                           ₹{plan.originalMonthly}
                         </span>
                       ) : null}
                     </p>
                   )}
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                     {planId === 'trial'
                       ? 'No credit card required'
                       : billing === 'yearly'
@@ -221,14 +221,14 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   {plan.features.map((feature) => (
                     <li
                       key={feature.label}
-                      className="flex items-start gap-2 text-sm text-slate-700"
+                      className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300"
                     >
                       {feature.included ? (
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       ) : (
                         <X className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                       )}
-                      <span className={feature.included ? 'text-slate-900' : 'text-slate-500'}>
+                      <span className={feature.included ? 'text-slate-900 dark:text-foreground' : 'text-slate-500 dark:text-slate-400'}>
                         {feature.label}
                       </span>
                     </li>
@@ -242,11 +242,11 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
                   className={cn(
                     'motion-marketing-cta mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60',
                     planId === 'pro' &&
-                      'border border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500',
+                      'border border-emerald-600 bg-emerald-700 text-white hover:bg-emerald-600',
                     planId === 'plus' &&
                       'border border-violet-500 bg-violet-600 text-white hover:bg-violet-500',
                     planId === 'trial' &&
-                      'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
+                      'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-foreground',
                   )}
                 >
                   {isCurrent
@@ -262,20 +262,20 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
         </div>
 
         <Reveal delay={100} className="mt-14">
-          <h3 className="text-center text-2xl font-semibold text-slate-900">
+          <h3 className="text-center text-2xl font-semibold text-slate-900 dark:text-foreground">
             Why upgrade from Trial?
           </h3>
-          <p className="mt-2 text-center text-slate-600">
+          <p className="mt-2 text-center text-slate-600 dark:text-slate-400">
             Key advantages of paid plans over the free trial
           </p>
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             {UPGRADE_HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-border dark:bg-card"
               >
-                <h4 className="font-semibold text-slate-900">{item.title}</h4>
-                <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                <h4 className="font-semibold text-slate-900 dark:text-foreground">{item.title}</h4>
+                <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                   {item.body}
                 </p>
               </div>
@@ -284,7 +284,7 @@ export function PricingSection({ variant = 'landing', currentPlan, onPaidUpgrade
         </Reveal>
 
         {variant === 'landing' ? (
-          <p className="mt-10 text-center text-sm text-slate-500">
+          <p className="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">
             Already have an account?{' '}
             {(() => {
               const signInHref = resolveAuthHref('/login');

@@ -140,3 +140,39 @@
     .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) { margin-left: 0.5rem; margin-right: 0; }
   }
 }
+
+/*
+  Recharts draws with light-theme defaults (white tooltip, light grey hover
+  cursor, #666 tick labels). Map them onto the theme in dark mode so every
+  chart follows it without per-chart props.
+*/
+.dark .recharts-cartesian-grid line,
+.dark .recharts-polar-grid line,
+.dark .recharts-polar-grid polygon {
+  stroke: hsl(var(--border));
+}
+.dark .recharts-cartesian-axis-line,
+.dark .recharts-cartesian-axis-tick-line {
+  stroke: hsl(var(--border));
+}
+.dark .recharts-cartesian-axis-tick-value,
+.dark .recharts-polar-angle-axis-tick-value,
+.dark .recharts-polar-radius-axis-tick-value {
+  fill: hsl(var(--muted-foreground));
+}
+.dark .recharts-default-tooltip {
+  background-color: hsl(var(--popover)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--popover-foreground));
+  border-radius: 0.5rem;
+}
+.dark .recharts-tooltip-label {
+  color: hsl(var(--popover-foreground)) !important;
+}
+.dark .recharts-tooltip-cursor {
+  fill: hsl(var(--muted) / 0.6);
+  stroke: hsl(var(--border));
+}
+.dark .recharts-legend-item-text {
+  color: hsl(var(--foreground)) !important;
+}

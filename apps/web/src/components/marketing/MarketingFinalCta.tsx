@@ -32,13 +32,13 @@ export function MarketingFinalCta() {
               cta={MARKETING_FINAL_CTA.primaryCta}
               variant="secondary"
               location="final_cta"
-              className="border-0 bg-white text-slate-900 hover:bg-slate-100"
+              className="border-0 bg-white text-slate-900 hover:bg-slate-100 dark:bg-card dark:text-foreground"
             />
             <MarketingCtaLink
               cta={MARKETING_FINAL_CTA.secondaryCta}
               variant="secondary"
               location="final_cta"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20 dark:bg-card/10"
             />
           </div>
         </Reveal>

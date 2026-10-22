@@ -25,32 +25,32 @@ export function notificationVisual(type: string, priority?: string): Notificatio
   const t = (type || '').toUpperCase();
 
   if (t.includes('GOODS_RECEIPT') || t.includes('TRANSFER')) {
-    return { Icon: Truck, badgeClass: 'bg-emerald-100 text-emerald-600' };
+    return { Icon: Truck, badgeClass: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400' };
   }
   if (t.includes('PURCHASE_ORDER') || t.includes('APPROV')) {
-    return { Icon: CheckCircle2, badgeClass: 'bg-amber-100 text-amber-600' };
+    return { Icon: CheckCircle2, badgeClass: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' };
   }
   if (t.includes('RFQ') || t.includes('QUOTATION') || t.includes('BID')) {
-    return { Icon: FileText, badgeClass: 'bg-blue-100 text-blue-600' };
+    return { Icon: FileText, badgeClass: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' };
   }
   if (t.includes('CRITICAL_STOCK') || t.includes('NEGATIVE')) {
-    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600' };
+    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400' };
   }
   if (t.includes('LOW_STOCK') || t.includes('CAPACITY')) {
-    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600' };
+    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400' };
   }
   if (t.includes('INVENTORY') || t.includes('ADJUSTMENT')) {
-    return { Icon: Package, badgeClass: 'bg-violet-100 text-violet-600' };
+    return { Icon: Package, badgeClass: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400' };
   }
   if (t.includes('LOGIN') || t.includes('PASSWORD') || t.includes('SESSION') || t.includes('BIOMETRIC')) {
-    return { Icon: ShieldAlert, badgeClass: 'bg-slate-200 text-slate-600' };
+    return { Icon: ShieldAlert, badgeClass: 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
   }
 
   // Fall back to priority colouring.
   if ((priority || '').toUpperCase() === 'CRITICAL') {
-    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600' };
+    return { Icon: AlertTriangle, badgeClass: 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400' };
   }
-  return { Icon: Bell, badgeClass: 'bg-slate-200 text-slate-600' };
+  return { Icon: Bell, badgeClass: 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
 }
 
 /**

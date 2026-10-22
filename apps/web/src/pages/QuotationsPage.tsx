@@ -1109,7 +1109,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
                 </div>
 
                 {viewQuote.status === 'USER_REQUESTED' && (
-                  <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-300">
                     <p className="font-medium">Customer pricing request</p>
                     <p>
                       Target amount:{' '}
@@ -1280,7 +1280,7 @@ export function QuotationsPage({ createOnly = false }: { createOnly?: boolean })
           </SheetHeader>
           {reviseTarget && (
             <div className="mt-6 space-y-4">
-              <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+              <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-300">
                 <p className="font-medium">{reviseTarget.quoteNumber}</p>
                 <p>
                   Customer target:{' '}

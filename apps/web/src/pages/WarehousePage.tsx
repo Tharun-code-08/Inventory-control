@@ -238,7 +238,7 @@ function KpiCard({
   }[accent];
   const iconBg = {
     blue: 'bg-sky-500/12 text-sky-600 dark:text-sky-300',
-    green: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-300',
+    green: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
     amber: 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
   }[accent];
   return (
@@ -594,7 +594,7 @@ export function WarehousePage() {
             </div>
 
             {dashboard && dashboard.lowStockCount > 0 && (
-              <div className="flex flex-col gap-2 rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:text-amber-300">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5" />
                   <div>
@@ -606,7 +606,7 @@ export function WarehousePage() {
                 </div>
                 <Button
                   variant="link"
-                  className="self-start text-amber-900 sm:self-auto"
+                  className="self-start text-amber-900 sm:self-auto dark:text-amber-300"
                   onClick={() => navigate('/notifications')}
                 >
                   View All →

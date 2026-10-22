@@ -108,7 +108,7 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
-              <Button className="premium-button border-0 text-white" onClick={() => navigate('/payments/new')} disabled={!canCreatePayment}>Add Payment</Button>
+              <Button className="premium-button border-0 text-primary-foreground" onClick={() => navigate('/payments/new')} disabled={!canCreatePayment}>Add Payment</Button>
             </>
           )}
         </PageHeader>
@@ -126,9 +126,9 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
         {!createOnly && <Card className="surface-1 border-white/10">
           <CardHeader><CardTitle>Receivables Aging</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">Current</p><p className="text-lg font-semibold text-slate-100">{aging.current.toFixed(2)}</p></div>
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">1-30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdue30.toFixed(2)}</p></div>
-            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">{'>'}30 days overdue</p><p className="text-lg font-semibold text-slate-100">{aging.overdueMore.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">Current</p><p className="text-lg font-semibold text-foreground">{aging.current.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">1-30 days overdue</p><p className="text-lg font-semibold text-foreground">{aging.overdue30.toFixed(2)}</p></div>
+            <div className="surface-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">{'>'}30 days overdue</p><p className="text-lg font-semibold text-foreground">{aging.overdueMore.toFixed(2)}</p></div>
           </CardContent>
         </Card>}
 
@@ -155,7 +155,7 @@ export function PaymentsPage({ createOnly = false }: { createOnly?: boolean }) {
               {selectedInvoice?.dueDate ? <p className="text-xs text-muted-foreground">Due: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p> : null}
             </div>
             <div className="md:col-span-2">
-              <Button onClick={onCreate} className="premium-button border-0 text-white" disabled={!canCreatePayment || createPayment.isPending}>
+              <Button onClick={onCreate} className="premium-button border-0 text-primary-foreground" disabled={!canCreatePayment || createPayment.isPending}>
                 {createPayment.isPending ? 'Recording…' : 'Record Payment'}
               </Button>
             </div>

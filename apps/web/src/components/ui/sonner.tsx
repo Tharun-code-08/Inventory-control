@@ -1,9 +1,11 @@
 import { Toaster as Sonner } from 'sonner';
+import { useThemeStore } from '@/store/themeStore';
 
 export function Toaster() {
+  const theme = useThemeStore((state) => state.resolved);
   return (
     <Sonner
-      theme="light"
+      theme={theme}
       position="top-right"
       closeButton
       duration={4000}

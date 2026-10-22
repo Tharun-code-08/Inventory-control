@@ -17,7 +17,7 @@ export function MarketingHero() {
 
   return (
     <section
-      className="relative overflow-hidden bg-linear-to-b from-white via-slate-50 to-white"
+      className="relative overflow-hidden bg-linear-to-b from-white via-slate-50 to-white dark:from-background dark:via-card dark:to-background"
       aria-labelledby="hero-heading"
     >
       {/* Animated gradient mesh + aurora + grid for layered depth */}
@@ -27,20 +27,20 @@ export function MarketingHero() {
 
       <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.02fr_1fr] lg:items-center lg:py-24">
         <Reveal>
-          <span className="mk-glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700">
+          <span className="mk-glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
             <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
             {MARKETING_HERO.badge}
           </span>
 
           <h1
             id="hero-heading"
-            className="mt-5 text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.4rem]"
+            className="mt-5 text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.4rem] dark:text-foreground"
           >
             {headLead}
             {headAccent ? <span className="mk-gradient-text">{headAccent}</span> : null}
           </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg dark:text-slate-400">
             {MARKETING_HERO.body}
           </p>
 
@@ -61,14 +61,14 @@ export function MarketingHero() {
 
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
             {MARKETING_HERO.highlights.map((item) => (
-              <li key={item} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+              <li key={item} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
                 {item}
               </li>
             ))}
           </ul>
 
-          <p className="mt-5 text-xs text-slate-500">{MARKETING_HERO.poweredBy}</p>
+          <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">{MARKETING_HERO.poweredBy}</p>
         </Reveal>
 
         <Reveal delay={120}>
@@ -78,19 +78,19 @@ export function MarketingHero() {
 
             <Tilt3D className="relative">
               {/* Browser chrome frame holding the generated dashboard */}
-              <div className="overflow-hidden rounded-2xl border border-white/60 bg-white shadow-[0_40px_90px_-30px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/5">
+              <div className="overflow-hidden rounded-2xl border border-white/60 bg-white shadow-[0_40px_90px_-30px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/5 dark:bg-card">
                 <ProductMockup variant="dashboard" title="Operations Dashboard" />
               </div>
 
               {/* Floating glass stat cards lifted toward the viewer in 3-D */}
               <div className="mk-glass mk-float mk-depth-2 absolute -left-6 bottom-10 hidden rounded-2xl px-4 py-3 sm:flex">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                     <PackageCheck className="h-5 w-5" aria-hidden />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Stock in sync</p>
-                    <p className="text-xs text-slate-500">Real-time across plants</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-foreground">Stock in sync</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Real-time across plants</p>
                   </div>
                 </div>
               </div>
@@ -101,20 +101,20 @@ export function MarketingHero() {
                     <TrendingUp className="h-5 w-5" aria-hidden />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">GST invoice sent</p>
-                    <p className="text-xs text-slate-500">Payment tracked via Razorpay</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-foreground">GST invoice sent</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Payment tracked via Razorpay</p>
                   </div>
                 </div>
               </div>
 
               <div className="mk-glass mk-float mk-depth-1 absolute -bottom-5 right-12 hidden rounded-2xl px-4 py-3 lg:flex">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
                     <FileCheck2 className="h-5 w-5" aria-hidden />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">PO approved</p>
-                    <p className="text-xs text-slate-500">Goods receipt booked</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-foreground">PO approved</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Goods receipt booked</p>
                   </div>
                 </div>
               </div>

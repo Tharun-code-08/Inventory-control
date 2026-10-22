@@ -154,7 +154,7 @@ export function CookieConsentManager() {
                 <div className="flex flex-wrap gap-3">
                   <Button
                     type="button"
-                    className="rounded-xl bg-card text-slate-950 hover:bg-slate-200"
+                    className="rounded-xl bg-white text-slate-950 hover:bg-slate-200 dark:bg-card dark:text-foreground"
                     disabled={acceptingAll || acceptingNecessary}
                     onClick={async () => {
                       setAcceptingAll(true);

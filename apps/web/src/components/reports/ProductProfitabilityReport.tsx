@@ -238,7 +238,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.summary.lossMakingProducts > 0 && (
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
-            <h3 className="font-semibold text-red-900 mb-2">⚠️ Loss-Making Products</h3>
+            <h3 className="font-semibold text-red-900 mb-2 dark:text-red-300">⚠️ Loss-Making Products</h3>
             <p className="text-sm text-red-800 dark:text-red-300">
               {data.summary.lossMakingProducts} product(s) selling at a loss, losing ₹{(data.summary.unprofitableValue / 100000).toFixed(2)}L total.
               Consider adjusting prices or stopping sales.
@@ -246,7 +246,7 @@ export default function ProductProfitabilityReport({ shopId }: Props) {
           </div>
         )}
         <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">💡 Profitability Snapshot</h3>
+          <h3 className="font-semibold text-blue-900 mb-2 dark:text-blue-300">💡 Profitability Snapshot</h3>
           <p className="text-sm text-blue-800 dark:text-blue-300">
             Overall margin: {profitMargin.toFixed(1)}% | Profit per ₹100 revenue: ₹{profitMargin.toFixed(0)}
           </p>

@@ -62,7 +62,7 @@ function Stepper({ current }: { current: Step }) {
               <div
                 className={cn(
                   'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition',
-                  done && 'border-primary bg-primary text-white',
+                  done && 'border-primary bg-primary text-primary-foreground',
                   active && !done && 'border-primary bg-card text-primary',
                   !done && !active && 'border-border bg-card text-muted-foreground',
                 )}
@@ -82,7 +82,7 @@ function Stepper({ current }: { current: Step }) {
               <div
                 className={cn(
                   'mx-2 h-0.5 flex-1',
-                  done ? 'bg-primary' : 'bg-slate-200',
+                  done ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800',
                 )}
               />
             ) : null}

@@ -53,7 +53,7 @@ export function RecommendationsCard({ data }: RecommendationsCardProps) {
                 </div>
               )}
 
-              <button className="w-full px-3 py-2 bg-green-600 text-white rounded font-medium hover:bg-green-700 text-sm">
+              <button className="w-full px-3 py-2 bg-green-700 text-white rounded font-medium hover:bg-green-800 text-sm">
                 Accept
               </button>
             </div>

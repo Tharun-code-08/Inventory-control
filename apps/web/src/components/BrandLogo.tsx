@@ -22,14 +22,25 @@ export function BrandLogoMark({
   size?: number;
   className?: string;
 }) {
+  // The light-theme artwork is dark navy, which disappears on dark surfaces;
+  // the dark theme swaps in a lighter copy.
   return (
-    <img
-      src="/favicon.svg"
-      alt="SoftdigitIMS"
-      width={size}
-      height={size}
-      className={cn('shrink-0 object-contain', className)}
-    />
+    <>
+      <img
+        src="/favicon.svg"
+        alt="SoftdigitIMS"
+        width={size}
+        height={size}
+        className={cn('shrink-0 object-contain dark:hidden', className)}
+      />
+      <img
+        src="/logo-mark-dark.svg"
+        alt="SoftdigitIMS"
+        width={size}
+        height={size}
+        className={cn('hidden shrink-0 object-contain dark:block', className)}
+      />
+    </>
   );
 }
 
@@ -44,11 +55,19 @@ export function BrandLogo({
   }
 
   return (
-    <img
-      src="/IMSlogo.svg"
-      alt="SoftdigitIMS"
-      style={{ height: size }}
-      className={cn('w-auto object-contain', className)}
-    />
+    <>
+      <img
+        src="/IMSlogo.svg"
+        alt="SoftdigitIMS"
+        style={{ height: size }}
+        className={cn('w-auto object-contain dark:hidden', className)}
+      />
+      <img
+        src="/IMSlogo-dark.svg"
+        alt="SoftdigitIMS"
+        style={{ height: size }}
+        className={cn('hidden w-auto object-contain dark:block', className)}
+      />
+    </>
   );
 }

@@ -996,7 +996,7 @@ function SuppliersListView() {
               {deletionImpact.isLoading ? (
                 <span className="block text-muted-foreground">Loading linked records…</span>
               ) : deletionImpact.data ? (
-                <span className="block rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-amber-950">
+                <span className="block rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-amber-950 dark:text-amber-300">
                   <span className="font-medium">Linked records (kept in history):</span>
                   <ul className="mt-2 list-inside list-disc space-y-0.5">
                     <li>{deletionImpact.data.counts.rfqInvitations} RFQ invitation(s)</li>

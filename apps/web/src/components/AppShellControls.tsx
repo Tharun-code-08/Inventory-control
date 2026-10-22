@@ -9,11 +9,11 @@ function DateBadge() {
 
   return (
     <div
-      className="hidden items-center gap-2 rounded-lg border border-border/90 bg-linear-to-br from-slate-50 to-white px-2.5 py-1.5 shadow-xs sm:flex"
+      className="hidden items-center gap-2 rounded-lg border border-border/90 bg-linear-to-br from-muted to-card px-2.5 py-1.5 shadow-xs sm:flex"
       title={now.toLocaleDateString(undefined, { dateStyle: 'full' })}
     >
-      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-primary text-white leading-none">
-        <span className="text-[9px] font-semibold uppercase tracking-wide opacity-90">{weekday}</span>
+      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-md bg-primary text-primary-foreground leading-none">
+        <span className="text-[9px] font-semibold uppercase tracking-wide">{weekday}</span>
         <span className="text-sm font-bold tabular-nums">{day}</span>
       </div>
       <p className="text-xs font-semibold text-foreground">{month}</p>

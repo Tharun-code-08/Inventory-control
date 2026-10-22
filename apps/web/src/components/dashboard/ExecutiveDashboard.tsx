@@ -203,7 +203,7 @@ export function ExecutiveDashboard({ shopId }: ExecutiveDashboardProps) {
 
       {/* Footer Tip */}
       <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
-        <p className="text-sm text-blue-900">
+        <p className="text-sm text-blue-900 dark:text-blue-300">
           💡 <strong>Tip:</strong> Check Attention first to identify urgent issues, then review
           Financial and act on Recommendations
         </p>

@@ -250,7 +250,7 @@ export default function CustomerAgingReport({ shopId }: Props) {
       {/* Key Insights */}
       {data.summary.overdueCustomers > 0 && (
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
-          <h3 className="font-semibold text-red-900 mb-2">⚠️ Attention Required</h3>
+          <h3 className="font-semibold text-red-900 mb-2 dark:text-red-300">⚠️ Attention Required</h3>
           <p className="text-sm text-red-800 dark:text-red-300">
             {data.summary.overdueCustomers} customer(s) with overdue payments totaling ₹{(data.summary.totalOverdue / 100000).toFixed(1)}L.
             Collection action recommended.
