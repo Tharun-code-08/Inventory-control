@@ -103,7 +103,9 @@ export class DocumentSeriesService {
       startingNumber: row?.startingNumber ?? moduleDef.defaultStartingNumber,
       padWidth: row?.padWidth ?? moduleDef.defaultPadWidth,
       restartPeriod: row?.restartPeriod ?? moduleDef.defaultRestartPeriod,
-      shopScoped: row?.shopScoped ?? moduleDef.shopScoped,
+      // Fixed per document type, not a setting: stock transfer numbers carry the
+      // plant code because they have no plant-level uniqueness to fall back on.
+      shopScoped: moduleDef.shopScoped,
       enabled: row?.enabled ?? true,
       useCategoryPrefix: row?.useCategoryPrefix ?? moduleDef.defaultUseCategoryPrefix ?? false,
       isOverride,
@@ -316,7 +318,7 @@ export class DocumentSeriesService {
       startingNumber: row.startingNumber ?? moduleDef.defaultStartingNumber,
       padWidth: row.padWidth ?? moduleDef.defaultPadWidth,
       restartPeriod: DocumentSeriesRestart.NONE,
-      shopScoped: false,
+      shopScoped: moduleDef.shopScoped,
       enabled: row.enabled ?? true,
       useCategoryPrefix: row.useCategoryPrefix ?? moduleDef.defaultUseCategoryPrefix ?? false,
     };

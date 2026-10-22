@@ -153,10 +153,9 @@ export class InvoicesService {
 
       const invoiceNumber =
         dto.invoiceNumber?.trim() ||
-        (await this.numbers.nextNumber(tx, {
+        (await this.numbers.nextConfiguredNumber(tx, {
           shopId,
           docType: 'INV',
-          prefix: 'INV',
           date: invoiceDate,
         }));
 

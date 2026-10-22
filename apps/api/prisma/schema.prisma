@@ -1220,7 +1220,7 @@ model Supplier {
 
 model RfqHeader {
   id               String         @id @default(uuid()) @db.Uuid
-  rfqNumber        String         @unique @map("rfq_number")
+  rfqNumber        String         @map("rfq_number")
   rfqDate          DateTime       @map("rfq_date") @db.Date
   deadline         DateTime?      @map("deadline") @db.Date
   closedAt         DateTime?      @map("closed_at") @db.Timestamptz(6)
@@ -1244,6 +1244,7 @@ model RfqHeader {
   quotations     SupplierQuotationHeader[]
   purchaseOrders PurchaseOrderHeader[]
 
+  @@unique([shopId, rfqNumber])
   @@index([shopId, rfqDate])
   @@map("rfq_header")
 }
@@ -1286,7 +1287,7 @@ model RfqItem {
 
 model ContractHeader {
   id             String         @id @default(uuid()) @db.Uuid
-  contractNumber String         @unique @map("contract_number")
+  contractNumber String         @map("contract_number")
   shopId         String         @map("shop_id") @db.Uuid
   supplierId     String         @map("supplier_id") @db.Uuid
   rfqId          String?        @map("rfq_id") @db.Uuid
@@ -1311,6 +1312,7 @@ model ContractHeader {
   items          ContractItem[]
   purchaseOrders PurchaseOrderHeader[]
 
+  @@unique([shopId, contractNumber])
   @@index([shopId, startDate])
   @@index([supplierId])
   @@map("contract_header")
@@ -1339,7 +1341,7 @@ model ContractItem {
 
 model SupplierQuotationHeader {
   id          String         @id @default(uuid()) @db.Uuid
-  quoteNumber String         @unique @map("quote_number")
+  quoteNumber String         @map("quote_number")
   quoteDate   DateTime       @map("quote_date") @db.Date
   shopId      String         @map("shop_id") @db.Uuid
   rfqId       String         @map("rfq_id") @db.Uuid
@@ -1359,6 +1361,7 @@ model SupplierQuotationHeader {
   items     SupplierQuotationItem[]
   contracts ContractHeader[]
 
+  @@unique([shopId, quoteNumber])
   @@index([shopId, quoteDate])
   @@index([rfqId, supplierId])
   @@map("supplier_quote_header")
@@ -1391,7 +1394,7 @@ model SupplierQuotationItem {
 
 model GoodsReceiptHeader {
   id               String         @id @default(uuid()) @db.Uuid
-  grNumber         String         @unique @map("gr_number")
+  grNumber         String         @map("gr_number")
   grDate           DateTime       @map("gr_date") @db.Date
   shopId           String         @map("shop_id") @db.Uuid
   supplierName     String         @map("supplier_name")
@@ -1418,6 +1421,7 @@ model GoodsReceiptHeader {
   returns       SupplierReturn[]
   supplierBills SupplierBillHeader[]
 
+  @@unique([shopId, grNumber])
   @@index([shopId, grDate])
   @@index([shopId, status, grDate])
   @@index([purchaseOrderId])
@@ -1455,7 +1459,7 @@ model GoodsReceiptItem {
 
 model GoodsIssueHeader {
   id               String         @id @default(uuid()) @db.Uuid
-  giNumber         String         @unique @map("gi_number")
+  giNumber         String         @map("gi_number")
   giDate           DateTime       @map("gi_date") @db.Date
   shopId           String         @map("shop_id") @db.Uuid
   issueReason      String         @map("issue_reason")
@@ -1475,6 +1479,7 @@ model GoodsIssueHeader {
   shop  Shop             @relation(fields: [shopId], references: [id])
   items GoodsIssueItem[]
 
+  @@unique([shopId, giNumber])
   @@index([shopId, giDate])
   @@index([shopId, status, giDate])
   @@map("goods_issue_header")
@@ -1503,7 +1508,7 @@ model GoodsIssueItem {
 
 model DamagedStock {
   id              String         @id @default(uuid()) @db.Uuid
-  damageNumber    String         @unique @map("damage_number")
+  damageNumber    String         @map("damage_number")
   damageDate      DateTime       @map("damage_date") @db.Date
   shopId          String         @map("shop_id") @db.Uuid
   productId       String         @map("product_id") @db.Uuid
@@ -1520,6 +1525,7 @@ model DamagedStock {
   shop    Shop    @relation(fields: [shopId], references: [id])
   product Product @relation(fields: [productId], references: [id])
 
+  @@unique([shopId, damageNumber])
   @@index([shopId, damageDate])
   @@index([shopId, productId])
   @@index([status, damageDate])
@@ -1528,7 +1534,7 @@ model DamagedStock {
 
 model PurchaseOrderHeader {
   id               String              @id @default(uuid()) @db.Uuid
-  poNumber         String              @unique @map("po_number")
+  poNumber         String              @map("po_number")
   poDate           DateTime            @map("po_date") @db.Date
   shopId           String              @map("shop_id") @db.Uuid
   rfqId            String?             @map("rfq_id") @db.Uuid
@@ -1558,6 +1564,7 @@ model PurchaseOrderHeader {
   supplierBills         SupplierBillHeader[]
   poCancelVerifications PoCancelVerification[]
 
+  @@unique([shopId, poNumber])
   @@index([shopId, poDate])
   @@index([shopId, status])
   @@index([rfqId])
@@ -2038,7 +2045,7 @@ model Customer {
 
 model SalesQuotationHeader {
   id                     String               @id @default(uuid()) @db.Uuid
-  quoteNumber            String               @unique @map("quote_number")
+  quoteNumber            String               @map("quote_number")
   quoteDate              DateTime             @map("quote_date") @db.Date
   validUntil             DateTime?            @map("valid_until") @db.Date
   customerId             String               @map("customer_id") @db.Uuid
@@ -2064,6 +2071,7 @@ model SalesQuotationHeader {
   salesOrder SalesOrderHeader?    @relation(fields: [salesOrderId], references: [id])
   items      SalesQuotationItem[]
 
+  @@unique([shopId, quoteNumber])
   @@index([shopId, quoteDate])
   @@index([customerId])
   @@index([status])
@@ -2092,7 +2100,7 @@ model SalesQuotationItem {
 
 model SalesOrderHeader {
   id                String            @id @default(uuid()) @db.Uuid
-  soNumber          String            @unique @map("so_number")
+  soNumber          String            @map("so_number")
   orderDate         DateTime          @map("order_date") @db.Date
   expectedDate      DateTime?         @map("expected_date") @db.Date
   customerId        String            @map("customer_id") @db.Uuid
@@ -2125,6 +2133,7 @@ model SalesOrderHeader {
   customerReturns CustomerReturn[]
   salesQuotation  SalesQuotationHeader?
 
+  @@unique([shopId, soNumber])
   @@index([shopId, orderDate])
   @@index([customerId])
   @@index([shopId, fulfillmentStatus])
@@ -2160,7 +2169,7 @@ model SalesOrderItem {
 
 model InvoiceHeader {
   id               String        @id @default(uuid()) @db.Uuid
-  invoiceNumber    String        @unique @map("invoice_number")
+  invoiceNumber    String        @map("invoice_number")
   invoiceDate      DateTime      @map("invoice_date") @db.Date
   salesOrderId     String?       @map("sales_order_id") @db.Uuid
   customerId       String        @map("customer_id") @db.Uuid
@@ -2190,6 +2199,7 @@ model InvoiceHeader {
   creditNotes     CreditNote[]
   ewayBills       EwayBill[]
 
+  @@unique([shopId, invoiceNumber])
   @@index([shopId, invoiceDate])
   @@index([shopId, status, invoiceDate])
   @@index([customerId])
@@ -2199,7 +2209,7 @@ model InvoiceHeader {
 
 model PaymentReceipt {
   id               String       @id @default(uuid()) @db.Uuid
-  receiptNumber    String       @unique @map("receipt_number")
+  receiptNumber    String       @map("receipt_number")
   receiptDate      DateTime     @map("receipt_date") @db.Date
   invoiceId        String       @map("invoice_id") @db.Uuid
   shopId           String       @map("shop_id") @db.Uuid
@@ -2220,6 +2230,7 @@ model PaymentReceipt {
   invoice InvoiceHeader @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   shop    Shop          @relation(fields: [shopId], references: [id])
 
+  @@unique([shopId, receiptNumber])
   @@index([shopId, receiptDate])
   @@index([invoiceId])
   @@map("payment_receipts")
@@ -2402,7 +2413,7 @@ model FxRate {
 
 model CustomerReturn {
   id           String       @id @default(uuid()) @db.Uuid
-  returnNumber String       @unique @map("return_number")
+  returnNumber String       @map("return_number")
   returnDate   DateTime     @map("return_date") @db.Date
   shopId       String       @map("shop_id") @db.Uuid
   customerId   String       @map("customer_id") @db.Uuid
@@ -2425,6 +2436,7 @@ model CustomerReturn {
   items      CustomerReturnItem[]
   creditNote CreditNote?
 
+  @@unique([shopId, returnNumber])
   @@index([shopId, returnDate])
   @@index([customerId])
   @@index([invoiceId])
@@ -2449,7 +2461,7 @@ model CustomerReturnItem {
 
 model SupplierReturn {
   id               String       @id @default(uuid()) @db.Uuid
-  returnNumber     String       @unique @map("return_number")
+  returnNumber     String       @map("return_number")
   returnDate       DateTime     @map("return_date") @db.Date
   shopId           String       @map("shop_id") @db.Uuid
   supplierName     String       @map("supplier_name")
@@ -2483,6 +2495,7 @@ model SupplierReturn {
   items         SupplierReturnItem[]
   images        SupplierReturnImage[]
 
+  @@unique([shopId, returnNumber])
   @@index([shopId, returnDate])
   @@index([supplierId])
   @@index([purchaseOrderId])
@@ -2534,7 +2547,7 @@ model SupplierReturnImage {
 
 model CreditNote {
   id           String           @id @default(uuid()) @db.Uuid
-  creditNumber String           @unique @map("credit_number")
+  creditNumber String           @map("credit_number")
   creditDate   DateTime         @map("credit_date") @db.Date
   shopId       String           @map("shop_id") @db.Uuid
   customerId   String           @map("customer_id") @db.Uuid
@@ -2554,6 +2567,7 @@ model CreditNote {
   invoice  InvoiceHeader?  @relation(fields: [invoiceId], references: [id])
   return   CustomerReturn? @relation(fields: [returnId], references: [id])
 
+  @@unique([shopId, creditNumber])
   @@index([shopId, creditDate])
   @@index([customerId])
   @@map("credit_notes")
@@ -2579,7 +2593,7 @@ model PoCancelVerification {
 
 model SupplierBillHeader {
   id               String             @id @default(uuid()) @db.Uuid
-  billNumber       String             @unique @map("bill_number")
+  billNumber       String             @map("bill_number")
   billDate         DateTime           @map("bill_date") @db.Date
   dueDate          DateTime?          @map("due_date") @db.Date
   shopId           String             @map("shop_id") @db.Uuid
@@ -2605,6 +2619,7 @@ model SupplierBillHeader {
   items         SupplierBillItem[]
   payments      SupplierPayment[]
 
+  @@unique([shopId, billNumber])
   @@index([shopId, billDate])
   @@index([shopId, status, billDate])
   @@index([supplierId])
@@ -2631,7 +2646,7 @@ model SupplierBillItem {
 
 model SupplierPayment {
   id               String       @id @default(uuid()) @db.Uuid
-  paymentNumber    String       @unique @map("payment_number")
+  paymentNumber    String       @map("payment_number")
   paymentDate      DateTime     @map("payment_date") @db.Date
   supplierBillId   String       @map("supplier_bill_id") @db.Uuid
   shopId           String       @map("shop_id") @db.Uuid
@@ -2650,6 +2665,7 @@ model SupplierPayment {
   supplierBill SupplierBillHeader @relation(fields: [supplierBillId], references: [id], onDelete: Cascade)
   shop         Shop               @relation(fields: [shopId], references: [id])
 
+  @@unique([shopId, paymentNumber])
   @@index([shopId, paymentDate])
   @@index([supplierBillId])
   @@map("supplier_payments")
@@ -4136,20 +4152,20 @@ model AssistantAction {
 /// A low-priority customer send accumulated for digest batching (Plan Phase 3).
 /// The dispatch queue flushes all PENDING items for a customer as one message.
 model DispatchBatchItem {
-  id            String   @id @default(uuid()) @db.Uuid
-  companyId     String   @map("company_id") @db.Uuid
-  customerId    String   @map("customer_id") @db.Uuid
-  invoiceId     String   @map("invoice_id") @db.Uuid
-  invoiceNumber String   @map("invoice_number")
-  balanceDue    Float    @map("balance_due")
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  invoiceId     String    @map("invoice_id") @db.Uuid
+  invoiceNumber String    @map("invoice_number")
+  balanceDue    Float     @map("balance_due")
   tone          String
-  eventId       String   @map("event_id") @db.Uuid
-  correlationId String   @map("correlation_id") @db.Uuid
+  eventId       String    @map("event_id") @db.Uuid
+  correlationId String    @map("correlation_id") @db.Uuid
   /// PENDING | SENDING | SENT
-  status        String   @default("PENDING")
+  status        String    @default("PENDING")
   /// When a flush claimed the row; a stale SENDING claim is retried.
   claimedAt     DateTime? @map("claimed_at") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([companyId, customerId, status])
   @@map("dispatch_batch_items")

@@ -179,10 +179,9 @@ export class SupplierBillsService {
 
       const billNumber =
         dto.billNumber?.trim() ||
-        (await this.numbers.nextNumber(tx, {
+        (await this.numbers.nextConfiguredNumber(tx, {
           shopId: gr.shopId,
           docType: 'SBILL',
-          prefix: 'SBILL',
           date: billDate,
         }));
 

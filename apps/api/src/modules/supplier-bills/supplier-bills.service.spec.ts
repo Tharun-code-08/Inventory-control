@@ -17,7 +17,7 @@ describe('SupplierBillsService.createFromGoodsReceipt', () => {
     const service = new SupplierBillsService(
       prisma,
       { log: jest.fn() } as any,
-      { nextNumber: jest.fn().mockResolvedValue('SBILL-001') } as any,
+      { nextConfiguredNumber: jest.fn().mockResolvedValue('SBILL-001') } as any,
       {} as any,
       { sendSupplierBillEmail: jest.fn() } as any,
     );

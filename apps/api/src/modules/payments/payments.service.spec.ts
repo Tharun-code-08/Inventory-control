@@ -82,8 +82,8 @@ function makeAudit(): { log: Mock; logTenant: Mock; logPlatform: Mock } {
   };
 }
 
-function makeNumbers(receiptNumber = 'RCPT-202605-00001'): { nextNumber: Mock } {
-  return { nextNumber: jest.fn().mockResolvedValue(receiptNumber) };
+function makeNumbers(receiptNumber = 'RCPT-202605-00001'): { nextConfiguredNumber: Mock } {
+  return { nextConfiguredNumber: jest.fn().mockResolvedValue(receiptNumber) };
 }
 
 describe('PaymentsService.create', () => {
@@ -199,7 +199,7 @@ describe('PaymentsService.create', () => {
       idempotencyKey: 'idem-1',
     } as any);
 
-    expect(numbers.nextNumber).toHaveBeenCalledTimes(1);
+    expect(numbers.nextConfiguredNumber).toHaveBeenCalledTimes(1);
     expect(tx.invoiceHeader.updateMany).toHaveBeenCalledTimes(1);
     const updateArg = tx.invoiceHeader.updateMany.mock.calls[0][0];
     expect(updateArg.where).toEqual({ id: 'inv-1', paidValue: new Prisma.Decimal('0.00') });

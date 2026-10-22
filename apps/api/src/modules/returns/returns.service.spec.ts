@@ -146,7 +146,7 @@ function makeService() {
   } as any;
   const stock = { postMovementOnce: jest.fn() } as any;
   const costing = { recordOutflow: jest.fn(), recordInflow: jest.fn() } as any;
-  const numbers = { nextNumber: jest.fn() } as any;
+  const numbers = { nextConfiguredNumber: jest.fn() } as any;
   const audit = { log: jest.fn(), logTenant: jest.fn(), logPlatform: jest.fn() } as any;
   const config = {
     get: jest.fn((key: string, fallback?: string) => {

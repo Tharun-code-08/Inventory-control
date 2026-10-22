@@ -62,7 +62,7 @@ const auditFactory = () => ({
   logPlatform: jest.fn().mockResolvedValue(undefined),
 }) as any;
 const numbersFactory = (n = 'INV-202605-00001') =>
-  ({ nextNumber: jest.fn().mockResolvedValue(n) }) as any;
+  ({ nextConfiguredNumber: jest.fn().mockResolvedValue(n) }) as any;
 
 describe('InvoicesService.create', () => {
   it('rejects when shopId is unavailable', async () => {
@@ -195,7 +195,7 @@ describe('InvoicesService.create', () => {
       totalValue: 10,
     } as any);
 
-    expect(numbers.nextNumber).toHaveBeenCalledTimes(1);
+    expect(numbers.nextConfiguredNumber).toHaveBeenCalledTimes(1);
     expect(tx.invoiceHeader.create).toHaveBeenCalledTimes(1);
     const data = tx.invoiceHeader.create.mock.calls[0][0].data;
     expect(data.invoiceNumber).toBe('INV-202605-00001');
@@ -225,7 +225,7 @@ describe('InvoicesService.create', () => {
       invoiceNumber: 'CUSTOM-1',
     } as any);
 
-    expect(numbers.nextNumber).not.toHaveBeenCalled();
+    expect(numbers.nextConfiguredNumber).not.toHaveBeenCalled();
     expect(tx.invoiceHeader.create.mock.calls[0][0].data.invoiceNumber).toBe('CUSTOM-1');
   });
 });
