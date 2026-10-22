@@ -339,6 +339,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   const user = useAuthStore((s) => s.user);
   const functionalCookiesEnabled = useCookieConsentStore((state) => state.preferences.functional);
   const canMutatePo = hasPermission(user, 'purchase_order:create');
+  // Confirming (and Save & Send, which confirms) needs approval rights.
+  const canApprovePo = hasPermission(user, 'purchase_order:approve');
   const canSendPoEmail = hasAnyPermission(user, 'purchase_order:create', 'purchase_order:approve');
   const [selectedShopId, setSelectedShopId] = useState('');
   const { data: shops = [] } = useShops();
@@ -1266,7 +1268,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
       <Button
         type="button"
         onClick={submitSend}
-        disabled={createMut.isPending || sendMut.isPending || !canMutatePo}
+        disabled={createMut.isPending || sendMut.isPending || !canMutatePo || !canApprovePo}
+        title={canApprovePo ? undefined : 'Sending confirms the PO, which needs approval permission'}
       >
         <Send className="mr-2 h-4 w-4" />
         {sendMut.isPending ? 'Sending...' : 'Save & Send'}
@@ -2229,7 +2232,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
                               <DropdownMenuItem onClick={() => openEdit(po)} disabled={!canMutatePo}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setConfirmState({ type: 'confirm', id: po.id, poNumber: po.poNumber })} disabled={!canMutatePo}>
+                              <DropdownMenuItem onClick={() => setConfirmState({ type: 'confirm', id: po.id, poNumber: po.poNumber })} disabled={!canMutatePo || !canApprovePo}>
                                 <CheckCircle2 className="mr-2 h-4 w-4" /> Confirm
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentPdfService } from '../../common/pdf/document-pdf.service';
@@ -63,6 +63,13 @@ function isUniqueViolationForFields(error: unknown, fields: string[]): boolean {
     ? ((error.meta as { target?: unknown[] }).target ?? [])
     : [];
   return fields.some((field) => target.includes(field));
+}
+
+/** Confirming a PO commits spend, so it needs purchase_order:approve. */
+function assertCanApprovePo(user: RequestUser): void {
+  const perms = user.permissions ?? [];
+  if (perms.includes('*') || perms.includes('purchase_order:approve')) return;
+  throw new ForbiddenException('Confirming a purchase order requires the purchase_order:approve permission');
 }
 
 @Injectable()
@@ -584,6 +591,7 @@ export class PurchaseOrdersService {
   }
 
   async create(user: RequestUser, dto: CreatePurchaseOrderDto) {
+    if (dto.confirmOnSend) assertCanApprovePo(user);
     assertShopScope(user, dto.shopId);
     await verifyShopInTenant(this.prisma, user, dto.shopId);
     const shop = await this.prisma.shop.findUnique({
@@ -846,6 +854,7 @@ export class PurchaseOrdersService {
   }
 
   async confirm(user: RequestUser, id: string, idempotencyKey?: string) {
+    assertCanApprovePo(user);
     const po = await this.get(user, id);
     if (po.status === PurchaseOrderStatus.CONFIRMED) return po;
     assertPoAction(po.status, PurchaseOrderAction.CONFIRM);

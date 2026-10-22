@@ -61,6 +61,7 @@ import { ObservabilityModule } from './common/observability/observability.module
 import { FxModule } from './modules/fx/fx.module';
 import { MailModule } from './common/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { SubscriptionWriteGuard } from './modules/billing/guards/subscription-write.guard';
 import { PostalCodesModule } from './modules/postal-codes/postal-codes.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
@@ -206,6 +207,8 @@ function routeOptsIntoAuthThrottle(context: ExecutionContext): boolean {
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    // Runs after auth so req.user is known; expired plans become read-only.
+    { provide: APP_GUARD, useClass: SubscriptionWriteGuard },
     { provide: APP_INTERCEPTOR, useClass: TenantRlsInterceptor },
   ],
 })
