@@ -15,6 +15,10 @@ describe('Phase 9 — Business scenario simulations (e2e)', () => {
     app = await getSharedE2eApp();
   });
 
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
   it('Scenario 1: supplier partial delivery — two GRNs complete the PO', async () => {
     if (!E2E_DB_ENABLED) return;
     const ctx = await seedWorkflowMasterData(app);

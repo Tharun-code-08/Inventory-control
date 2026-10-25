@@ -7,6 +7,8 @@ import type { z } from 'zod';
  * and output types differ (z.coerce.number() takes `unknown`), which no longer
  * lines up with useForm<Values>; validation and coercion are unchanged.
  */
-export function formResolver<TValues extends FieldValues>(schema: z.ZodType<TValues, any>): Resolver<TValues> {
-  return zodResolver(schema as never) as unknown as Resolver<TValues>;
+export function formResolver<TSchema extends z.ZodType<FieldValues, any>>(
+  schema: TSchema,
+): Resolver<z.output<TSchema>> {
+  return zodResolver(schema as never) as unknown as Resolver<z.output<TSchema>>;
 }

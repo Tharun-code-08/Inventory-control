@@ -1,3 +1,4 @@
+import type { INestApplication } from '@nestjs/common';
 import request = require('supertest');
 import { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { E2E_DB_ENABLED, getSharedE2eApp } from '../helpers/e2e-bootstrap';
@@ -6,11 +7,16 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { SubscriptionService } from '../../src/modules/billing/subscription.service';
 
 describe('Expired subscription → read-only', () => {
+  let app: INestApplication;
   jest.setTimeout(30_000);
+
+  afterAll(async () => {
+    if (app) await app.close();
+  });
 
   it('blocks writes after the grace period but keeps reads and billing working', async () => {
     if (!E2E_DB_ENABLED) return;
-    const app = await getSharedE2eApp();
+    app = await getSharedE2eApp();
     const prisma = app.get(PrismaService);
     const subscriptions = app.get(SubscriptionService);
 
