@@ -15,7 +15,7 @@ const schema = z
 
 type Values = z.infer<typeof schema>;
 const run = (values: unknown) =>
-  formResolver<Values>(schema)(values as Values, undefined, { fields: {}, shouldUseNativeValidation: false } as never);
+  formResolver(schema)(values as Values, undefined, { fields: {}, shouldUseNativeValidation: false } as never);
 
 describe('formResolver (zod 4)', () => {
   it('coerces typed text into numbers and applies defaults', async () => {

@@ -33,6 +33,10 @@ describe('Day 6 — E2E Audit Validation', () => {
     prisma = app.get(PrismaService);
   });
 
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
   it('proves audit system works end-to-end: Login → Create → Receive → Update → Approve → Query', async () => {
     if (!E2E_DB_ENABLED) return;
 
