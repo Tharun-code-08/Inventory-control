@@ -20,6 +20,11 @@
     "@testing-library/dom": "^10.4.2",
     "openapi-typescript": "^7.13.0"
   },
+  "optionalDependencies": {
+    "@img/sharp-libvips-linux-x64": "1.3.4",
+    "@img/sharp-linux-x64": "0.35.5",
+    "@rolldown/binding-linux-x64-gnu": "1.2.14"
+  },
   "scripts": {
     "setup:credentials": "node scripts/setup-credentials.cjs",
     "setup:new-machine": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-machine.ps1",
