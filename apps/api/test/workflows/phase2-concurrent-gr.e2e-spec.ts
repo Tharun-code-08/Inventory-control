@@ -17,6 +17,10 @@ describe('Phase 2 — Concurrent GR posting (e2e)', () => {
     app = await getSharedE2eApp();
   });
 
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
   it('allows only one concurrent post when combined qty would exceed the PO', async () => {
     if (!E2E_DB_ENABLED) return;
     const ctx = await seedWorkflowMasterData(app);

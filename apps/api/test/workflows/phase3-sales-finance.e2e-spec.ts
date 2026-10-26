@@ -15,6 +15,10 @@ describe('Phase 3 — Sales & Finance workflows (e2e)', () => {
     app = await getSharedE2eApp();
   });
 
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
   it('creates a sales order for a customer with line tax/discount fields', async () => {
     if (!E2E_DB_ENABLED) return;
     const ctx = await seedWorkflowMasterData(app);

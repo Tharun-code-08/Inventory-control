@@ -44,6 +44,7 @@
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "tailwindcss-animate": "^1.0.7",
+    "victory-vendor": "^37.0.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7",
     "zustand": "^5.0.16"
