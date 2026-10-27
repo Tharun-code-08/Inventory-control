@@ -151,7 +151,7 @@ export function GoodsIssuePage() {
     take: 300,
   });
 
-  const allRows = giQuery.data ?? [];
+  const allRows = useMemo(() => giQuery.data ?? [], [giQuery.data]);
   const hasClientFilters = search.trim().length > 0 || typeFilter !== 'all';
   const hasApiFilters =
     statusFilter !== 'all' || (isAdmin && shops.length > 0 && plantFilter !== 'all');

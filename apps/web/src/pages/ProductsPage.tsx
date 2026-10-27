@@ -733,7 +733,7 @@ export function ProductsPage({ createOnly = false }: { createOnly?: boolean }) {
   const bulkProductImport = useBulkProductImport();
   const deleteImpactQuery = useProductDeletionImpact(deleteTarget?.id);
 
-  const items: Product[] = data?.items ?? [];
+  const items: Product[] = useMemo(() => data?.items ?? [], [data?.items]);
   const meta = data?.meta ?? { total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 };
   const catalogTotal = meta.total;
 

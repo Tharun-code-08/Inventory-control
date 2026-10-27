@@ -185,6 +185,10 @@ export function AppRoutes() {
           <Route path="/returns/acknowledge"     element={<AuthRoute><ReturnAcknowledgementPage /></AuthRoute>} />
           <Route path="/supplier-delete/confirm" element={<AuthRoute><SupplierDeleteConfirmPage /></AuthRoute>} />
           <Route path="/invite/accept"           element={<AuthRoute><InviteAcceptPage /></AuthRoute>} />
+          {/* Legal pages are linked from signup, so they must exist on the app host too. */}
+          <Route path="/privacy"      element={<AuthRoute><PrivacyPolicyPage /></AuthRoute>} />
+          <Route path="/terms"        element={<AuthRoute><TermsOfServicePage /></AuthRoute>} />
+          <Route path="/cancellation" element={<AuthRoute><CancellationPolicyPage /></AuthRoute>} />
           <Route
             path="/dashboard"
             element={

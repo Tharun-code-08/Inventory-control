@@ -214,6 +214,7 @@ function routeOptsIntoAuthThrottle(context: ExecutionContext): boolean {
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    // Named wildcard: path-to-regexp v8 rejects a bare '*' (the braces keep it optional).
+    consumer.apply(RequestIdMiddleware).forRoutes('{*path}');
   }
 }

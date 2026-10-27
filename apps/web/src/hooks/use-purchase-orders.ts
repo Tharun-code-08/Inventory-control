@@ -129,24 +129,56 @@ export const poKeys = {
   detail: (id: string) => [...poKeys.details(), id] as const,
 };
 
+async function fetchPurchaseOrderPage(filters: PurchaseOrderFilters) {
+  const params = new URLSearchParams();
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.limit) params.set('limit', String(filters.limit));
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.shopId) params.set('shop_id', filters.shopId);
+  if (filters.supplier) params.set('supplier', filters.supplier);
+  if (filters.lifecycle) params.set('lifecycle', filters.lifecycle);
+  const res = await api.get(`/purchase-orders?${params}`);
+  return {
+    data: (res.data.data ?? []) as PurchaseOrder[],
+    meta: res.data.meta as PurchaseOrderListMeta | undefined,
+  };
+}
+
 export function usePurchaseOrders(filters: PurchaseOrderFilters = {}) {
   return useQuery({
     queryKey: poKeys.list(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.limit) params.set('limit', String(filters.limit));
-      if (filters.search) params.set('search', filters.search);
-      if (filters.status) params.set('status', filters.status);
-      if (filters.shopId) params.set('shop_id', filters.shopId);
-      if (filters.supplier) params.set('supplier', filters.supplier);
-      if (filters.lifecycle) params.set('lifecycle', filters.lifecycle);
-      const res = await api.get(`/purchase-orders?${params}`);
-      return {
-        data: (res.data.data ?? []) as PurchaseOrder[],
-        meta: res.data.meta as PurchaseOrderListMeta | undefined,
-      };
-    },
+    queryFn: () => fetchPurchaseOrderPage(filters),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** The list endpoint rejects `limit` above 100. */
+export const PO_LIST_MAX_LIMIT = 100;
+const PO_LIST_MAX_PAGES = 10;
+
+export type AllPurchaseOrdersFilters = Omit<PurchaseOrderFilters, 'page' | 'limit'>;
+
+/**
+ * Loads every page of purchase orders matching the filters (up to
+ * PO_LIST_MAX_PAGES pages), for pickers and lookups that need the full set.
+ */
+export async function fetchAllPurchaseOrders(filters: AllPurchaseOrdersFilters = {}) {
+  const rows: PurchaseOrder[] = [];
+  for (let page = 1; page <= PO_LIST_MAX_PAGES; page += 1) {
+    const { data, meta } = await fetchPurchaseOrderPage({ ...filters, page, limit: PO_LIST_MAX_LIMIT });
+    rows.push(...data);
+    if (!meta?.hasMore) break;
+  }
+  return rows;
+}
+
+export function useAllPurchaseOrders(filters: AllPurchaseOrdersFilters = {}) {
+  return useQuery({
+    queryKey: [...poKeys.lists(), 'all', filters] as const,
+    queryFn: () => fetchAllPurchaseOrders(filters),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,

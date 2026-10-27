@@ -105,7 +105,7 @@ export function SettingsWhatsAppTab() {
   });
 
   const countdown = useCountdown(linkToken?.expiresAt ?? null);
-  const devices = devicesQuery.data ?? [];
+  const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
   const activeDevices = useMemo(() => devices.filter((d) => d.status === 'ACTIVE'), [devices]);
 
   // Hide the code automatically once the phone gets linked.

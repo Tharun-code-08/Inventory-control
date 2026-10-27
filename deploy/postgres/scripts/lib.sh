@@ -25,7 +25,8 @@ timestamp() {
 }
 
 log() {
-  local msg="[$(timestamp)] $*"
+  local msg
+  msg="[$(timestamp)] $*"
   echo "$msg"
   mkdir -p "$LOG_DIR"
   echo "$msg" >>"${LOG_DIR}/backup.log"
@@ -87,7 +88,8 @@ maybe_s3_sync() {
     return 0
   fi
   require_cmd aws
-  local dest="${S3_BUCKET%/}/$(basename "$src")/"
+  local dest
+  dest="${S3_BUCKET%/}/$(basename "$src")/"
   log "Uploading ${src} -> ${dest}"
   if [[ -n "${S3_ENDPOINT:-}" ]]; then
     aws s3 sync "$src" "$dest" --endpoint-url "$S3_ENDPOINT" ${AWS_PROFILE:+--profile "$AWS_PROFILE"}
