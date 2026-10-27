@@ -12,11 +12,6 @@ export function platformWebBaseUrl(configured?: string | null): string {
   return base.replace(/\/+$/, '');
 }
 
-export function trackedUrl(baseUrl: string, logId: string, targetUrl: string): string {
-  const encoded = encodeURIComponent(targetUrl);
-  return `${baseUrl}/api/t/email/${logId}?u=${encoded}`;
-}
-
 export function marketingUnsubscribeUrl(baseUrl: string, companyId: string): string {
   return `${baseUrl}/upgrade?unsubscribe=1&company=${companyId}`;
 }
