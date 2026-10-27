@@ -42,6 +42,11 @@ const apiProxy: Record<string, ProxyOptions> = {
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Speed Insights fetches its script from /_vercel/, which only Vercel serves.
+    // On the nginx VPS deploy that path falls back to index.html and breaks.
+    'import.meta.env.VITE_ON_VERCEL': JSON.stringify(process.env.VERCEL === '1'),
+  },
   server: {
     // 127.0.0.1 avoids IPv6 ::1 issues; 5200 avoids Windows reserved/excluded low ports (e.g. 5173)
     host: webHost,

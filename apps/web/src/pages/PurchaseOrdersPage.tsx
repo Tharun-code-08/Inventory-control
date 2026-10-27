@@ -400,7 +400,7 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
     shopId: shopId || undefined,
   });
 
-  const poData = poQuery.data?.data ?? [];
+  const poData = useMemo(() => poQuery.data?.data ?? [], [poQuery.data?.data]);
   const poMeta = poQuery.data?.meta;
 
   // When navigating back from the create form, force a refetch to show the new PO
@@ -480,7 +480,8 @@ export function PurchaseOrdersPage({ createOnly = false }: { createOnly?: boolea
   });
 
   const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'items' });
-  const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
+  const watchedItemsRaw = useWatch({ control: form.control, name: 'items' });
+  const watchedItems = useMemo(() => watchedItemsRaw ?? [], [watchedItemsRaw]);
   const selectedDeliveryPlantId = form.watch('deliveryPlantId');
   const manualNumberEnabled = form.watch('useManualPoNumber');
   const resolvedDeliveryPlantId =

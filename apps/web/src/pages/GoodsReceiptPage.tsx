@@ -83,7 +83,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
 import { localDateString } from '@/lib/local-date';
-import { usePurchaseOrder, usePurchaseOrders, type PurchaseOrder } from '@/hooks/use-purchase-orders';
+import { useAllPurchaseOrders, usePurchaseOrder, type PurchaseOrder } from '@/hooks/use-purchase-orders';
 import { useStorageLocations } from '@/hooks/use-storage-locations';
 import { useShops } from '@/hooks/use-shops';
 import { isShopOnlyUser } from '@/lib/shop-scope';
@@ -208,9 +208,8 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
   const [searchParams] = useSearchParams();
   const fromPoId = searchParams.get('fromPo') ?? '';
   const poQuery = usePurchaseOrder(fromPoId);
-  const poListQuery = usePurchaseOrders({
+  const poListQuery = useAllPurchaseOrders({
     shopId: shopId || undefined,
-    limit: 200,
   });
 
   const [page, setPage] = useState(1);
@@ -248,7 +247,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     page: 1,
   });
 
-  const productList: Product[] = productsData?.items ?? [];
+  const productList: Product[] = useMemo(() => productsData?.items ?? [], [productsData?.items]);
   const productMap = useMemo(() => {
     const map = new Map<string, Product>();
     for (const p of productList) map.set(p.id, p);
@@ -291,14 +290,7 @@ export function GoodsReceiptPage({ createOnly = false }: { createOnly?: boolean 
     name: 'items',
   });
 
-  const availablePoList = useMemo(() => {
-    const raw = poListQuery.data;
-    if (!raw) return [] as PurchaseOrder[];
-    if (Array.isArray(raw)) return raw as PurchaseOrder[];
-    if (typeof raw === 'object' && 'rows' in raw) return (raw as { rows: PurchaseOrder[] }).rows;
-    if (typeof raw === 'object' && 'data' in raw) return (raw as { data: PurchaseOrder[] }).data;
-    return [] as PurchaseOrder[];
-  }, [poListQuery.data]);
+  const availablePoList = useMemo(() => poListQuery.data ?? [], [poListQuery.data]);
 
   const eligiblePoList = useMemo(
     () =>

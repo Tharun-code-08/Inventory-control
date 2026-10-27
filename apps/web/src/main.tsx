@@ -80,7 +80,7 @@ async function init() {
             <AppRoutes />
             <GoogleAnalyticsManager />
             <CookieConsentManager />
-            <SpeedInsights />
+            {import.meta.env.VITE_ON_VERCEL && <SpeedInsights />}
           </BrowserRouter>
         </QueryClientProvider>
       </React.StrictMode>,

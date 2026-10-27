@@ -69,7 +69,7 @@ export function SettingsBackupTab() {
   const [confirmText, setConfirmText] = useState('');
 
   const status = statusQuery.data;
-  const artifacts = artifactsQuery.data ?? [];
+  const artifacts = useMemo(() => artifactsQuery.data ?? [], [artifactsQuery.data]);
 
   const selectedArtifact = useMemo(
     () => artifacts.find((a) => a.id === selectedArtifactId) ?? null,

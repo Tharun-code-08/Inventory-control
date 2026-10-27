@@ -364,14 +364,18 @@ const PO_STATUS_COLORS = ['#94a3b8', '#22c55e', '#ef4444'];
 
 function PurchaseOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = usePoSummary(filters);
-  const rows = (Array.isArray(data?.rows) ? data.rows : []) as Array<{
-    poNumber: string;
-    poDate: string;
-    supplier: string;
-    status: string;
-    totalValue: number;
-  }>;
-  const kpis = data?.kpis ?? {};
+  const rows = useMemo(
+    () =>
+      (Array.isArray(data?.rows) ? data.rows : []) as Array<{
+        poNumber: string;
+        poDate: string;
+        supplier: string;
+        status: string;
+        totalValue: number;
+      }>,
+    [data],
+  );
+  const kpis = useMemo(() => data?.kpis ?? {}, [data]);
   const statusValue = filters.poStatus ?? ALL;
 
   const statusData = useMemo(() => {
@@ -534,14 +538,18 @@ const SALES_STATUS_COLORS = ['#94a3b8', '#22c55e', '#6366f1', '#0ea5e9', '#ef444
 
 function SalesOrdersTab({ filters, onChange }: Pick<TabShellProps, 'filters' | 'onChange'>) {
   const { data, isLoading } = useSalesSummary(filters);
-  const rows = (Array.isArray(data?.rows) ? data.rows : []) as Array<{
-    orderNumber: string;
-    orderDate: string;
-    customer: string;
-    status: string;
-    totalValue: number;
-  }>;
-  const kpis = data?.kpis ?? {};
+  const rows = useMemo(
+    () =>
+      (Array.isArray(data?.rows) ? data.rows : []) as Array<{
+        orderNumber: string;
+        orderDate: string;
+        customer: string;
+        status: string;
+        totalValue: number;
+      }>,
+    [data],
+  );
+  const kpis = useMemo(() => data?.kpis ?? {}, [data]);
   const statusValue = filters.salesStatus ?? ALL;
 
   const monthlyRevenue = useMemo(() => {
@@ -855,7 +863,7 @@ function LowStockTab({
   categoryOptions,
 }: TabShellProps) {
   const { data, isLoading } = useLowStockReport(filters);
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
 
   const categoryValue = filters.category ?? ALL;
   const shopValue = filters.shopId ?? ALL;
@@ -996,7 +1004,7 @@ function StockLedgerTab({
 }: TabShellProps) {
   const [productFilter, setProductFilter] = useState(ALL);
   const { data, isLoading } = useStockLedger(filters);
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
 
   const productOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -1235,7 +1243,7 @@ function GiRegisterTab({
 }: TabShellProps) {
   const [reasonFilter, setReasonFilter] = useState(ALL);
   const { data, isLoading } = useGiRegister(filters);
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
 
   const reasonOptions = useMemo(() => {
     const reasons = [...new Set(rows.map((r) => r.issueReason).filter(Boolean))].sort();

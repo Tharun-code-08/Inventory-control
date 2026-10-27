@@ -139,6 +139,8 @@ export function Sidebar({
 
   useEffect(() => {
     return () => {
+      // The ref holds a timer id, not a DOM node: clear whichever timer is pending at unmount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, []);

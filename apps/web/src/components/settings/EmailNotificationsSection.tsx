@@ -117,7 +117,7 @@ export function EmailNotificationsSection() {
   const [draft, setDraft] = useState<EmailNotificationsConfig | null>(null);
   const [preview, setPreview] = useState<{ subject: string; text: string; html: string } | null>(null);
 
-  const definitions = data?.definitions ?? [];
+  const definitions = useMemo(() => data?.definitions ?? [], [data?.definitions]);
   const sender = data?.sender;
   const view = useMemo(() => resolveView(searchParams, definitions), [definitions, searchParams]);
 

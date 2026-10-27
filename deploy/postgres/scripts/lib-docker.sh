@@ -26,7 +26,8 @@ timestamp() {
 }
 
 log() {
-  local msg="[$(timestamp)] $*"
+  local msg
+  msg="[$(timestamp)] $*"
   echo "$msg"
   mkdir -p "$LOG_DIR"
   echo "$msg" >>"${LOG_DIR}/backup.log"
