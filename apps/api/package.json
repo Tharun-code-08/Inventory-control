@@ -24,7 +24,7 @@
     "test:e2e:workflows": "jest --config ./test/jest-e2e.json --testPathPatterns test/workflows --runInBand --forceExit",
     "test:e2e:concurrent-gr": "jest --config ./test/jest-e2e.json --testPathPatterns phase2-concurrent-gr --runInBand",
     "verify:smtp": "node scripts/verify-smtp.cjs",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1155.0",

@@ -15,6 +15,7 @@ const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 export type CookieConsentPreferences = {
   essential: true;
   functional: boolean;
+  analytics: boolean;
   decided: boolean;
   savedAt: string | null;
 };
@@ -22,6 +23,7 @@ export type CookieConsentPreferences = {
 export const DEFAULT_COOKIE_CONSENT: CookieConsentPreferences = {
   essential: true,
   functional: false,
+  analytics: false,
   decided: false,
   savedAt: null,
 };
@@ -32,8 +34,9 @@ export function parseCookieConsent(raw: string | null | undefined): CookieConsen
     const parsed = JSON.parse(raw) as Partial<CookieConsentPreferences>;
     return {
       essential: true,
-      functional: Boolean(parsed.functional),
-      decided: Boolean(parsed.decided),
+      functional: parsed.functional === true,
+      analytics: parsed.analytics === true,
+      decided: parsed.decided === true,
       savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : null,
     };
   } catch {
@@ -80,7 +83,6 @@ export function clearAnalyticsCookies() {
     .split(';')
     .map((part) => part.trim().split('=')[0])
     .filter(Boolean)
-    .map((name) => decodeURIComponent(name))
     .filter(
       (name) =>
         name === '_ga' ||
@@ -116,10 +118,14 @@ export function resolvePreferredOrgId(
   return availableShopIds[0] ?? '';
 }
 
-export function nextCookieConsent(functional: boolean): CookieConsentPreferences {
+export function nextCookieConsent(
+  functional: boolean,
+  analytics: boolean,
+): CookieConsentPreferences {
   return {
     essential: true,
     functional,
+    analytics,
     decided: true,
     savedAt: new Date().toISOString(),
   };

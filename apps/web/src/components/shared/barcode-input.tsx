@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn';
 
 const MAX_BARCODE_LENGTH = 255;
 const DUPLICATE_SCAN_WINDOW_MS = 800;
+// eslint-disable-next-line no-control-regex -- control bytes are stripped from scanned values
 const CONTROL_AND_ZERO_WIDTH = new RegExp('[\u0000-\u001f\u007f\u200b-\u200d\ufeff]', 'g');
 
 /** Mirror of the server-side normalizer: NFKC fold, strip control/zero-width chars, trim. */

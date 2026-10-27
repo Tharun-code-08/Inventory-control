@@ -1,544 +1,129 @@
-# Operational Runbook
+# Production Operations Runbook
 
-**For: On-call engineers, DevOps, emergency response**
+## Production inventory
 
----
+| Component | Value |
+|---|---|
+| Application checkout | `/opt/Inventory-control-prod` |
+| API process | PM2 `retail-ims-prod` |
+| API port | `3001` |
+| PostgreSQL | Docker, host port `5433` |
+| Redis | `127.0.0.1:6379` |
+| Nginx | Public HTTP/HTTPS proxy |
 
-## Emergency Contacts
+Use the deployment-specific names and paths above. Older instructions for
+`/opt/Inventory-control`, PM2 process `api`/`retail-api`, and API port `3000`
+refer to a previous layout and must not be used for production.
 
-| Role | Contact | Escalation |
-|------|---------|-----------|
-| Primary On-Call | [Name] | [Phone] |
-| Secondary On-Call | [Name] | [Phone] |
-| Database Admin | [Name] | [Phone] |
-| Network Admin | [Name] | [Phone] |
+## First response: health and status
 
----
-
-## Health Check (Do This First)
-
-```bash
-ssh root@your-server-ip
-cd /opt/Inventory-control
-
-# 1. Is the app running?
-pm2 list
-# Should show: 'api' with status 'online'
-
-# 2. Is the database responding?
-curl http://localhost:3000/health
-# Should return: {"status":"ok","timestamp":"...","requestId":"..."}
-
-# 3. Can you login?
-# Open browser: https://your-domain/login
-# Try login with test credentials
-```
-
-**If all three pass:** System is healthy. Investigate specific issue.
-
-**If any fail:** Follow the "What's Wrong" section below.
-
----
-
-## What's Wrong? Diagnosis Tree
-
-### Symptom: API Not Responding
+Connect to the server using the approved SSH account, then run:
 
 ```bash
-# 1. Is process running?
-pm2 list
-# ├─ api online → process running
-# └─ api stopped → RESTART (see "Restart API" below)
-
-# 2. Is it listening?
-netstat -tlnp | grep 3000
-# Should show: tcp ... 0.0.0.0:3000 ... LISTEN
-
-# 3. Check logs
-pm2 log api | tail -50
-# Look for: errors, connection refused, out of memory
-
-# 4. Check database connection
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c "SELECT 1"
-# Should return: 1
-
-# 5. Check disk space
-df -h /opt/Inventory-control
-# Should show: > 1 GB available
-```
-
-### Symptom: Database Not Responding
-
-```bash
-# 1. Is PostgreSQL running?
-systemctl status postgresql
-# Status should be: active (running)
-
-# 2. If not running, start it
-systemctl start postgresql
-
-# 3. Can you connect?
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c "SELECT version()"
-# Should return: PostgreSQL version info
-
-# 4. If connection refused, check port
-netstat -tlnp | grep 5433
-# Should show: tcp ... 0.0.0.0:5433 ... LISTEN
-
-# 5. If still failing, restart PostgreSQL
-systemctl restart postgresql
-sleep 5
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c "SELECT 1"
-```
-
-### Symptom: High Memory Usage
-
-```bash
-# 1. Check memory
+cd /opt/Inventory-control-prod
+date -u
+uptime
+df -h /
 free -h
-# Look for: Mem line
-
-# 2. Check which process is using it
-ps aux | head -20
-# Look for process with high %MEM
-
-# 3. If API is memory hog
-pm2 restart api
-
-# 4. If still high, check logs
-pm2 log api | tail -100
-# Look for: memory leak patterns
+systemctl is-active nginx
+nginx -t
+pm2 status
+pm2 describe retail-ims-prod
+curl -fsS http://127.0.0.1:3001/api/v1/health
+curl -fsS http://127.0.0.1:3001/api/v1/health/ready
 ```
 
-### Symptom: Disk Space Full
+Expected: PM2 shows `retail-ims-prod` online, liveness reports `status:
+"ok"`, and readiness reports `database: "connected"`. Check the public site
+and API URL as well if local checks succeed but customers still report an
+outage.
+
+## API unavailable
 
 ```bash
-# 1. Check disk usage
-df -h
-
-# 2. Find large files
-du -sh /opt/Inventory-control/*
-du -sh /var/log/*
-
-# 3. If backups are large
-du -sh /opt/Inventory-control/backups
-# Delete old backups (keep last 3):
-find /opt/Inventory-control/backups -name "*.sql.gz" -mtime +3 -delete
-
-# 4. If logs are large
-du -sh /var/log
-tail -100 /var/log/syslog > /tmp/syslog-backup
-truncate -s 0 /var/log/syslog
+cd /opt/Inventory-control-prod
+pm2 status
+pm2 logs retail-ims-prod --lines 100
+ss -ltnp | grep ':3001'
+curl -i --max-time 10 http://127.0.0.1:3001/api/v1/health
+curl -i --max-time 10 http://127.0.0.1:3001/api/v1/health/ready
 ```
 
----
-
-## Common Procedures
-
-### Restart API
+Check PM2 logs before restarting. A process marked `online` can still be
+restarting or failing before binding its port. If a restart is justified:
 
 ```bash
-cd /opt/Inventory-control
-
-# Graceful restart (preferred)
-pm2 restart api
-pm2 log api
-
-# Full restart (if graceful fails)
-pm2 stop api
-sleep 3
-pm2 start api
-pm2 log api
-
-# Wait for startup
-# App should be ready in 5-10 seconds
-curl http://localhost:3000/health
+pm2 restart retail-ims-prod --update-env
+pm2 status
+pm2 logs retail-ims-prod --lines 100
 ```
 
-### Restart Database
+Do not delete `node_modules`, generated Prisma files, or deployment state as a
+first response. If Prisma Client is missing after an install, stop the restart
+loop, run `npm run prisma:generate --workspace=api -- --no-hints` from the
+production checkout, then restart and verify both health endpoints.
+
+## Database and Redis
 
 ```bash
-# Stop app first
-pm2 stop api
-
-# Restart PostgreSQL
-systemctl restart postgresql
-sleep 5
-
-# Verify it's running
-systemctl status postgresql
-
-# Start app
-pm2 start api
-pm2 log api
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+redis-cli -h 127.0.0.1 -p 6379 ping
 ```
 
-### Full System Restart
+The database container should report healthy and Redis should return `PONG`.
+Use the configured database credentials from the server's secret-management
+process; do not put passwords in shell history, chat, logs, or this runbook.
+Avoid restarting PostgreSQL, Redis, or Docker until their logs and impact have
+been checked.
+
+## Deployment and rollback
+
+Production deploys are performed by the CI-gated GitHub Actions workflow. Use
+the current [deployment guide](./DEPLOYMENT.md) for workflow checks and SSH
+host-key configuration. Do not manually pull code, reset the production
+checkout, or test with an intentionally broken push.
+
+The deployment script rolls back application code and built assets when its
+own health checks fail. It does not roll back Prisma migrations. For migration
+or data failures, pause deployments, take a database backup, and coordinate a
+reviewed recovery plan with the database owner.
+
+## Backups
+
+The backup script retains database dumps for **7 days**; it does not retain
+exactly three files. Find the configured schedule and directory before
+troubleshooting or cleaning up:
 
 ```bash
-# 1. Shutdown gracefully
-pm2 stop all
-pm2 save
-
-# 2. Restart PostgreSQL
-systemctl restart postgresql
-sleep 5
-
-# 3. Restart application
-pm2 start all
-pm2 log
-
-# 4. Verify health
-sleep 10
-curl http://localhost:3000/health
+crontab -l
+grep -R "backup-db.sh\\|BACKUP_DIR" /etc/cron.d /etc/cron.daily 2>/dev/null
+grep -n "BACKUP_DIR\\|RETENTION_DAYS" /opt/Inventory-control-prod/scripts/backup-db.sh
 ```
 
-### Deploy New Code
+The script's default backup directory is `/opt/Inventory-control/backups`;
+`BACKUP_DIR` can override it. Confirm the configured directory before checking
+the latest dump:
 
 ```bash
-cd /opt/Inventory-control
-
-# 1. Pull latest code
-git pull origin main
-
-# 2. Install dependencies
-npm install
-
-# 3. Build
-npm run build
-
-# 4. Run migrations (if needed)
-npx prisma migrate deploy
-
-# 5. Restart
-pm2 restart api
-pm2 log api
-
-# 6. Verify health
-sleep 10
-curl http://localhost:3000/health
-```
-
-### Rollback Code
-
-```bash
-cd /opt/Inventory-control
-
-# 1. See recent commits
-git log --oneline | head -10
-
-# 2. Rollback to previous commit
-git reset --hard HEAD~1
-
-# 3. Build and restart
-npm run build
-pm2 restart api
-pm2 log api
-
-# Verify
-curl http://localhost:3000/health
-```
-
-### Restore from Backup
-
-**DO NOT DO THIS WITHOUT CONFIRMING WITH TEAM FIRST**
-
-```bash
-cd /opt/Inventory-control
-
-# 1. Stop application
-pm2 stop api
-
-# 2. List backups
-ls -lh backups/*.sql.gz
-
-# 3. Test restore (creates temp database)
-./scripts/restore-test.sh backups/retail_ims_2026-06-13_02-00-00.sql.gz
-# If successful, exit code is 0
-
-# 4. Backup current database (just in case)
-export PGPASSWORD="retail"
-pg_dump -h 127.0.0.1 -p 5433 -U retail -d retail_ims | \
-  gzip > backups/pre-recovery-$(date +%s).sql.gz
-
-# 5. Restore from backup
-gunzip < backups/retail_ims_2026-06-13_02-00-00.sql.gz | \
-  psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims
-
-# 6. Verify data
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c \
-  "SELECT COUNT(*) FROM audit_logs; SELECT COUNT(*) FROM products;"
-
-# 7. Restart application
-pm2 start api
-pm2 log api
-```
-
----
-
-## Monitoring Checklist (Daily)
-
-```bash
-# 1. Check backup ran
-ls -lh /opt/Inventory-control/backups/ | head -5
-# Should see today's date on latest file
-
-# 2. Check backup log
-tail -10 /opt/Inventory-control/backups/backup.log
-# Should show "=== Backup complete ===" from today
-
-# 3. Check application is running
-pm2 list | grep api
-# Should show: api online (1)
-
-# 4. Check health endpoint
-curl http://localhost:3000/health
-# Should return: 200 OK
-
-# 5. Check disk space
-df -h /opt/Inventory-control
-# Should have: > 1 GB available
-
-# 6. Check recent errors
-pm2 log api --lines 50 | tail -20
-# Should not see: ERROR, exception, crash
-```
-
----
-
-## Incident Response
-
-### User Reports Can't Login
-
-```bash
-# 1. Health check
-curl http://localhost:3000/health
-
-# 2. Check auth service logs
-pm2 log api | grep -i "auth" | tail -20
-
-# 3. Check database
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims \
-  -c "SELECT COUNT(*) FROM users;"
-
-# 4. Try login as admin
-# If it works: isolated issue
-# If it fails: system-wide auth issue
-
-# 5. Check rate limiting
-# Users locked out after 5 failed attempts?
-# Wait 15 minutes or contact support
-```
-
-### User Reports Missing Data
-
-```bash
-# 1. Verify in database
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims << EOF
-SELECT COUNT(*) FROM products;
-SELECT COUNT(*) FROM audit_logs;
-SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5;
-EOF
-
-# 2. Check audit trail
-# Find what happened to the data
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims << EOF
-SELECT action, created_at, user_id FROM audit_logs
-WHERE entity_type = 'product'
-ORDER BY created_at DESC LIMIT 20;
-EOF
-
-# 3. Determine if accidental deletion or bug
-# Check audit_logs action column for DELETE
-
-# 4. If recent deletion:
-# Restore from backup (see "Restore from Backup" above)
-
-# 5. If data was never there:
-# Data entry issue, not system issue
-```
-
-### User Reports Slow Performance
-
-```bash
-# 1. Check system resources
-free -h  # Memory
-df -h    # Disk
-top -b -n 1 | head -20  # CPU
-
-# 2. Check database connection pool
-# Look at PM2 logs for "ECONNREFUSED"
-pm2 log api | tail -50
-
-# 3. Check slow queries
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims << EOF
-SELECT query, calls, mean_time FROM pg_stat_statements
-ORDER BY mean_time DESC LIMIT 10;
-EOF
-
-# 4. If memory high: restart API
-pm2 restart api
-
-# 5. If database slow: restart PostgreSQL
-systemctl restart postgresql
-```
-
-### Backup Failed
-
-```bash
-# 1. Check backup log
+ls -lh /opt/Inventory-control/backups
 tail -50 /opt/Inventory-control/backups/backup.log
-
-# 2. Check common issues
-# Is PostgreSQL running?
-systemctl status postgresql
-
-# Is disk full?
-df -h /opt/Inventory-control
-
-# Can connect to database?
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c "SELECT 1"
-
-# 3. Run backup manually
-/opt/Inventory-control/scripts/backup-db.sh
-
-# 4. If still failing, check cron
-crontab -l | grep backup-db
-
-# 5. Test restore
-/opt/Inventory-control/scripts/restore-test.sh
 ```
 
----
+The script validates gzip integrity and removes dumps older than seven days.
+Provide database credentials through a mode-`0600` PostgreSQL password file
+or the approved `DB_PASSWORD` secret injection. The script has no default
+password; the `retail` password in the local Docker Compose file is for local
+development only.
+Do not manually delete backups to meet an assumed count. Use
+`scripts/restore-test.sh` only after confirming the backup path, database
+credentials, and that the database role can create and drop the dedicated
+`retail_ims_restore_test` database. A live restore is destructive: obtain
+explicit approval, capture a current backup, and follow
+[the backup and recovery guide](./BACKUP-RECOVERY-GUIDE.md).
 
-## Critical Thresholds
+## Escalation evidence
 
-| Metric | Warning | Critical |
-|--------|---------|----------|
-| Disk Free | < 500 MB | < 100 MB |
-| Memory Free | < 256 MB | < 64 MB |
-| API Response Time | > 1s | > 5s |
-| Database Connections | > 80 | > 95 |
-| Backup Age | > 24h | > 48h |
-| Backup Size | > 500 KB | > 1 MB |
-
----
-
-## Escalation Path
-
-**Level 1: Can restart**
-- API/database restart fails
-- Disk space cleanup
-- Deploy new code
-
-**Level 2: Must restore**
-- Data corruption
-- Database won't start
-- Accidental deletion
-
-**Level 3: Infrastructure**
-- Network issues
-- Hardware failure
-- Server down
-
----
-
-## Useful Commands
-
-```bash
-# System status
-pm2 list                          # Show all processes
-pm2 logs                          # Tail all logs
-pm2 monit                         # Watch CPU/memory
-df -h                            # Disk usage
-free -h                          # Memory usage
-uptime                           # Server uptime
-
-# Database
-psql -h 127.0.0.1 -p 5433 -U retail -d retail_ims -c "SELECT 1"
-pg_stat_replication              # Replication status (if applicable)
-
-# Backup
-ls -lh /opt/Inventory-control/backups/
-tail -50 /opt/Inventory-control/backups/backup.log
-./scripts/restore-test.sh        # Test latest backup
-
-# Application
-curl http://localhost:3000/health
-curl http://localhost:3000/health/live
-curl http://localhost:3000/health/ready
-```
-
----
-
-## During an Incident
-
-1. **Stay calm.** Most issues are recoverable.
-2. **Check health first.** API? Database? Both?
-3. **Don't guess.** Follow diagnosis tree above.
-4. **Document.** What happened? When? What fixed it?
-5. **Notify.** Slack, email, or team lead depending on severity.
-6. **Verify.** Health check again after any fix.
-7. **Escalate early** if unsure. It's better to involve someone than to guess wrong.
-
----
-
-## Post-Incident
-
-After any incident:
-
-1. Check backup from that day
-   ```bash
-   ls -lh /opt/Inventory-control/backups/ | grep "$(date +%Y-%m-%d)"
-   ```
-
-2. Review logs
-   ```bash
-   tail -200 /opt/Inventory-control/backups/backup.log
-   pm2 log api | head -200
-   ```
-
-3. Document in incident log
-   ```
-   Date: 2026-06-13 14:30
-   Issue: Database connection refused
-   Duration: 5 minutes
-   Root Cause: PostgreSQL process crashed
-   Fix: Restarted PostgreSQL
-   Prevention: Monitor process restarts
-   ```
-
-4. Test backup & restore
-   ```bash
-   /opt/Inventory-control/scripts/restore-test.sh
-   ```
-
----
-
-## Incident Log
-
-### 2026-07-15 — Invoice PDF generation returned HTTP 500 on null template fields
-
-- **Issue:** Invoice PDF generation could return HTTP 500 when template fields contained `null` values. First observed on staging 2026-07-12 (`GET /api/v1/documents/invoice/:id/pdf` → 500).
-- **Root Cause:** `escapeHtml()` in `apps/api/src/common/pdf/document-pdf.formatters.ts` assumed all inputs were strings and called `.replace()` on `null`/`undefined`. Dozens of PDF template call sites feed it DB-sourced values, where nominally required columns can be null in legacy rows.
-- **Fix:** Made `escapeHtml()` null-safe — signature widened to `string | null | undefined`, missing values default to an empty string before escaping. Shipped via PR #5 (commit `c20a1011`, merged to `main` as `5d4f3738`), deployed to production 2026-07-15.
-- **Validation:** Type checks, unit tests (538 API / 26 web), CI quality gates, production deployment, production health checks, and direct rendering-path verification against the deployed `dist/` (both invoice and GST templates rendered with all-null fields, no `TypeError`) all passed.
-- **Outstanding:** One successful production invoice PDF download to complete end-to-end release verification (prod DB held zero invoices at fix time, so no live document was available to exercise the full HTTP → auth → DB → Puppeteer pipeline).
-- **Operational lesson:** The `Deploy to Production` workflow pre-pulls `main` into the prod checkout; if that checkout is left on a feature branch, the deploy fails at `git pull` (safely, before build/restart). Keep `/opt/Inventory-control-prod` checked out on `main`.
-
----
-
-## References
-
-- **Backup Procedure:** [BACKUP-RECOVERY-GUIDE.md](BACKUP-RECOVERY-GUIDE.md)
-- **Admin Details:** [BACKUP-ADMINISTRATION.md](BACKUP-ADMINISTRATION.md)
-- **API Health:** `/health`, `/health/live`, `/health/ready`
-- **Logs:** `pm2 log`, `/opt/Inventory-control/backups/backup.log`
-
----
-
-**Keep this open during on-call rotations.**
-
-**Last Updated:** 2026-07-15
-
-**Version:** 1.1
+When escalating, include UTC time, the affected public URL, output from the
+health/readiness checks, PM2 status and recent error logs, disk and memory
+availability, and the deployed commit SHA. Redact credentials, tokens,
+customer data, and environment-variable values.

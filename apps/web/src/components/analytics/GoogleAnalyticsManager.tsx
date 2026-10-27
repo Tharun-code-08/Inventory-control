@@ -7,71 +7,74 @@ const GOOGLE_ANALYTICS_ID =
 
 declare global {
   interface Window {
-    dataLayer: unknown[];
+    dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
   }
 }
 
 function ensureGtag() {
   if (typeof window === 'undefined') return null;
-  window.dataLayer = window.dataLayer || [];
+  const dataLayer = (window.dataLayer ??= []);
   window.gtag =
     window.gtag ||
     function gtag(...args: unknown[]) {
-      window.dataLayer.push(args);
+      dataLayer.push(args);
     };
   return window.gtag;
 }
 
-function consentState(functionalEnabled: boolean) {
-  return {
-    analytics_storage: functionalEnabled ? 'granted' : 'denied',
-    ad_storage: 'denied',
-    ad_user_data: 'denied',
-    ad_personalization: 'denied',
-  } as const;
+function removeGtag() {
+  document.getElementById('google-analytics-script')?.remove();
+  window.gtag = undefined;
+  window.dataLayer = undefined;
 }
 
 export function GoogleAnalyticsManager() {
-  const functionalEnabled = useCookieConsentStore((state) => state.preferences.functional);
+  const analyticsEnabled = useCookieConsentStore((state) => state.preferences.analytics);
   const location = useLocation();
   const lastPageViewRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
-  const pageKey = useMemo(
-    () => `${location.pathname}${location.search}${location.hash}`,
-    [location.hash, location.pathname, location.search],
-  );
+  const pageKey = useMemo(() => location.pathname, [location.pathname]);
 
   useEffect(() => {
     if (!GOOGLE_ANALYTICS_ID) return;
 
-    const gtag = ensureGtag();
-    if (!gtag) return;
-
-    if (!functionalEnabled) {
+    if (!analyticsEnabled) {
+      removeGtag();
       lastPageViewRef.current = null;
-      gtag('consent', 'update', consentState(false));
       setReady(false);
       return;
     }
 
-    gtag('consent', 'update', consentState(true));
+    const gtag = ensureGtag();
+    if (!gtag) return;
+
+    if (!document.getElementById('google-analytics-script')) {
+      const script = document.createElement('script');
+      script.id = 'google-analytics-script';
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_ID)}`;
+      document.head.appendChild(script);
+      gtag('js', new Date());
+      gtag('config', GOOGLE_ANALYTICS_ID, { send_page_view: false });
+    }
+
     setReady(true);
-  }, [functionalEnabled]);
+  }, [analyticsEnabled]);
 
   useEffect(() => {
-    if (!GOOGLE_ANALYTICS_ID || !functionalEnabled || !ready) return;
+    if (!GOOGLE_ANALYTICS_ID || !analyticsEnabled || !ready) return;
     const gtag = ensureGtag();
     if (!gtag) return;
     if (lastPageViewRef.current === pageKey) return;
     lastPageViewRef.current = pageKey;
     gtag('event', 'page_view', {
       page_title: document.title,
-      page_location: window.location.href,
+      page_location: `${window.location.origin}${pageKey}`,
       page_path: pageKey,
       send_to: GOOGLE_ANALYTICS_ID,
     });
-  }, [functionalEnabled, pageKey, ready]);
+  }, [analyticsEnabled, pageKey, ready]);
 
   return null;
 }

@@ -1206,7 +1206,7 @@ function BrandingTab() {
       } catch (err: unknown) {
         const errorMsg = getApiErrorMessage(err, 'Failed to update branding');
         console.error('Branding update error:', err);
-        throw new Error(errorMsg);
+        throw new Error(errorMsg, { cause: err });
       }
     },
     onSuccess: () => {

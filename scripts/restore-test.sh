@@ -6,6 +6,11 @@
 # Usage: ./scripts/restore-test.sh [backup_file]
 
 set -euo pipefail
+umask 077
+
+if [ -n "${DB_PASSWORD:-}" ]; then
+  export PGPASSWORD="$DB_PASSWORD"
+fi
 
 DB_USER="${DB_USER:-retail}"
 DB_HOST="${DB_HOST:-127.0.0.1}"
@@ -21,7 +26,7 @@ log() {
 # Cleanup function
 cleanup() {
   log "Cleaning up test database..."
-  PGPASSWORD="${DB_PASSWORD:-retail}" dropdb \
+  dropdb \
     -h "$DB_HOST" \
     -p "$DB_PORT" \
     -U "$DB_USER" \
@@ -51,7 +56,7 @@ log "Test database: $TEST_DB_NAME"
 
 # Create test database
 log "Creating test database..."
-if ! PGPASSWORD="${DB_PASSWORD:-retail}" createdb \
+if ! createdb \
   -h "$DB_HOST" \
   -p "$DB_PORT" \
   -U "$DB_USER" \
@@ -66,7 +71,7 @@ log "Test database created"
 log "Restoring backup..."
 START_TIME=$(date +%s)
 
-if ! /bin/gunzip < "$BACKUP_FILE" | PGPASSWORD="${DB_PASSWORD:-retail}" psql \
+if ! /bin/gunzip < "$BACKUP_FILE" | psql \
   -h "$DB_HOST" \
   -p "$DB_PORT" \
   -U "$DB_USER" \
@@ -98,7 +103,7 @@ VALIDATION_FAILED=0
 
 for query in "${QUERIES[@]}"; do
   log "Query: $query"
-  if result=$(PGPASSWORD="${DB_PASSWORD:-retail}" psql \
+  if result=$(psql \
     -h "$DB_HOST" \
     -p "$DB_PORT" \
     -U "$DB_USER" \

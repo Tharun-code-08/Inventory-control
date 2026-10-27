@@ -18,11 +18,11 @@ export function CookiePreferencesTab() {
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
           Essential cookies are always on to protect sign-in and CSRF-sensitive actions. Functional
-          cookies are optional and control convenience features like trusted device login and active
-          workspace memory.
+          cookies control convenience features; analytics cookies separately control Google
+          Analytics measurement.
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border bg-muted px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-foreground">Essential cookies</p>
@@ -32,6 +32,18 @@ export function CookiePreferencesTab() {
               <code className="rounded bg-card px-1.5 py-0.5 text-foreground">session_id</code>
               <code className="rounded bg-card px-1.5 py-0.5 text-foreground">csrf_token</code>
               <code className="rounded bg-card px-1.5 py-0.5 text-foreground">cookie_consent</code>
+            </div>
+          </div>
+          <div className="rounded-xl border bg-muted px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-foreground">Analytics cookies</p>
+              <Badge variant={preferences.analytics ? 'info' : 'secondary'}>
+                {preferences.analytics ? 'Enabled' : 'Disabled'}
+              </Badge>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <code className="rounded bg-card px-1.5 py-0.5 text-foreground">_ga</code>
+              <code className="rounded bg-card px-1.5 py-0.5 text-foreground">_gid</code>
             </div>
           </div>
           <div className="rounded-xl border bg-muted px-4 py-3">
