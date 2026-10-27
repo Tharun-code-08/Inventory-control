@@ -70,9 +70,10 @@ export async function downloadDocumentPdf(kind: DocumentPdfKind, id: string): Pr
     if (response?.data instanceof Blob) {
       throw new Error(
         await readApiErrorFromBlob(response.data, response.status, 'Could not generate PDF'),
+        { cause: err },
       );
     }
-    throw new Error(getApiErrorMessage(err, 'Could not generate PDF'));
+    throw new Error(getApiErrorMessage(err, 'Could not generate PDF'), { cause: err });
   }
 }
 

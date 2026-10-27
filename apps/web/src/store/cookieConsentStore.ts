@@ -16,23 +16,24 @@ type CookieConsentState = {
   setPreferencesOpen: (open: boolean) => void;
   acceptAll: () => Promise<void>;
   acceptNecessaryOnly: () => Promise<void>;
-  savePreferences: (functional: boolean) => Promise<void>;
+  savePreferences: (functional: boolean, analytics: boolean) => Promise<void>;
   syncFromCookies: () => void;
 };
 
 async function clearFunctionalCookiesOnServer() {
   try {
     await api.post('/auth/cookies/functional/clear');
-  } catch {
-    /* best effort */
+  } catch (error) {
+    console.error('Failed to clear functional cookies after consent was revoked', error);
   }
 }
 
-async function applyFunctionalConsentSideEffects(functionalEnabled: boolean) {
-  if (functionalEnabled) return;
-  clearPreferredOrgId();
-  clearAnalyticsCookies();
-  await clearFunctionalCookiesOnServer();
+async function applyConsentSideEffects(functionalEnabled: boolean, analyticsEnabled: boolean) {
+  if (!functionalEnabled) {
+    clearPreferredOrgId();
+    await clearFunctionalCookiesOnServer();
+  }
+  if (!analyticsEnabled) clearAnalyticsCookies();
 }
 
 export const useCookieConsentStore = create<CookieConsentState>()((set) => ({
@@ -40,21 +41,21 @@ export const useCookieConsentStore = create<CookieConsentState>()((set) => ({
   preferencesOpen: false,
   setPreferencesOpen: (open) => set({ preferencesOpen: open }),
   acceptAll: async () => {
-    const next = nextCookieConsent(true);
+    const next = nextCookieConsent(true, true);
     writeCookieConsent(next);
     set({ preferences: next, preferencesOpen: false });
   },
   acceptNecessaryOnly: async () => {
-    const next = nextCookieConsent(false);
+    const next = nextCookieConsent(false, false);
     writeCookieConsent(next);
     set({ preferences: next, preferencesOpen: false });
-    await applyFunctionalConsentSideEffects(false);
+    await applyConsentSideEffects(false, false);
   },
-  savePreferences: async (functional) => {
-    const next = nextCookieConsent(functional);
+  savePreferences: async (functional, analytics) => {
+    const next = nextCookieConsent(functional, analytics);
     writeCookieConsent(next);
     set({ preferences: next, preferencesOpen: false });
-    await applyFunctionalConsentSideEffects(functional);
+    await applyConsentSideEffects(functional, analytics);
   },
   syncFromCookies: () => {
     set({ preferences: readCookieConsent() ?? DEFAULT_COOKIE_CONSENT });

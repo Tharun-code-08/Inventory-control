@@ -74,6 +74,50 @@ for (const entry of fs.readdirSync(rootNm)) {
   }
 }
 
+// Config plugins hoisted to the monorepo root resolve `expo/config-plugins`
+// from their own path, so expose the mobile workspace's Expo package there.
+const rootExpo = path.join(rootNm, 'expo');
+const mobileExpo = path.join(mobileNm, 'expo');
+if (!fs.existsSync(rootExpo) && fs.existsSync(mobileExpo)) {
+  const type = process.platform === 'win32' ? 'junction' : 'dir';
+  fs.symlinkSync(mobileExpo, rootExpo, type);
+  console.log('[link-hoisted-deps] linked mobile Expo package to monorepo root');
+}
+
+// image-size 2 requires bytes, while Metro 0.83 passes image paths to its API.
+const metroAssetsTarget =
+  'const isImageInput = assetInfo.files[0].includes(".zip/")\n' +
+  '    ? _fs.default.readFileSync(assetInfo.files[0])\n' +
+  '    : assetInfo.files[0];';
+const metroAssetsReplacement =
+  'const isImageInput = assetInfo.files[0].includes(".zip/") || isImage\n' +
+  '    ? _fs.default.readFileSync(assetInfo.files[0])\n' +
+  '    : assetInfo.files[0];';
+const metroAssetFiles = [
+  path.join(rootNm, '@expo', 'metro', 'node_modules', 'metro', 'src', 'Assets.js'),
+  path.join(rootNm, 'metro', 'src', 'Assets.js'),
+  path.join(mobileNm, 'metro', 'src', 'Assets.js'),
+];
+let metroAssetsPatched = false;
+for (const metroAssetFile of metroAssetFiles) {
+  if (!fs.existsSync(metroAssetFile)) continue;
+  const content = fs.readFileSync(metroAssetFile, 'utf8');
+  if (content.includes(metroAssetsReplacement)) {
+    metroAssetsPatched = true;
+    continue;
+  }
+  if (!content.includes(metroAssetsTarget)) continue;
+  fs.writeFileSync(
+    metroAssetFile,
+    content.replace(metroAssetsTarget, metroAssetsReplacement),
+    'utf8',
+  );
+  metroAssetsPatched = true;
+}
+if (!metroAssetsPatched) {
+  throw new Error('Could not apply the Metro compatibility fix for image-size 2');
+}
+
 // Patch react-zlib-js to prevent Hermes/Metro crash during function toString parsing & Browser load check
 const zlibPath = path.join(rootNm, 'react-zlib-js', 'index.js');
 if (fs.existsSync(zlibPath)) {
@@ -99,5 +143,3 @@ if (fs.existsSync(zlibPath)) {
     console.log('[link-hoisted-deps] Patched react-zlib-js for Hermes/Browser compatibility');
   }
 }
-
-

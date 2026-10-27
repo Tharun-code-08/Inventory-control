@@ -6,7 +6,7 @@
 #   DEPLOY_KEY             — private SSH key content
 #   DEPLOY_HOST            — VPS hostname or IP
 #   DEPLOY_USER            — SSH username
-#   DEPLOY_HOST_KNOWN_KEY  — known_hosts entry (optional; enables strict host-key check)
+#   DEPLOY_HOST_KNOWN_KEY  — pinned known_hosts entry for strict host-key verification
 #   EXPECTED_SHA           — full commit SHA that was deployed
 #
 # Optional:
@@ -27,26 +27,24 @@ PORT="${API_PORT:-3001}"
 MAX="${MAX_ATTEMPTS:-10}"
 DELAY="${RETRY_DELAY:-3}"
 
-if [ -z "$HOST" ] || [ -z "$USER_NAME" ]; then
-  echo "❌ DEPLOY_HOST and DEPLOY_USER must be set"
+if [ -z "$HOST" ] || [ -z "$USER_NAME" ] || [ -z "${DEPLOY_KEY:-}" ] \
+  || [ -z "${DEPLOY_HOST_KNOWN_KEY:-}" ] || [ -z "${EXPECTED_SHA:-}" ]; then
+  echo "❌ DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY, DEPLOY_HOST_KNOWN_KEY, and EXPECTED_SHA must be set"
   exit 1
 fi
 
 # ── SSH setup ────────────────────────────────────────────────────────────────
 
-mkdir -p ~/.ssh
-if [ -n "${DEPLOY_KEY:-}" ]; then
-  printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
-  chmod 600 ~/.ssh/deploy_key
+if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "❌ EXPECTED_SHA must be a full 40-character commit SHA"
+  exit 1
 fi
 
-if [ -n "${DEPLOY_HOST_KNOWN_KEY:-}" ]; then
-  printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" >> ~/.ssh/known_hosts
-  chmod 600 ~/.ssh/known_hosts
-  SSH_STRICT="StrictHostKeyChecking=yes"
-else
-  SSH_STRICT="StrictHostKeyChecking=accept-new"
-fi
+mkdir -p ~/.ssh
+printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+chmod 600 ~/.ssh/deploy_key
+printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" > ~/.ssh/known_hosts
+chmod 600 ~/.ssh/known_hosts
 
 ssh_curl() {
   # ssh_curl <path>
@@ -54,7 +52,8 @@ ssh_curl() {
   # No eval — arguments are passed directly to ssh and curl.
   local path="$1"
   ssh -i ~/.ssh/deploy_key \
-    -o "$SSH_STRICT" \
+    -o StrictHostKeyChecking=yes \
+    -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
     -o ConnectTimeout=15 \
     -o ServerAliveInterval=10 \
     -o BatchMode=yes \

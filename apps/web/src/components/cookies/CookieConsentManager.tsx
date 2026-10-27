@@ -15,13 +15,15 @@ import { useCookieConsentStore } from '@/store/cookieConsentStore';
 function CookiePreferencesDialog() {
   const { preferences, preferencesOpen, setPreferencesOpen, savePreferences } = useCookieConsentStore();
   const [functionalEnabled, setFunctionalEnabled] = useState(preferences.functional);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(preferences.analytics);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (preferencesOpen) {
       setFunctionalEnabled(preferences.functional);
+      setAnalyticsEnabled(preferences.analytics);
     }
-  }, [preferences.functional, preferencesOpen]);
+  }, [preferences.analytics, preferences.functional, preferencesOpen]);
 
   const cookieRows = useMemo(
     () => [
@@ -34,12 +36,17 @@ function CookiePreferencesDialog() {
       {
         category: 'Functional',
         enabled: functionalEnabled,
-        description:
-          'Used for convenience features like remembering a trusted browser, keeping your active workspace selection, and measuring site usage with Google Analytics.',
-        cookies: ['remember_me', 'org_id', '_ga', '_gid', '_ga_*'],
+        description: 'Used for convenience features like remembering a trusted browser and workspace.',
+        cookies: ['remember_me', 'org_id'],
+      },
+      {
+        category: 'Analytics',
+        enabled: analyticsEnabled,
+        description: 'Allows Google Analytics to measure how visitors use the marketing site.',
+        cookies: ['_ga', '_gid', '_ga_*'],
       },
     ],
-    [functionalEnabled],
+    [analyticsEnabled, functionalEnabled],
   );
 
   return (
@@ -48,8 +55,8 @@ function CookiePreferencesDialog() {
         <DialogHeader>
           <DialogTitle>Cookie Preferences</DialogTitle>
           <DialogDescription>
-            Essential cookies keep the app secure. Functional cookies are optional and can be
-            turned on if you want convenience features and Google Analytics measurement.
+            Essential cookies keep the app secure. Functional and analytics cookies are optional
+            and can be managed independently.
           </DialogDescription>
         </DialogHeader>
 
@@ -78,12 +85,14 @@ function CookiePreferencesDialog() {
                 ) : (
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-foreground">
-                      {functionalEnabled ? 'Enabled' : 'Disabled'}
+                      {row.enabled ? 'Enabled' : 'Disabled'}
                     </span>
                     <Switch
-                      checked={functionalEnabled}
-                      onCheckedChange={setFunctionalEnabled}
-                      aria-label="Enable functional cookies"
+                      checked={row.enabled}
+                      onCheckedChange={
+                        row.category === 'Functional' ? setFunctionalEnabled : setAnalyticsEnabled
+                      }
+                      aria-label={`Enable ${row.category.toLowerCase()} cookies`}
                     />
                   </div>
                 )}
@@ -101,7 +110,7 @@ function CookiePreferencesDialog() {
             onClick={async () => {
               setSaving(true);
               try {
-                await savePreferences(functionalEnabled);
+                await savePreferences(functionalEnabled, analyticsEnabled);
               } finally {
                 setSaving(false);
               }
@@ -146,9 +155,9 @@ export function CookieConsentManager() {
                     Before you dig in, a quick heads up.
                   </h2>
                   <p className="max-w-2xl text-sm leading-7 text-slate-300">
-                    We use essential cookies to keep your session secure and optional functional
-                    cookies to remember your browser, active workspace, and Google Analytics
-                    measurement preferences.
+                    We use essential cookies to keep your session secure. You can separately opt in
+                    to functional cookies for convenience and analytics cookies for site usage
+                    measurement.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">

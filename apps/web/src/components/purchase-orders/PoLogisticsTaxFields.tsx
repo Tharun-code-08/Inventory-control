@@ -14,7 +14,6 @@ import { FOB_OPTIONS, SHIP_VIA_OPTIONS, SHIPPING_TERMS_OPTIONS } from '@/lib/po-
 const trigger = 'h-8 text-xs';
 
 type Props = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>;
 };
 

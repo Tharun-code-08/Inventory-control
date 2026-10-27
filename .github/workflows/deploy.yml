@@ -63,8 +63,8 @@ jobs:
           USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
 
           # Validate required secrets
-          if [ -z "$DEPLOY_KEY" ] || [ -z "$HOST" ] || [ -z "$USER" ]; then
-            echo "❌ Missing required secrets: DEPLOY_KEY, DEPLOY_HOST, or DEPLOY_USER"
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$HOST" ] || [ -z "$USER" ] || [ -z "$DEPLOY_HOST_KNOWN_KEY" ]; then
+            echo "❌ Missing required secrets: DEPLOY_KEY, DEPLOY_HOST, DEPLOY_USER, or DEPLOY_HOST_KNOWN_KEY"
             exit 1
           fi
 
@@ -73,25 +73,9 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Configure host-key verification.
-          #
-          # REQUIRED FOR PRODUCTION: set the DEPLOY_HOST_KNOWN_KEY secret to
-          # the output of `ssh-keyscan -H <your-host>` run from a trusted machine.
-          # This is the only way to fully prevent MITM attacks against deploys.
-          #
-          # The accept-new fallback below is a TRANSITIONAL default only.
-          # It accepts the host key on the first connection and rejects any
-          # change afterward — safer than StrictHostKeyChecking=no, but still
-          # vulnerable on first contact. Do not rely on this permanently.
-          if [ -n "$DEPLOY_HOST_KNOWN_KEY" ]; then
-            printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" >> ~/.ssh/known_hosts
-            chmod 600 ~/.ssh/known_hosts
-            SSH_STRICT="-o StrictHostKeyChecking=yes"
-          else
-            echo "⚠️  DEPLOY_HOST_KNOWN_KEY is not set. Using accept-new as a transitional fallback."
-            echo "    Set this secret (ssh-keyscan -H <host>) to enable strict host verification."
-            SSH_STRICT="-o StrictHostKeyChecking=accept-new"
-          fi
+          # Only trust the host key pinned by the repository secret.
+          printf '%s\n' "$DEPLOY_HOST_KNOWN_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
           # Run deployment script for the commit that passed CI.
           if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
@@ -100,7 +84,8 @@ jobs:
           fi
           echo "🚀 Connecting to $USER@$HOST (deploying $DEPLOY_SHA)..."
           ssh -i ~/.ssh/deploy_key \
-            $SSH_STRICT \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=20 \

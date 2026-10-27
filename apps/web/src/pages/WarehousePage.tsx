@@ -960,7 +960,6 @@ function UploadInventoryDialog({
         toast.warning(
           `Updated ${result.updated} of ${result.total}. ${result.errors.length} row(s) failed.`,
         );
-        // eslint-disable-next-line no-console
         console.warn('Bulk inventory errors', result.errors);
       } else {
         toast.success(`Updated ${result.updated} row(s)`);

@@ -14,9 +14,17 @@ type SoftDeleteModelLower = 'user' | 'supplier';
 /** Own members of PrismaService (and its instance state) that must not be routed to the extended client. */
 const SERVICE_MEMBERS = new Set<PropertyKey>(['logger', 'softDelete', 'onModuleInit', 'onModuleDestroy']);
 
-/** Scope `app.current_company_id` (read by the RLS policies) to the current transaction. */
-function setTenantConfig(client: Pick<PrismaClient, '$executeRaw'>, companyId: string) {
-  return client.$executeRaw`SELECT set_config('app.current_company_id', ${companyId}, true)`;
+/** Set tenant or explicit system access for the current transaction. */
+function setTenantConfig(
+  client: Pick<PrismaClient, '$executeRaw'>,
+  companyId: string,
+  systemAccess: boolean,
+) {
+  return client.$executeRaw`
+    SELECT
+      set_config('app.current_company_id', ${companyId}, true),
+      set_config('app.allow_unscoped_access', ${systemAccess ? 'true' : 'false'}, true)
+  `;
 }
 
 @Injectable()
@@ -58,18 +66,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         $allModels: {
           async $allOperations({ args, query }) {
             const ctx = TenantContext.get();
-            // Skip RLS wrap when: no company context, or already inside the
-            // wrapping transaction (prevents infinite recursion).
-            if (!ctx?.companyId || ctx.inRLSTx) {
+            if (ctx?.inRLSTx) {
               return query(args);
             }
 
-            // Standalone query: send set_config and the query as one batch
-            // transaction so both run on the same connection. set_config(..., true)
-            // is transaction-local, which is safe with connection pooling.
+            const companyId = ctx?.companyId ?? '';
+            const systemAccess = ctx ? ctx.systemAccess : true;
+            const inner = { companyId: ctx?.companyId ?? null, inRLSTx: true, systemAccess };
+            const scopedQuery = TenantContext.run(inner, () => query(args));
             const [, result] = await base.$transaction([
-              setTenantConfig(base, ctx.companyId),
-              query(args),
+              setTenantConfig(base, companyId, systemAccess),
+              scopedQuery,
             ]);
             return result;
           },
@@ -85,18 +92,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     );
     const tenantTransaction = (arg: unknown, options?: unknown): Promise<unknown> => {
       const ctx = TenantContext.get();
-      if (!ctx?.companyId || ctx.inRLSTx) {
+      if (ctx?.inRLSTx) {
         return extendedTransaction(arg, options);
       }
-      const inner = { companyId: ctx.companyId, inRLSTx: true };
+      const companyId = ctx?.companyId ?? '';
+      const systemAccess = ctx ? ctx.systemAccess : true;
+      const inner = { companyId: ctx?.companyId ?? null, inRLSTx: true, systemAccess };
       if (typeof arg === 'function') {
         return extendedTransaction(async (tx: PrismaClient) => {
-          await setTenantConfig(tx, inner.companyId);
+          await setTenantConfig(tx, companyId, systemAccess);
           return TenantContext.run(inner, () => (arg as (t: PrismaClient) => unknown)(tx));
         }, options);
       }
       return TenantContext.run(inner, () =>
-        extendedTransaction([setTenantConfig(base, inner.companyId), ...(arg as unknown[])], options),
+        extendedTransaction([setTenantConfig(base, companyId, systemAccess), ...(arg as unknown[])], options),
       ).then((results) => (results as unknown[]).slice(1));
     };
 

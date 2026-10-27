@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 interface TenantCtx {
   companyId: string | null;
   inRLSTx: boolean;
+  systemAccess: boolean;
 }
 
 const storage = new AsyncLocalStorage<TenantCtx>();

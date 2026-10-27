@@ -75,7 +75,7 @@ export function useRazorpayCheckout() {
             billing: args.billing,
           });
         } catch (err) {
-          throw new Error(parseApiError(err, 'Could not start payment'));
+          throw new Error(parseApiError(err, 'Could not start payment'), { cause: err });
         }
         const data = orderRes.data?.data ?? orderRes.data;
         const orderId = data.order_id as string;

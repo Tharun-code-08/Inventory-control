@@ -5,6 +5,11 @@
 # Schedule: crontab -e → 0 2 * * * /path/to/backup-db.sh
 
 set -euo pipefail
+umask 077
+
+if [ -n "${DB_PASSWORD:-}" ]; then
+  export PGPASSWORD="$DB_PASSWORD"
+fi
 
 DB_NAME="retail_ims"
 DB_USER="${DB_USER:-retail}"
@@ -34,7 +39,7 @@ log "Output: $BACKUP_FILE"
 START_TIME=$(date +%s)
 
 # Dump and compress
-if PGPASSWORD="${DB_PASSWORD:-retail}" pg_dump \
+if pg_dump \
   -h "$DB_HOST" \
   -p "$DB_PORT" \
   -U "$DB_USER" \

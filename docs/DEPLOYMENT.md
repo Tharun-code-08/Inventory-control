@@ -1,435 +1,96 @@
-# Deployment Guide
+# Production Deployment
 
-## Architecture
+## Production layout
 
-```
-Laptop (git push main)
-    ↓
-GitHub
-    ↓
-GitHub Actions
-    ↓
-SSH to VPS (deploy user)
-    ↓
-/opt/Inventory-control/scripts/deploy.sh
-    ├─ Save current commit A
-    ├─ git pull (get commit B)
-    ├─ npm ci
-    ├─ npm run build
-    ├─ npx prisma migrate deploy
-    ├─ sudo pm2 restart retail-api
-    ├─ sleep 3
-    └─ curl localhost:3000/api/v1/health
-        │
-        ├─ If 200 OK
-        │   └─ Users use commit B
-        │
-        └─ If failed
-            ├─ git reset --hard A
-            ├─ sudo pm2 restart
-            └─ Users continue with A
-```
+| Component | Production value |
+|---|---|
+| Checkout | `/opt/Inventory-control-prod` |
+| Deploy script | `scripts/deploy.sh prod` |
+| PM2 process | `retail-ims-prod` |
+| API port | `3001` |
+| Liveness | `http://127.0.0.1:3001/api/v1/health` |
+| Readiness | `http://127.0.0.1:3001/api/v1/health/ready` |
+| PostgreSQL | Docker container, host port `5433` |
+| Redis | `127.0.0.1:6379` |
 
-## GitHub Secrets (Required)
+Staging uses a separate checkout, PM2 process, and API port. Do not copy
+staging commands into production procedures.
 
-⚠️ **CRITICAL: SSH Key Dual-Use**
+## Automated deployment
 
-Your setup uses the **same SSH key for two purposes**:
+The `Deploy to Production` workflow runs only after the CI Quality Gate succeeds
+for a push to this repository's `main` branch. It deploys that exact commit,
+runs `scripts/deploy.sh prod`, applies Prisma migrations, restarts PM2, and
+verifies local health, readiness, deployed commit identity, and (when
+configured) the public HTTPS endpoint.
 
-1. **GitHub Actions → VPS**: Stored in GitHub Secrets, used to SSH into deploy user
-2. **VPS → GitHub**: Used for `git pull` operations (git remote is `git@github.com:...`)
+The deployment script rolls code and builds back if a deploy fails. Database
+migrations are not rolled back; migrations must be backward compatible.
 
-**DO NOT DELETE** `/home/deploy/.ssh/deploy_key` from the VPS.
+## GitHub Actions configuration
 
-If you delete it, `git pull` will fail and deployments will break.
+Configure these values under **Settings → Secrets and variables → Actions**.
+Production-scoped secrets belong to the `production` environment.
 
-### Safe Setup
+| Secret / variable | Purpose |
+|---|---|
+| `DEPLOY_KEY` | Private SSH key used by GitHub Actions to connect to the VPS. |
+| `DEPLOY_HOST` | VPS hostname or IP address. |
+| `DEPLOY_USER` | SSH account used for deployment. |
+| `DEPLOY_HOST_KNOWN_KEY` | Pinned `known_hosts` entry for the VPS. Required; there is no trust-on-first-use fallback. |
+| `PRODUCTION_URL` (variable) | Public HTTPS base URL for post-deploy verification. |
 
-```bash
-# VPS side: Keep the key for git operations
-cat /home/deploy/.ssh/deploy_key  # KEEP THIS
-cat /home/deploy/.ssh/deploy_key.pub  # KEEP THIS
+The public half of `DEPLOY_KEY` must be authorized for `DEPLOY_USER` on the
+VPS. Keep VPS-to-GitHub repository access separate from the GitHub Actions
+SSH key. Never print, copy into documentation, or reuse a private key as a
+public-key setup step.
 
-# GitHub side: Copy private key to Secrets
-# Private key content → GitHub Secrets as DEPLOY_KEY
-# Public key content → /home/deploy/.ssh/authorized_keys (for GitHub Actions SSH)
-```
+### Pin the VPS host key
 
-### Add These 3 Secrets to GitHub
-
-Repository → Settings → Secrets and variables → Actions
-
-```
-Name: DEPLOY_KEY
-Value: (Private key content from: cat /home/deploy/.ssh/deploy_key)
-       (DO NOT delete the file from VPS - it's needed for git pull)
-
-Name: DEPLOY_HOST
-Value: (the VPS origin IP — keep it out of the repo; the site is behind Cloudflare)
-
-Name: DEPLOY_USER
-Value: deploy
-```
-
-### Verify Setup
+Obtain the VPS host-key fingerprint from the VPS provider console or another
+trusted administrative channel. From a trusted machine, collect the matching
+key for the deployment hostname:
 
 ```bash
-# Check git remote (must be SSH format)
-git remote -v
-# Output: git@github.com:Tharun-code-08/Inventory-control.git
-
-# Private key on VPS (MUST exist for git pull)
-ls -la /home/deploy/.ssh/deploy_key
-# Output: -rw------- 1 deploy deploy ...
-
-# Public key in authorized_keys (for GitHub Actions to SSH in)
-cat /home/deploy/.ssh/authorized_keys | grep "deploy@"
-# Output: ssh-ed25519 AAAA...
+ssh-keyscan -H -t ed25519 <deploy-host>
 ```
 
-## Pre-Launch Tests (Run These 5)
+Compare the returned key fingerprint with the trusted provider fingerprint
+before saving the full `known_hosts` line as `DEPLOY_HOST_KNOWN_KEY`. Do not
+trust `ssh-keyscan` output without that independent comparison. If the VPS
+host key changes, verify the rotation out of band before updating the secret.
 
-### Test 1: Empty Deployment
-```bash
-git commit --allow-empty -m "Test CI/CD"
-git push origin main
-```
-Expected: GitHub Actions ✅ → Health check ✅ → PM2 online ✅
+Deployments intentionally fail before connecting when the host-key secret is
+missing. Add and verify it before expecting a production deploy to pass.
 
-### Test 2: Intentional Build Failure
-```bash
-# Break the build
-echo "const x = unknownVariable;" >> apps/api/src/main.ts
-git add .
-git commit -m "Intentional build failure"
-git push origin main
-```
-Expected: Build fails → Rollback triggered → Old version still works
+## Verify production
 
-Verify users can still log in and use the app.
-
-### Test 3: VPS Reboot
-```bash
-sudo reboot
-# Wait 30 seconds
-```
-Expected: PM2 auto-starts, health endpoint returns 200
-
-### Test 4: Prisma Migration
-Add a safe migration:
-```prisma
-description String?
-```
-Deploy and verify:
-- Migration runs
-- API starts
-- Existing data intact
-
-### Test 5: Health Endpoint
-```bash
-curl http://localhost:3000/api/v1/health
-```
-Expected: Returns 200 with `"status":"ok"`
-
----
-
-## Deployment Readiness Checklist
-
-### Before First Push
-
-- [ ] GitHub Secrets added (DEPLOY_KEY, DEPLOY_HOST, DEPLOY_USER)
-- [ ] deploy.sh is executable: `ls -lh scripts/deploy.sh`
-- [ ] Rollback state directory exists: `ls -ld .deploy`
-- [ ] PM2 configured for startup: `ls -l /etc/systemd/system/pm2-root.service`
-
-### Test Deployment (Empty Commit)
+On the VPS:
 
 ```bash
-git commit --allow-empty -m "Test CI/CD pipeline"
-git push origin main
-```
-
-Watch at: https://github.com/Tharun-code-08/Inventory-control/actions
-
-Expected result:
-- ✅ GitHub Actions workflow runs
-- ✅ Connects via SSH
-- ✅ Runs deploy.sh
-- ✅ Health check passes
-- ✅ Workflow shows "success"
-
-### Verify After Deployment
-
-```bash
-# Check PM2
+cd /opt/Inventory-control-prod
 pm2 status
-
-# Check health
-curl http://localhost:3000/api/v1/health
-
-# Check logs
-pm2 logs retail-api --lines 20
+pm2 describe retail-ims-prod
+curl -fsS http://127.0.0.1:3001/api/v1/health
+curl -fsS http://127.0.0.1:3001/api/v1/health/ready
+nginx -t
 ```
 
-### Test Rollback (Optional but Recommended)
+The health endpoint should return `status: "ok"` and readiness should return
+`database: "connected"`. Check the public URL and deployed commit in the
+workflow's post-deployment verification step.
 
-1. Make a bad change:
-```bash
-echo "// broken code" >> apps/api/src/main.ts
-git add .
-git commit -m "Intentional failure to test rollback"
-git push origin main
-```
+## Troubleshooting and rollback
 
-2. Watch deployment fail:
-   - GitHub Actions shows ❌
-   - PM2 still runs previous version
-   - `curl /health` should still work
+1. Read the failed GitHub Actions step and `pm2 logs retail-ims-prod --lines 100`.
+2. Check local health and readiness before restarting or changing services.
+3. The deploy script automatically restores the prior code and built assets
+   when its deploy steps fail. Confirm health after the rollback.
+4. Do not run `git reset --hard` manually on production or attempt to undo an
+   applied migration without a reviewed recovery plan.
+5. If the database migration failed or is incompatible, stop further deploys,
+   take a database backup, and follow the database recovery guide with the
+   database owner.
 
-3. Fix and push again:
-```bash
-git revert HEAD
-git push origin main
-```
-
-4. Deployment should succeed again
-
-### Reboot Test
-
-Verify PM2 auto-starts on VPS reboot:
-
-```bash
-sudo reboot
-# Wait 30 seconds
-```
-
-Then check:
-```bash
-pm2 status
-# Should show retail-api online
-
-curl http://localhost:3000/api/v1/health
-# Should return 200
-```
-
-## Database Migrations
-
-### Important Constraint
-
-Rollback restores **code**, not **database schema**.
-
-Prisma migrations persist even after rollback.
-
-### Safe Migration Pattern
-
-**Never do this:**
-```sql
-ALTER TABLE users DROP COLUMN email;
-```
-
-**Do this instead:**
-
-Step 1: Add new column
-```prisma
-model User {
-  id Int @id
-  email String
-  email_v2 String? // New column
-}
-```
-
-Deploy and test.
-
-Step 2: Migrate data
-```sql
-UPDATE users SET email_v2 = email;
-```
-
-Deploy.
-
-Step 3: Update code to use email_v2
-
-Deploy.
-
-Step 4: Remove old column
-```prisma
-model User {
-  id Int @id
-  email_v2 String @map("email")
-}
-```
-
-### Pre-Deployment Checklist for Risky Migrations
-
-- [ ] Tested migration locally
-- [ ] Tested rollback locally (`prisma migrate resolve`)
-- [ ] Migration is backward compatible
-- [ ] Plan to revert if needed
-- [ ] Database backup taken (optional but recommended)
-
-## Monitoring
-
-### Deployment Logs
-
-```bash
-# Watch live
-pm2 logs retail-api
-
-# View GitHub Actions
-https://github.com/Tharun-code-08/Inventory-control/actions
-
-# View deployment state
-cat .deploy/previous_commit
-```
-
-### Health Endpoint
-
-```bash
-curl https://api.softdigitconsulting.com/api/v1/health
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ok",
-    "timestamp": "2026-06-17T09:00:00.000Z",
-    "requestId": "..."
-  }
-}
-```
-
-## Troubleshooting
-
-### Deployment Failed
-
-1. Check GitHub Actions logs
-2. Check PM2 logs: `pm2 logs retail-api`
-3. SSH to VPS and check manually:
-   ```bash
-   curl http://localhost:3000/api/v1/health
-   pm2 status
-   ```
-
-### Rollback Didn't Work
-
-1. Check if previous commit saved: `cat .deploy/previous_commit`
-2. Check git status: `git status`
-3. Manual rollback:
-   ```bash
-   PREVIOUS=$(cat .deploy/previous_commit)
-   git reset --hard $PREVIOUS
-   npm ci
-   npm run build
-   cd apps/api && npx prisma migrate deploy
-   sudo pm2 restart retail-api
-   ```
-
-### Database Migration Issues
-
-1. Check migration status:
-   ```bash
-   cd apps/api
-   npx prisma migrate status
-   ```
-
-2. If migration is stuck:
-   ```bash
-   npx prisma migrate resolve --rolled-back <migration-name>
-   ```
-
-3. Check database manually:
-   ```bash
-   psql retail_ims -U retail
-   \dt  # List tables
-   ```
-
-## Going Live
-
-### Stage 1: Test (You)
-- [ ] Empty commit test passes
-- [ ] Reboot test passes
-- [ ] Health check passes
-
-### Stage 2: Beta (First 5-10 customers)
-- [ ] Monitor deployment logs
-- [ ] Monitor PM2 logs
-- [ ] Monitor API errors
-- [ ] Watch for database issues
-
-### Stage 3: Scale (10+ customers)
-- [ ] Add monitoring/alerting (Datadog, New Relic, etc.)
-- [ ] Add database backups
-- [ ] Consider Docker/blue-green deployments
-- [ ] Document runbooks for common issues
-
-## Ready for Customers?
-
-### Deployment Checklist
-- [ ] All 5 pre-launch tests pass
-- [ ] GitHub Secrets configured correctly (DEPLOY_KEY, DEPLOY_HOST, DEPLOY_USER)
-- [ ] Private key file STILL EXISTS on VPS: `/home/deploy/.ssh/deploy_key`
-  - ⚠️ DO NOT DELETE (used for git pull)
-- [ ] Public key in `/home/deploy/.ssh/authorized_keys`
-- [ ] VPS survives reboot with PM2 online
-- [ ] Health endpoint returns 200
-- [ ] One successful test deployment completed
-
-### If All Tests Pass
-✅ **YES. Ship it.**
-
-Your infrastructure is production-ready for:
-- First 10 customers
-- Daily deployments
-- Rapid iteration
-- Automatic error recovery
-
----
-
-## Next Priorities After Launch
-
-### Infrastructure (Do These When You Have 10+ Customers)
-1. **Database Backups** - Automated PostgreSQL backups
-2. **Error Tracking** - Sentry or similar for error monitoring
-3. **Uptime Monitoring** - StatusPage or Ping monitoring
-4. **Staging Environment** - Test deployments before production
-
-### Engineering (Do These When You Have 50+ Customers)
-1. **Dockerize** - API in Docker when deployments become frequent
-2. **Blue-Green Deployments** - Zero-downtime deployments
-3. **Database Replicas** - Read replicas for performance
-4. **CDN** - Cache static assets globally
-
-### Right Now (Next 2 Weeks)
-❌ Don't optimize infrastructure  
-✅ **Focus on:**
-- Customer feedback
-- Critical bugs
-- Feature requests
-- Product/market fit
-
----
-
-## Final Notes
-
-- **Production-grade:** Yes, for MVP SaaS stage
-- **Auto-rollback:** Code only, not database
-- **Downtime:** < 1 minute if deployment fails
-- **Safety:** Health checks prevent broken deployments
-- **Scalability:** Good for 1-100 customers
-
-### You've Done Well
-
-Building an ERP SaaS with:
-- Vite + React frontend (served by nginx on the VPS)
-- NestJS API backend (VPS)
-- PostgreSQL database
-- Automated CI/CD
-- Automatic rollback
-
-is a **solid engineering foundation** for the first 100 customers.
-
-**Next: Run the 5 tests, add GitHub Secrets, and ship.** 🚀
-
-Your ERP SaaS is ready. Focus on customers, not infrastructure.
+Never test rollback by pushing intentionally broken code to production. Test
+deployment and migration behavior in staging or CI.
