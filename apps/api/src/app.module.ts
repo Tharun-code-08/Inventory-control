@@ -67,6 +67,7 @@ import { BackupModule } from './modules/backup/backup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AgentPlatformModule } from './modules/agent-platform/agent-platform.module';
+import { PlatformModule } from './modules/platform/platform.module';
 
 const envFileCandidates = resolveEnvFilePaths(__dirname);
 
@@ -202,6 +203,7 @@ function routeOptsIntoAuthThrottle(context: ExecutionContext): boolean {
     WarehouseModule,
     DocumentsModule,
     AgentPlatformModule,
+    PlatformModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -3,6 +3,24 @@
 Notable changes to SoftdigitIMS. Every merge to `main` is deployed to production, so
 entries are grouped by date and link to the pull request that shipped them.
 
+## 2026-10-27
+
+### Fixed
+- Goods receipts can be recorded against a purchase order again: the PO picker asked
+  the API for more orders than it allows and always came back empty ([#129]).
+- The Terms, Privacy and Cancellation pages linked from signup open in the app instead
+  of redirecting to sign-in ([#129]).
+- The Platform Admin dashboard loads; its API module was never registered ([#130]).
+- Vercel Speed Insights loads only in builds made on Vercel; on the VPS it failed on
+  every page ([#129]).
+
+### Removed
+- Unused code: the web executive dashboard, client-side PO/SO PDF helpers, unused mobile
+  components, and an unreachable public email link-tracking route that redirected to
+  any URL it was given ([#130]).
+- Unused packages: `exceljs`, `nestjs-pino`, `pino` and `pino-http` (API), `jspdf`
+  (web) ([#130]).
+
 ## 2026-10-22
 
 ### License
@@ -70,3 +88,5 @@ A full audit of the codebase was fixed in batches ([#90]–[#108]):
 [#110]: https://github.com/Tharun-code-08/Inventory-control/pull/110
 [#111]: https://github.com/Tharun-code-08/Inventory-control/pull/111
 [#112]: https://github.com/Tharun-code-08/Inventory-control/pull/112
+[#129]: https://github.com/Tharun-code-08/Inventory-control/pull/129
+[#130]: https://github.com/Tharun-code-08/Inventory-control/pull/130

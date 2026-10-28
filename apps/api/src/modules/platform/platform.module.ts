@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { SubscriptionLifecycleModule } from '../subscription-lifecycle/subscription-lifecycle.module';
-import { EmailTrackingController } from './email-tracking.controller';
 import { PlatformAdminGuard } from './platform-admin.guard';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
 import { PlatformAuditService } from './platform-audit.service';
@@ -9,7 +8,7 @@ import { PlatformSubscriptionsService } from './platform-subscriptions.service';
 
 @Module({
   imports: [PrismaModule, SubscriptionLifecycleModule],
-  controllers: [PlatformSubscriptionsController, EmailTrackingController],
+  controllers: [PlatformSubscriptionsController],
   providers: [PlatformSubscriptionsService, PlatformAdminGuard, PlatformAuditService],
   exports: [PlatformAdminGuard, PlatformAuditService],
 })

@@ -2,7 +2,7 @@
 
 ## Authorization Matrix
 
-Core permission matrix is defined in `apps/api/src/common/utils/permission-matrix.ts`.
+Default role permissions are seeded from `ROLE_DEFINITIONS` in `apps/api/prisma/seed.ts` (later grants ship as migrations) and enforced per route with `@RequirePermission(...)`.
 
 Minimum critical permissions:
 
