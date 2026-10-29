@@ -3,6 +3,16 @@
 Notable changes to SoftdigitIMS. Every merge to `main` is deployed to production, so
 entries are grouped by date and link to the pull request that shipped them.
 
+## 2026-10-28
+
+### Fixed
+- A database built from the migrations now matches `schema.prisma` exactly, so a new
+  environment gets what the app expects and `prisma migrate dev` no longer proposes
+  dropping tables. Unused legacy tables, columns and enum values are kept (declared in
+  the schema), and rows using legacy enum values can be read again. The migrations add
+  the missing foreign keys, indexes and NOT NULL constraints without blocking writes
+  or deleting data ([#131]).
+
 ## 2026-10-27
 
 ### Fixed
@@ -90,3 +100,4 @@ A full audit of the codebase was fixed in batches ([#90]–[#108]):
 [#112]: https://github.com/Tharun-code-08/Inventory-control/pull/112
 [#129]: https://github.com/Tharun-code-08/Inventory-control/pull/129
 [#130]: https://github.com/Tharun-code-08/Inventory-control/pull/130
+[#131]: https://github.com/Tharun-code-08/Inventory-control/pull/131

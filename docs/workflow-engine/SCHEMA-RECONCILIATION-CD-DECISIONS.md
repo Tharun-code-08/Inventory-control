@@ -1,6 +1,15 @@
 # Schema↔Migrations Reconciliation — Category C/D Decisions
 
-**Status: DECISION-REQUIRED DRAFT. Do NOT merge the destructive parts until each decision below is made and audited.**
+**Status: RESOLVED (2026-10-28), non-destructively.** Every Category C object and DB-only enum value is **kept** and declared in `schema.prisma` (UNION direction); nothing was dropped. Remaining drift (duplicate FKs, DB-side id/updated_at defaults, NOT NULLs, missing FKs and indexes) is fixed by migrations `20261028100000_reconcile_schema_drift` through `20261028100700_drop_audit_logs_entity_idx`. A database built from migrations now has an empty `prisma migrate diff` against `schema.prisma`.
+
+After deploying, check that both new foreign keys validated (`convalidated = t`). If one is `f`, existing rows reference deleted records; the constraint still applies to new rows. Clean those rows up, then run `ALTER TABLE … VALIDATE CONSTRAINT …`:
+```sql
+SELECT conname, convalidated FROM pg_constraint
+WHERE conname IN ('audit_logs_company_id_fkey', 'eway_bills_invoice_id_fkey');
+```
+The kept objects can still be dropped later with the audit queries below; that remains a separate, deliberate decision.
+
+*Original draft status: DECISION-REQUIRED DRAFT. Do NOT merge the destructive parts until each decision below is made and audited.*
 Read-only analysis on throwaway DBs; nothing real was touched. Companion to `SCHEMA-RECONCILIATION-ANALYSIS.md`.
 
 This PR ships **one safe, tested migration** (Category D *additive* enum values — see `20260731010000_reconcile_cd_additive_enums`) and this **decision doc** for everything that is destructive or needs a human/product decision. Category B is handled separately in the additive PR.

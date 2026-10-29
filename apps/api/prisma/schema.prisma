@@ -122,6 +122,10 @@ enum AuditAction {
   EXPORT_REPORT
   EXPORT_AUDIT
 
+  // Legacy values present in the database enum; declared so existing rows stay readable.
+  EXPORT
+  EMAIL
+
   // Dashboard telemetry (Phase 3 Month 1 — Reality Validation)
   VIEW_DASHBOARD
   DASHBOARD_CARD_CLICKED
@@ -860,6 +864,9 @@ model User {
   whatsAppDevicesRevoked WhatsAppDevice[]    @relation("WhatsAppDeviceRevoker")
   consents               UserConsent[]
 
+  // Unused legacy table, kept for existing data
+  platformAuditLogs PlatformAuditLog[]
+
   @@index([deletedAt])
   @@map("users")
 }
@@ -1203,19 +1210,61 @@ model Supplier {
 
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  company         Company?                  @relation(fields: [companyId], references: [id])
-  rfqLinks        RfqSupplier[]
-  contracts       ContractHeader[]
-  quotations      SupplierQuotationHeader[]
-  supplierReturns SupplierReturn[]
-  supplierBills   SupplierBillHeader[]
-  productBarcodes ProductBarcode[]
+  company            Company?                  @relation(fields: [companyId], references: [id])
+  rfqLinks           RfqSupplier[]
+  contracts          ContractHeader[]
+  quotations         SupplierQuotationHeader[]
+  supplierReturns    SupplierReturn[]
+  supplierBills      SupplierBillHeader[]
+  productBarcodes    ProductBarcode[]
+  legacyContacts     SupplierContact[]
+  legacyBankAccounts SupplierBankAccount[]
 
   @@unique([companyId, supplierCode])
   @@index([companyId])
   @@index([supplierName])
   @@index([deletedAt])
   @@map("suppliers")
+}
+
+/// Unused legacy table (the app keeps supplier contact fields on Supplier).
+/// Declared only so existing data is not dropped by a generated migration.
+model SupplierContact {
+  id         String   @id @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  salutation String?
+  firstName  String?  @map("first_name")
+  lastName   String?  @map("last_name")
+  email      String?
+  phone      String?
+  mobile     String?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([supplierId])
+  @@map("supplier_contacts")
+}
+
+/// Unused legacy table (the app keeps bank details on Supplier).
+/// Declared only so existing data is not dropped by a generated migration.
+model SupplierBankAccount {
+  id            String   @id @db.Uuid
+  supplierId    String   @map("supplier_id") @db.Uuid
+  accountName   String?  @map("account_name")
+  bankName      String?  @map("bank_name")
+  accountNumber String?  @map("account_number")
+  ifsc          String?
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([supplierId])
+  @@map("supplier_bank_accounts")
 }
 
 model RfqHeader {
@@ -1932,6 +1981,9 @@ enum EwayTransactionType {
   BILL_TO_SHIP_TO
   BILL_FROM_DISPATCH_FROM
   COMBINATION
+  // Legacy values present in the database enum; declared so existing rows stay readable.
+  AMENDMENT
+  REVERSAL
 }
 
 enum EwayDocumentType {
@@ -1941,6 +1993,8 @@ enum EwayDocumentType {
   CREDIT_NOTE
   BILL_OF_ENTRY
   OTHERS
+  // Legacy value present in the database enum; declared so existing rows stay readable.
+  DEBIT_NOTE
 }
 
 enum EwayTransportMode {
@@ -1953,6 +2007,9 @@ enum EwayTransportMode {
 enum EwayVehicleType {
   REGULAR
   ODC
+  // Legacy values present in the database enum; declared so existing rows stay readable.
+  ODD_EVEN
+  EXEMPTED
 }
 
 enum SupplierBillStatus {
@@ -2053,6 +2110,8 @@ model SalesQuotationHeader {
   status                 SalesQuotationStatus @default(DRAFT)
   brandingMode           BrandingMode         @default(LIVE) @map("branding_mode")
   brandingSnapshot       Json?                @map("branding_snapshot")
+  /// Unused: superseded by brandingSnapshot.version. Kept so existing data is not dropped.
+  brandingVersion        Int?                 @map("branding_version")
   templateVersion        Int                  @default(1) @map("template_version")
   salesOrderId           String?              @unique @map("sales_order_id") @db.Uuid
   portalToken            String?              @unique @map("portal_token")
@@ -2108,6 +2167,8 @@ model SalesOrderHeader {
   status            SalesOrderStatus  @default(DRAFT)
   brandingMode      BrandingMode      @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot  Json?             @map("branding_snapshot")
+  /// Unused: superseded by brandingSnapshot.version. Kept so existing data is not dropped.
+  brandingVersion   Int?              @map("branding_version")
   templateVersion   Int               @default(1) @map("template_version")
   fulfillmentStatus FulfillmentStatus @default(NONE) @map("fulfillment_status")
   remarks           String?
@@ -2177,6 +2238,8 @@ model InvoiceHeader {
   status           InvoiceStatus @default(DRAFT)
   brandingMode     BrandingMode  @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?         @map("branding_snapshot")
+  /// Unused: superseded by brandingSnapshot.version. Kept so existing data is not dropped.
+  brandingVersion  Int?          @map("branding_version")
   templateVersion  Int           @default(1) @map("template_version")
   currency         String        @default("USD")
   fxRateUsed       Decimal?      @map("fx_rate_used") @db.Decimal(18, 8)
@@ -2221,6 +2284,8 @@ model PaymentReceipt {
   remarks          String?
   brandingMode     BrandingMode @default(SNAPSHOT) @map("branding_mode")
   brandingSnapshot Json?        @map("branding_snapshot")
+  /// Unused: superseded by brandingSnapshot.version. Kept so existing data is not dropped.
+  brandingVersion  Int?         @map("branding_version")
   templateVersion  Int          @default(1) @map("template_version")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2297,6 +2362,12 @@ model EwayBill {
   cancelReason String?   @map("cancel_reason")
   remarks      String?
 
+  /// Unused legacy columns (superseded by the address1/address2 fields and the items table).
+  /// Kept so existing data is not dropped.
+  fromAddress String? @map("from_address")
+  toAddress   String? @map("to_address")
+  hsnSummary  Json?   @map("hsn_summary")
+
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById String?  @map("created_by") @db.Uuid
@@ -2330,7 +2401,7 @@ model EwayBillItem {
   cess          Decimal @default(0) @db.Decimal(14, 2)
   total         Decimal @db.Decimal(14, 2)
 
-  ewayBill EwayBill @relation(fields: [ewayBillId], references: [id], onDelete: Cascade)
+  ewayBill EwayBill @relation(fields: [ewayBillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([ewayBillId])
   @@map("eway_bill_items")
@@ -3246,7 +3317,7 @@ model AuditLog {
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User?    @relation(fields: [userId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([companyId, action, createdAt])
   @@index([userId, createdAt])
@@ -3255,7 +3326,30 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([companyId, createdAt])
   @@index([requestId])
+  @@index([createdAt])
   @@map("audit_logs")
+}
+
+/// Unused legacy table (platform actions are logged through PlatformAuditService into audit_logs).
+/// Declared only so existing data is not dropped by a generated migration.
+model PlatformAuditLog {
+  id         String      @id @db.Uuid
+  userId     String      @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String      @map("entity_id") @db.Uuid
+  oldValues  Json?       @map("old_values")
+  newValues  Json?       @map("new_values")
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("platform_audit_log")
 }
 
 // ============================================
@@ -3294,18 +3388,18 @@ model LowStockAlert {
 model DocumentRegistry {
   id              String  @id @default(uuid()) @db.Uuid
   tenantId        String  @map("tenant_id") @db.Uuid
-  documentType    String  @map("document_type")
+  documentType    String  @map("document_type") @db.VarChar(50)
   referenceId     String? @map("reference_id") @db.Uuid // Optional: for report-type PDFs without single entity
-  templateVersion String  @default("1.0") @map("template_version")
+  templateVersion String  @default("1.0") @map("template_version") @db.VarChar(20)
 
-  storageKey      String  @map("storage_key")
-  storageProvider String  @default("local") @map("storage_provider")
+  storageKey      String  @map("storage_key") @db.VarChar(500)
+  storageProvider String  @default("local") @map("storage_provider") @db.VarChar(50)
   fileSizeBytes   BigInt? @map("file_size_bytes")
-  checksum        String?
-  mimeType        String  @default("application/pdf") @map("mime_type") // application/pdf, image/png, text/csv, etc
+  checksum        String? @db.VarChar(64)
+  mimeType        String  @default("application/pdf") @map("mime_type") @db.VarChar(100) // application/pdf, image/png, text/csv, etc
 
-  jobId  String? @map("job_id")
-  status String  @default("pending") // pending, processing, completed, failed, expired
+  jobId  String? @map("job_id") @db.VarChar(100)
+  status String  @default("pending") @db.VarChar(50) // pending, processing, completed, failed, expired
 
   metadata    Json? // For storing contextual data (warehouseId, categoryId, filters, etc)
   generatedBy String?   @map("generated_by") @db.Uuid
@@ -3322,26 +3416,27 @@ model DocumentRegistry {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tenant")
 
-  @@index([tenantId, documentType])
-  @@index([referenceId])
-  @@index([status])
-  @@index([jobId])
-  @@index([expiresAt])
-  @@index([createdAt])
-  @@index([tenantId, documentType, referenceId, templateVersion, status]) // Cache lookup
-  @@index([renderDurationMs])
-  @@index([renderedAt])
+  @@index([tenantId, documentType], map: "idx_document_registry_tenant_type")
+  @@index([referenceId], map: "idx_document_registry_reference")
+  @@index([status], map: "idx_document_registry_status")
+  @@index([jobId], map: "idx_document_registry_job")
+  @@index([expiresAt], map: "idx_document_registry_expires")
+  @@index([createdAt(sort: Desc)], map: "idx_document_registry_created")
+  @@index([tenantId, documentType, referenceId, templateVersion, status], map: "idx_document_registry_cache_lookup") // Cache lookup
+  @@index([renderDurationMs], map: "idx_document_registry_render_duration")
+  @@index([renderedAt(sort: Desc)], map: "idx_document_registry_rendered_at")
+  @@index([metadata], type: Gin, map: "idx_document_registry_metadata")
   @@map("document_registry")
 }
 
 model PdfJob {
-  id           String  @id
+  id           String  @id @db.VarChar(100)
   tenantId     String  @map("tenant_id") @db.Uuid
   documentId   String? @map("document_id") @db.Uuid
-  jobType      String  @map("job_type")
-  status       String
+  jobType      String  @map("job_type") @db.VarChar(50)
+  status       String  @db.VarChar(50)
   progress     Int     @default(0)
   result       Json?
   errorMessage String? @map("error_message") @db.Text
@@ -3349,11 +3444,11 @@ model PdfJob {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
 
-  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tenant")
 
-  @@index([tenantId])
-  @@index([status])
-  @@index([createdAt])
+  @@index([tenantId], map: "idx_pdf_jobs_tenant")
+  @@index([status], map: "idx_pdf_jobs_status")
+  @@index([createdAt(sort: Desc)], map: "idx_pdf_jobs_created")
   @@map("pdf_jobs")
 }
 
@@ -3832,7 +3927,7 @@ model NotificationDelivery {
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([eventId, recipientUserId, channel, attempt])
+  @@unique([eventId, recipientUserId, channel, attempt], map: "notification_deliveries_event_id_recipient_user_id_channel_a_ke")
   @@index([eventId])
   @@index([companyId, channel, state])
   @@index([recipientUserId, createdAt])
@@ -4100,7 +4195,7 @@ model NotificationTimeline {
   detail        Json     @default("{}")
   occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
 
-  @@index([companyId, entityType, entityId, occurredAt])
+  @@index([companyId, entityType, entityId, occurredAt], map: "notification_timeline_company_id_entity_type_entity_id_occ_idx")
   @@index([threadId, occurredAt])
   @@map("notification_timeline")
 }
@@ -4218,9 +4313,9 @@ model InventoryException {
   resolutionNotes String?         @map("resolution_notes")
 
   @@index([companyId, type, entityType, entityId, status], map: "inventory_exceptions_dedup_idx")
-  @@index([companyId, status, type])
-  @@index([companyId, severity, status])
-  @@index([companyId, lastDetectedAt])
+  @@index([companyId, status, type], map: "inventory_exceptions_status_idx")
+  @@index([companyId, severity, status], map: "inventory_exceptions_severity_idx")
+  @@index([companyId, lastDetectedAt], map: "inventory_exceptions_time_idx")
   @@map("inventory_exceptions")
 }
 
