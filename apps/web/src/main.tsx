@@ -31,8 +31,17 @@ async function bootstrapSession() {
   const state = useAuthStore.getState();
   const tokenAtBootstrapStart = state.accessToken;
 
+  const hasEverLoggedIn = Boolean(
+    tokenAtBootstrapStart || window.localStorage.getItem('retail-ims-auth-state'),
+  );
+
   if (tokenAtBootstrapStart) {
     applyAccessToken(tokenAtBootstrapStart);
+  }
+
+  if (!hasEverLoggedIn) {
+    useAuthStore.getState().setInitialized(true);
+    return;
   }
 
   try {

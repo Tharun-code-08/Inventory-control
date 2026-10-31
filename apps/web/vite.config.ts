@@ -71,7 +71,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: 'hidden',
+    sourcemap: true,
     rolldownOptions: {
       output: {
         // Vite 8 bundles with Rolldown, whose manualChunks shim no longer
