@@ -16,11 +16,15 @@ export function MarketingHeader() {
           <img
             src="/LandingPageLogo.svg"
             alt={BRAND.companyName}
+            width={160}
+            height={40}
             className="h-8 w-auto sm:h-9 lg:h-10 dark:hidden"
           />
           <img
             src="/LandingPageLogo-dark.svg"
             alt={BRAND.companyName}
+            width={160}
+            height={40}
             className="hidden h-8 w-auto sm:h-9 lg:h-10 dark:block"
           />
         </Link>

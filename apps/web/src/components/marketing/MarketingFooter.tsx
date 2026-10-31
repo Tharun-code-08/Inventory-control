@@ -47,11 +47,15 @@ export function MarketingFooter() {
             <img
               src="/LandingPageLogo.svg"
               alt={BRAND.companyName}
+              width={240}
+              height={64}
               className="h-12 w-auto sm:h-14 lg:h-16 dark:hidden"
             />
             <img
               src="/LandingPageLogo-dark.svg"
               alt={BRAND.companyName}
+              width={240}
+              height={64}
               className="hidden h-12 w-auto sm:h-14 lg:h-16 dark:block"
             />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-400">{tagline}</p>
