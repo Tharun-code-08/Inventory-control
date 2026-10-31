@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '@/api/client';
 import type { BillingInterval, PlanId } from '@/lib/plans';
 
@@ -51,9 +51,6 @@ function parseApiError(err: unknown, fallback: string): string {
 export function useRazorpayCheckout() {
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    void loadRazorpayScript().catch(() => undefined);
-  }, []);
 
   const checkout = useCallback(
     async (args: {
