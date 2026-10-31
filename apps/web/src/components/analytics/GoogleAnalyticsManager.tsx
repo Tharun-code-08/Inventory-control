@@ -26,7 +26,7 @@ function ensureGtag() {
 function removeGtag() {
   document.getElementById('google-analytics-script')?.remove();
   window.gtag = undefined;
-  window.dataLayer = undefined;
+  window.dataLayer = [];
 }
 
 export function GoogleAnalyticsManager() {
