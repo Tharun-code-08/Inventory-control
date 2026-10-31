@@ -25,6 +25,18 @@ export class CompaniesService {
     return this.prisma.company.findMany({
       where: companyListWhere(user),
       orderBy: { companyCode: 'asc' },
+      select: {
+        id: true,
+        companyCode: true,
+        companyName: true,
+        address: true,
+        brandingProfileId: true,
+        isActive: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   }
 

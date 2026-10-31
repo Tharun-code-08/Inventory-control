@@ -1,9 +1,15 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
+const HKDF_SALT = Buffer.from('softdigit-smtp-credentials-v1');
+const HKDF_INFO = Buffer.from('aes-256-gcm-key');
 
 function deriveKey(secret: string): Buffer {
+  return Buffer.from(hkdfSync('sha256', secret, HKDF_SALT, HKDF_INFO, 32));
+}
+
+function deriveKeyLegacy(secret: string): Buffer {
   return createHash('sha256').update(secret).digest();
 }
 
@@ -21,14 +27,22 @@ export function decryptSecret(payload: string, secret: string): string {
   if (!ivB64 || !tagB64 || !dataB64) {
     throw new Error('Invalid encrypted secret format');
   }
-  const key = deriveKey(secret);
-  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(ivB64, 'base64'));
-  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(dataB64, 'base64')),
-    decipher.final(),
-  ]);
-  return decrypted.toString('utf8');
+  const iv = Buffer.from(ivB64, 'base64');
+  const tag = Buffer.from(tagB64, 'base64');
+  const data = Buffer.from(dataB64, 'base64');
+
+  // Try HKDF-derived key first, then fall back to legacy SHA-256 for existing data
+  for (const keyFn of [deriveKey, deriveKeyLegacy]) {
+    try {
+      const decipher = createDecipheriv(ALGORITHM, keyFn(secret), iv);
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
+      return decrypted.toString('utf8');
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('Decryption failed with all key derivation methods');
 }
 
 /**
