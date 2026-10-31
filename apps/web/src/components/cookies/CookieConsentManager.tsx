@@ -148,7 +148,7 @@ export function CookieConsentManager() {
             <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_240px] md:p-8">
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                     Cookie notice
                   </p>
                   <h2 className="max-w-xl text-3xl font-semibold leading-tight text-white">
