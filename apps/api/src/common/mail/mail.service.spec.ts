@@ -1,7 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { MailService } from './mail.service';
 
-// RFQ invite links are signed with JWT_SECRET.
+// RFQ invite links are signed with SUPPLIER_PORTAL_SECRET.
+process.env.SUPPLIER_PORTAL_SECRET ??= 'mail-spec-portal-secret';
 process.env.JWT_SECRET ??= 'mail-spec-secret';
 
 /**

@@ -3,8 +3,8 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export type SupplierPortalClaims = { rfqId: string; supplierId: string; expiresAt: number };
 
 function portalSecret(): string {
-  const secret = process.env.SUPPLIER_PORTAL_SECRET?.trim() || process.env.JWT_SECRET?.trim();
-  if (!secret) throw new Error('SUPPLIER_PORTAL_SECRET (or JWT_SECRET) must be set for supplier portal links');
+  const secret = process.env.SUPPLIER_PORTAL_SECRET?.trim();
+  if (!secret) throw new Error('SUPPLIER_PORTAL_SECRET must be set for supplier portal links (do not reuse JWT_SECRET)');
   return secret;
 }
 

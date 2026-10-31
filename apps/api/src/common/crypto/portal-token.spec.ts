@@ -1,12 +1,13 @@
 import { signSupplierPortalToken, supplierPortalTokenExpiry, verifySupplierPortalToken } from './portal-token';
 
 describe('supplier portal token', () => {
-  const saved = process.env.JWT_SECRET;
+  const savedPortal = process.env.SUPPLIER_PORTAL_SECRET;
   beforeAll(() => {
-    process.env.JWT_SECRET = 'portal-test-secret';
+    process.env.SUPPLIER_PORTAL_SECRET = 'portal-test-secret';
   });
   afterAll(() => {
-    process.env.JWT_SECRET = saved;
+    if (savedPortal === undefined) delete process.env.SUPPLIER_PORTAL_SECRET;
+    else process.env.SUPPLIER_PORTAL_SECRET = savedPortal;
   });
 
   const claims = { rfqId: 'rfq-1', supplierId: 'sup-1', expiresAt: Date.now() + 60_000 };
@@ -28,9 +29,9 @@ describe('supplier portal token', () => {
 
   it('rejects tokens signed with another secret', () => {
     const token = signSupplierPortalToken(claims);
-    process.env.JWT_SECRET = 'rotated';
+    process.env.SUPPLIER_PORTAL_SECRET = 'rotated';
     expect(verifySupplierPortalToken(token)).toBeNull();
-    process.env.JWT_SECRET = 'portal-test-secret';
+    process.env.SUPPLIER_PORTAL_SECRET = 'portal-test-secret';
   });
 
   it('expires after the deadline, or in 30 days without one', () => {

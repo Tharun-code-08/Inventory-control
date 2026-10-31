@@ -11,6 +11,11 @@ import { createPgAdapter } from '../src/prisma/pg-adapter';
 import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('ERROR: demo seed must not run in production. Aborting.');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient({ adapter: createPgAdapter() });
 const DEMO_PASSWORD = 'Admin@123';
 

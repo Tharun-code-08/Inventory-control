@@ -90,7 +90,35 @@ export class ShopsService {
       take: take + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       orderBy: { id: 'asc' },
-      include: { company: true },
+      select: {
+        id: true,
+        shopNumber: true,
+        shopName: true,
+        taxId: true,
+        address: true,
+        contactPerson: true,
+        mobile: true,
+        email: true,
+        companyId: true,
+        brandingProfileId: true,
+        isActive: true,
+        costingMethod: true,
+        functionalCurrency: true,
+        createdAt: true,
+        updatedAt: true,
+        company: {
+          select: {
+            id: true,
+            companyCode: true,
+            companyName: true,
+            address: true,
+            brandingProfileId: true,
+            isActive: true,
+            subscriptionPlan: true,
+            subscriptionStatus: true,
+          },
+        },
+      },
     });
     const { items, meta } = buildMeta(rows, take);
     return { data: items, meta };

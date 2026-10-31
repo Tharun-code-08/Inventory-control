@@ -120,10 +120,6 @@ export class AuthService {
             id: user.shop.id,
             shopNumber: user.shop.shopNumber,
             shopName: user.shop.shopName,
-            address: user.shop.address,
-            contactPerson: user.shop.contactPerson,
-            mobile: user.shop.mobile,
-            email: user.shop.email,
             isActive: user.shop.isActive,
             companyId: user.shop.companyId,
           }
