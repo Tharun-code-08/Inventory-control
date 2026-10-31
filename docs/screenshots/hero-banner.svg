@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="50%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#818cf8"/>
+      <stop offset="100%" style="stop-color:#34d399"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#818cf8;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#34d399;stop-opacity:0.3"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#bg)" rx="12"/>
+  <!-- Decorative grid dots -->
+  <g opacity="0.08" fill="#94a3b8">
+    <circle cx="50" cy="50" r="1.5"/><circle cx="90" cy="50" r="1.5"/><circle cx="130" cy="50" r="1.5"/><circle cx="170" cy="50" r="1.5"/>
+    <circle cx="50" cy="90" r="1.5"/><circle cx="90" cy="90" r="1.5"/><circle cx="130" cy="90" r="1.5"/><circle cx="170" cy="90" r="1.5"/>
+    <circle cx="50" cy="130" r="1.5"/><circle cx="90" cy="130" r="1.5"/><circle cx="130" cy="130" r="1.5"/><circle cx="170" cy="130" r="1.5"/>
+    <circle cx="1030" cy="170" r="1.5"/><circle cx="1070" cy="170" r="1.5"/><circle cx="1110" cy="170" r="1.5"/><circle cx="1150" cy="170" r="1.5"/>
+    <circle cx="1030" cy="210" r="1.5"/><circle cx="1070" cy="210" r="1.5"/><circle cx="1110" cy="210" r="1.5"/><circle cx="1150" cy="210" r="1.5"/>
+    <circle cx="1030" cy="250" r="1.5"/><circle cx="1070" cy="250" r="1.5"/><circle cx="1110" cy="250" r="1.5"/><circle cx="1150" cy="250" r="1.5"/>
+  </g>
+  <!-- Accent line -->
+  <rect x="100" y="140" width="120" height="3" rx="1.5" fill="url(#accent)"/>
+  <!-- Logo mark -->
+  <g transform="translate(100, 60)">
+    <rect width="56" height="56" rx="12" fill="url(#accent)" opacity="0.15"/>
+    <text x="28" y="38" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="url(#accent)">SD</text>
+  </g>
+  <!-- Title -->
+  <text x="100" y="185" font-family="system-ui, -apple-system, sans-serif" font-size="42" font-weight="800" fill="#f1f5f9">SoftdigitIMS</text>
+  <!-- Subtitle -->
+  <text x="100" y="220" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#94a3b8" letter-spacing="0.5">Inventory Management &amp; ERP for Indian Retail &amp; Distribution</text>
+  <!-- Tags -->
+  <g transform="translate(100, 240)">
+    <rect width="110" height="28" rx="14" fill="#818cf8" opacity="0.15"/>
+    <text x="55" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#818cf8">Procurement</text>
+    <rect x="120" width="85" height="28" rx="14" fill="#34d399" opacity="0.15"/>
+    <text x="162" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#34d399">Inventory</text>
+    <rect x="215" width="65" height="28" rx="14" fill="#f472b6" opacity="0.15"/>
+    <text x="247" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#f472b6">Sales</text>
+    <rect x="290" width="55" height="28" rx="14" fill="#fbbf24" opacity="0.15"/>
+    <text x="317" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fbbf24">GST</text>
+    <rect x="355" width="80" height="28" rx="14" fill="#38bdf8" opacity="0.15"/>
+    <text x="395" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#38bdf8">Billing</text>
+    <rect x="445" width="80" height="28" rx="14" fill="#a78bfa" opacity="0.15"/>
+    <text x="485" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#a78bfa">Mobile</text>
+  </g>
+  <!-- Abstract chart decoration on right side -->
+  <g transform="translate(750, 70)" opacity="0.12">
+    <rect x="0" y="120" width="24" height="80" rx="4" fill="#818cf8"/>
+    <rect x="35" y="80" width="24" height="120" rx="4" fill="#34d399"/>
+    <rect x="70" y="100" width="24" height="100" rx="4" fill="#818cf8"/>
+    <rect x="105" y="50" width="24" height="150" rx="4" fill="#34d399"/>
+    <rect x="140" y="70" width="24" height="130" rx="4" fill="#818cf8"/>
+    <rect x="175" y="40" width="24" height="160" rx="4" fill="#34d399"/>
+    <rect x="210" y="90" width="24" height="110" rx="4" fill="#818cf8"/>
+    <rect x="245" y="60" width="24" height="140" rx="4" fill="#34d399"/>
+  </g>
+  <!-- Decorative circles -->
+  <circle cx="1100" cy="60" r="40" fill="url(#glow)" opacity="0.4"/>
+  <circle cx="1050" cy="100" r="20" fill="url(#glow)" opacity="0.3"/>
+</svg>
