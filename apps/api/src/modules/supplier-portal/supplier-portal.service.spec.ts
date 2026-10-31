@@ -3,12 +3,13 @@ import { signSupplierPortalToken } from '../../common/crypto/portal-token';
 import { SupplierPortalService } from './supplier-portal.service';
 
 describe('SupplierPortalService', () => {
-  const saved = process.env.JWT_SECRET;
+  const savedPortal = process.env.SUPPLIER_PORTAL_SECRET;
   beforeAll(() => {
-    process.env.JWT_SECRET = 'portal-test-secret';
+    process.env.SUPPLIER_PORTAL_SECRET = 'portal-test-secret';
   });
   afterAll(() => {
-    process.env.JWT_SECRET = saved;
+    if (savedPortal === undefined) delete process.env.SUPPLIER_PORTAL_SECRET;
+    else process.env.SUPPLIER_PORTAL_SECRET = savedPortal;
   });
 
   function setup() {
