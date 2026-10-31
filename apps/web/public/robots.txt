@@ -1,4 +1,60 @@
+# SoftdigitIMS — robots.txt
+# Marketing pages are public; the ERP app is behind auth.
+
 User-agent: *
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /cancellation
+Allow: /login
+Allow: /signup
 
+# Block authenticated ERP routes from crawlers
+Disallow: /dashboard
+Disallow: /products
+Disallow: /suppliers
+Disallow: /customers
+Disallow: /purchase-orders
+Disallow: /goods-receipts
+Disallow: /goods-issues
+Disallow: /invoices
+Disallow: /payments
+Disallow: /reports
+Disallow: /settings
+Disallow: /companies
+Disallow: /plants
+Disallow: /storage-locations
+Disallow: /rfqs
+Disallow: /quotations
+Disallow: /contracts
+Disallow: /sales
+Disallow: /warehouse
+Disallow: /stock-transfers
+Disallow: /returns
+Disallow: /supplier-portal
+Disallow: /supplier-bills
+Disallow: /supplier-payments
+Disallow: /eway-bills
+Disallow: /workflow-engine
+Disallow: /notifications
+Disallow: /approvals
+Disallow: /barcode-print
+Disallow: /upgrade
+Disallow: /platform
+Disallow: /portal
+Disallow: /help
+Disallow: /profile
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /invite
+Disallow: /supplier-delete
+Disallow: /quotation-portal
+
+# Block API routes
+Disallow: /api/
+
+# Sitemaps
 Sitemap: https://softdigitconsulting.com/sitemap.xml
+
+# Crawl rate — be polite
+Crawl-delay: 2
